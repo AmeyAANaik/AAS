@@ -74,7 +74,7 @@ INFRASTRUCTURE SUBTOTAL:                     = ₹99,500
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-| SCENARIO 4: Budget-Optimized (₹5,00,000 / 5 Lakh) [MINIMAL VIABLE PRODUCT]
+| SCENARIO 2: Budget-Optimized (₹5,00,000 / 5 Lakh) [MINIMAL VIABLE PRODUCT]
 
 | Developer Costs (1 FTE x 40 days @ ₹5,000/day):           ₹2,00,000
 | QA Costs (1 FTE x 20 days @ ₹3,500/day):                 ₹70,000
