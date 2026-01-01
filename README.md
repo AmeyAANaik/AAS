@@ -97,6 +97,17 @@ INFRASTRUCTURE SUBTOTAL:                     = ₹99,500
 │ Contingency (10%):   ₹2,17,060                                │
 │ ═════════════════════════════════                             │
 │ TOTAL:               ₹23,87,660                               │
+
+| SCENARIO 4: Budget-Optimized (₹5,00,000 / 5 Lakh) [MINIMAL VIABLE PRODUCT]
+
+| Developer Costs (1 FTE x 40 days @ ₹5,000/day):           ₹2,00,000
+| QA Costs (1 FTE x 20 days @ ₹3,500/day):                 ₹70,000
+| Infrastructure (Minimal - 2 months):                     ₹2,30,000
+
+| Subtotal:                                                ₹5,00,000
+| Contingency:                                             ₹0 (No Contingency - Tight Budget)
+| ==========================================================================
+| TOTAL:                                                   ₹5,00,000
 └─────────────────────────────────────────────────────────────────┘
 ```
 
