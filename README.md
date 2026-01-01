@@ -9,13 +9,13 @@
   - 0.5 Junior/Frontend Developer
 - **1 QA Engineer**
 
-### Project Timeline
-- **Duration: 12-14 Weeks**
+### Project Timeline (90-Day Accelerated Schedule)
+- **Duration: 13 Weeks (90 Days)**
 - **Start Date: January 2026**
-- **Expected Completion: Mid-April 2026**
+- **Expected Completion: Early April 2026**
+- **Note:** Accelerated timeline with optimized team utilization
 
 ### Effort Breakdown
-
 | Metric | Value |
 |--------|-------|
 | Total Developer Days | 276 days |
@@ -26,35 +26,83 @@
 | Junior Developer | 43 days |
 | QA Engineer | 79 days |
 
-### Cost Estimation (₹)
+### Cost Estimation (₹) - Developer Hourly Rate Model (₹600-800/hour)
 
 ```
-Developer Costs:
-  Senior Developer:    122 days × ₹8,000/day  = ₹9,76,000
-  Mid Developer:       111 days × ₹6,000/day  = ₹6,66,000
-  Junior Developer:     43 days × ₹3,500/day  = ₹1,50,500
-  Subtotal: ₹17,92,500
+╔════════════════════════════════════════════════════════════════╗
+║              DEVELOPER COSTS (Hourly Rate Model)              ║
+╚════════════════════════════════════════════════════════════════╝
 
-QA Costs:
-  QA Engineer:          79 days × ₹4,500/day  = ₹3,55,500
-  Subtotal: ₹3,55,500
+Total Development Hours: 2,208 hours (276 dev-days × 8 hours/day)
 
-Infrastructure (14 weeks):
-  Server/Hosting:       ₹3,000/week × 14      = ₹42,000
-  Database:             ₹2,500/week × 14      = ₹35,000
-  Tools & Licenses:                           = ₹15,000
-  Domain & SSL:                               = ₹5,000
-  Monitoring Tools:                           = ₹8,000
-  Subtotal: ₹1,05,000
+Rate Scenarios:
+  At ₹600/hour: 2,208 × ₹600 = ₹13,24,800
+  At ₹700/hour: 2,208 × ₹700 = ₹15,45,600 (Recommended Mid-Point)
+  At ₹800/hour: 2,208 × ₹800 = ₹17,65,600
 
-Contingency (10%):                            = ₹2,25,300
+╔════════════════════════════════════════════════════════════════╗
+║                      QA COSTS (90-Days)                        ║
+╚════════════════════════════════════════════════════════════════╝
 
-═════════════════════════════════════════════════════
-TOTAL PROJECT COST:                           ₹23,78,300
-═════════════════════════════════════════════════════
+QA Engineer: 79 days × ₹4,500/day = ₹3,55,500
+
+╔════════════════════════════════════════════════════════════════╗
+║              INFRASTRUCTURE COSTS (13 Weeks)                   ║
+╚════════════════════════════════════════════════════════════════╝
+
+Server/Hosting:     ₹3,000/week × 13 weeks = ₹39,000
+Database:           ₹2,500/week × 13 weeks = ₹32,500
+Tools & Licenses:                            = ₹15,000
+Domain & SSL:                                = ₹5,000
+Monitoring Tools:                            = ₹8,000
+
+INFRASTRUCTURE SUBTOTAL:                     = ₹99,500
+
+╔════════════════════════════════════════════════════════════════╗
+║           90-DAY PROJECT COST SUMMARY (with Contingency)       ║
+╚════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│ SCENARIO 1: Budget Option (₹600/hour)                        │
+├─────────────────────────────────────────────────────────────────┤
+│ Developer Costs:      ₹13,24,800                               │
+│ QA Costs:            ₹3,55,500                                │
+│ Infrastructure:      ₹99,500                                 │
+│ ─────────────────────────────                                 │
+│ Subtotal:            ₹17,20,800                               │
+│ Contingency (10%):   ₹1,72,080                                │
+│ ═════════════════════════════════                             │
+│ TOTAL:               ₹18,92,880                               │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ SCENARIO 2: Mid-Point Option (₹700/hour) [RECOMMENDED]       │
+├─────────────────────────────────────────────────────────────────┤
+│ Developer Costs:      ₹15,45,600                               │
+│ QA Costs:            ₹3,55,500                                │
+│ Infrastructure:      ₹99,500                                 │
+│ ─────────────────────────────                                 │
+│ Subtotal:            ₹19,70,600                               │
+│ Contingency (10%):   ₹1,97,060                                │
+│ ═════════════════════════════════                             │
+│ TOTAL:               ₹21,67,660                               │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ SCENARIO 3: Premium Option (₹800/hour)                       │
+├─────────────────────────────────────────────────────────────────┤
+│ Developer Costs:      ₹17,65,600                               │
+│ QA Costs:            ₹3,55,500                                │
+│ Infrastructure:      ₹99,500                                 │
+│ ─────────────────────────────                                 │
+│ Subtotal:            ₹21,70,600                               │
+│ Contingency (10%):   ₹2,17,060                                │
+│ ═════════════════════════════════                             │
+│ TOTAL:               ₹23,87,660                               │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Phase-Wise Breakdown
+### Phase-Wise Breakdown (90-Day Schedule)
 
 #### Week 1: Setup & Infrastructure
 - Spring Boot project setup
@@ -109,12 +157,12 @@ TOTAL PROJECT COST:                           ₹23,78,300
 - Helper panel (deliveries, tracking)
 - **Effort:** 60 dev-days + 18 QA-days
 
-#### Weeks 13-14: Integration, Testing & Deployment
+#### Weeks 13: Integration, Testing & Deployment
 - End-to-end testing
 - Bug fixes & optimization
 - Performance tuning
 - Staging & production deployment
-- **Effort:** 30 dev-days + 16 QA-days
+- **Effort:** 31 dev-days + 16 QA-days
 
 ### Technology Stack
 
@@ -200,7 +248,8 @@ TOTAL PROJECT COST:                           ₹23,78,300
 - No complex third-party integrations beyond Metabase
 - Standard feature scope (no major scope creep)
 - Infrastructure provisioning handled by client/ops team
-- 2-week buffer included in timeline
+- 90-day timeline requires daily coordination
+- Team operates with minimal ramp-up time
 
 ### Risk Mitigation
 
@@ -211,6 +260,7 @@ TOTAL PROJECT COST:                           ₹23,78,300
 | Performance degradation | Low | Medium | Load testing in Week 13, optimization |
 | Integration complexity | Low | Medium | Daily standups, early integration testing |
 | QA burnout | Low | Medium | Parallel testing, automation where possible |
+| Resource constraints | Medium | High | Pre-allocated team, minimal context switching |
 
 ### Communication & Reporting
 
@@ -239,10 +289,8 @@ TOTAL PROJECT COST:                           ₹23,78,300
 
 ## Documentation
 
-- [System Design](./SYSTEM_DESIGN.md)
-- [Project Estimation Details](./PROJECT_ESTIMATION_2.5DEV_1QA.md)
-
----
+- [System Design](https://github.com/AmeyAANaik/AAS/blob/main/SYSTEM_DESIGN.md)
 
 **Last Updated:** January 1, 2026
-**Project Status:** Planning & Design Complete
+**Project Status:** Planning & Design Complete - 90-Day Delivery Timeline
+**Cost Model:** Hourly Rate (₹600-800/hour) with Infrastructure costs separately tracked
