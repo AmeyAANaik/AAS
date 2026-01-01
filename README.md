@@ -3,10 +3,9 @@
 ## Project Estimation
 
 ### Team Composition
-- **2.5 Developers**
+- **2 Developers**
   - 1 Senior Developer (Lead)
   - 1 Mid-Level Developer
-  - 0.5 Junior/Frontend Developer
 - **1 QA Engineer**
 
 ### Project Timeline (90-Day Accelerated Schedule)
@@ -22,8 +21,7 @@
 | Total QA Days | 79 days |
 | Total Person-Hours | 2,840 hours |
 | Senior Developer | 122 days |
-| Mid Developer | 111 days |
-| Junior Developer | 43 days |
+| Mid Developer | 154 days |
 | QA Engineer | 79 days |
 
 ### Cost Estimation (₹) - Developer Hourly Rate Model (₹600-800/hour)
@@ -227,8 +225,7 @@ INFRASTRUCTURE SUBTOTAL:                     = ₹99,500
 ### Resource Allocation
 
 - **Senior Developer (Lead):** Code review, architecture, critical modules
-- **Mid Developer:** Backend services, REST APIs
-- **Junior Developer (Part-time):** Frontend UI, testing support
+- **Mid Developer:** Backend services, REST APIs, Frontend development
 - **QA Engineer:** API testing, UI testing, integration testing, UAT
 
 ### Success Criteria
