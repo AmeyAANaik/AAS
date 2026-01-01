@@ -87,6 +87,34 @@ INFRASTRUCTURE SUBTOTAL:                     = ₹99,500
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Duration-Based Estimation (2 Dev + 1 QA with ₹4 Lakh Budget)
+
+| Phase | What's Built | Duration | Team Assignment |
+|-------|------------|----------|-----------------|
+| **Week 1** | Setup (Spring Boot, DB, Docker, CI/CD) | **1 week** | Both Dev work together + QA |
+| **Week 2** | Auth & RBAC (JWT, Security) | **1 week** | Both Dev + QA |
+| **Weeks 3-4** | Master Data (Categories, Items, Vendors, Shops, Helpers) | **2 weeks** | Dev1 on API, Dev2 on DB + QA |
+| **Weeks 5-6** | Order Management (Create, Assign, Track, Export) | **2 weeks** | Dev1 on backend, Dev2 on APIs + QA |
+| **Week 7** | Delivery & Invoicing (Tracking, PDF generation) | **1 week** | Dev1 leads + QA |
+| **Week 8** | Payments & Ledgers (Recording, Balance calc) | **1 week** | Dev2 leads + QA |
+| **Week 9** | Background Jobs (Scheduling, Batch jobs) | **1 week** | Dev1 + QA automation |
+| **Weeks 10-12** | Frontend (4 Panels: Admin, Vendor, Shop, Helper) | **3 weeks** | Dev2 leads frontend, Dev1 supports + QA |
+| **Week 13** | Testing, Bug Fixes, Deployment | **1 week** | Both Dev + QA full testing |
+
+**TOTAL PROJECT DURATION: 13 Weeks = ~3.25 Months (April-June 2026)**
+
+### Cost Breakdown for ₹4 Lakh Budget
+
+**Total person-hours needed:**
+- 2 Developers × 13 weeks × 40 hours/week = 1,040 hours
+- - 1 QA × 13 weeks × 40 hours/week = 520 hours
+  - - **Total = 1,560 hours**
+   
+    - **Budget allocation:**
+    - - Infrastructure (server, DB, tools): **₹40,000**
+      - - Remaining for team: **₹3,60,000**
+       
+        - **Hourly rate needed: ₹3,60,000 ÷ 1,560 hours = ₹230.77/hour**
 ### Phase-Wise Breakdown (90-Day Schedule)
 
 #### Week 1: Setup & Infrastructure
