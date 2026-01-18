@@ -1,5 +1,6 @@
 package com.aas.mw.config;
 
+import com.aas.mw.service.ErpSessionStore;
 import com.aas.mw.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,9 +17,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final ErpSessionStore erpSessionStore;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, ErpSessionStore erpSessionStore) {
         this.jwtService = jwtService;
+        this.erpSessionStore = erpSessionStore;
     }
 
     @Override
@@ -35,6 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(subject, null, Collections.emptyList());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                erpSessionStore.get(subject)
+                        .ifPresent(session -> request.setAttribute(ErpSessionStore.REQUEST_ATTR, session));
             } catch (Exception ex) {
                 SecurityContextHolder.clearContext();
             }

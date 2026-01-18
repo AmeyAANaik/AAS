@@ -1,6 +1,7 @@
 package com.aas.mw.client;
 
 import java.util.Map;
+import org.springframework.http.ResponseEntity;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.util.MultiValueMap;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface ErpNextFeignClient {
 
     @PostMapping(value = "/api/method/login", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    Map<String, Object> login(@RequestBody MultiValueMap<String, String> form);
+    ResponseEntity<Void> login(@RequestBody MultiValueMap<String, String> form);
 
     @GetMapping("/api/resource/{doctype}/{id}")
     Map<String, Object> getResource(@PathVariable("doctype") String doctype, @PathVariable("id") String id);

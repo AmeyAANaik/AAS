@@ -1,16 +1,26 @@
 package com.aas.mw.client;
 
-import com.aas.mw.config.ErpNextProperties;
 import feign.RequestInterceptor;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Bean;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import com.aas.mw.service.ErpSessionStore;
 
 public class ErpNextFeignConfig {
 
     @Bean
-    public RequestInterceptor erpNextAuthInterceptor(ErpNextProperties properties) {
+    public RequestInterceptor erpNextAuthInterceptor() {
         return template -> {
-            String token = String.format("token %s:%s", properties.getApiKey(), properties.getApiSecret());
-            template.header("Authorization", token);
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attrs == null) {
+                return;
+            }
+            HttpServletRequest request = attrs.getRequest();
+            Object cookie = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+            if (cookie instanceof String sessionCookie && !sessionCookie.isBlank()) {
+                template.header("Cookie", sessionCookie);
+            }
         };
     }
 }

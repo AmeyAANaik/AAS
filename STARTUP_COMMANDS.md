@@ -92,6 +92,13 @@ cd ui
 # Commands TBD
 ```
 
+## API Documentation (Swagger UI)
+
+- **Swagger UI**: https://animated-fiesta-r497vqg5q9qhv7q-8083.app.github.dev/swagger-ui.html
+- **Bearer token (JWT)**:
+  - `POST /api/auth/login` with ERPNext credentials (e.g., `Administrator` / `admin`)
+  - Use `accessToken` from the response in Swagger Authorize (sends `Authorization: Bearer <token>`)
+
 ## Development Workflow
 
 1. **Start ERPNext** (always first)

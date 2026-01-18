@@ -3,6 +3,8 @@ package com.aas.mw.client;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -16,11 +18,12 @@ public class ErpNextClient {
         this.feignClient = feignClient;
     }
 
-    public void login(String username, String password) {
+    public String login(String username, String password) {
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("usr", username);
         form.add("pwd", password);
-        feignClient.login(form);
+        ResponseEntity<Void> response = feignClient.login(form);
+        return extractSessionCookie(response.getHeaders());
     }
 
     public Map<String, Object> getResource(String doctype, String id) {
@@ -47,5 +50,24 @@ public class ErpNextClient {
 
     public Map<String, Object> updateResource(String doctype, String id, Map<String, Object> payload) {
         return feignClient.updateResource(doctype, id, payload);
+    }
+
+    private String extractSessionCookie(HttpHeaders headers) {
+        List<String> cookies = headers.get(HttpHeaders.SET_COOKIE);
+        if (cookies == null) {
+            return null;
+        }
+        for (String cookie : cookies) {
+            if (cookie == null) {
+                continue;
+            }
+            String trimmed = cookie.trim();
+            int delimiter = trimmed.indexOf(';');
+            String token = delimiter == -1 ? trimmed : trimmed.substring(0, delimiter);
+            if (token.startsWith("sid=")) {
+                return token;
+            }
+        }
+        return null;
     }
 }
