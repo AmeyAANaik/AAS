@@ -1,0 +1,73 @@
+services:
+  db:
+    image: mariadb:10.6
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+
+  redis-cache:
+    image: redis:6.2-alpine
+
+  redis-queue:
+    image: redis:6.2-alpine
+
+  backend:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: bench server
+    depends_on:
+      - db
+      - redis-cache
+      - redis-queue
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+    environment:
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+
+  frontend:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: nginx-entrypoint.sh
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+
+  queue-short:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: bench worker --queue short
+    depends_on:
+      - backend
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+
+  queue-long:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: bench worker --queue long
+    depends_on:
+      - backend
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+
+  scheduler:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: bench schedule
+    depends_on:
+      - backend
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+
+  websocket:
+    image: frappe/erpnext:${ERPNEXT_VERSION}
+    command: node /home/frappe/frappe-bench/apps/frappe/socketio.js
+    depends_on:
+      - backend
+    volumes:
+      - sites-vol:/home/frappe/frappe-bench/sites
+
+volumes:
+  db-data:
+  sites-vol:
