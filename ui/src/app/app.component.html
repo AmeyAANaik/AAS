@@ -1,0 +1,224 @@
+<div class="bg-orbit"></div>
+<div class="bg-grid"></div>
+
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">AAS</div>
+      <div>
+        <p class="brand-title">Ops Console</p>
+        <p class="brand-sub">Internal only</p>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a
+        *ngFor="let item of navItems"
+        class="nav-item"
+        [class.active]="activeSection === item.id"
+        [href]="'#' + item.id"
+        (click)="setActive(item.id)"
+      >
+        {{ item.label }}
+      </a>
+    </nav>
+
+    <div class="role-switch">
+      <p class="label">Role</p>
+      <div class="role-buttons">
+        <button
+          *ngFor="let role of roles"
+          class="role-btn"
+          [class.active]="currentRole === role"
+          (click)="setRole(role)"
+        >
+          {{ roleLabel(role) }}
+        </button>
+      </div>
+      <p class="role-note">Viewing as <span>{{ roleLabel(currentRole) }}</span></p>
+    </div>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Restaurant Order & Inventory Management</p>
+        <h1>Operations cockpit for fast decisions</h1>
+        <p class="subtitle">Track orders, vendors, inventory, and payments across AASsoftware.</p>
+      </div>
+      <div class="top-actions">
+        <button class="ghost">Export</button>
+        <button class="primary">Create Order</button>
+      </div>
+    </header>
+
+    <section id="overview" class="section reveal">
+      <div class="section-header">
+        <h2>Live overview</h2>
+        <p>Signals to watch right now.</p>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi" *ngFor="let kpi of kpis">
+          <p class="kpi-title">{{ kpi.title }}</p>
+          <p class="kpi-value">{{ kpi.value }}</p>
+          <p class="kpi-meta">{{ kpi.meta }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="orders" class="section reveal">
+      <div class="section-header">
+        <h2>Order board</h2>
+        <p>Latest placements and status tracking.</p>
+      </div>
+      <div class="card">
+        <div class="filter-row">
+          <input type="text" placeholder="Search by shop or vendor" />
+          <select>
+            <option>All statuses</option>
+            <option>Accepted</option>
+            <option>Preparing</option>
+            <option>Ready</option>
+            <option>Delivered</option>
+          </select>
+          <input type="date" />
+        </div>
+        <table class="order-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Shop</th>
+              <th>Vendor</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>ETA</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let order of orders">
+              <td>{{ order.id }}</td>
+              <td>{{ order.shop }}</td>
+              <td>{{ order.vendor }}</td>
+              <td><span class="pill" [ngClass]="order.statusTone">{{ order.status }}</span></td>
+              <td>{{ order.total }}</td>
+              <td>{{ order.eta }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="action-row" *ngIf="isRoleIn(['admin', 'shop'])">
+        <button class="primary">Place New Order</button>
+        <button class="ghost">Assign Vendor</button>
+        <button class="ghost">Export Excel</button>
+      </div>
+      <div class="action-row" *ngIf="isRole('vendor')">
+        <button class="primary">Update Status</button>
+        <button class="ghost">View History</button>
+      </div>
+      <div class="action-row" *ngIf="isRole('helper')">
+        <button class="primary">Mark Delivery</button>
+        <button class="ghost">Today Route</button>
+      </div>
+    </section>
+
+    <section id="inventory" class="section reveal">
+      <div class="section-header">
+        <h2>Inventory and categories</h2>
+        <p>Stock health, categories, and item actions.</p>
+      </div>
+      <div class="split">
+        <div class="card">
+          <h3>Critical items</h3>
+          <ul class="list">
+            <li *ngFor="let item of criticalItems">
+              <span>{{ item.label }}</span>
+              <span class="tag" [ngClass]="item.tone">{{ item.value }}</span>
+            </li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Category map</h3>
+          <div class="chip-grid">
+            <span class="chip" *ngFor="let category of categories">{{ category }}</span>
+          </div>
+          <div class="action-row" *ngIf="isRoleIn(['admin', 'helper'])">
+            <button class="primary">Add Item</button>
+            <button class="ghost">Edit Categories</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="payments" class="section reveal">
+      <div class="section-header">
+        <h2>Payments and invoices</h2>
+        <p>Vendor payouts, shop receipts, and invoice status.</p>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Vendor payments</h3>
+          <ul class="list">
+            <li *ngFor="let item of vendorPayments">
+              <span>{{ item.label }}</span>
+              <span>{{ item.value }}</span>
+            </li>
+          </ul>
+          <div class="action-row" *ngIf="isRole('admin')">
+            <button class="primary">Record Vendor Payment</button>
+            <button class="ghost">Ledger</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Shop invoices</h3>
+          <ul class="list">
+            <li *ngFor="let item of shopInvoices">
+              <span>{{ item.label }}</span>
+              <span class="tag" [ngClass]="item.tone">{{ item.value }}</span>
+            </li>
+          </ul>
+          <div class="action-row" *ngIf="isRoleIn(['admin', 'shop'])">
+            <button class="primary">Generate Invoice</button>
+            <button class="ghost">Download PDF</button>
+          </div>
+        </div>
+      </div>
+      <div class="action-row" *ngIf="isRole('shop')">
+        <button class="primary">Add Payment</button>
+        <button class="ghost">Payment History</button>
+        <button class="ghost">Outstanding Summary</button>
+      </div>
+    </section>
+
+    <section id="reports" class="section reveal">
+      <div class="section-header">
+        <h2>Monthly reports</h2>
+        <p>Generate role-specific summaries quickly.</p>
+      </div>
+      <div class="report-grid">
+        <div class="report-card" *ngFor="let report of reports" [class.hidden]="!isRoleIn(report.roles)">
+          <h3>{{ report.title }}</h3>
+          <p>{{ report.description }}</p>
+          <button class="ghost">Generate</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="settings" class="section reveal">
+      <div class="section-header">
+        <h2>People and access</h2>
+        <p>Manage vendors, shops, helpers, and permissions.</p>
+      </div>
+      <div class="grid-3">
+        <div
+          class="card"
+          *ngFor="let card of settingsCards"
+          [class.hidden]="!isRoleIn(card.roles)"
+        >
+          <h3>{{ card.title }}</h3>
+          <p>{{ card.description }}</p>
+          <button class="ghost">Manage {{ card.title }}</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
