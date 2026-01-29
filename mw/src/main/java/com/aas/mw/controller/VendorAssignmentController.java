@@ -1,6 +1,6 @@
 package com.aas.mw.controller;
 
-import com.aas.mw.dto.VendorAssignmentRequest;
+import com.aas.mw.dto.FieldsRequest;
 import com.aas.mw.service.VendorAssignmentService;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -24,7 +24,7 @@ public class VendorAssignmentController {
     @PostMapping("/{id}/assign-vendor")
     public ResponseEntity<Map<String, Object>> assignVendor(
             @PathVariable String id,
-            @Valid @RequestBody VendorAssignmentRequest request) {
+            @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(vendorAssignmentService.assignVendor(id, request));
     }
 }

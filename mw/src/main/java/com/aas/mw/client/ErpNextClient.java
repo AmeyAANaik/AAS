@@ -26,6 +26,23 @@ public class ErpNextClient {
         return extractSessionCookie(response.getHeaders());
     }
 
+    public Map<String, Object> getResourceWithSession(String doctype, String id, String sessionCookie) {
+        return feignClient.getResourceWithCookie(doctype, id, sessionCookie);
+    }
+
+    public List<String> getUserRoles(String sessionCookie, String username) {
+        Map<String, Object> user = getResourceWithSession("User", username, sessionCookie);
+        Object roles = user == null ? null : user.get("roles");
+        if (roles instanceof List<?> list) {
+            return list.stream()
+                    .map(entry -> entry instanceof Map<?, ?> map ? map.get("role") : null)
+                    .filter(r -> r != null)
+                    .map(Object::toString)
+                    .toList();
+        }
+        return Collections.emptyList();
+    }
+
     public Map<String, Object> getResource(String doctype, String id) {
         return feignClient.getResource(doctype, id);
     }
@@ -50,6 +67,10 @@ public class ErpNextClient {
 
     public Map<String, Object> updateResource(String doctype, String id, Map<String, Object> payload) {
         return feignClient.updateResource(doctype, id, payload);
+    }
+
+    public byte[] downloadPdf(String doctype, String name) {
+        return feignClient.downloadPdf(doctype, name);
     }
 
     private String extractSessionCookie(HttpHeaders headers) {

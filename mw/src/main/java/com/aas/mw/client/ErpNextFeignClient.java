@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(
         name = "erpnext",
@@ -24,6 +25,12 @@ public interface ErpNextFeignClient {
 
     @GetMapping("/api/resource/{doctype}/{id}")
     Map<String, Object> getResource(@PathVariable("doctype") String doctype, @PathVariable("id") String id);
+
+    @GetMapping("/api/resource/{doctype}/{id}")
+    Map<String, Object> getResourceWithCookie(
+            @PathVariable("doctype") String doctype,
+            @PathVariable("id") String id,
+            @RequestHeader("Cookie") String cookie);
 
     @GetMapping("/api/resource/{doctype}")
     Map<String, Object> listResources(
@@ -40,4 +47,7 @@ public interface ErpNextFeignClient {
             @PathVariable("doctype") String doctype,
             @PathVariable("id") String id,
             @RequestBody Map<String, Object> payload);
+
+    @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    byte[] downloadPdf(@RequestParam("doctype") String doctype, @RequestParam("name") String name);
 }

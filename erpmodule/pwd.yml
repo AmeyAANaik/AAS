@@ -54,6 +54,7 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - ../mw/src/main/resources/application.properties:/config/mw.properties:ro
     entrypoint:
       - bash
       - -c
@@ -75,7 +76,42 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default frontend;
+        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default aas.core.local;
+        if [ -f /config/mw.properties ]; then
+          prop() { grep -E "^$$1=" /config/mw.properties | tail -n 1 | cut -d= -f2-; };
+          resolve_prop() {
+            val="$$(prop "$$1")";
+            if echo "$$val" | grep -q '^$${'; then
+              val="$${val#*:}";
+              val="$${val%}}";
+            fi;
+            echo "$$val";
+          };
+          export ERP_SETUP_FULL_NAME="$$(resolve_prop 'erp.setup.full-name')";
+          export ERP_SETUP_EMAIL="$$(resolve_prop 'erp.setup.email')";
+          export ERP_SETUP_PASSWORD="$$(resolve_prop 'erp.setup.password')";
+          export ERP_SETUP_COMPANY_NAME="$$(resolve_prop 'erp.setup.company-name')";
+          export ERP_SETUP_COMPANY_ABBR="$$(resolve_prop 'erp.setup.company-abbr')";
+          export ERP_SETUP_COUNTRY="$$(resolve_prop 'erp.setup.country')";
+          export ERP_SETUP_CURRENCY="$$(resolve_prop 'erp.setup.currency')";
+          export ERP_SETUP_TIMEZONE="$$(resolve_prop 'erp.setup.timezone')";
+          export ERP_SETUP_FY_START_DATE="$$(resolve_prop 'erp.setup.fy-start-date')";
+          export ERP_SETUP_FY_END_DATE="$$(resolve_prop 'erp.setup.fy-end-date')";
+          export ERP_SETUP_CHART_OF_ACCOUNTS="$$(resolve_prop 'erp.setup.chart-of-accounts')";
+        fi;
+        if [ -z "$$ERP_SETUP_FULL_NAME" ]; then ERP_SETUP_FULL_NAME="Administrator"; fi;
+        if [ -z "$$ERP_SETUP_EMAIL" ]; then ERP_SETUP_EMAIL="admin@example.com"; fi;
+        if [ -z "$$ERP_SETUP_PASSWORD" ]; then ERP_SETUP_PASSWORD="admin"; fi;
+        if [ -z "$$ERP_SETUP_COMPANY_NAME" ]; then ERP_SETUP_COMPANY_NAME="AAS Core"; fi;
+        if [ -z "$$ERP_SETUP_COMPANY_ABBR" ]; then ERP_SETUP_COMPANY_ABBR="AAS"; fi;
+        if [ -z "$$ERP_SETUP_COUNTRY" ]; then ERP_SETUP_COUNTRY="United States"; fi;
+        if [ -z "$$ERP_SETUP_CURRENCY" ]; then ERP_SETUP_CURRENCY="USD"; fi;
+        if [ -z "$$ERP_SETUP_TIMEZONE" ]; then ERP_SETUP_TIMEZONE="America/New_York"; fi;
+        if [ -z "$$ERP_SETUP_FY_START_DATE" ]; then ERP_SETUP_FY_START_DATE="2026-01-01"; fi;
+        if [ -z "$$ERP_SETUP_FY_END_DATE" ]; then ERP_SETUP_FY_END_DATE="2026-12-31"; fi;
+        if [ -z "$$ERP_SETUP_CHART_OF_ACCOUNTS" ]; then ERP_SETUP_CHART_OF_ACCOUNTS="Standard"; fi;
+        ARGS="{'full_name':'$$ERP_SETUP_FULL_NAME','email':'$$ERP_SETUP_EMAIL','password':'$$ERP_SETUP_PASSWORD','company_name':'$$ERP_SETUP_COMPANY_NAME','company_abbr':'$$ERP_SETUP_COMPANY_ABBR','country':'$$ERP_SETUP_COUNTRY','currency':'$$ERP_SETUP_CURRENCY','timezone':'$$ERP_SETUP_TIMEZONE','fy_start_date':'$$ERP_SETUP_FY_START_DATE','fy_end_date':'$$ERP_SETUP_FY_END_DATE','language':'english','company_tagline':'AAS','chart_of_accounts':'$$ERP_SETUP_CHART_OF_ACCOUNTS'}";
+        bench --site aas.core.local execute erpnext.setup.setup_wizard.setup_wizard.setup_complete --args "[$$ARGS]";
 
   db:
     image: mariadb:10.6
@@ -112,7 +148,7 @@ services:
       - nginx-entrypoint.sh
     environment:
       BACKEND: backend:8000
-      FRAPPE_SITE_NAME_HEADER: frontend
+      FRAPPE_SITE_NAME_HEADER: aas.core.local
       SOCKETIO: websocket:9000
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For

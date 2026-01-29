@@ -1,7 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
-import com.aas.mw.dto.VendorAssignmentRequest;
+import com.aas.mw.dto.FieldsRequest;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
@@ -16,7 +16,7 @@ public class VendorAssignmentService {
         this.erpNextClient = erpNextClient;
     }
 
-    public Map<String, Object> assignVendor(String orderId, VendorAssignmentRequest request) {
+    public Map<String, Object> assignVendor(String orderId, FieldsRequest request) {
         return erpNextClient.updateResource(DOCTYPE, orderId, request.getFields());
     }
 }

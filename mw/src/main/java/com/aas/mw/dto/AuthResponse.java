@@ -4,13 +4,15 @@ public class AuthResponse {
 
     private String accessToken;
     private String tokenType;
+    private String role;
 
     public AuthResponse() {
     }
 
-    public AuthResponse(String accessToken, String tokenType) {
+    public AuthResponse(String accessToken, String tokenType, String role) {
         this.accessToken = accessToken;
         this.tokenType = tokenType;
+        this.role = role;
     }
 
     public String getAccessToken() {
@@ -27,5 +29,13 @@ public class AuthResponse {
 
     public void setTokenType(String tokenType) {
         this.tokenType = tokenType;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 }

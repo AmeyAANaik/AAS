@@ -20,6 +20,32 @@ cd erpmodule
 docker compose -f pwd.yml up -d
 ```
 
+### Configure ERPNext Setup Defaults (optional)
+
+Defaults are read from `mw/src/main/resources/application.properties` and applied automatically on a fresh site.
+
+```properties
+erp.setup.full-name=Administrator
+erp.setup.email=admin@example.com
+erp.setup.password=admin
+erp.setup.company-name=AAS Core
+erp.setup.company-abbr=AAS
+erp.setup.country=United States
+erp.setup.currency=USD
+erp.setup.timezone=America/New_York
+erp.setup.fy-start-date=2026-01-01
+erp.setup.fy-end-date=2026-12-31
+erp.setup.chart-of-accounts=Standard
+```
+
+To apply these defaults, you must recreate the ERPNext volumes (data wipe):
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d
+```
+
 ### Stop ERPNext
 
 ```bash
@@ -72,29 +98,36 @@ ERPNext is configured as a **single multi-company site**:
 
 ## Middleware (To Be Implemented)
 
-Placeholder for AAS backend service that will:
+## Middleware (MW)
 
-- Store `hotel_id` → `company_name` mapping
-- Wrap ERPNext REST APIs with simplified endpoints
-- Handle authentication and multi-tenant routing
+### Start MW locally
 
 ```bash
-cd middleware
-# Commands TBD
+cd mw
+./mvnw spring-boot:run
 ```
 
-## UI (To Be Implemented)
+### Start MW via Docker
 
-Placeholder for custom frontend:
+```bash
+docker compose -f docker-compose.mw.yml up --build
+```
+
+**Note:** The Docker compose uses `host.docker.internal:8080` for ERPNext. If ERPNext runs elsewhere, update `ERPNEXT_BASE_URL`.
+
+## UI
+
+Custom frontend:
 
 ```bash
 cd ui
-# Commands TBD
+npm install
+npm start
 ```
 
 ## API Documentation (Swagger UI)
 
-- **Swagger UI**: https://animated-fiesta-r497vqg5q9qhv7q-8083.app.github.dev/swagger-ui.html
+- **Swagger UI**: http://localhost:8083/swagger-ui.html
 - **Bearer token (JWT)**:
   - `POST /api/auth/login` with ERPNext credentials (e.g., `Administrator` / `admin`)
   - Use `accessToken` from the response in Swagger Authorize (sends `Authorization: Bearer <token>`)
@@ -103,8 +136,78 @@ cd ui
 
 1. **Start ERPNext** (always first)
 2. Configure companies and master data in ERPNext UI
-3. **Start Middleware** (when implemented) to expose APIs
-4. **Start UI** (when implemented) for custom UX
+3. **Start Middleware (MW)** to expose APIs
+4. **Start UI** for custom UX
+
+## Full Docker Compose Flow (ERPNext + MW)
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml up -d
+
+cd /workspaces/AAS
+docker compose -f docker-compose.mw.yml up --build
+```
+
+## Verification (End-to-End)
+
+1) **ERPNext UI**
+- URL: http://localhost:8080
+- Login: `Administrator` / `admin`
+
+2) **MW health (Swagger UI)**
+- URL: http://localhost:8083/swagger-ui.html
+- Login via `POST /api/auth/login`
+
+3) **Default users created**
+After first login (admin), MW calls `/api/setup/ensure` and creates:
+- `vendor@example.com` / `vendor123` (Supplier `Vendor A`)
+- `shop@example.com` / `shop123` (Customer `Shop A`)
+- `helper@example.com` / `helper123`
+
+4) **UI**
+- URL: http://localhost:4200
+- Login as Admin or default users above
+
+5) **E2E flow (Admin)**
+- Seed master data (Shop/Vendor/Category/Item)
+- Create order
+- Assign vendor + status
+- Create invoice + payment
+- Load invoices and download PDF
+
+6) **CSV exports**
+- Orders: `GET /api/orders/export`
+- Vendor reports: `/api/reports/vendor-orders/export`, `/api/reports/vendor-billing/export`, `/api/reports/vendor-payments/export`
+- Shop reports: `/api/reports/shop-billing/export`, `/api/reports/shop-payments/export`, `/api/reports/shop-category/export`
+
+## Margin per Item
+
+MW adds custom fields on Item:
+- `aas_vendor_rate` (Vendor Rate)
+- `aas_margin_percent` (Margin %)
+
+UI uses these to auto-calculate selling rate when you pick an item.
+
+## Default Users (created via `/api/setup/ensure`)
+
+MW creates default users on first login (if enabled) and will not overwrite existing accounts.
+
+Vendor User
+- Email: `vendor@example.com`
+- Password: `vendor123`
+- Supplier: `Vendor A`
+
+Shop User
+- Email: `shop@example.com`
+- Password: `shop123`
+- Customer: `Shop A`
+
+Helper User
+- Email: `helper@example.com`
+- Password: `helper123`
+
+You can override any defaults with env vars in `mw/src/main/resources/application.properties` (keys start with `APP_DEFAULTS_`).
 
 ## Notes
 

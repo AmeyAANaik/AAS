@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -38,23 +39,37 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/v3/api-docs/**"
                 ).permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/setup/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/vendors").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/shops").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/categories").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.POST, "/api/items").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.POST, "/api/orders").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(HttpMethod.POST, "/api/orders/*/assign-vendor").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/orders/*/status").hasAnyRole("ADMIN", "VENDOR", "HELPER")
+                .requestMatchers(HttpMethod.POST, "/api/invoices").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(HttpMethod.GET, "/api/orders").hasAnyRole("ADMIN", "VENDOR", "SHOP", "HELPER")
+                .requestMatchers(HttpMethod.GET, "/api/orders/export").hasAnyRole("ADMIN", "VENDOR", "SHOP", "HELPER")
+                .requestMatchers(HttpMethod.GET, "/api/invoices/**").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(HttpMethod.GET, "/api/invoices/export").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "VENDOR", "SHOP")
                 .anyRequest().authenticated()
             )
-            .httpBasic(Customizer.withDefaults())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origins:http://localhost:4200}") String allowedOrigins) {
+            @Value("${app.cors.allowed-origin-patterns:*}") String allowedOriginPatterns) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+        config.setAllowedOriginPatterns(Arrays.stream(allowedOriginPatterns.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
