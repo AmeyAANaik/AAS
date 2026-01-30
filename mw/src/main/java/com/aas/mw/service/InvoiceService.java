@@ -20,6 +20,7 @@ public class InvoiceService {
     }
 
     public Map<String, Object> createInvoice(InvoiceRequest request) {
+        validateFields(request);
         return erpNextClient.createResource(DOCTYPE, request.getFields());
     }
 
@@ -69,5 +70,24 @@ public class InvoiceService {
 
     private String escape(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private void validateFields(InvoiceRequest request) {
+        Map<String, Object> fields = request == null ? null : request.getFields();
+        if (fields == null || fields.isEmpty()) {
+            throw new IllegalArgumentException("Invoice fields are required.");
+        }
+        Object customer = fields.get("customer");
+        Object company = fields.get("company");
+        Object items = fields.get("items");
+        if (customer == null || customer.toString().isBlank()) {
+            throw new IllegalArgumentException("Invoice customer is required.");
+        }
+        if (company == null || company.toString().isBlank()) {
+            throw new IllegalArgumentException("Invoice company is required.");
+        }
+        if (!(items instanceof List<?> list) || list.isEmpty()) {
+            throw new IllegalArgumentException("Invoice items are required.");
+        }
     }
 }

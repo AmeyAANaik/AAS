@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
 type SimpleDoc = {
   name: string;
@@ -33,6 +34,7 @@ type OrderSummary = {
   styleUrl: './app.component.css'
 })
 export class AppComponent {
+  private readonly defaultCompanyName = 'aas';
   private readonly apiBase = '';
   loginUsername = '';
   loginPassword = '';
@@ -50,6 +52,7 @@ export class AppComponent {
   categories: SimpleDoc[] = [];
   shops: SimpleDoc[] = [];
   orders: OrderSummary[] = [];
+  createdOrders: Array<{ id: string }> = [];
 
   orderCustomer = '';
   orderCompany = '';
@@ -94,13 +97,14 @@ export class AppComponent {
   newItemMarginPercent = 0;
   seedStatus = '';
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private router: Router) {
     const today = this.formatDate(new Date());
     this.orderDate = today;
     this.orderDeliveryDate = today;
     this.filterFrom = today;
     this.filterTo = today;
     this.reportMonth = `${today.slice(0, 7)}`;
+    this.orderCompany = this.defaultCompanyName;
   }
 
   async login(): Promise<void> {
@@ -124,6 +128,7 @@ export class AppComponent {
       this.isLoggedIn = true;
       this.loggedInUser = this.loginUsername;
       await this.loadProfile();
+      this.navigateToRole(this.currentRole);
       await this.ensureSetup();
       await this.loadReferenceData();
       await this.loadOrders();
@@ -137,6 +142,9 @@ export class AppComponent {
     if (!this.token) {
       this.orderStatus = 'Please login first.';
       return;
+    }
+    if (!this.orderCompany) {
+      this.orderCompany = this.defaultCompanyName;
     }
     this.orderStatus = 'Creating order...';
     try {
@@ -230,7 +238,7 @@ export class AppComponent {
     }
     try {
       const profile = await this.http
-        .get<{ full_name?: string; name?: string; role?: string }>(`/api/me`, { headers: this.authHeaders() })
+        .get<{ full_name?: string; name?: string; role?: string; company?: string }>(`/api/me`, { headers: this.authHeaders() })
         .toPromise();
       const fullName = profile?.full_name || profile?.name;
       if (fullName) {
@@ -239,6 +247,9 @@ export class AppComponent {
       if (profile?.role) {
         this.serverRole = profile.role;
         this.currentRole = profile.role as Role;
+      }
+      if (!this.orderCompany) {
+        this.orderCompany = profile?.company || this.defaultCompanyName;
       }
     } catch {
       // fallback to username
@@ -260,6 +271,7 @@ export class AppComponent {
     this.loginStatus = '';
     this.orderStatus = '';
     this.loggedInUser = '';
+    this.router.navigate(['']);
   }
 
   private async ensureSetup(): Promise<void> {
@@ -327,13 +339,23 @@ export class AppComponent {
         qty: item.qty,
         rate: item.rate
       }));
+      const customer = order?.customer;
+      const company = order?.company || this.defaultCompanyName;
+      if (!customer) {
+        this.invoiceStatus = 'Order is missing customer.';
+        return;
+      }
+      if (!items.length) {
+        this.invoiceStatus = 'Order has no items to invoice.';
+        return;
+      }
       await this.http
         .post(
           `/api/invoices`,
           {
             fields: {
-              customer: order.customer,
-              company: order.company,
+              customer,
+              company,
               items
             }
           },
@@ -351,16 +373,26 @@ export class AppComponent {
       this.paymentStatus = 'Select an order.';
       return;
     }
+    if (!this.paymentAmount || this.paymentAmount <= 0) {
+      this.paymentStatus = 'Enter a valid amount.';
+      return;
+    }
     try {
       const order = await this.http
         .get<any>(`/api/orders/${this.selectedOrderId}`, { headers: this.authHeaders() })
         .toPromise();
+      const customer = order?.customer;
+      const company = order?.company || this.defaultCompanyName;
+      if (!customer) {
+        this.paymentStatus = 'Order is missing customer.';
+        return;
+      }
       await this.http
         .post(
           `/api/payments`,
           {
-            customer: order.customer,
-            company: order.company,
+            customer,
+            company,
             amount: this.paymentAmount || order.grand_total || 0
           },
           { headers: this.authHeaders() }
@@ -470,6 +502,7 @@ export class AppComponent {
 
   setRole(role: Role): void {
     this.currentRole = role;
+    this.navigateToRole(role);
     void this.loadOrders();
     if (role === 'admin' || role === 'shop') {
       void this.loadInvoices();
@@ -482,31 +515,40 @@ export class AppComponent {
     }
   }
 
+  private navigateToRole(role: Role): void {
+    const path = role ? role : '';
+    this.router.navigate([path]);
+  }
+
   async loadOrders(): Promise<void> {
     if (!this.token) {
       return;
     }
     const params: Record<string, string> = {};
     if (this.filterShop) {
-      params.customer = this.filterShop;
+      params['customer'] = this.filterShop;
     }
     if (this.filterVendor) {
-      params.vendor = this.filterVendor;
+      params['vendor'] = this.filterVendor;
     }
     if (this.filterStatus) {
-      params.status = this.filterStatus;
+      params['status'] = this.filterStatus;
     }
     if (this.filterFrom) {
-      params.from = this.filterFrom;
+      params['from'] = this.filterFrom;
     }
     if (this.filterTo) {
-      params.to = this.filterTo;
+      params['to'] = this.filterTo;
     }
     try {
       const orders = await this.http
         .get<OrderSummary[]>(`/api/orders`, { headers: this.authHeaders(), params })
         .toPromise();
       this.orders = orders ?? [];
+      this.createdOrders = this.orders
+        .map(order => order.name)
+        .filter((name): name is string => Boolean(name))
+        .map(name => ({ id: name }));
     } catch (err) {
       this.dataStatus = `Orders load failed: ${this.formatError(err)}`;
     }
@@ -530,6 +572,16 @@ export class AppComponent {
     }
   }
 
+  recalculateOrderRate(): void {
+    const costRate = Number(this.orderCostRate) || 0;
+    const marginPercent = Number(this.orderMarginPercent) || 0;
+    if (costRate <= 0) {
+      this.orderRate = 0;
+      return;
+    }
+    this.orderRate = Number((costRate * (1 + marginPercent / 100)).toFixed(2));
+  }
+
   async loadVendorOrders(): Promise<void> {
     this.filterVendor = this.vendorView;
     this.filterShop = '';
@@ -550,11 +602,11 @@ export class AppComponent {
     }
     const params: Record<string, string> = {};
     if (this.vendorView) {
-      params.vendor = this.vendorView;
+      params['vendor'] = this.vendorView;
     }
-    params.month = this.reportMonth;
-      const [orders, billing, payments] = await Promise.all([
-        this.http
+    params['month'] = this.reportMonth;
+    const [orders, billing, payments] = await Promise.all([
+      this.http
         .get<Array<{ vendor: string; shop: string; orders: number; total: number; cost_total?: number; margin_total?: number }>>(
           `/api/reports/vendor-orders`,
           { headers: this.authHeaders(), params }
@@ -584,11 +636,11 @@ export class AppComponent {
     }
     const params: Record<string, string> = {};
     if (this.shopView) {
-      params.customer = this.shopView;
+      params['customer'] = this.shopView;
     }
-    params.month = this.reportMonth;
-      const [billing, payments, category] = await Promise.all([
-        this.http
+    params['month'] = this.reportMonth;
+    const [billing, payments, category] = await Promise.all([
+      this.http
         .get<Array<{ shop: string; total: number; cost_total?: number; margin_total?: number }>>(`/api/reports/shop-billing`, {
           headers: this.authHeaders(),
           params
@@ -618,13 +670,13 @@ export class AppComponent {
     }
     const params: Record<string, string> = {};
     if (this.shopView) {
-      params.customer = this.shopView;
+      params['customer'] = this.shopView;
     }
     if (this.filterFrom) {
-      params.from = this.filterFrom;
+      params['from'] = this.filterFrom;
     }
     if (this.filterTo) {
-      params.to = this.filterTo;
+      params['to'] = this.filterTo;
     }
     try {
       const invoices = await this.http

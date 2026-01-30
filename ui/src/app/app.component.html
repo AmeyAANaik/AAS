@@ -149,10 +149,6 @@
             </select>
           </label>
           <label>
-            Company
-            <input type="text" [(ngModel)]="orderCompany" placeholder="AAS Core" />
-          </label>
-          <label>
             Order date
             <input type="date" [(ngModel)]="orderDate" />
           </label>
@@ -173,11 +169,11 @@
           </label>
           <label>
             Cost price
-            <input type="number" [(ngModel)]="orderCostRate" min="0" />
+            <input type="number" [(ngModel)]="orderCostRate" (input)="recalculateOrderRate()" min="0" />
           </label>
           <label>
             Margin %
-            <input type="number" [(ngModel)]="orderMarginPercent" min="0" />
+            <input type="number" [(ngModel)]="orderMarginPercent" (input)="recalculateOrderRate()" min="0" />
           </label>
           <label>
             Rate

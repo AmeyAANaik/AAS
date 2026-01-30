@@ -25,6 +25,7 @@ public class UserService {
         profile.put("email", user.getOrDefault("email", ""));
         profile.put("customer", user.getOrDefault("customer", ""));
         profile.put("supplier", user.getOrDefault("supplier", ""));
+        profile.put("company", user.getOrDefault("default_company", ""));
         return profile;
     }
 }
