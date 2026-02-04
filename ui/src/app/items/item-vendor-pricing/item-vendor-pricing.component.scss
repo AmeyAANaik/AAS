@@ -1,0 +1,29 @@
+.pricing-card {
+  margin-bottom: 24px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.table-wrapper {
+  margin-top: 16px;
+  overflow-x: auto;
+  border-radius: 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+table {
+  width: 100%;
+}

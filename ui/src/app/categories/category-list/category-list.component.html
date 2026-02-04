@@ -1,0 +1,45 @@
+<div class="category-page">
+  <app-page-header title="Categories" subtitle="Manage item group categories.">
+    <button mat-stroked-button color="primary" (click)="loadCategories()" [disabled]="isLoading">Refresh</button>
+  </app-page-header>
+
+  <app-category-form
+    [category]="selectedCategory"
+    [isSaving]="isSaving"
+    [statusMessage]="statusMessage"
+    (save)="saveCategory($event)"
+    (reset)="clearSelection()">
+  </app-category-form>
+
+  <mat-card>
+    <mat-card-title>Category list</mat-card-title>
+    <mat-card-content>
+      <div class="table-wrapper" *ngIf="categories.length; else emptyState">
+        <table mat-table [dataSource]="categories" class="mat-elevation-z1">
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Category name</th>
+            <td mat-cell *matCellDef="let category">{{ category.name }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let category">
+              <button mat-button color="primary" (click)="selectCategory(category)">Edit</button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="category"
+          title="No categories found"
+          message="No item groups are available yet."
+          hint="Create a category to organize items.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+</div>

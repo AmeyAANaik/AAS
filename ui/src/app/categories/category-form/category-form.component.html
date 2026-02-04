@@ -1,0 +1,22 @@
+<mat-card class="category-form-card">
+  <mat-card-title>{{ category ? 'Edit category' : 'Create category' }}</mat-card-title>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid">
+        <mat-form-field appearance="fill">
+          <mat-label>Category name</mat-label>
+          <input matInput formControlName="categoryName" />
+          <mat-error *ngIf="form.get('categoryName')?.hasError('required')">Category name is required.</mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-actions">
+        <button mat-raised-button color="primary" type="submit" [disabled]="isSaving || form.invalid">
+          Save category
+        </button>
+        <button mat-stroked-button type="button" (click)="clear()">Reset</button>
+        <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

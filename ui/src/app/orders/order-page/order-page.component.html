@@ -1,0 +1,218 @@
+<div class="order-page">
+  <app-page-header title="Orders" subtitle="Review order status, assign vendors, and create new orders.">
+    <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
+    <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
+  </app-page-header>
+
+  <div class="summary-grid">
+    <mat-card class="summary-card">
+      <div class="summary-label">Total orders</div>
+      <div class="summary-value">{{ summary.total }}</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">In progress</div>
+      <div class="summary-value">{{ summary.inProgress }}</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Pending</div>
+      <div class="summary-value">{{ summary.pending }}</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Delivered</div>
+      <div class="summary-value">{{ summary.delivered }}</div>
+    </mat-card>
+  </div>
+
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Filters</div>
+        <div class="section-subtitle">Narrow orders by branch, vendor, status, and date.</div>
+      </div>
+    </div>
+    <mat-card-content>
+      <form [formGroup]="filtersForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Branch</mat-label>
+          <mat-select formControlName="customer">
+            <mat-option value="">All branches</mat-option>
+            <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor</mat-label>
+          <mat-select formControlName="vendor">
+            <mat-option value="">All vendors</mat-option>
+            <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Status</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="">All statuses</mat-option>
+            <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>From</mat-label>
+          <input matInput type="date" formControlName="from" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>To</mat-label>
+          <input matInput type="date" formControlName="to" />
+        </mat-form-field>
+
+        <div class="form-actions">
+          <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Apply</button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Order list</div>
+        <div class="section-subtitle">Totals are derived from MW-provided order summaries.</div>
+      </div>
+    </div>
+    <mat-card-content>
+      <div class="table-wrapper" *ngIf="orders.length; else emptyState">
+        <table mat-table [dataSource]="orders" class="mat-elevation-z1 pro-table">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>Order</th>
+            <td mat-cell *matCellDef="let order">
+              <div class="item-name">{{ order.id }}</div>
+              <div class="muted">{{ order.customer }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let order">
+              <span [class]="getStatusPillClass(order)">{{ order.statusLabel }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="vendor">
+            <th mat-header-cell *matHeaderCellDef>Vendor</th>
+            <td mat-cell *matCellDef="let order">
+              <span [class.dimmed]="!order.isVendorAssigned">{{ order.vendor }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="dates">
+            <th mat-header-cell *matHeaderCellDef>Dates</th>
+            <td mat-cell *matCellDef="let order">
+              <div>{{ order.orderDate }}</div>
+              <div class="muted">Delivery: {{ order.deliveryDate }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="total">
+            <th mat-header-cell *matHeaderCellDef>Total</th>
+            <td mat-cell *matCellDef="let order">
+              <span [class.pending]="order.totalLabel === 'Pending'">{{ order.totalLabel }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let order">
+              <button mat-button color="primary" (click)="selectOrder(order)">Manage</button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="assignment"
+          title="No orders found"
+          message="No orders match the selected filters."
+          hint="Create a new order or adjust the date range.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-accordion>
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Create a new order</mat-panel-title>
+        <mat-panel-description>Step-by-step flow</mat-panel-description>
+      </mat-expansion-panel-header>
+      <app-order-create [shops]="shops" [items]="items" (created)="onOrderCreated()"></app-order-create>
+    </mat-expansion-panel>
+  </mat-accordion>
+
+  <mat-card *ngIf="selectedOrder; else selectPrompt">
+    <mat-card-title>Manage order</mat-card-title>
+    <mat-card-content>
+      <div class="manage-header">
+        <div>
+          <p class="label">Order</p>
+          <p class="value">{{ selectedOrder.id }}</p>
+        </div>
+        <div>
+          <p class="label">Status</p>
+          <app-status-pill [label]="selectedOrder.statusLabel"></app-status-pill>
+        </div>
+      </div>
+
+      <div class="manage-grid">
+        <div>
+          <p class="label">Vendor assignment</p>
+          <form [formGroup]="assignForm">
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor</mat-label>
+              <mat-select formControlName="vendorId" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder)">
+                <mat-option value="">Select vendor</mat-option>
+                <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </form>
+          <button mat-flat-button color="primary" (click)="assignVendor()" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder) || isSaving">
+            Assign vendor
+          </button>
+          <p class="helper" *ngIf="selectedOrder?.isVendorAssigned">Vendor already assigned.</p>
+        </div>
+
+        <div>
+          <p class="label">Status update</p>
+          <form [formGroup]="statusForm">
+            <mat-form-field appearance="outline">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="status" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder)">
+                <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </form>
+          <button mat-flat-button color="primary" (click)="updateStatus()" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder) || isSaving">
+            Update status
+          </button>
+          <p class="helper" *ngIf="selectedOrder?.isFinal">Status is locked after delivery.</p>
+        </div>
+      </div>
+
+      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+    </mat-card-content>
+  </mat-card>
+
+  <ng-template #selectPrompt>
+    <mat-card>
+      <mat-card-title>Select an order to manage</mat-card-title>
+      <mat-card-content>
+        <p class="muted">
+          Choose an order from the list to assign a vendor or update status.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
+</div>

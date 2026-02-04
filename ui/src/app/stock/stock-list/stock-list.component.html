@@ -1,0 +1,86 @@
+<div class="stock-page">
+  <app-page-header title="Stock Management" subtitle="Track stock levels and set thresholds for low stock alerts.">
+    <button mat-stroked-button color="primary" (click)="loadStock()" [disabled]="isLoading">Refresh</button>
+  </app-page-header>
+
+  <div class="summary-grid">
+    <mat-card>
+      <mat-card-title>Total items</mat-card-title>
+      <mat-card-content>
+        <p class="metric">{{ summary.totalItems }}</p>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-title>Total quantity</mat-card-title>
+      <mat-card-content>
+        <p class="metric">{{ summary.totalQuantity | number: '1.0-2' }}</p>
+      </mat-card-content>
+    </mat-card>
+    <mat-card>
+      <mat-card-title>Low stock items</mat-card-title>
+      <mat-card-content>
+        <p class="metric">{{ summary.lowStock }}</p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <app-stock-threshold-form
+    [stockItem]="selectedItem"
+    [isSaving]="isSaving"
+    [statusMessage]="statusMessage"
+    (save)="saveThreshold($event)"
+    (reset)="clearSelection()">
+  </app-stock-threshold-form>
+
+  <mat-card>
+    <mat-card-title>Stock list</mat-card-title>
+    <mat-card-content>
+      <div class="table-wrapper" *ngIf="stockItems.length; else emptyState">
+        <table mat-table [dataSource]="stockItems" class="mat-elevation-z1">
+          <ng-container matColumnDef="item">
+            <th mat-header-cell *matHeaderCellDef>Item</th>
+            <td mat-cell *matCellDef="let item">
+              <div class="item-name">{{ item.name }}</div>
+              <div class="muted">{{ item.code }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="quantity">
+            <th mat-header-cell *matHeaderCellDef>Quantity</th>
+            <td mat-cell *matCellDef="let item">{{ item.quantity | number: '1.0-2' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="threshold">
+            <th mat-header-cell *matHeaderCellDef>Threshold</th>
+            <td mat-cell *matCellDef="let item">{{ item.thresholdLabel }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let item">
+              <app-status-pill [label]="item.statusLabel"></app-status-pill>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let item">
+              <button mat-button color="primary" (click)="selectItem(item)">Set threshold</button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns" [class.low-stock]="row.isLow"></tr>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="inventory_2"
+          title="No stock items found"
+          message="No stock data is available for the selected filters."
+          hint="Adjust filters or check data sync.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+</div>

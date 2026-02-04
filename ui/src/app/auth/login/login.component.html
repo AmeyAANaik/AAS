@@ -1,0 +1,65 @@
+<div class="auth-page">
+  <div class="auth-panel">
+    <div class="brand">
+      <div class="logo">SC</div>
+      <div>
+        <div class="brand-name">SCM Console</div>
+        <div class="brand-tag">Procurement & inventory control</div>
+      </div>
+    </div>
+
+    <h1>Run your supply chain with confidence.</h1>
+    <p class="lead">Monitor orders, stock, bills, and suppliers in one focused workspace.</p>
+
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature-title">Operational clarity</div>
+        <div class="feature-body">Live order status, vendor assignments, and billing insight.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-title">Master data hygiene</div>
+        <div class="feature-body">Keep vendors, branches, items, and categories aligned.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-title">Finance readiness</div>
+        <div class="feature-body">Invoices, payments, and payables in one timeline.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="auth-card">
+    <div class="card-header">
+      <div class="eyebrow">Welcome back</div>
+      <h2>Sign in to continue</h2>
+      <p class="muted">Use your SCM credentials to access the workspace.</p>
+    </div>
+
+    <div *ngIf="hasToken && !showForm" class="session">
+      <p class="session-title">You already have an active session.</p>
+      <p class="muted">Continue to the dashboard or sign in as a different user.</p>
+      <div class="button-row">
+        <button type="button" class="btn-primary" (click)="continue()">Continue to dashboard</button>
+        <button type="button" class="btn-ghost" (click)="signInDifferent()">Sign in with another account</button>
+      </div>
+    </div>
+
+    <form *ngIf="showForm" (ngSubmit)="login()" class="form">
+      <label class="field">
+        <span>Username</span>
+        <input type="text" [(ngModel)]="username" name="username" autocomplete="username" />
+      </label>
+
+      <label class="field">
+        <span>Password</span>
+        <input type="password" [(ngModel)]="password" name="password" autocomplete="current-password" />
+      </label>
+
+      <button type="submit" class="btn-primary" [disabled]="isLoading">{{ isLoading ? 'Signing in...' : 'Sign in' }}</button>
+      <p class="status" *ngIf="status">{{ status }}</p>
+    </form>
+
+    <div class="footnote">
+      Need help? Contact your SCM administrator for account access.
+    </div>
+  </div>
+</div>

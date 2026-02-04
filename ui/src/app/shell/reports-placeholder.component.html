@@ -1,0 +1,46 @@
+<div class="reports-page">
+  <app-page-header title="Reports" subtitle="Run operational and finance reports using MW data only.">
+    <button mat-stroked-button color="primary">Run</button>
+    <button mat-stroked-button color="primary">Export CSV</button>
+  </app-page-header>
+
+  <mat-card>
+    <mat-card-title>Report filters</mat-card-title>
+    <mat-card-content>
+      <form [formGroup]="reportForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Report type</mat-label>
+          <mat-select formControlName="reportType">
+            <mat-option *ngFor="let report of reportTypes" [value]="report.id">
+              {{ report.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>From</mat-label>
+          <input matInput type="date" formControlName="from" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>To</mat-label>
+          <input matInput type="date" formControlName="to" />
+        </mat-form-field>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-divider></mat-divider>
+
+  <mat-card>
+    <mat-card-title>Results</mat-card-title>
+    <mat-card-content>
+      <app-empty-state
+        icon="bar_chart"
+        title="No results yet"
+        message="Select a report type and date range to run a report."
+        hint="Results will appear here once the MW report runs.">
+      </app-empty-state>
+    </mat-card-content>
+  </mat-card>
+</div>

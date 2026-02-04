@@ -1,0 +1,141 @@
+.dashboard {
+  display: grid;
+  gap: 20px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.kpi-card {
+  padding: 16px;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: 8px;
+  color: var(--ink);
+}
+
+.kpi-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dashboard-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.card {
+  padding: 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.data-table {
+  width: 100%;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.pill-neutral {
+  background: #f5f4f1;
+  color: #5b5b5b;
+  border-color: var(--border-strong);
+}
+
+.pill-success {
+  background: rgba(41, 130, 74, 0.12);
+  color: #2c7a4b;
+  border-color: rgba(41, 130, 74, 0.3);
+}
+
+.pill-warning {
+  background: rgba(215, 162, 89, 0.18);
+  color: #9c6a2c;
+  border-color: rgba(215, 162, 89, 0.4);
+}
+
+.pill-info {
+  background: rgba(29, 111, 122, 0.14);
+  color: var(--accent-strong);
+  border-color: rgba(29, 111, 122, 0.3);
+}
+
+.metric {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.metric-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+
+.metric-value {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+
+.state {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.state.error {
+  border-color: rgba(198, 76, 52, 0.4);
+  color: #b3472f;
+}
+
+@media (max-width: 720px) {
+  .dashboard {
+    gap: 16px;
+  }
+}

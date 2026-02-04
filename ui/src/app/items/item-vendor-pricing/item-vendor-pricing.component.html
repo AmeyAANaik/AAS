@@ -1,0 +1,82 @@
+<mat-card class="pricing-card">
+  <mat-card-title>Vendor pricing</mat-card-title>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid">
+        <mat-form-field appearance="fill">
+          <mat-label>Item</mat-label>
+          <mat-select formControlName="itemId">
+            <mat-option value="">Select item</mat-option>
+            <mat-option *ngFor="let item of items" [value]="item.id">{{ item.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('itemId')?.hasError('required')">Item is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Vendor</mat-label>
+          <mat-select formControlName="vendorId">
+            <mat-option value="">Select vendor</mat-option>
+            <mat-option *ngFor="let vendor of vendors" [value]="vendor.name">{{ vendor.supplier_name || vendor.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('vendorId')?.hasError('required')">Vendor is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Original rate</mat-label>
+          <input matInput type="number" formControlName="originalRate" min="0" />
+          <mat-error *ngIf="form.get('originalRate')?.hasError('required')">Original rate is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Margin %</mat-label>
+          <input matInput type="number" formControlName="marginPercent" min="0" />
+          <mat-error *ngIf="form.get('marginPercent')?.hasError('required')">Margin is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Final rate</mat-label>
+          <input matInput [value]="finalRate" readonly />
+        </mat-form-field>
+      </div>
+
+      <div class="form-actions">
+        <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid">Save pricing</button>
+      </div>
+    </form>
+
+    <div class="table-wrapper" *ngIf="pricing.length; else emptyState">
+      <table mat-table [dataSource]="pricing" class="mat-elevation-z1">
+        <ng-container matColumnDef="item">
+          <th mat-header-cell *matHeaderCellDef>Item</th>
+          <td mat-cell *matCellDef="let entry">{{ entry.itemName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="vendor">
+          <th mat-header-cell *matHeaderCellDef>Vendor</th>
+          <td mat-cell *matCellDef="let entry">{{ entry.vendorName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="original">
+          <th mat-header-cell *matHeaderCellDef>Original rate</th>
+          <td mat-cell *matCellDef="let entry">{{ entry.originalRate }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="margin">
+          <th mat-header-cell *matHeaderCellDef>Margin %</th>
+          <td mat-cell *matCellDef="let entry">{{ entry.marginPercent }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="final">
+          <th mat-header-cell *matHeaderCellDef>Final rate</th>
+          <td mat-cell *matCellDef="let entry">{{ entry.finalRate }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['item', 'vendor', 'original', 'margin', 'final']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['item', 'vendor', 'original', 'margin', 'final']"></tr>
+      </table>
+    </div>
+    <ng-template #emptyState>
+      <p class="muted">No vendor pricing entries yet.</p>
+    </ng-template>
+  </mat-card-content>
+</mat-card>

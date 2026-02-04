@@ -1,0 +1,64 @@
+<div class="item-page">
+  <app-page-header title="Items" subtitle="Manage item master data and vendor pricing.">
+    <button mat-stroked-button color="primary" (click)="loadReferenceData()" [disabled]="isLoading">Refresh</button>
+  </app-page-header>
+
+  <app-item-form
+    [categories]="categories"
+    [isSaving]="isSaving"
+    [statusMessage]="statusMessage"
+    (save)="saveItem($event)">
+  </app-item-form>
+
+  <app-item-vendor-pricing
+    [items]="items"
+    [vendors]="vendors"
+    [pricing]="pricing"
+    (pricingSaved)="savePricing($event)">
+  </app-item-vendor-pricing>
+
+  <mat-card>
+    <mat-card-title>Item list</mat-card-title>
+    <mat-card-content>
+      <div class="table-wrapper" *ngIf="items.length; else emptyState">
+        <table mat-table [dataSource]="items" class="mat-elevation-z1">
+          <ng-container matColumnDef="code">
+            <th mat-header-cell *matHeaderCellDef>Item code</th>
+            <td mat-cell *matCellDef="let item">{{ item.code }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Item name</th>
+            <td mat-cell *matCellDef="let item">{{ item.name }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="category">
+            <th mat-header-cell *matHeaderCellDef>Category</th>
+            <td mat-cell *matCellDef="let item">{{ item.category || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="uom">
+            <th mat-header-cell *matHeaderCellDef>Measure unit</th>
+            <td mat-cell *matCellDef="let item">{{ item.measureUnit || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="packaging">
+            <th mat-header-cell *matHeaderCellDef>Packaging unit</th>
+            <td mat-cell *matCellDef="let item">{{ item.packagingUnit || '—' }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="inventory"
+          title="No items found"
+          message="No items are available yet."
+          hint="Create an item to start vendor pricing.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+</div>

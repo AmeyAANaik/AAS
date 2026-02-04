@@ -1,0 +1,146 @@
+<div class="bills-page">
+  <app-page-header title="Bills & invoices" subtitle="Track invoice status, create new bills, and record payments.">
+    <button mat-stroked-button color="primary" routerLink="/orders">Orders</button>
+    <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Refresh</button>
+  </app-page-header>
+
+  <div class="summary-grid">
+    <mat-card class="summary-card">
+      <div class="summary-label">Total invoices</div>
+      <div class="summary-value">{{ summary.total }}</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Paid</div>
+      <div class="summary-value">{{ summary.paid }}</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Open</div>
+      <div class="summary-value">{{ summary.open }}</div>
+      <span class="confidence">Derived</span>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Total billed</div>
+      <div class="summary-value">{{ summary.totalAmount | number: '1.0-2' }}</div>
+      <span class="confidence">Derived</span>
+    </mat-card>
+  </div>
+
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Invoice filters</div>
+        <div class="section-subtitle">Filter by branch and billing date range.</div>
+      </div>
+    </div>
+    <mat-card-content>
+      <form [formGroup]="filtersForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Branch</mat-label>
+          <mat-select formControlName="customer">
+            <mat-option value="">All branches</mat-option>
+            <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>From</mat-label>
+          <input matInput type="date" formControlName="from" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>To</mat-label>
+          <input matInput type="date" formControlName="to" />
+        </mat-form-field>
+
+        <div class="form-actions">
+          <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Apply</button>
+          <button mat-stroked-button color="primary" (click)="downloadCsv()">Export CSV</button>
+        </div>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Invoice list</div>
+        <div class="section-subtitle">Use the actions to download invoice PDFs.</div>
+      </div>
+    </div>
+    <mat-card-content>
+      <div class="table-wrapper" *ngIf="invoices.length; else emptyState">
+        <table mat-table [dataSource]="invoices" class="mat-elevation-z1 pro-table">
+          <ng-container matColumnDef="invoice">
+            <th mat-header-cell *matHeaderCellDef>Invoice</th>
+            <td mat-cell *matCellDef="let invoice">
+              <div class="item-name">{{ invoice.id }}</div>
+              <div class="muted">{{ invoice.customer }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="date">
+            <th mat-header-cell *matHeaderCellDef>Date</th>
+            <td mat-cell *matCellDef="let invoice">{{ invoice.date }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="total">
+            <th mat-header-cell *matHeaderCellDef>Total</th>
+            <td mat-cell *matCellDef="let invoice">
+              <span [class.pending]="invoice.totalLabel === 'Pending'">{{ invoice.totalLabel }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let invoice">
+              <app-status-pill [label]="invoice.status"></app-status-pill>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let invoice">
+              <button mat-button color="primary" (click)="downloadPdf(invoice)">Download PDF</button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['invoice', 'date', 'total', 'status', 'actions']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['invoice', 'date', 'total', 'status', 'actions']"></tr>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="receipt_long"
+          title="No invoices found"
+          message="No invoices match the selected filters."
+          hint="Create an invoice or widen the date range.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-accordion>
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Create invoice</mat-panel-title>
+        <mat-panel-description>Order-driven or manual</mat-panel-description>
+      </mat-expansion-panel-header>
+      <app-invoice-create
+        [customers]="customers"
+        [items]="items"
+        [orders]="orders"
+        (created)="onInvoiceCreated()">
+      </app-invoice-create>
+    </mat-expansion-panel>
+
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Record payment</mat-panel-title>
+        <mat-panel-description>Customer receipts</mat-panel-description>
+      </mat-expansion-panel-header>
+      <app-payment-form [customers]="customers" (created)="onPaymentCreated()"></app-payment-form>
+    </mat-expansion-panel>
+  </mat-accordion>
+
+  <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+</div>

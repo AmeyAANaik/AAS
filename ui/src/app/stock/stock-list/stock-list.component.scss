@@ -1,0 +1,56 @@
+.stock-page {
+  display: grid;
+  gap: 20px;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.metric {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--ink);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+}
+
+.item-name {
+  font-weight: 600;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(41, 130, 74, 0.12);
+  color: #2c7a4b;
+}
+
+.status-pill.low {
+  background: rgba(198, 76, 52, 0.18);
+  color: #b3472f;
+}
+
+.low-stock {
+  background: rgba(198, 76, 52, 0.06);
+}

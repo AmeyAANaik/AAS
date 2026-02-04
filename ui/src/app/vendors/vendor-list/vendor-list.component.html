@@ -1,0 +1,75 @@
+<div class="vendor-page">
+  <app-page-header title="Vendors" subtitle="Manage vendor master data in ERPNext style.">
+    <button mat-flat-button color="primary" (click)="openCreate()">Create vendor</button>
+  </app-page-header>
+
+  <div class="content-grid">
+    <mat-card class="list-card">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Vendor list</div>
+          <div class="section-subtitle">Search and maintain vendor master records.</div>
+        </div>
+      </div>
+      <mat-card-content>
+        <div class="toolbar">
+          <mat-form-field appearance="outline">
+            <mat-label>Search vendor</mat-label>
+            <input matInput [formControl]="searchControl" placeholder="Search by name" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" (click)="loadVendors()" [disabled]="isLoading">Refresh</button>
+        </div>
+
+        <div class="table-wrapper" *ngIf="filteredVendors.length; else emptyState">
+          <table mat-table [dataSource]="filteredVendors" class="mat-elevation-z1 pro-table">
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>Vendor name</th>
+              <td mat-cell *matCellDef="let vendor">{{ vendor.name }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="priority">
+              <th mat-header-cell *matHeaderCellDef>Priority</th>
+              <td mat-cell *matCellDef="let vendor">{{ vendor.priority ?? '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Status</th>
+              <td mat-cell *matCellDef="let vendor">
+                <app-status-pill [label]="vendor.status"></app-status-pill>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Actions</th>
+              <td mat-cell *matCellDef="let vendor">
+                <button mat-button color="primary" (click)="selectVendor(vendor)">View</button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          </table>
+        </div>
+        <ng-template #emptyState>
+          <app-empty-state
+            icon="person_add"
+            title="No vendors yet"
+            message="Create the first vendor to start assigning purchase orders."
+            hint="Use the Create vendor action to add a new vendor.">
+          </app-empty-state>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="form-card" *ngIf="isFormOpen">
+      <app-vendor-form
+        [vendor]="selectedVendor"
+        [mode]="mode"
+        [isSaving]="isSaving"
+        [statusMessage]="statusMessage"
+        (save)="saveVendor($event)"
+        (reset)="clearSelection()">
+      </app-vendor-form>
+    </mat-card>
+  </div>
+</div>

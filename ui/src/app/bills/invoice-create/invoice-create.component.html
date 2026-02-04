@@ -1,0 +1,105 @@
+<mat-card>
+  <mat-card-title>Create invoice</mat-card-title>
+  <mat-card-content>
+    <div class="toggle-row">
+      <button mat-stroked-button color="primary" [class.active]="mode === 'order'" (click)="setMode('order')">
+        From order
+      </button>
+      <button mat-stroked-button color="primary" [class.active]="mode === 'manual'" (click)="setMode('manual')">
+        Manual entry
+      </button>
+    </div>
+
+    <div *ngIf="mode === 'order'" class="mode-panel">
+      <form [formGroup]="orderForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Order</mat-label>
+          <mat-select formControlName="orderId">
+            <mat-option value="">Select order</mat-option>
+            <mat-option *ngFor="let order of orders" [value]="order.id">{{ order.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="orderForm.get('orderId')?.hasError('required')">Order is required.</mat-error>
+        </mat-form-field>
+        <div class="form-actions">
+          <button mat-flat-button color="primary" (click)="loadOrder()" [disabled]="isLoadingOrder">Load order</button>
+        </div>
+      </form>
+      <p class="helper" *ngIf="!orders.length">
+        No orders available yet. Create an order first to generate an invoice from it.
+      </p>
+
+      <div class="summary-card">
+        <div>
+          <p class="label">Summary</p>
+          <p class="value">{{ orderSummary }}</p>
+        </div>
+        <div>
+          <p class="label">Total</p>
+          <p class="value">{{ orderSnapshot?.grand_total ?? 'Pending' }}</p>
+          <span class="confidence">Derived</span>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="mode === 'manual'" class="mode-panel">
+      <form [formGroup]="manualForm" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Branch (Customer)</mat-label>
+          <mat-select formControlName="customer">
+            <mat-option value="">Select branch</mat-option>
+            <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="manualForm.get('customer')?.hasError('required')">Branch is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Company</mat-label>
+          <input matInput formControlName="company" />
+          <mat-error *ngIf="manualForm.get('company')?.hasError('required')">Company is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Item</mat-label>
+          <mat-select formControlName="itemCode">
+            <mat-option value="">Select item</mat-option>
+            <mat-option *ngFor="let item of items" [value]="item.code">{{ item.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="manualForm.get('itemCode')?.hasError('required')">Item is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Quantity</mat-label>
+          <input matInput type="number" formControlName="qty" min="1" />
+          <mat-error *ngIf="manualForm.get('qty')?.hasError('required')">Quantity is required.</mat-error>
+          <mat-error *ngIf="manualForm.get('qty')?.hasError('min')">Quantity must be at least 1.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Final rate</mat-label>
+          <input matInput type="number" formControlName="rate" min="0" />
+          <mat-error *ngIf="manualForm.get('rate')?.hasError('required')">Final rate is required.</mat-error>
+          <mat-error *ngIf="manualForm.get('rate')?.hasError('min')">Final rate cannot be negative.</mat-error>
+        </mat-form-field>
+      </form>
+
+      <div class="summary-card">
+        <div>
+          <p class="label">Line total</p>
+          <p class="value">{{ manualTotal | number: '1.0-2' }}</p>
+        </div>
+        <div>
+          <p class="label">Pricing</p>
+          <p class="value">Final rate</p>
+          <span class="confidence">Derived</span>
+        </div>
+      </div>
+      <p class="helper">Enter the final rate only. Original rate and margin are intentionally hidden.</p>
+    </div>
+
+    <div class="actions">
+      <button mat-flat-button color="primary" (click)="submit()" [disabled]="isSubmitting">Create invoice</button>
+      <button mat-stroked-button color="primary" (click)="resetForms()" [disabled]="isSubmitting">Clear</button>
+      <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
+    </div>
+  </mat-card-content>
+</mat-card>

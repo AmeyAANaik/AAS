@@ -1,0 +1,47 @@
+<mat-card>
+  <mat-card-title>Record payment</mat-card-title>
+  <mat-card-content>
+    <form [formGroup]="form" class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Branch (Customer)</mat-label>
+        <mat-select formControlName="customer">
+          <mat-option value="">Select branch</mat-option>
+          <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="form.get('customer')?.hasError('required')">Branch is required.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Company</mat-label>
+        <input matInput formControlName="company" />
+        <mat-error *ngIf="form.get('company')?.hasError('required')">Company is required.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Amount</mat-label>
+        <input matInput type="number" formControlName="amount" min="0.01" />
+        <mat-error *ngIf="form.get('amount')?.hasError('required')">Amount is required.</mat-error>
+        <mat-error *ngIf="form.get('amount')?.hasError('min')">Amount must be greater than zero.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Reference number</mat-label>
+        <input matInput formControlName="referenceNo" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Reference date</mat-label>
+        <input matInput type="date" formControlName="referenceDate" />
+      </mat-form-field>
+    </form>
+    <p class="helper" *ngIf="!customers.length">
+      No branches loaded yet. Create or sync branches before recording payments.
+    </p>
+
+    <div class="actions">
+      <button mat-flat-button color="primary" (click)="submit()" [disabled]="isSubmitting">Record payment</button>
+      <button mat-stroked-button color="primary" (click)="reset()" [disabled]="isSubmitting">Clear</button>
+      <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
+    </div>
+  </mat-card-content>
+</mat-card>

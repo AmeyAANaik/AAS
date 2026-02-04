@@ -1,0 +1,118 @@
+<mat-card>
+  <mat-card-title>Create order</mat-card-title>
+  <mat-card-content>
+    <mat-horizontal-stepper [linear]="true">
+      <mat-step [stepControl]="detailsGroup">
+        <form [formGroup]="detailsGroup" class="form-grid">
+          <ng-template matStepLabel>Order details</ng-template>
+          <mat-form-field appearance="outline">
+            <mat-label>Branch (Shop)</mat-label>
+            <mat-select formControlName="customer">
+              <mat-option value="">Select branch</mat-option>
+              <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
+            </mat-select>
+            <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Company</mat-label>
+            <input matInput formControlName="company" />
+            <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Order date</mat-label>
+            <input matInput type="date" formControlName="orderDate" />
+            <mat-error *ngIf="detailsGroup.get('orderDate')?.hasError('required')">Order date is required.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Delivery date</mat-label>
+            <input matInput type="date" formControlName="deliveryDate" />
+            <mat-error *ngIf="detailsGroup.get('deliveryDate')?.hasError('required')">Delivery date is required.</mat-error>
+          </mat-form-field>
+        </form>
+        <div class="step-actions">
+          <button mat-flat-button color="primary" matStepperNext [disabled]="detailsGroup.invalid">Next</button>
+        </div>
+      </mat-step>
+
+      <mat-step [stepControl]="itemGroup">
+        <form [formGroup]="itemGroup" class="form-grid">
+          <ng-template matStepLabel>Order item</ng-template>
+          <mat-form-field appearance="outline">
+            <mat-label>Item</mat-label>
+            <mat-select formControlName="itemId">
+              <mat-option value="">Select item</mat-option>
+              <mat-option *ngFor="let item of items" [value]="item.code">{{ item.name }}</mat-option>
+            </mat-select>
+            <mat-error *ngIf="itemGroup.get('itemId')?.hasError('required')">Item is required.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Quantity</mat-label>
+            <input matInput type="number" formControlName="quantity" min="1" />
+            <mat-error *ngIf="itemGroup.get('quantity')?.hasError('required')">Quantity is required.</mat-error>
+            <mat-error *ngIf="itemGroup.get('quantity')?.hasError('min')">Quantity must be at least 1.</mat-error>
+          </mat-form-field>
+
+          <mat-slide-toggle formControlName="pricingVisible">Show pricing details (Option 1)</mat-slide-toggle>
+
+          <mat-form-field appearance="outline" *ngIf="pricingVisible">
+            <mat-label>Rate</mat-label>
+            <input matInput type="number" formControlName="rate" min="0" />
+            <mat-error *ngIf="itemGroup.get('rate')?.hasError('required')">Rate is required when pricing is visible.</mat-error>
+            <mat-error *ngIf="itemGroup.get('rate')?.hasError('min')">Rate cannot be negative.</mat-error>
+          </mat-form-field>
+        </form>
+        <div class="pricing-summary">
+          <div>
+            <span class="label">Line total</span>
+            <span class="value">{{ lineTotal | number: '1.0-2' }}</span>
+          </div>
+          <span class="confidence">{{ pricingLabel }}</span>
+        </div>
+        <div class="step-actions">
+          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" matStepperNext [disabled]="itemGroup.invalid">Review</button>
+        </div>
+      </mat-step>
+
+      <mat-step>
+        <ng-template matStepLabel>Review & submit</ng-template>
+        <div class="review-grid">
+          <div>
+            <p class="label">Branch</p>
+            <p class="value">{{ detailsGroup.get('customer')?.value || '-' }}</p>
+          </div>
+          <div>
+            <p class="label">Order date</p>
+            <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
+          </div>
+          <div>
+            <p class="label">Delivery date</p>
+            <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
+          </div>
+          <div>
+            <p class="label">Item</p>
+            <p class="value">{{ selectedItem?.name || 'Unselected' }}</p>
+          </div>
+          <div>
+            <p class="label">Quantity</p>
+            <p class="value">{{ itemGroup.get('quantity')?.value }}</p>
+          </div>
+          <div>
+            <p class="label">Pricing</p>
+            <p class="value">{{ pricingHint }}</p>
+          </div>
+        </div>
+        <div class="step-actions">
+          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" (click)="submit()" [disabled]="!canSubmit">Create order</button>
+          <button mat-button (click)="clear()" [disabled]="isSubmitting">Clear</button>
+        </div>
+        <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+      </mat-step>
+    </mat-horizontal-stepper>
+  </mat-card-content>
+</mat-card>

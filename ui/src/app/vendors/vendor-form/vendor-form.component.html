@@ -1,0 +1,36 @@
+<mat-card class="vendor-form-card">
+  <mat-card-title>{{ mode === 'edit' ? 'View vendor' : 'Create vendor' }}</mat-card-title>
+  <mat-card-content>
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid">
+        <mat-form-field appearance="fill">
+          <mat-label>Vendor name</mat-label>
+          <input matInput formControlName="supplierName" />
+          <mat-error *ngIf="form.get('supplierName')?.hasError('required')">Vendor name is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Priority</mat-label>
+          <input matInput type="number" formControlName="priority" min="0" />
+          <mat-error *ngIf="form.get('priority')?.hasError('required')">Priority is required.</mat-error>
+          <mat-error *ngIf="form.get('priority')?.hasError('pattern')">Priority must be an integer.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Status</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="Active">Active</mat-option>
+            <mat-option value="Inactive">Inactive</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('status')?.hasError('required')">Status is required.</mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-actions">
+        <button mat-raised-button color="primary" type="submit" [disabled]="isSaving || form.invalid || mode === 'edit'">Save vendor</button>
+        <button mat-stroked-button type="button" (click)="clear()">Cancel</button>
+        <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

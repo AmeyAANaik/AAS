@@ -1,0 +1,43 @@
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+.status-pill[data-status*="Active"],
+.status-pill[data-status*="Paid"],
+.status-pill[data-status*="Delivered"] {
+  background: rgba(41, 130, 74, 0.12);
+  border-color: rgba(41, 130, 74, 0.3);
+  color: #2c7a4b;
+}
+
+.status-pill[data-status*="Open"],
+.status-pill[data-status*="Pending"],
+.status-pill[data-status*="In progress"] {
+  background: rgba(215, 162, 89, 0.18);
+  border-color: rgba(215, 162, 89, 0.4);
+  color: #9c6a2c;
+}
+
+.status-pill[data-status*="Inactive"],
+.status-pill[data-status*="Failed"],
+.status-pill[data-status*="Cancelled"] {
+  background: rgba(198, 76, 52, 0.18);
+  border-color: rgba(198, 76, 52, 0.35);
+  color: #b3472f;
+}
+
+.status-pill[data-status*="Draft"],
+.status-pill[data-status*="New"] {
+  background: rgba(29, 111, 122, 0.14);
+  border-color: rgba(29, 111, 122, 0.3);
+  color: var(--accent-strong);
+}
