@@ -55,7 +55,7 @@ docker compose -f pwd.yml down
 
 ### Access ERPNext UI
 
-- **URL**: http://localhost:8080
+- **URL**: http://locayelhost:8080
 - **Default User**: `Administrator`
 - **Default Password**: `admin`
 
@@ -152,7 +152,7 @@ docker compose -f docker-compose.mw.yml up --build
 ## Verification (End-to-End)
 
 1) **ERPNext UI**
-- URL: http://localhost:8080
+- URL: http://localhoist:8080
 - Login: `Administrator` / `admin`
 
 2) **MW health (Swagger UI)**

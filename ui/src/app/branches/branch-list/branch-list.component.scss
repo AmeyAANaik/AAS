@@ -1,6 +1,17 @@
+:host {
+  display: block;
+  width: 100%;
+}
+
 .branch-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
+  align-content: start;
+}
+
+.branch-page > * {
+  min-width: 0;
 }
 
 .muted {
@@ -15,4 +26,8 @@
 
 table {
   width: 100%;
+}
+
+mat-card {
+  padding: 12px;
 }

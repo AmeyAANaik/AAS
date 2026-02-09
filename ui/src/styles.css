@@ -1,3 +1,4 @@
+@import '@angular/material/prebuilt-themes/indigo-pink.css';
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
@@ -69,8 +70,8 @@ button:disabled {
   cursor: not-allowed;
 }
 
-input,
-textarea,
+input:not(.mat-mdc-input-element):not(.mat-input-element),
+textarea:not(.mat-mdc-input-element):not(.mat-input-element),
 select {
   padding: 10px 12px;
   border-radius: 10px;
@@ -81,6 +82,23 @@ select {
 
 textarea {
   resize: vertical;
+}
+
+/* Reset for Angular Material inputs to avoid overlap with global input styles */
+.mat-mdc-input-element,
+.mat-input-element {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mat-mdc-form-field .mat-mdc-text-field-wrapper {
+  height: auto;
+}
+
+.mat-mdc-form-field .mat-mdc-form-field-infix {
+  min-height: 48px;
 }
 
 .hidden {
@@ -102,6 +120,35 @@ textarea {
   flex-direction: column;
   gap: 8px;
   min-height: 96px;
+  min-width: 0;
+}
+
+.card {
+  min-width: 0;
+}
+
+/* Grid safety: prevent tile overlap across pages */
+.summary-grid,
+.kpi-grid,
+.dashboard-grid,
+.content-grid,
+.form-grid,
+.review-grid,
+.manage-grid {
+  align-items: stretch;
+  grid-auto-rows: minmax(0, auto);
+  grid-auto-flow: row;
+  align-content: start;
+}
+
+.summary-grid > *,
+.kpi-grid > *,
+.dashboard-grid > *,
+.content-grid > *,
+.form-grid > *,
+.review-grid > *,
+.manage-grid > * {
+  min-width: 0;
 }
 
 .summary-label,
@@ -144,6 +191,25 @@ mat-card,
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  height: auto;
+  align-self: stretch;
+  position: static;
+  float: none;
+  clear: both;
+  contain: layout paint;
+}
+
+mat-card-title,
+.mat-mdc-card-title {
+  display: block;
+}
+
+mat-card-content,
+.mat-mdc-card-content {
+  display: block;
 }
 
 mat-card-title,
@@ -157,6 +223,27 @@ mat-card-title,
 mat-card-content,
 .mat-mdc-card-content {
   color: var(--ink);
+  display: block;
+}
+
+/* Prevent layout collapse inside the main content flow */
+.shell-content,
+.page-body,
+.page-body > * {
+  min-width: 0;
+}
+
+/* Expansion panels can stack oddly inside grids without spacing */
+mat-accordion,
+.mat-accordion {
+  display: block;
+}
+
+mat-expansion-panel,
+.mat-expansion-panel {
+  display: block;
+  width: 100%;
+  margin-bottom: 16px;
 }
 
 button[mat-flat-button],
