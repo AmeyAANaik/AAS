@@ -200,6 +200,7 @@ mat-card,
   float: none;
   clear: both;
   contain: layout paint;
+  padding: 16px;
 }
 
 mat-card-title,
