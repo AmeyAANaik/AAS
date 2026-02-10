@@ -4,6 +4,7 @@ export interface Item {
   item_name?: string;
   item_group?: string;
   stock_uom?: string;
+  aas_packaging_unit?: string;
 }
 
 export interface ItemMetadata {

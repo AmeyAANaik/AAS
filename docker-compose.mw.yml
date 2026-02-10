@@ -9,14 +9,14 @@ services:
       APP_DEFAULTS_ENABLED: "true"
       APP_DEFAULTS_VENDOR_EMAIL: vendor@example.com
       APP_DEFAULTS_VENDOR_NAME: Vendor User
-      APP_DEFAULTS_VENDOR_PASSWORD: vendor123
+      APP_DEFAULTS_VENDOR_PASSWORD: VendorAAS!2026
       APP_DEFAULTS_VENDOR_SUPPLIER: Vendor A
       APP_DEFAULTS_SHOP_EMAIL: shop@example.com
       APP_DEFAULTS_SHOP_NAME: Shop User
-      APP_DEFAULTS_SHOP_PASSWORD: shop123
+      APP_DEFAULTS_SHOP_PASSWORD: ShopAAS!2026
       APP_DEFAULTS_SHOP_CUSTOMER: Shop A
       APP_DEFAULTS_HELPER_EMAIL: helper@example.com
       APP_DEFAULTS_HELPER_NAME: Helper User
-      APP_DEFAULTS_HELPER_PASSWORD: helper123
+      APP_DEFAULTS_HELPER_PASSWORD: HelperAAS!2026
     extra_hosts:
       - "host.docker.internal:host-gateway"

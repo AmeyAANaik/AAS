@@ -92,6 +92,13 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_margin_percent");
+        boolean packagingUnitField = ensureCustomField(
+                "Item",
+                "aas_packaging_unit",
+                "Packaging Unit",
+                "Data",
+                null,
+                "stock_uom");
         boolean soItemMarginField = ensureCustomField(
                 "Sales Order Item",
                 "aas_margin_percent",
@@ -111,6 +118,7 @@ public class SetupService {
         result.put("statusFieldCreated", statusField);
         result.put("marginFieldCreated", marginField);
         result.put("vendorRateFieldCreated", vendorRateField);
+        result.put("packagingUnitFieldCreated", packagingUnitField);
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
         result.putAll(ensureDefaultUsers());

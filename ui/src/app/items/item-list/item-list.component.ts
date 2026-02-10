@@ -48,7 +48,10 @@ export class ItemListComponent implements OnInit {
         const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
         this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
         this.vendors = vendors ?? [];
-        this.categories = categories ?? [];
+        this.categories = (categories ?? []).map(category => ({
+          ...category,
+          name: category.name ?? category.item_group_name ?? ''
+        }));
       })
       .catch(err => {
         this.statusMessage = this.formatError(err, 'Unable to load item data');
@@ -68,7 +71,8 @@ export class ItemListComponent implements OnInit {
       item_code: formValue.itemCode.trim(),
       item_name: formValue.itemName.trim(),
       item_group: formValue.category || 'All Item Groups',
-      stock_uom: formValue.measureUnit || 'Nos'
+      stock_uom: formValue.measureUnit || 'Nos',
+      aas_packaging_unit: formValue.packagingUnit || ''
     };
     this.itemService
       .createItem(payload)
@@ -100,7 +104,7 @@ export class ItemListComponent implements OnInit {
       name: String(item.item_name ?? item.name ?? '').trim(),
       category: String(item.item_group ?? ''),
       measureUnit: String(item.stock_uom ?? ''),
-      packagingUnit: item.packagingUnit ?? '',
+      packagingUnit: item.aas_packaging_unit ?? item.packagingUnit ?? '',
       raw: item
     };
   }
