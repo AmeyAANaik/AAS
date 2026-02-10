@@ -74,7 +74,38 @@
         </div>
         <div class="step-actions">
           <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext [disabled]="itemGroup.invalid">Review</button>
+          <button mat-flat-button color="primary" matStepperNext [disabled]="itemGroup.invalid">Attach image</button>
+        </div>
+      </mat-step>
+
+      <mat-step optional>
+        <ng-template matStepLabel>Attach image</ng-template>
+        <div class="image-step">
+          <div class="image-controls">
+            <label class="file-label">
+              <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+              <span class="file-button">Choose image</span>
+              <span class="file-name">{{ imageFile?.name || 'No image selected' }}</span>
+            </label>
+            <div class="image-actions">
+              <button mat-stroked-button color="primary" type="button" (click)="generateSampleImage()">
+                Generate sample image
+              </button>
+              <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
+                Clear
+              </button>
+            </div>
+            <p class="hint">
+              Attach a branch order image. If you do not have one, generate a sample and continue.
+            </p>
+          </div>
+          <div class="image-preview" *ngIf="imagePreviewUrl">
+            <img [src]="imagePreviewUrl" alt="Order image preview" />
+          </div>
+        </div>
+        <div class="step-actions">
+          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
+          <button mat-flat-button color="primary" matStepperNext>Review</button>
         </div>
       </mat-step>
 
@@ -104,6 +135,10 @@
           <div>
             <p class="label">Pricing</p>
             <p class="value">{{ pricingHint }}</p>
+          </div>
+          <div>
+            <p class="label">Image</p>
+            <p class="value">{{ imageFile?.name || 'No image attached' }}</p>
           </div>
         </div>
         <div class="step-actions">

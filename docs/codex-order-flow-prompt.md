@@ -73,6 +73,130 @@ Respond with:
 
 ---
 
+## Project Context to Provide (Fill In Before Use)
+Add these details above the prompt when you paste it into Codex:
+
+- Repo/modules to touch (e.g., `ui/`, `mw/`, `erpmodule/`)
+- API base URLs and auth scheme used by the UI and middleware
+- Current order-related endpoints (if any) and their versions
+- ERPNext app name, app version, and whether custom doctypes/fixtures are used
+- Existing workflow/state names (if any) to align with
+- Roles used in your ERPNext instance (branch, vendor, finance, admin, etc.)
+- Preferred testing tools and locations for UI/middleware tests
+
+If any of the above are unknown, explicitly say “unknown” so Codex can surface questions.
+
+---
+
+## Definition of Done (Codex Must Satisfy)
+- Architecture and data model map from image upload → order creation → vendor bill → sell order.
+- Concrete file list with edits and brief diffs for each file.
+- Explicit state machine with allowed transitions and enforcement points.
+- Middleware endpoints and payloads with versioning notes.
+- UI flow with screens/components, data fetching, and validation coverage.
+- Tests covering critical state transitions and margin calculation.
+- Migration/backfill notes and rollout plan.
+
+---
+
+## Optional Add‑Ons (Include If Relevant)
+- Observability: audit log entries at each state transition.
+- Permissions: role matrix per endpoint and per state transition.
+- Notifications: email/Slack when vendor is assigned or invoice posted.
+- Feature flagging: gate the flow for pilot branches/vendors.
+
+---
+
+## Project-Specific Prefill (AAS Repo)
+Paste this block above the prompt when using it for this repo.
+
+**Repo modules to touch**
+- `ui/` (Angular)
+- `mw/` (Spring Boot)
+- `erpmodule/` (ERPNext/Frappe)
+
+**API base + auth**
+- Base path: `/api`
+- Auth: `POST /api/auth/login` returns JWT (stored in UI `localStorage` as `aas_auth_token`)
+- UI always calls middleware (UI never calls ERPNext directly)
+
+**Current order/invoice endpoints**
+- Orders:
+  - `POST /api/orders`
+  - `GET /api/orders`, `GET /api/orders/{id}`
+  - `PUT /api/orders/{id}`
+  - `POST /api/orders/{id}/status`
+  - `POST /api/orders/{id}/assign-vendor`
+  - `GET /api/orders/export`
+- Invoices:
+  - `POST /api/invoices`
+  - `GET /api/invoices`
+  - `GET /api/invoices/export`
+  - `GET /api/invoices/{id}/pdf`
+- Payments: `POST /api/payments`
+
+**ERPNext mappings (current)**
+- Orders: `Sales Order`
+- Invoices: `Sales Invoice`
+- Payments: `Payment Entry`
+- Vendors: `Supplier`
+- Shops/Branches: `Customer`
+- Items: `Item`, Categories: `Item Group`
+
+**Existing custom fields (via `POST /api/setup/ensure`)**
+- `Sales Order`: `aas_vendor` (Supplier link), `aas_status` (Select)
+- `Item`, `Sales Order Item`: `aas_margin_percent`, `aas_vendor_rate`
+
+**Roles**
+- App roles mapped from ERP roles: `ADMIN`, `VENDOR`, `SHOP`, `HELPER`
+- Key access rules enforced in `mw/src/main/java/com/aas/mw/config/SecurityConfig.java`
+
+**Testing locations/tools**
+- UI: Angular unit tests in `ui/` (Karma/Jasmine)
+- Middleware: JUnit tests in `mw/`
+- ERPNext: fixtures/migrations in `erpmodule/` (if needed)
+
+**Key files (starting points)**
+- Middleware controllers:
+  - `mw/src/main/java/com/aas/mw/controller/OrdersController.java`
+  - `mw/src/main/java/com/aas/mw/controller/VendorAssignmentController.java`
+  - `mw/src/main/java/com/aas/mw/controller/InvoiceController.java`
+  - `mw/src/main/java/com/aas/mw/controller/PaymentsController.java`
+  - `mw/src/main/java/com/aas/mw/controller/SetupController.java`
+- Middleware services/clients:
+  - `mw/src/main/java/com/aas/mw/service/OrderService.java`
+  - `mw/src/main/java/com/aas/mw/service/InvoiceService.java`
+  - `mw/src/main/java/com/aas/mw/service/PaymentService.java`
+  - `mw/src/main/java/com/aas/mw/service/SetupService.java`
+  - `mw/src/main/java/com/aas/mw/client/ErpNextClient.java`
+- UI services:
+  - `ui/src/app/orders/order.service.ts`
+  - `ui/src/app/bills/bills.service.ts`
+  - `ui/src/app/shared/auth-token.service.ts`
+
+**Known gaps vs. target flow**
+- Middleware:
+  - No image upload endpoint or ERPNext `File` attachment handling wired to `Sales Order`.
+  - No explicit state machine enforcement beyond `aas_status` writes in `POST /api/orders/{id}/status`.
+  - No vendor bill capture mapped to purchase docs (current invoices are `Sales Invoice`, not `Purchase Invoice`).
+  - No automated sell-order creation from vendor bill + margin.
+  - No configurable margin setting at order/header level (only item-level fields exist).
+  - No audit logging at state transitions.
+- ERPNext:
+  - No `Branch Order Request` doctype (if needed) or workflow state configuration for this flow.
+  - No configured workflow states tied to roles for `Sales Order`/`Purchase Invoice`.
+  - No defined mapping from vendor bill back to branch order (custom link fields likely needed).
+  - No standard attachment rules for order images (needs `File` link and permissions).
+- UI:
+  - No image upload component or order creation from image flow.
+  - No status timeline component or state transition UI.
+  - No vendor assignment UI beyond existing order update paths.
+  - No vendor bill entry UI tied to an order.
+  - No sell order preview (margin calc) or create action from vendor bill.
+
+
+---
+
 ## Short Version (If You Need a Compact Prompt)
 
 Implement an ERPNext-driven branch order workflow: image upload -> create order with attachment -> assign vendor -> state transition -> capture vendor bill -> generate branch sell order with 10% margin. Update middleware APIs, UI screens, and ERPNext mappings/workflows. Add validation, permissions, and automated tests. Return architecture, state machine, API contracts, file-level change plan, and rollout notes.
