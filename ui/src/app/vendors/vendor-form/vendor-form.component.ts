@@ -17,6 +17,11 @@ export class VendorFormComponent implements OnChanges {
 
   form: FormGroup = this.fb.group({
     supplierName: ['', [Validators.required, Validators.maxLength(140)]],
+    address: [''],
+    phone: [''],
+    gst: [''],
+    pan: [''],
+    foodLicenseNo: [''],
     priority: [null, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     status: ['Active', [Validators.required]]
   });
@@ -37,7 +42,16 @@ export class VendorFormComponent implements OnChanges {
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.reset({ supplierName: '', priority: null, status: 'Active' });
+    this.form.reset({
+      supplierName: '',
+      address: '',
+      phone: '',
+      gst: '',
+      pan: '',
+      foodLicenseNo: '',
+      priority: null,
+      status: 'Active'
+    });
   }
 
   submit(): void {
@@ -52,7 +66,16 @@ export class VendorFormComponent implements OnChanges {
   }
 
   clear(): void {
-    this.form.reset({ supplierName: '', priority: null, status: 'Active' });
+    this.form.reset({
+      supplierName: '',
+      address: '',
+      phone: '',
+      gst: '',
+      pan: '',
+      foodLicenseNo: '',
+      priority: null,
+      status: 'Active'
+    });
     this.reset.emit();
   }
 }

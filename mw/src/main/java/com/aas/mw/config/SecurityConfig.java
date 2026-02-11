@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/categories").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/items").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/orders").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(HttpMethod.POST, "/api/orders/*/image").hasAnyRole("ADMIN", "SHOP")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/assign-vendor").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/status").hasAnyRole("ADMIN", "VENDOR", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/invoices").hasRole("ADMIN")

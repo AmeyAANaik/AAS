@@ -97,6 +97,11 @@ export class VendorListComponent implements OnInit {
   private toPayload(formValue: VendorFormValue): Record<string, unknown> {
     return {
       supplier_name: formValue.supplierName.trim(),
+      address: formValue.address?.trim() || '',
+      phone: formValue.phone?.trim() || '',
+      gst: formValue.gst?.trim() || '',
+      pan: formValue.pan?.trim() || '',
+      food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
       disabled: formValue.status === 'Inactive' ? 1 : 0
     };

@@ -9,6 +9,31 @@
           <mat-error *ngIf="form.get('supplierName')?.hasError('required')">Vendor name is required.</mat-error>
         </mat-form-field>
 
+        <mat-form-field appearance="fill" class="full">
+          <mat-label>Address</mat-label>
+          <textarea matInput formControlName="address" rows="2"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Phone no</mat-label>
+          <input matInput type="tel" formControlName="phone" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>GST</mat-label>
+          <input matInput formControlName="gst" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>PAN</mat-label>
+          <input matInput formControlName="pan" />
+        </mat-form-field>
+
+        <mat-form-field appearance="fill">
+          <mat-label>Food license no</mat-label>
+          <input matInput formControlName="foodLicenseNo" />
+        </mat-form-field>
+
         <mat-form-field appearance="fill">
           <mat-label>Priority</mat-label>
           <input matInput type="number" formControlName="priority" min="0" />

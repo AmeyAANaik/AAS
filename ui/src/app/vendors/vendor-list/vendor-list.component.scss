@@ -1,25 +1,50 @@
 .vendor-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px;
+  align-items: start;
+}
+
+.list-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.form-card {
+  padding: 0;
+  overflow: hidden;
 }
 
 .toolbar {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
   gap: 12px;
-  margin-bottom: 12px;
+  align-items: center;
+  margin: 12px 0 8px;
+}
+
+.toolbar mat-form-field,
+.toolbar .mat-mdc-form-field {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.toolbar button {
+  align-self: center;
+  height: 48px;
 }
 
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 table {
@@ -30,7 +55,9 @@ table {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 250, 0.92));
 }
 
 .section-title {
@@ -43,6 +70,43 @@ table {
   font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
+}
+
+.list-card mat-card-content,
+.list-card .mat-mdc-card-content {
+  padding: 0 16px 16px;
+}
+
+.form-card mat-card-content,
+.form-card .mat-mdc-card-content {
+  padding: 16px;
+}
+
+.pro-table th,
+.pro-table .mat-mdc-header-cell {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.pro-table th,
+.pro-table td,
+.pro-table .mat-mdc-header-cell,
+.pro-table .mat-mdc-cell {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pro-table tr:last-child td,
+.pro-table .mat-mdc-row:last-child .mat-mdc-cell {
+  border-bottom: none;
+}
+
+.pro-table tr:hover td,
+.pro-table .mat-mdc-row:hover .mat-mdc-cell {
+  background: rgba(29, 111, 122, 0.04);
 }
 
 @media (max-width: 900px) {

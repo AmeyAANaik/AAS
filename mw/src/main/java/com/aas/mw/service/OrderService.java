@@ -14,9 +14,11 @@ public class OrderService {
     private static final String DOCTYPE = "Sales Order";
 
     private final ErpNextClient erpNextClient;
+    private final ErpNextFileService erpNextFileService;
 
-    public OrderService(ErpNextClient erpNextClient) {
+    public OrderService(ErpNextClient erpNextClient, ErpNextFileService erpNextFileService) {
         this.erpNextClient = erpNextClient;
+        this.erpNextFileService = erpNextFileService;
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
@@ -33,6 +35,10 @@ public class OrderService {
 
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
         return erpNextClient.updateResource(DOCTYPE, id, fields);
+    }
+
+    public Map<String, Object> attachOrderImage(String orderId, org.springframework.web.multipart.MultipartFile file, String sessionCookie) {
+        return erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
     }
 
     public List<Map<String, Object>> listOrders(Map<String, String> filters) {

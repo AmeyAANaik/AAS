@@ -5,10 +5,20 @@ export interface Vendor {
   supplier_name?: string;
   disabled?: number | boolean;
   aas_priority?: number;
+  address?: string;
+  phone?: string;
+  gst?: string;
+  pan?: string;
+  food_license_no?: string;
 }
 
 export interface VendorFormValue {
   supplierName: string;
+  address?: string;
+  phone?: string;
+  gst?: string;
+  pan?: string;
+  foodLicenseNo?: string;
   priority: number | null;
   status: VendorStatus;
 }

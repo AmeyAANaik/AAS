@@ -55,7 +55,7 @@ docker compose -f pwd.yml down
 
 ### Access ERPNext UI
 
-- **URL**: http://localhost:8080
+- **URL**: http://locayelhost:8080
 - **Default User**: `Administrator`
 - **Default Password**: `admin`
 
@@ -138,6 +138,11 @@ npm start
 2. Configure companies and master data in ERPNext UI
 3. **Start Middleware (MW)** to expose APIs
 4. **Start UI** for custom UX
+5. **Seed mock master data** (vendors/branches/items)
+
+```bash
+npm run seed:mock
+```
 
 ## Full Docker Compose Flow (ERPNext + MW)
 
@@ -152,7 +157,7 @@ docker compose -f docker-compose.mw.yml up --build
 ## Verification (End-to-End)
 
 1) **ERPNext UI**
-- URL: http://localhost:8080
+- URL: http://localhoist:8080
 - Login: `Administrator` / `admin`
 
 2) **MW health (Swagger UI)**
@@ -189,23 +194,33 @@ MW adds custom fields on Item:
 
 UI uses these to auto-calculate selling rate when you pick an item.
 
+## Seed Mock Data
+
+Run from repo root. Use an ADMIN account.
+
+```bash
+MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
+```
+
+If you see a 403 during seeding, verify the authenticated role is `admin` and that MW is running.
+
 ## Default Users (created via `/api/setup/ensure`)
 
 MW creates default users on first login (if enabled) and will not overwrite existing accounts.
 
 Vendor User
 - Email: `vendor@example.com`
-- Password: `vendor123`
+- Password: `VendorAAS!2026`
 - Supplier: `Vendor A`
 
 Shop User
 - Email: `shop@example.com`
-- Password: `shop123`
+- Password: `ShopAAS!2026`
 - Customer: `Shop A`
 
 Helper User
 - Email: `helper@example.com`
-- Password: `helper123`
+- Password: `HelperAAS!2026`
 
 You can override any defaults with env vars in `mw/src/main/resources/application.properties` (keys start with `APP_DEFAULTS_`).
 

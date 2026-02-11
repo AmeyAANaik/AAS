@@ -1,6 +1,7 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { of } from 'rxjs';
+import { finalize, map, switchMap } from 'rxjs/operators';
 import { ItemOption, OrderCreatePayload, OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
 
@@ -9,7 +10,7 @@ import { OrderService } from '../order.service';
   templateUrl: './order-create.component.html',
   styleUrl: './order-create.component.scss'
 })
-export class OrderCreateComponent implements OnChanges {
+export class OrderCreateComponent implements OnChanges, OnDestroy {
   @Input() shops: OrderOption[] = [];
   @Input() items: ItemOption[] = [];
   @Output() created = new EventEmitter<OrderCreateResult>();
@@ -18,6 +19,8 @@ export class OrderCreateComponent implements OnChanges {
   isSubmitting = false;
   lineTotal = 0;
   pricingLabel = '';
+  imageFile: File | null = null;
+  imagePreviewUrl = '';
 
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
@@ -33,9 +36,14 @@ export class OrderCreateComponent implements OnChanges {
     rate: [0, [Validators.min(0)]]
   });
 
+  imageGroup: FormGroup = this.fb.group({
+    imageName: ['']
+  });
+
   form: FormGroup = this.fb.group({
     details: this.detailsGroup,
-    item: this.itemGroup
+    item: this.itemGroup,
+    image: this.imageGroup
   });
 
   constructor(private fb: FormBuilder, private orderService: OrderService) {
@@ -61,11 +69,33 @@ export class OrderCreateComponent implements OnChanges {
     this.statusMessage = 'Creating order...';
     this.orderService
       .createOrder(payload)
-      .pipe(finalize(() => (this.isSubmitting = false)))
+      .pipe(
+        map(response => {
+          const id = this.extractOrderId(response);
+          if (!id) {
+            throw new Error('Order created but ID missing.');
+          }
+          return { id, response };
+        }),
+        switchMap(({ id, response }) => {
+          if (!this.imageFile) {
+            return of({ id, response, uploaded: false });
+          }
+          this.statusMessage = 'Uploading order image...';
+          return this.orderService.uploadOrderImage(id, this.imageFile).pipe(
+            map(uploadResponse => ({ id, response, uploaded: true, uploadResponse }))
+          );
+        }),
+        finalize(() => (this.isSubmitting = false))
+      )
       .subscribe({
-        next: response => {
-          const id = String((response as { name?: string; data?: { name?: string } })?.name ?? (response as any)?.data?.name ?? '').trim();
-          this.statusMessage = id ? `Order created: ${id}` : 'Order created.';
+        next: result => {
+          const id = result?.id ?? '';
+          this.statusMessage = id
+            ? result?.uploaded
+              ? `Order created and image uploaded: ${id}`
+              : `Order created: ${id}`
+            : 'Order created.';
           if (id) {
             this.created.emit({ id, customer: payload.customer });
           }
@@ -81,6 +111,10 @@ export class OrderCreateComponent implements OnChanges {
     this.resetForm();
   }
 
+  ngOnDestroy(): void {
+    this.revokePreviewUrl();
+  }
+
   get selectedItem(): ItemOption | undefined {
     const itemId = String(this.itemGroup.get('itemId')?.value ?? '').trim();
     return this.items.find(item => item.code === itemId || item.id === itemId);
@@ -92,6 +126,10 @@ export class OrderCreateComponent implements OnChanges {
 
   get canSubmit(): boolean {
     return this.form.valid && !this.isSubmitting;
+  }
+
+  get imageSelected(): boolean {
+    return Boolean(this.imageFile);
   }
 
   get pricingHint(): string {
@@ -167,6 +205,9 @@ export class OrderCreateComponent implements OnChanges {
       pricingVisible: true,
       rate: 0
     });
+    this.imageGroup.reset({ imageName: '' });
+    this.imageFile = null;
+    this.revokePreviewUrl();
     this.statusMessage = '';
     this.lineTotal = 0;
     this.pricingLabel = '';
@@ -187,5 +228,70 @@ export class OrderCreateComponent implements OnChanges {
       return err;
     }
     return fallback;
+  }
+
+  onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      this.clearImage();
+      return;
+    }
+    this.setImage(file);
+  }
+
+  generateSampleImage(): void {
+    const timestamp = this.formatDate(new Date());
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="800" height="500">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#f4f6f9"/>
+            <stop offset="100%" stop-color="#d8e2f0"/>
+          </linearGradient>
+        </defs>
+        <rect width="800" height="500" fill="url(#bg)"/>
+        <rect x="60" y="60" width="680" height="380" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+        <text x="100" y="140" font-size="28" font-family="Arial" fill="#111827">Branch Order Image</text>
+        <text x="100" y="190" font-size="18" font-family="Arial" fill="#374151">Generated: ${timestamp}</text>
+        <text x="100" y="230" font-size="18" font-family="Arial" fill="#374151">Branch: ${
+          this.detailsGroup.get('customer')?.value || 'Unassigned'
+        }</text>
+        <text x="100" y="270" font-size="18" font-family="Arial" fill="#374151">Item: ${
+          this.selectedItem?.name || 'Unselected'
+        }</text>
+        <text x="100" y="310" font-size="18" font-family="Arial" fill="#374151">Qty: ${
+          this.itemGroup.get('quantity')?.value || 0
+        }</text>
+      </svg>
+    `;
+    const blob = new Blob([svg.trim()], { type: 'image/svg+xml' });
+    const file = new File([blob], `order-${timestamp}.svg`, { type: 'image/svg+xml' });
+    this.setImage(file);
+  }
+
+  clearImage(): void {
+    this.imageFile = null;
+    this.imageGroup.patchValue({ imageName: '' });
+    this.revokePreviewUrl();
+  }
+
+  private setImage(file: File): void {
+    this.imageFile = file;
+    this.imageGroup.patchValue({ imageName: file.name });
+    this.revokePreviewUrl();
+    this.imagePreviewUrl = URL.createObjectURL(file);
+  }
+
+  private revokePreviewUrl(): void {
+    if (this.imagePreviewUrl) {
+      URL.revokeObjectURL(this.imagePreviewUrl);
+      this.imagePreviewUrl = '';
+    }
+  }
+
+  private extractOrderId(response: unknown): string {
+    const anyResponse = response as { name?: string; data?: { name?: string } } | null;
+    return String(anyResponse?.name ?? anyResponse?.data?.name ?? '').trim();
   }
 }

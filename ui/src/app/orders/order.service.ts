@@ -55,6 +55,14 @@ export class OrderService {
     );
   }
 
+  uploadOrderImage(orderId: string, file: File): Observable<Record<string, unknown>> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/image`, formData, {
+      headers: this.authHeaders()
+    });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {
