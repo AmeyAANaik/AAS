@@ -195,13 +195,47 @@ public class VendorPdfService {
             String company,
             List<Map<String, Object>> items,
             Map<String, Object> originalOrder) {
+        String warehouse = resolveWarehouse(originalOrder);
+        List<Map<String, Object>> poItems = withWarehouse(items, warehouse);
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", vendor);
         payload.put("company", company);
         payload.put("schedule_date", resolveScheduleDate(originalOrder));
-        payload.put("items", items);
+        payload.put("items", poItems);
         payload.put("aas_source_sales_order", sourceOrderId);
         return erpNextClient.createResource(PURCHASE_ORDER, payload);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String resolveWarehouse(Map<String, Object> originalOrder) {
+        String orderWarehouse = asText(originalOrder == null ? null : originalOrder.get("set_warehouse"));
+        if (!orderWarehouse.isBlank()) {
+            return orderWarehouse;
+        }
+        Object itemsObj = originalOrder == null ? null : originalOrder.get("items");
+        if (itemsObj instanceof List<?> list) {
+            for (Object rowObj : list) {
+                if (rowObj instanceof Map<?, ?> row) {
+                    String rowWarehouse = asText(((Map<String, Object>) row).get("warehouse"));
+                    if (!rowWarehouse.isBlank()) {
+                        return rowWarehouse;
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    private List<Map<String, Object>> withWarehouse(List<Map<String, Object>> items, String warehouse) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            Map<String, Object> copy = new HashMap<>(item);
+            if (!warehouse.isBlank()) {
+                copy.put("warehouse", warehouse);
+            }
+            rows.add(copy);
+        }
+        return rows;
     }
 
     private String resolveDate(Object value) {

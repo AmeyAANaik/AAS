@@ -44,7 +44,7 @@
 
 .filter-grid {
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  align-items: center;
+  align-items: end;
 }
 
 .compact {
@@ -58,30 +58,33 @@
 }
 
 .filter-actions {
-  align-self: stretch;
+  align-self: end;
   display: flex;
-  flex-direction: column;
   justify-content: flex-start;
-  gap: 4px;
 }
 
-.filter-action-label {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.2;
-}
-
-.apply-filter-btn.mat-mdc-unelevated-button,
-.apply-filter-btn[mat-flat-button] {
+.apply-filter-btn {
+  width: 100%;
   height: 56px !important;
   min-height: 56px !important;
-  line-height: 56px !important;
-  min-width: 98px;
-  padding: 0 20px !important;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
   font-size: 14px;
   font-weight: 600;
-  border-radius: 10px;
-  align-self: stretch;
+  line-height: 1;
+  align-self: end;
+  cursor: pointer;
+}
+
+.apply-filter-btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.apply-filter-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .table-wrapper {
@@ -294,10 +297,6 @@ table {
 
   .filter-grid {
     grid-template-columns: 1fr;
-  }
-
-  .filter-action-label {
-    display: none;
   }
 
   .section-card {

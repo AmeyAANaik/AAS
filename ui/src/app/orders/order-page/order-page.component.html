@@ -67,8 +67,7 @@
         </mat-form-field>
 
         <div class="form-actions filter-actions">
-          <span class="filter-action-label">Action</span>
-          <button class="apply-filter-btn" mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">
+          <button class="apply-filter-btn" type="button" (click)="loadOrders()" [disabled]="isLoading">
             Apply
           </button>
         </div>
