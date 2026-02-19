@@ -30,14 +30,18 @@ export class VendorFormComponent implements OnChanges {
 
   ngOnChanges(): void {
     if (this.vendor) {
+      const raw = this.vendor.raw as Record<string, unknown>;
       this.form.patchValue({
         supplierName: this.vendor.name,
+        address: String(raw['address'] ?? ''),
+        phone: String(raw['phone'] ?? ''),
+        gst: String(raw['gst'] ?? ''),
+        pan: String(raw['pan'] ?? ''),
+        foodLicenseNo: String(raw['food_license_no'] ?? ''),
         priority: this.vendor.priority,
         status: this.vendor.status
       });
-      if (this.mode === 'edit') {
-        this.form.disable({ emitEvent: false });
-      }
+      this.form.enable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
@@ -55,9 +59,6 @@ export class VendorFormComponent implements OnChanges {
   }
 
   submit(): void {
-    if (this.mode === 'edit') {
-      return;
-    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

@@ -2,8 +2,11 @@ package com.aas.mw.controller;
 
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.FieldsRequest;
+import com.aas.mw.dto.VendorBillRequest;
+import com.aas.mw.service.OrderBillingService;
 import com.aas.mw.service.OrderService;
 import com.aas.mw.service.UserService;
+import com.aas.mw.service.VendorPdfService;
 import com.aas.mw.util.CsvUtil;
 import jakarta.validation.Valid;
 import java.util.Map;
@@ -35,11 +38,19 @@ import org.springframework.http.HttpStatus;
 public class OrdersController {
 
     private final OrderService orderService;
+    private final OrderBillingService orderBillingService;
     private final UserService userService;
+    private final VendorPdfService vendorPdfService;
 
-    public OrdersController(OrderService orderService, UserService userService) {
+    public OrdersController(
+            OrderService orderService,
+            OrderBillingService orderBillingService,
+            UserService userService,
+            VendorPdfService vendorPdfService) {
         this.orderService = orderService;
+        this.orderBillingService = orderBillingService;
         this.userService = userService;
+        this.vendorPdfService = vendorPdfService;
     }
 
     @PostMapping
@@ -154,6 +165,39 @@ public class OrdersController {
         return ResponseEntity.ok(orderService.updateOrderFields(id, request.getFields()));
     }
 
+    @PostMapping(value = "/branch-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> createOrderFromBranchImage(
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String customer,
+            @RequestParam(required = false) String company,
+            @RequestParam(required = false, name = "transaction_date") String transactionDate,
+            @RequestParam(required = false, name = "delivery_date") String deliveryDate,
+            HttpServletRequest request) {
+        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "ERPNext session not found."));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Image file is required."));
+        }
+        if (customer == null || customer.isBlank()) {
+            customer = resolveCustomer();
+        }
+        if (company == null || company.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Company is required."));
+        }
+        return ResponseEntity.ok(orderService.createOrderWithImage(
+                customer,
+                company,
+                transactionDate,
+                deliveryDate,
+                file,
+                sessionCookie));
+    }
+
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadOrderImage(
             @PathVariable String id,
@@ -169,5 +213,39 @@ public class OrdersController {
                     .body(Map.of("error", "Image file is required."));
         }
         return ResponseEntity.ok(orderService.attachOrderImage(id, file, sessionCookie));
+    }
+
+    @PostMapping(value = "/{id}/vendor-pdf", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadVendorPdf(
+            @PathVariable String id,
+            @RequestPart("file") MultipartFile file,
+            HttpServletRequest request) {
+        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "ERPNext session not found."));
+        }
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Vendor PDF file is required."));
+        }
+        return ResponseEntity.ok(vendorPdfService.processVendorPdf(id, file, sessionCookie));
+    }
+
+    @PostMapping("/{id}/vendor-bill")
+    public ResponseEntity<Map<String, Object>> captureVendorBill(
+            @PathVariable String id,
+            @Valid @RequestBody VendorBillRequest request) {
+        return ResponseEntity.ok(orderBillingService.captureVendorBill(id, request.getFields()));
+    }
+
+    @GetMapping("/{id}/sell-preview")
+    public ResponseEntity<Map<String, Object>> getSellPreview(@PathVariable String id) {
+        return ResponseEntity.ok(orderBillingService.getSellPreview(id));
+    }
+
+    @PostMapping("/{id}/sell-order")
+    public ResponseEntity<Map<String, Object>> createSellOrder(@PathVariable String id) {
+        return ResponseEntity.ok(orderBillingService.createSellOrder(id));
     }
 }

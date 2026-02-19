@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
@@ -10,7 +10,8 @@ import {
   OrderOption,
   OrderStatus,
   OrderSummary,
-  OrderView
+  OrderView,
+  SellPreview
 } from '../order.model';
 import { OrderService } from '../order.service';
 
@@ -33,7 +34,14 @@ export class OrderPageComponent implements OnInit {
   });
 
   statusForm: FormGroup = this.fb.group({
-    status: ['Accepted']
+    status: ['DRAFT']
+  });
+
+  vendorBillForm: FormGroup = this.fb.group({
+    vendorBillTotal: [null, [Validators.required, Validators.min(0.01)]],
+    vendorBillRef: [''],
+    vendorBillDate: [''],
+    marginPercent: [10, [Validators.required, Validators.min(0)]]
   });
 
   orders: OrderView[] = [];
@@ -41,12 +49,31 @@ export class OrderPageComponent implements OnInit {
   vendors: OrderOption[] = [];
   items: ItemOption[] = [];
   selectedOrder: OrderView | null = null;
-  summary = { total: 0, pending: 0, inProgress: 0, delivered: 0 };
+  selectedVendorPdf: File | null = null;
+  sellPreview: SellPreview | null = null;
+
+  summary = { total: 0, pending: 0, inProgress: 0, completed: 0 };
   statusMessage = '';
   isLoading = false;
   isSaving = false;
+  isPreviewLoading = false;
 
-  readonly statuses: OrderStatus[] = ['Accepted', 'Preparing', 'Ready', 'Delivered'];
+  readonly statuses: OrderStatus[] = [
+    'DRAFT',
+    'VENDOR_ASSIGNED',
+    'VENDOR_PDF_RECEIVED',
+    'VENDOR_BILL_CAPTURED',
+    'SELL_ORDER_CREATED',
+    'INVOICED'
+  ];
+
+  readonly timelineSteps: OrderStatus[] = [
+    'DRAFT',
+    'VENDOR_ASSIGNED',
+    'VENDOR_PDF_RECEIVED',
+    'VENDOR_BILL_CAPTURED',
+    'SELL_ORDER_CREATED'
+  ];
 
   constructor(
     private fb: FormBuilder,
@@ -57,6 +84,7 @@ export class OrderPageComponent implements OnInit {
   ) {
     const today = this.formatDate(new Date());
     this.filtersForm.patchValue({ from: today, to: today });
+    this.vendorBillForm.patchValue({ vendorBillDate: today });
   }
 
   ngOnInit(): void {
@@ -116,25 +144,22 @@ export class OrderPageComponent implements OnInit {
 
   selectOrder(order: OrderView): void {
     this.selectedOrder = order;
-    this.assignForm.patchValue({ vendorId: order.vendor || '' });
-    this.statusForm.patchValue({ status: order.status || 'Accepted' });
-    this.statusMessage = '';
-  }
-
-  clearSelection(): void {
-    this.selectedOrder = null;
-    this.assignForm.reset({ vendorId: '' });
-    this.statusForm.reset({ status: 'Accepted' });
+    this.assignForm.patchValue({ vendorId: order.raw.aas_vendor || '' });
+    this.statusForm.patchValue({ status: order.status || 'DRAFT' });
+    this.vendorBillForm.patchValue({
+      vendorBillTotal: order.raw.aas_vendor_bill_total ?? null,
+      vendorBillRef: order.raw.aas_vendor_bill_ref ?? '',
+      vendorBillDate: order.raw.aas_vendor_bill_date ?? this.formatDate(new Date()),
+      marginPercent: order.raw.aas_margin_percent ?? 10
+    });
+    this.selectedVendorPdf = null;
+    this.sellPreview = null;
     this.statusMessage = '';
   }
 
   assignVendor(): void {
     if (!this.selectedOrder) {
       this.statusMessage = 'Select an order to assign a vendor.';
-      return;
-    }
-    if (!this.canAssignVendor(this.selectedOrder)) {
-      this.statusMessage = 'Vendor assignment is locked for this order.';
       return;
     }
     const vendorId = String(this.assignForm.get('vendorId')?.value ?? '').trim();
@@ -151,19 +176,13 @@ export class OrderPageComponent implements OnInit {
           this.statusMessage = 'Vendor assigned.';
           this.loadOrders();
         },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to assign vendor');
-        }
+        error: err => (this.statusMessage = this.formatError(err, 'Unable to assign vendor'))
       });
   }
 
   updateStatus(): void {
     if (!this.selectedOrder) {
       this.statusMessage = 'Select an order to update status.';
-      return;
-    }
-    if (!this.canUpdateStatus(this.selectedOrder)) {
-      this.statusMessage = 'Status updates are locked for this order.';
       return;
     }
     const status = String(this.statusForm.get('status')?.value ?? '').trim();
@@ -180,9 +199,102 @@ export class OrderPageComponent implements OnInit {
           this.statusMessage = 'Status updated.';
           this.loadOrders();
         },
+        error: err => (this.statusMessage = this.formatError(err, 'Unable to update status'))
+      });
+  }
+
+  onVendorPdfSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.selectedVendorPdf = input?.files?.[0] ?? null;
+  }
+
+  uploadVendorPdf(): void {
+    if (!this.selectedOrder) {
+      this.statusMessage = 'Select an order first.';
+      return;
+    }
+    if (!this.selectedVendorPdf) {
+      this.statusMessage = 'Select a vendor PDF file first.';
+      return;
+    }
+    this.isSaving = true;
+    this.orderService
+      .uploadVendorPdf(this.selectedOrder.id, this.selectedVendorPdf)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Vendor PDF uploaded and parsed.';
+          this.selectedVendorPdf = null;
+          this.loadOrders();
+        },
+        error: err => (this.statusMessage = this.formatError(err, 'Unable to upload vendor PDF'))
+      });
+  }
+
+  captureVendorBill(): void {
+    if (!this.selectedOrder) {
+      this.statusMessage = 'Select an order first.';
+      return;
+    }
+    if (this.vendorBillForm.invalid) {
+      this.vendorBillForm.markAllAsTouched();
+      return;
+    }
+    const value = this.vendorBillForm.getRawValue();
+    this.isSaving = true;
+    this.orderService
+      .captureVendorBill(this.selectedOrder.id, {
+        vendor_bill_total: Number(value.vendorBillTotal),
+        vendor_bill_ref: String(value.vendorBillRef ?? ''),
+        vendor_bill_date: String(value.vendorBillDate ?? ''),
+        margin_percent: Number(value.marginPercent ?? 10)
+      })
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Vendor bill captured.';
+          this.loadOrders();
+          this.loadSellPreview();
+        },
+        error: err => (this.statusMessage = this.formatError(err, 'Unable to capture vendor bill'))
+      });
+  }
+
+  loadSellPreview(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    this.isPreviewLoading = true;
+    this.orderService
+      .getSellPreview(this.selectedOrder.id)
+      .pipe(finalize(() => (this.isPreviewLoading = false)))
+      .subscribe({
+        next: preview => {
+          this.sellPreview = preview;
+          this.statusMessage = 'Sell preview calculated.';
+        },
         error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to update status');
+          this.sellPreview = null;
+          this.statusMessage = this.formatError(err, 'Unable to calculate sell preview');
         }
+      });
+  }
+
+  createSellOrder(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    this.isSaving = true;
+    this.orderService
+      .createSellOrder(this.selectedOrder.id)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Sell order created.';
+          this.loadOrders();
+          this.loadSellPreview();
+        },
+        error: err => (this.statusMessage = this.formatError(err, 'Unable to create sell order'))
       });
   }
 
@@ -203,12 +315,29 @@ export class OrderPageComponent implements OnInit {
     return 'pill pill-neutral';
   }
 
-  canAssignVendor(order: OrderView): boolean {
-    return !order.isFinal && !order.isVendorAssigned;
+  isStepDone(step: OrderStatus): boolean {
+    if (!this.selectedOrder) {
+      return false;
+    }
+    return this.timelineIndex(this.selectedOrder.status) >= this.timelineIndex(step);
   }
 
-  canUpdateStatus(order: OrderView): boolean {
-    return !order.isFinal;
+  canCaptureBill(): boolean {
+    if (!this.selectedOrder) {
+      return false;
+    }
+    return ['VENDOR_ASSIGNED', 'VENDOR_PDF_RECEIVED'].includes(String(this.selectedOrder.status));
+  }
+
+  canCreateSellOrder(): boolean {
+    if (!this.selectedOrder) {
+      return false;
+    }
+    return String(this.selectedOrder.status) === 'VENDOR_BILL_CAPTURED';
+  }
+
+  private timelineIndex(status: OrderStatus): number {
+    return this.timelineSteps.findIndex(step => step === status);
   }
 
   private syncSelection(): void {
@@ -224,7 +353,7 @@ export class OrderPageComponent implements OnInit {
     const customer = String(order.customer ?? '').trim();
     const vendor = String(order.aas_vendor ?? '').trim();
     const status = this.resolveStatus(order);
-    const isFinal = status === 'Delivered';
+    const isFinal = ['SELL_ORDER_CREATED', 'INVOICED', 'Delivered'].includes(String(status));
     return {
       id,
       customer: customer || 'Unknown',
@@ -243,17 +372,17 @@ export class OrderPageComponent implements OnInit {
 
   private resolveStatus(order: OrderSummary): OrderStatus {
     const status = String(order.aas_status ?? order.status ?? '').trim();
-    return status || 'Pending';
+    return status || 'DRAFT';
   }
 
   private resolveStatusTone(status: OrderStatus): 'neutral' | 'success' | 'warning' | 'info' {
-    if (status === 'Delivered') {
+    if (status === 'SELL_ORDER_CREATED' || status === 'INVOICED' || status === 'Delivered') {
       return 'success';
     }
-    if (status === 'Ready') {
+    if (status === 'VENDOR_BILL_CAPTURED' || status === 'Ready') {
       return 'info';
     }
-    if (status === 'Preparing') {
+    if (status === 'VENDOR_PDF_RECEIVED' || status === 'Preparing') {
       return 'warning';
     }
     return 'neutral';
@@ -270,12 +399,14 @@ export class OrderPageComponent implements OnInit {
     return value.toFixed(2);
   }
 
-  private buildSummary(orders: OrderView[]): { total: number; pending: number; inProgress: number; delivered: number } {
+  private buildSummary(orders: OrderView[]): { total: number; pending: number; inProgress: number; completed: number } {
     const total = orders.length;
-    const delivered = orders.filter(order => order.status === 'Delivered').length;
-    const inProgress = orders.filter(order => ['Accepted', 'Preparing', 'Ready'].includes(String(order.status))).length;
-    const pending = orders.filter(order => order.status === 'Pending').length;
-    return { total, pending, inProgress, delivered };
+    const completed = orders.filter(order => ['SELL_ORDER_CREATED', 'INVOICED'].includes(String(order.status))).length;
+    const inProgress = orders.filter(order =>
+      ['VENDOR_ASSIGNED', 'VENDOR_PDF_RECEIVED', 'VENDOR_BILL_CAPTURED'].includes(String(order.status))
+    ).length;
+    const pending = orders.filter(order => order.status === 'DRAFT').length;
+    return { total, pending, inProgress, completed };
   }
 
   private formatDate(date: Date): string {
@@ -291,6 +422,10 @@ export class OrderPageComponent implements OnInit {
     }
     if (typeof err === 'string') {
       return err;
+    }
+    const status = (err as { error?: { message?: string } } | null)?.error?.message;
+    if (typeof status === 'string' && status.trim()) {
+      return status;
     }
     return fallback;
   }

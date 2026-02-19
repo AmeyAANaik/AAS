@@ -35,6 +35,14 @@ public class ApiExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleState(IllegalStateException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "invalid_state");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleStatus(ResponseStatusException ex) {
         Map<String, Object> body = new HashMap<>();

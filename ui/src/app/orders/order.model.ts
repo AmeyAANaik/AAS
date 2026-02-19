@@ -13,6 +13,10 @@ export interface OrderSummary {
   aas_cost_total?: number;
   aas_margin_total?: number;
   aas_margin_percent?: number;
+  aas_vendor_bill_total?: number;
+  aas_vendor_bill_ref?: string;
+  aas_vendor_bill_date?: string;
+  aas_sell_order_total?: number;
 }
 
 export interface OrderView {
@@ -55,6 +59,21 @@ export interface OrderCreatePayload {
 export interface OrderCreateResult {
   id: string;
   customer: string;
+}
+
+export interface VendorBillPayload {
+  vendor_bill_total: number;
+  vendor_bill_ref?: string;
+  vendor_bill_date?: string;
+  margin_percent?: number;
+}
+
+export interface SellPreview {
+  orderId: string;
+  vendorBillTotal: number;
+  marginPercent: number;
+  sellAmount: number;
+  marginAmount: number;
 }
 
 export interface OrderOption {

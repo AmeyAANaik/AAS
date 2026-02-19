@@ -1,5 +1,5 @@
 <div class="order-page">
-  <app-page-header title="Orders" subtitle="Review order status, assign vendors, and create new orders.">
+  <app-page-header title="Orders" subtitle="Branch image to vendor bill to sell order workflow.">
     <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
     <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
   </app-page-header>
@@ -18,8 +18,8 @@
       <div class="summary-value">{{ summary.pending }}</div>
     </mat-card>
     <mat-card class="summary-card">
-      <div class="summary-label">Delivered</div>
-      <div class="summary-value">{{ summary.delivered }}</div>
+      <div class="summary-label">Completed</div>
+      <div class="summary-value">{{ summary.completed }}</div>
     </mat-card>
   </div>
 
@@ -31,7 +31,7 @@
       </div>
     </div>
     <mat-card-content>
-      <form [formGroup]="filtersForm" class="form-grid">
+      <form [formGroup]="filtersForm" class="form-grid filter-grid">
         <mat-form-field appearance="outline">
           <mat-label>Branch</mat-label>
           <mat-select formControlName="customer">
@@ -66,8 +66,11 @@
           <input matInput type="date" formControlName="to" />
         </mat-form-field>
 
-        <div class="form-actions">
-          <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Apply</button>
+        <div class="form-actions filter-actions">
+          <span class="filter-action-label">Action</span>
+          <button class="apply-filter-btn" mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">
+            Apply
+          </button>
         </div>
       </form>
     </mat-card-content>
@@ -77,11 +80,14 @@
     <div class="section-header">
       <div>
         <div class="section-title">Order list</div>
-        <div class="section-subtitle">Totals are derived from MW-provided order summaries.</div>
+        <div class="section-subtitle">Select an order and continue each workflow step in sequence.</div>
       </div>
     </div>
     <mat-card-content>
-      <div class="table-wrapper" *ngIf="orders.length; else emptyState">
+      <div class="feedback loading" *ngIf="isLoading">Loading orders...</div>
+      <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && orders.length; else emptyState">
         <table mat-table [dataSource]="orders" class="mat-elevation-z1 pro-table">
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef>Order</th>
@@ -123,7 +129,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let order">
-              <button mat-button color="primary" (click)="selectOrder(order)">Manage</button>
+              <button mat-button class="table-action" color="primary" (click)="selectOrder(order)">Manage</button>
             </td>
           </ng-container>
 
@@ -133,6 +139,7 @@
       </div>
       <ng-template #emptyState>
         <app-empty-state
+          *ngIf="!isLoading"
           icon="assignment"
           title="No orders found"
           message="No orders match the selected filters."
@@ -146,14 +153,14 @@
     <mat-expansion-panel>
       <mat-expansion-panel-header>
         <mat-panel-title>Create a new order</mat-panel-title>
-        <mat-panel-description>Step-by-step flow</mat-panel-description>
+        <mat-panel-description>Branch image intake</mat-panel-description>
       </mat-expansion-panel-header>
       <app-order-create [shops]="shops" [items]="items" (created)="onOrderCreated()"></app-order-create>
     </mat-expansion-panel>
   </mat-accordion>
 
   <mat-card *ngIf="selectedOrder; else selectPrompt">
-    <mat-card-title>Manage order</mat-card-title>
+    <mat-card-title>Manage order workflow</mat-card-title>
     <mat-card-content>
       <div class="manage-header">
         <div>
@@ -166,38 +173,80 @@
         </div>
       </div>
 
+      <div class="timeline">
+        <div class="timeline-step" *ngFor="let step of timelineSteps" [class.done]="isStepDone(step)">
+          {{ step }}
+        </div>
+      </div>
+
       <div class="manage-grid">
         <div>
-          <p class="label">Vendor assignment</p>
+          <p class="label">1) Vendor assignment</p>
           <form [formGroup]="assignForm">
             <mat-form-field appearance="outline">
               <mat-label>Vendor</mat-label>
-              <mat-select formControlName="vendorId" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder)">
+              <mat-select formControlName="vendorId">
                 <mat-option value="">Select vendor</mat-option>
                 <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
               </mat-select>
             </mat-form-field>
           </form>
-          <button mat-flat-button color="primary" (click)="assignVendor()" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder) || isSaving">
+          <button mat-flat-button color="primary" (click)="assignVendor()" [disabled]="isSaving">
             Assign vendor
           </button>
-          <p class="helper" *ngIf="selectedOrder?.isVendorAssigned">Vendor already assigned.</p>
         </div>
 
         <div>
-          <p class="label">Status update</p>
-          <form [formGroup]="statusForm">
+          <p class="label">2) Vendor PDF upload</p>
+          <div class="upload-row">
+            <input type="file" accept="application/pdf" (change)="onVendorPdfSelected($event)" />
+          </div>
+          <button mat-flat-button color="primary" (click)="uploadVendorPdf()" [disabled]="isSaving || !selectedVendorPdf">
+            Upload and parse PDF
+          </button>
+        </div>
+
+        <div>
+          <p class="label">3) Vendor bill capture</p>
+          <form [formGroup]="vendorBillForm" class="form-grid compact">
             <mat-form-field appearance="outline">
-              <mat-label>Status</mat-label>
-              <mat-select formControlName="status" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder)">
-                <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
-              </mat-select>
+              <mat-label>Vendor bill total</mat-label>
+              <input matInput type="number" formControlName="vendorBillTotal" min="0.01" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor bill ref</mat-label>
+              <input matInput formControlName="vendorBillRef" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor bill date</mat-label>
+              <input matInput type="date" formControlName="vendorBillDate" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Margin %</mat-label>
+              <input matInput type="number" formControlName="marginPercent" min="0" />
             </mat-form-field>
           </form>
-          <button mat-flat-button color="primary" (click)="updateStatus()" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder) || isSaving">
-            Update status
+          <button mat-flat-button color="primary" (click)="captureVendorBill()" [disabled]="isSaving || !canCaptureBill()">
+            Capture vendor bill
           </button>
-          <p class="helper" *ngIf="selectedOrder?.isFinal">Status is locked after delivery.</p>
+        </div>
+
+        <div>
+          <p class="label">4) Sell order preview + create</p>
+          <div class="preview-actions">
+            <button mat-stroked-button color="primary" (click)="loadSellPreview()" [disabled]="isPreviewLoading">
+              Calculate preview
+            </button>
+            <button mat-flat-button color="primary" (click)="createSellOrder()" [disabled]="isSaving || !canCreateSellOrder()">
+              Create sell order
+            </button>
+          </div>
+          <div class="preview-card" *ngIf="sellPreview">
+            <div>Vendor bill: {{ sellPreview.vendorBillTotal | number: '1.2-2' }}</div>
+            <div>Margin %: {{ sellPreview.marginPercent | number: '1.2-2' }}</div>
+            <div>Margin amount: {{ sellPreview.marginAmount | number: '1.2-2' }}</div>
+            <div class="value">Sell amount: {{ sellPreview.sellAmount | number: '1.2-2' }}</div>
+          </div>
         </div>
       </div>
 
@@ -209,9 +258,7 @@
     <mat-card>
       <mat-card-title>Select an order to manage</mat-card-title>
       <mat-card-content>
-        <p class="muted">
-          Choose an order from the list to assign a vendor or update status.
-        </p>
+        <p class="muted">Choose an order from the list to process the workflow end to end.</p>
       </mat-card-content>
     </mat-card>
   </ng-template>

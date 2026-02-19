@@ -10,6 +10,7 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatStepperModule } from '@angular/material/stepper';
 import { MatTableModule } from '@angular/material/table';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { of } from 'rxjs';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
@@ -24,14 +25,22 @@ describe('OrderPageComponent', () => {
   let orderService: jasmine.SpyObj<OrderService>;
 
   beforeEach(async () => {
-    orderService = jasmine.createSpyObj('OrderService', ['listOrders', 'assignVendor', 'updateStatus']);
+    orderService = jasmine.createSpyObj('OrderService', [
+      'listOrders',
+      'assignVendor',
+      'updateStatus',
+      'uploadVendorPdf',
+      'captureVendorBill',
+      'getSellPreview',
+      'createSellOrder'
+    ]);
     orderService.listOrders.and.returnValue(
       of([
         {
           name: 'ORD-1',
           customer: 'Shop A',
           aas_vendor: '',
-          aas_status: 'Accepted',
+          aas_status: 'DRAFT',
           transaction_date: '2024-01-10',
           delivery_date: '2024-01-12',
           grand_total: 120
@@ -40,7 +49,7 @@ describe('OrderPageComponent', () => {
           name: 'ORD-2',
           customer: 'Shop B',
           aas_vendor: 'Vendor A',
-          aas_status: 'Delivered',
+          aas_status: 'SELL_ORDER_CREATED',
           transaction_date: '2024-01-08',
           delivery_date: '2024-01-09',
           grand_total: 90
@@ -49,6 +58,12 @@ describe('OrderPageComponent', () => {
     );
     orderService.assignVendor.and.returnValue(of({}));
     orderService.updateStatus.and.returnValue(of({}));
+    orderService.uploadVendorPdf.and.returnValue(of({}));
+    orderService.captureVendorBill.and.returnValue(of({}));
+    orderService.getSellPreview.and.returnValue(
+      of({ orderId: 'ORD-1', vendorBillTotal: 100, marginPercent: 10, sellAmount: 110, marginAmount: 10 })
+    );
+    orderService.createSellOrder.and.returnValue(of({}));
 
     await TestBed.configureTestingModule({
       declarations: [OrderPageComponent, OrderCreateComponent],
@@ -70,7 +85,8 @@ describe('OrderPageComponent', () => {
         { provide: BranchService, useValue: { listBranches: () => of([]) } },
         { provide: VendorService, useValue: { listVendors: () => of([]) } },
         { provide: ItemService, useValue: { listItems: () => of([]) } }
-      ]
+      ],
+      schemas: [NO_ERRORS_SCHEMA]
     }).compileComponents();
 
     fixture = TestBed.createComponent(OrderPageComponent);
@@ -86,16 +102,10 @@ describe('OrderPageComponent', () => {
     expect(orderService.listOrders).toHaveBeenCalled();
   });
 
-  it('prevents vendor assignment when order is delivered', () => {
-    const delivered = component.orders.find(order => order.id === 'ORD-2');
-    expect(delivered).toBeTruthy();
-    expect(component.canAssignVendor(delivered!)).toBeFalse();
-  });
-
-  it('prevents status updates when order is delivered', () => {
-    const delivered = component.orders.find(order => order.id === 'ORD-2');
-    expect(delivered).toBeTruthy();
-    expect(component.canUpdateStatus(delivered!)).toBeFalse();
+  it('allows bill capture only after vendor assignment or vendor pdf', () => {
+    const draft = component.orders.find(order => order.id === 'ORD-1');
+    component.selectOrder(draft!);
+    expect(component.canCaptureBill()).toBeFalse();
   });
 
   it('assigns vendor via order service', () => {

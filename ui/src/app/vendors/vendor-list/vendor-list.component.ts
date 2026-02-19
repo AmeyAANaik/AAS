@@ -45,7 +45,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = vendor;
     this.mode = 'edit';
     this.isFormOpen = true;
-    this.statusMessage = 'Editing vendors is not available yet.';
+    this.statusMessage = '';
   }
 
   openCreate(): void {
@@ -65,19 +65,20 @@ export class VendorListComponent implements OnInit {
   saveVendor(formValue: VendorFormValue): void {
     this.isSaving = true;
     const payload = this.toPayload(formValue);
-    this.vendorService
-      .createVendor(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Vendor saved.';
-          this.clearSelection();
-          this.loadVendors();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save vendor');
-        }
-      });
+    const request$ =
+      this.mode === 'edit' && this.selectedVendor
+        ? this.vendorService.updateVendor(this.selectedVendor.id, payload)
+        : this.vendorService.createVendor(payload);
+    request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
+      next: () => {
+        this.statusMessage = this.mode === 'edit' ? 'Vendor updated.' : 'Vendor saved.';
+        this.clearSelection();
+        this.loadVendors();
+      },
+      error: err => {
+        this.statusMessage = this.formatError(err, 'Unable to save vendor');
+      }
+    });
   }
 
   private toViewModel(vendor: Vendor): VendorView {

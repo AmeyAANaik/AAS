@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { OrderCreatePayload, OrderFilters, OrderSummary } from './order.model';
+import { OrderCreatePayload, OrderFilters, OrderSummary, SellPreview, VendorBillPayload } from './order.model';
 
 @Injectable({
   providedIn: 'root'
@@ -39,6 +39,29 @@ export class OrderService {
     );
   }
 
+  createOrderFromBranchImage(
+    file: File,
+    payload: { customer?: string; company: string; transaction_date?: string; delivery_date?: string }
+  ): Observable<Record<string, unknown>> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    if (payload.customer) {
+      formData.append('customer', payload.customer);
+    }
+    if (payload.company) {
+      formData.append('company', payload.company);
+    }
+    if (payload.transaction_date) {
+      formData.append('transaction_date', payload.transaction_date);
+    }
+    if (payload.delivery_date) {
+      formData.append('delivery_date', payload.delivery_date);
+    }
+    return this.http.post<Record<string, unknown>>('/api/orders/branch-image', formData, {
+      headers: this.authHeaders()
+    });
+  }
+
   assignVendor(orderId: string, vendorId: string): Observable<unknown> {
     return this.http.post(
       `/api/orders/${orderId}/assign-vendor`,
@@ -61,6 +84,30 @@ export class OrderService {
     return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/image`, formData, {
       headers: this.authHeaders()
     });
+  }
+
+  uploadVendorPdf(orderId: string, file: File): Observable<Record<string, unknown>> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/vendor-pdf`, formData, {
+      headers: this.authHeaders()
+    });
+  }
+
+  captureVendorBill(orderId: string, payload: VendorBillPayload): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      `/api/orders/${orderId}/vendor-bill`,
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  getSellPreview(orderId: string): Observable<SellPreview> {
+    return this.http.get<SellPreview>(`/api/orders/${orderId}/sell-preview`, { headers: this.authHeaders() });
+  }
+
+  createSellOrder(orderId: string): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/sell-order`, {}, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {

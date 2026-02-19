@@ -6,6 +6,26 @@
   margin-bottom: 12px;
 }
 
+.item-lines {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.line-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface-muted);
+}
+
+.line-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .step-actions {
   display: flex;
   align-items: center;

@@ -51,10 +51,18 @@ public class MasterDataService {
         return erpNextClient.createResource("Supplier", payload);
     }
 
+    public Map<String, Object> updateVendor(String id, FieldsRequest request) {
+        return erpNextClient.updateResource("Supplier", id, new HashMap<>(request.getFields()));
+    }
+
     public Map<String, Object> createCategory(FieldsRequest request) {
         Map<String, Object> payload = new HashMap<>(request.getFields());
         payload.putIfAbsent("parent_item_group", "All Item Groups");
         return erpNextClient.createResource("Item Group", payload);
+    }
+
+    public Map<String, Object> updateCategory(String id, FieldsRequest request) {
+        return erpNextClient.updateResource("Item Group", id, new HashMap<>(request.getFields()));
     }
 
     public Map<String, Object> createItem(FieldsRequest request) {
@@ -63,5 +71,13 @@ public class MasterDataService {
         payload.putIfAbsent("stock_uom", "Nos");
         payload.putIfAbsent("is_stock_item", 1);
         return erpNextClient.createResource("Item", payload);
+    }
+
+    public Map<String, Object> updateShop(String id, FieldsRequest request) {
+        return erpNextClient.updateResource("Customer", id, new HashMap<>(request.getFields()));
+    }
+
+    public Map<String, Object> updateItem(String id, FieldsRequest request) {
+        return erpNextClient.updateResource("Item", id, new HashMap<>(request.getFields()));
     }
 }

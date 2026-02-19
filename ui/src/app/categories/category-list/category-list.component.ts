@@ -39,7 +39,7 @@ export class CategoryListComponent implements OnInit {
 
   selectCategory(category: CategoryView): void {
     this.selectedCategory = category;
-    this.statusMessage = 'Category edits are not available yet.';
+    this.statusMessage = '';
   }
 
   clearSelection(): void {
@@ -50,19 +50,19 @@ export class CategoryListComponent implements OnInit {
   saveCategory(formValue: CategoryFormValue): void {
     this.isSaving = true;
     const payload = { item_group_name: formValue.categoryName.trim() };
-    this.categoryService
-      .createCategory(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Category saved.';
-          this.selectedCategory = null;
-          this.loadCategories();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save category');
-        }
-      });
+    const request$ = this.selectedCategory
+      ? this.categoryService.updateCategory(this.selectedCategory.id, payload)
+      : this.categoryService.createCategory(payload);
+    request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
+      next: () => {
+        this.statusMessage = this.selectedCategory ? 'Category updated.' : 'Category saved.';
+        this.selectedCategory = null;
+        this.loadCategories();
+      },
+      error: err => {
+        this.statusMessage = this.formatError(err, 'Unable to save category');
+      }
+    });
   }
 
   private toViewModel(category: Category): CategoryView {

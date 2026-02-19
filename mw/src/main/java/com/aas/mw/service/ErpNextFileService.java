@@ -1,5 +1,6 @@
 package com.aas.mw.service;
 
+import com.aas.mw.dto.UploadedFileInfo;
 import java.io.IOException;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,17 +28,31 @@ public class ErpNextFileService {
         this.baseUrl = baseUrl;
     }
 
-    public Map<String, Object> uploadOrderImage(String orderId, MultipartFile file, String sessionCookie) {
+    public UploadedFileInfo uploadOrderImage(String orderId, MultipartFile file, String sessionCookie) {
+        String filename = normalizeFilename(file.getOriginalFilename(), "branch_order");
+        return uploadFile("Sales Order", orderId, filename, file, sessionCookie);
+    }
+
+    public UploadedFileInfo uploadOrderPdf(String orderId, MultipartFile file, String sessionCookie) {
+        String filename = normalizeFilename(file.getOriginalFilename(), "vendor_order");
+        return uploadFile("Sales Order", orderId, filename, file, sessionCookie);
+    }
+
+    public UploadedFileInfo uploadFile(
+            String doctype,
+            String docname,
+            String filename,
+            MultipartFile file,
+            String sessionCookie) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Image file is required.");
+            throw new IllegalArgumentException("File is required.");
         }
         if (sessionCookie == null || sessionCookie.isBlank()) {
             throw new IllegalStateException("Missing ERPNext session cookie.");
         }
-        String filename = normalizeFilename(file.getOriginalFilename(), orderId);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("doctype", "Sales Order");
-        body.add("docname", orderId);
+        body.add("doctype", doctype);
+        body.add("docname", docname);
         body.add("file_name", filename);
         body.add("is_private", "0");
         body.add("file", new ByteArrayResource(toBytes(file)) {
@@ -57,7 +72,7 @@ public class ErpNextFileService {
                 baseUrl + "/api/method/upload_file",
                 requestEntity,
                 Map.class);
-        return response;
+        return extractFileInfo(response, filename);
     }
 
     private byte[] toBytes(MultipartFile file) {
@@ -68,10 +83,37 @@ public class ErpNextFileService {
         }
     }
 
-    private String normalizeFilename(String original, String orderId) {
-        if (original == null || original.isBlank()) {
-            return "order-" + orderId + ".png";
+    private UploadedFileInfo extractFileInfo(Map<String, Object> response, String fallbackName) {
+        if (response == null) {
+            return new UploadedFileInfo(fallbackName, null, null);
         }
-        return original.replaceAll("\\s+", "_");
+        Object message = response.get("message");
+        if (message instanceof Map<?, ?> map) {
+            String fileName = getString(map, "file_name", fallbackName);
+            String fileUrl = getString(map, "file_url", "");
+            String fileId = getString(map, "name", "");
+            return new UploadedFileInfo(fileName, fileUrl.isBlank() ? null : fileUrl, fileId.isBlank() ? null : fileId);
+        }
+        return new UploadedFileInfo(fallbackName, null, null);
+    }
+
+    private String getString(Map<?, ?> map, String key, String fallback) {
+        Object value = map.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        String text = value.toString();
+        return text.isBlank() ? fallback : text;
+    }
+
+    private String normalizeFilename(String original, String prefix) {
+        String extension = ".bin";
+        if (original != null && !original.isBlank()) {
+            int dot = original.lastIndexOf('.');
+            if (dot > -1 && dot < original.length() - 1) {
+                extension = original.substring(dot);
+            }
+        }
+        return prefix + extension;
     }
 }

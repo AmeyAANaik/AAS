@@ -3,18 +3,18 @@
   <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()">
       <div class="form-grid">
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Branch name</mat-label>
           <input matInput formControlName="branchName" />
           <mat-error *ngIf="form.get('branchName')?.hasError('required')">Branch name is required.</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Location</mat-label>
           <input matInput formControlName="location" />
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>WhatsApp Group Name</mat-label>
           <input matInput formControlName="whatsappGroupName" />
         </mat-form-field>
@@ -25,8 +25,8 @@
           Save branch
         </button>
         <button mat-stroked-button type="button" (click)="clear()">Reset</button>
-        <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
       </div>
+      <div class="feedback form-status" *ngIf="statusMessage">{{ statusMessage }}</div>
     </form>
   </mat-card-content>
 </mat-card>

@@ -373,15 +373,17 @@ const data = {
 };
 
 async function request(path, options = {}) {
+  const mergedHeaders = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+  const requestOptions = {
+    ...options,
+    headers: mergedHeaders
+  };
   let response;
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      },
-      ...options
-    });
+    response = await fetch(`${BASE_URL}${path}`, requestOptions);
   } catch (err) {
     const detail = err?.cause?.message || err?.message || String(err);
     throw new Error(`Network error calling ${BASE_URL}${path}: ${detail}`);

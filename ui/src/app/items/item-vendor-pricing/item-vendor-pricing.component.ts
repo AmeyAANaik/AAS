@@ -55,6 +55,10 @@ export class ItemVendorPricingComponent implements OnChanges {
       finalRate: this.pricingService.calculateFinalRate(originalRate, marginPercent)
     };
     this.pricingSaved.emit(entry);
+    this.clear();
+  }
+
+  clear(): void {
     this.form.reset({ itemId: '', vendorId: '', originalRate: null, marginPercent: 0 });
     this.finalRate = 0;
   }

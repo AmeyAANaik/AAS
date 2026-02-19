@@ -18,6 +18,10 @@ export class VendorService {
     return this.http.post('/api/vendors', { fields }, { headers: this.authHeaders() });
   }
 
+  updateVendor(id: string, fields: Record<string, unknown>): Observable<unknown> {
+    return this.http.put(`/api/vendors/${id}`, { fields }, { headers: this.authHeaders() });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

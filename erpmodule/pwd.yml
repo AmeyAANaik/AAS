@@ -34,6 +34,7 @@ services:
         bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
         bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        bench set-config -g server_script_enabled 1;
     environment:
       DB_HOST: db
       DB_PORT: "3306"
@@ -76,7 +77,11 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default aas.core.local;
+        if [ ! -f sites/aas.core.local/site_config.json ]; then
+          bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default aas.core.local;
+        else
+          echo "Site aas.core.local already exists";
+        fi;
         if [ -f /config/mw.properties ]; then
           prop() { grep -E "^$$1=" /config/mw.properties | tail -n 1 | cut -d= -f2-; };
           resolve_prop() {
@@ -110,8 +115,13 @@ services:
         if [ -z "$$ERP_SETUP_FY_START_DATE" ]; then ERP_SETUP_FY_START_DATE="2026-01-01"; fi;
         if [ -z "$$ERP_SETUP_FY_END_DATE" ]; then ERP_SETUP_FY_END_DATE="2026-12-31"; fi;
         if [ -z "$$ERP_SETUP_CHART_OF_ACCOUNTS" ]; then ERP_SETUP_CHART_OF_ACCOUNTS="Standard"; fi;
-        ARGS="{'full_name':'$$ERP_SETUP_FULL_NAME','email':'$$ERP_SETUP_EMAIL','password':'$$ERP_SETUP_PASSWORD','company_name':'$$ERP_SETUP_COMPANY_NAME','company_abbr':'$$ERP_SETUP_COMPANY_ABBR','country':'$$ERP_SETUP_COUNTRY','currency':'$$ERP_SETUP_CURRENCY','timezone':'$$ERP_SETUP_TIMEZONE','fy_start_date':'$$ERP_SETUP_FY_START_DATE','fy_end_date':'$$ERP_SETUP_FY_END_DATE','language':'english','company_tagline':'AAS','chart_of_accounts':'$$ERP_SETUP_CHART_OF_ACCOUNTS'}";
-        bench --site aas.core.local execute erpnext.setup.setup_wizard.setup_wizard.setup_complete --args "[$$ARGS]";
+        if [ ! -f sites/aas.core.local/.setup_complete ]; then
+          ARGS="{'full_name':'$$ERP_SETUP_FULL_NAME','email':'$$ERP_SETUP_EMAIL','password':'$$ERP_SETUP_PASSWORD','company_name':'$$ERP_SETUP_COMPANY_NAME','company_abbr':'$$ERP_SETUP_COMPANY_ABBR','country':'$$ERP_SETUP_COUNTRY','currency':'$$ERP_SETUP_CURRENCY','timezone':'$$ERP_SETUP_TIMEZONE','fy_start_date':'$$ERP_SETUP_FY_START_DATE','fy_end_date':'$$ERP_SETUP_FY_END_DATE','language':'english','company_tagline':'AAS','chart_of_accounts':'$$ERP_SETUP_CHART_OF_ACCOUNTS'}";
+          bench --site aas.core.local execute frappe.utils.safe_exec.safe_exec --kwargs "{'script': \"from frappe import _dict; from erpnext.setup.setup_wizard.setup_wizard import setup_complete; setup_complete(_dict($$ARGS))\"}";
+          touch sites/aas.core.local/.setup_complete;
+        else
+          echo "Setup already completed";
+        fi;
 
   db:
     image: mariadb:10.6

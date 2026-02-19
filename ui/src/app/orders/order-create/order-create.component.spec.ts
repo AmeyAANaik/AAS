@@ -18,8 +18,9 @@ describe('OrderCreateComponent', () => {
   let orderService: jasmine.SpyObj<OrderService>;
 
   beforeEach(async () => {
-    orderService = jasmine.createSpyObj('OrderService', ['createOrder']);
+    orderService = jasmine.createSpyObj('OrderService', ['createOrder', 'uploadOrderImage']);
     orderService.createOrder.and.returnValue(of({ name: 'ORD-1', customer: 'Shop A' }));
+    orderService.uploadOrderImage.and.returnValue(of({}));
 
     await TestBed.configureTestingModule({
       declarations: [OrderCreateComponent],
@@ -50,24 +51,24 @@ describe('OrderCreateComponent', () => {
 
   it('marks form invalid when required fields are missing', () => {
     component.detailsGroup.patchValue({ customer: '', company: '', orderDate: '', deliveryDate: '' });
-    component.itemGroup.patchValue({ itemId: '', quantity: null });
+    component.itemLines.at(0).patchValue({ itemId: '', quantity: null });
     expect(component.form.invalid).toBeTrue();
   });
 
   it('submits an order with pricing when visible', () => {
     component.detailsGroup.patchValue({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'AAS',
       orderDate: '2024-01-10',
       deliveryDate: '2024-01-12'
     });
-    component.itemGroup.patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: true, rate: 10 });
+    component.itemLines.at(0).patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: true, rate: 10 });
 
     component.submit();
 
     expect(orderService.createOrder).toHaveBeenCalledWith({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'AAS',
       transaction_date: '2024-01-10',
       delivery_date: '2024-01-12',
       items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }]
@@ -77,20 +78,45 @@ describe('OrderCreateComponent', () => {
   it('forces rate to zero when pricing is hidden', () => {
     component.detailsGroup.patchValue({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'AAS',
       orderDate: '2024-01-10',
       deliveryDate: '2024-01-12'
     });
-    component.itemGroup.patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: false, rate: 99 });
+    component.itemLines.at(0).patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: false, rate: 99 });
 
     component.submit();
 
     expect(orderService.createOrder).toHaveBeenCalledWith({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'AAS',
       transaction_date: '2024-01-10',
       delivery_date: '2024-01-12',
       items: [{ item_code: 'ITM-1', qty: 2, rate: 0 }]
+    });
+  });
+
+  it('submits order with multiple items', () => {
+    component.detailsGroup.patchValue({
+      customer: 'SHOP-1',
+      company: 'AAS',
+      orderDate: '2024-01-10',
+      deliveryDate: '2024-01-12'
+    });
+    component.itemLines.at(0).patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: true, rate: 10 });
+    component.addItemLine();
+    component.itemLines.at(1).patchValue({ itemId: 'ITM-1', quantity: 3, pricingVisible: true, rate: 20 });
+
+    component.submit();
+
+    expect(orderService.createOrder).toHaveBeenCalledWith({
+      customer: 'SHOP-1',
+      company: 'AAS',
+      transaction_date: '2024-01-10',
+      delivery_date: '2024-01-12',
+      items: [
+        { item_code: 'ITM-1', qty: 2, rate: 10 },
+        { item_code: 'ITM-1', qty: 3, rate: 20 }
+      ]
     });
   });
 });

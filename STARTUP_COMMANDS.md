@@ -11,6 +11,71 @@ AAS/
 └── STARTUP_COMMANDS.md
 ```
 
+## System Commands (UI + MW + ERP)
+
+### Stop all services
+
+```bash
+cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml down
+cd /workspaces/AAS && docker compose -f docker-compose.mw.yml down
+pkill -f "ng serve" || true
+```
+
+### Start all services
+
+```bash
+cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml up -d
+cd /workspaces/AAS && docker compose -f docker-compose.mw.yml up -d --build
+cd /workspaces/AAS/ui && npm start -- --host 0.0.0.0 --port 4200
+```
+
+### Verify services
+
+```bash
+cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml ps
+cd /workspaces/AAS && docker compose -f docker-compose.mw.yml ps
+curl -I http://localhost:8080
+curl -I http://localhost:8083/swagger-ui.html
+curl -I http://localhost:4200
+```
+
+### Generate required setup/default data (MW -> ERP)
+
+```bash
+TOKEN=$(curl -sS http://localhost:8083/api/auth/login \
+  -H 'content-type: application/json' \
+  --data '{"username":"Administrator","password":"admin"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+
+curl -X POST http://localhost:8083/api/setup/ensure \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Generate mock master data (Admin only)
+
+```bash
+cd /workspaces/AAS
+MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
+```
+
+### Run OCR order flow test
+
+```bash
+cd /workspaces/AAS
+BASE_URL=http://localhost:8083 \
+USERNAME=Administrator \
+PASSWORD=admin \
+COMPANY=AAS \
+bash ./scripts/test-ocr-flow.sh
+```
+
+### Run UI end-to-end tests
+
+```bash
+cd /workspaces/AAS
+npx playwright test -c ui/playwright.config.ts --reporter=line
+```
+
 ## ERPNext Module (ERP Core)
 
 ### Start ERPNext
@@ -115,6 +180,24 @@ docker compose -f docker-compose.mw.yml up --build
 
 **Note:** The Docker compose uses `host.docker.internal:8080` for ERPNext. If ERPNext runs elsewhere, update `ERPNEXT_BASE_URL`.
 
+### OCR (Vendor PDF Parsing)
+
+OCR uses **Tesseract** inside the MW container.
+
+If you run MW via Docker, the Dockerfile installs Tesseract and the compose file sets:
+
+```bash
+OCR_TESSERACT_DATAPATH=/usr/share/tesseract-ocr/5/tessdata
+```
+
+If you run MW locally, install Tesseract on the host and set `OCR_TESSERACT_DATAPATH` to the `tessdata` folder.
+
+Health check:
+
+```bash
+curl -H "Authorization: Bearer <ADMIN_JWT>" http://localhost:8083/api/ocr/health
+```
+
 ## UI
 
 Custom frontend:
@@ -185,6 +268,21 @@ After first login (admin), MW calls `/api/setup/ensure` and creates:
 - Orders: `GET /api/orders/export`
 - Vendor reports: `/api/reports/vendor-orders/export`, `/api/reports/vendor-billing/export`, `/api/reports/vendor-payments/export`
 - Shop reports: `/api/reports/shop-billing/export`, `/api/reports/shop-payments/export`, `/api/reports/shop-category/export`
+
+## OCR End-to-End Test Script
+
+Runs the full flow:
+branch image upload → vendor assign → vendor PDF OCR → PO/SO/SI create.
+
+```bash
+BASE_URL=http://localhost:8083 \
+USERNAME=Administrator \
+PASSWORD=admin \
+./scripts/test-ocr-flow.sh
+```
+
+Optional env vars:
+`CUSTOMER`, `COMPANY`, `VENDOR`, `BRANCH_IMAGE`, `VENDOR_PDF`, `TRANSACTION_DATE`, `DELIVERY_DATE`.
 
 ## Margin per Item
 

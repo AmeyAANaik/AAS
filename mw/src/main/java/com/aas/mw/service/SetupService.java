@@ -76,8 +76,106 @@ public class SetupService {
                 "aas_status",
                 "AAS Status",
                 "Select",
-                "Accepted\nPreparing\nReady\nDelivered",
+                "DRAFT\nVENDOR_ASSIGNED\nVENDOR_PDF_RECEIVED\nVENDOR_BILL_CAPTURED\nSELL_ORDER_CREATED\nINVOICED\nAccepted\nPreparing\nReady\nDelivered",
                 "aas_vendor");
+        boolean salesOrderMarginField = ensureCustomField(
+                "Sales Order",
+                "aas_margin_percent",
+                "Margin %",
+                "Float",
+                null,
+                "aas_status");
+        boolean branchImageField = ensureCustomField(
+                "Sales Order",
+                "aas_branch_image",
+                "Branch Image",
+                "Attach",
+                null,
+                "aas_margin_percent");
+        boolean vendorPdfField = ensureCustomField(
+                "Sales Order",
+                "aas_vendor_pdf",
+                "Vendor PDF",
+                "Attach",
+                null,
+                "aas_branch_image");
+        boolean purchaseOrderField = ensureCustomField(
+                "Sales Order",
+                "aas_po",
+                "Vendor Purchase Order",
+                "Link",
+                "Purchase Order",
+                "aas_vendor_pdf");
+        boolean branchSalesOrderField = ensureCustomField(
+                "Sales Order",
+                "aas_so_branch",
+                "Branch Sales Order",
+                "Link",
+                "Sales Order",
+                "aas_po");
+        boolean branchInvoiceField = ensureCustomField(
+                "Sales Order",
+                "aas_si_branch",
+                "Branch Sales Invoice",
+                "Link",
+                "Sales Invoice",
+                "aas_so_branch");
+        boolean vendorBillTotalField = ensureCustomField(
+                "Sales Order",
+                "aas_vendor_bill_total",
+                "Vendor Bill Total",
+                "Currency",
+                null,
+                "aas_si_branch");
+        boolean vendorBillRefField = ensureCustomField(
+                "Sales Order",
+                "aas_vendor_bill_ref",
+                "Vendor Bill Ref",
+                "Data",
+                null,
+                "aas_vendor_bill_total");
+        boolean vendorBillDateField = ensureCustomField(
+                "Sales Order",
+                "aas_vendor_bill_date",
+                "Vendor Bill Date",
+                "Date",
+                null,
+                "aas_vendor_bill_ref");
+        boolean vendorPurchaseInvoiceField = ensureCustomField(
+                "Sales Order",
+                "aas_pi_vendor",
+                "Vendor Purchase Invoice",
+                "Link",
+                "Purchase Invoice",
+                "aas_vendor_bill_date");
+        boolean sellOrderTotalField = ensureCustomField(
+                "Sales Order",
+                "aas_sell_order_total",
+                "Sell Order Total",
+                "Currency",
+                null,
+                "aas_pi_vendor");
+        boolean poSourceOrderField = ensureCustomField(
+                "Purchase Order",
+                "aas_source_sales_order",
+                "Source Sales Order",
+                "Link",
+                "Sales Order",
+                "supplier");
+        boolean purchaseInvoiceSourceOrderField = ensureCustomField(
+                "Purchase Invoice",
+                "aas_source_sales_order",
+                "Source Sales Order",
+                "Link",
+                "Sales Order",
+                "supplier");
+        boolean invoiceSourceOrderField = ensureCustomField(
+                "Sales Invoice",
+                "aas_source_sales_order",
+                "Source Sales Order",
+                "Link",
+                "Sales Order",
+                "customer");
         boolean marginField = ensureCustomField(
                 "Item",
                 "aas_margin_percent",
@@ -113,14 +211,33 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_margin_percent");
+        boolean branchPlaceholderItem = ensureItem(
+                "AAS-BRANCH-IMAGE",
+                "Branch Image Placeholder",
+                "Placeholder item for branch image orders.");
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
+        result.put("salesOrderMarginFieldCreated", salesOrderMarginField);
         result.put("marginFieldCreated", marginField);
         result.put("vendorRateFieldCreated", vendorRateField);
         result.put("packagingUnitFieldCreated", packagingUnitField);
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
+        result.put("branchPlaceholderItemCreated", branchPlaceholderItem);
+        result.put("branchImageFieldCreated", branchImageField);
+        result.put("vendorPdfFieldCreated", vendorPdfField);
+        result.put("purchaseOrderFieldCreated", purchaseOrderField);
+        result.put("branchSalesOrderFieldCreated", branchSalesOrderField);
+        result.put("branchInvoiceFieldCreated", branchInvoiceField);
+        result.put("vendorBillTotalFieldCreated", vendorBillTotalField);
+        result.put("vendorBillRefFieldCreated", vendorBillRefField);
+        result.put("vendorBillDateFieldCreated", vendorBillDateField);
+        result.put("vendorPurchaseInvoiceFieldCreated", vendorPurchaseInvoiceField);
+        result.put("sellOrderTotalFieldCreated", sellOrderTotalField);
+        result.put("poSourceOrderFieldCreated", poSourceOrderField);
+        result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
+        result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
         result.putAll(ensureDefaultUsers());
         return result;
     }
@@ -189,6 +306,26 @@ public class SetupService {
         return true;
     }
 
+    private boolean ensureItem(String itemCode, String itemName, String description) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return false;
+        }
+        if (resourceExists("Item", itemCode)) {
+            return false;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("item_code", itemCode);
+        payload.put("item_name", itemName == null || itemName.isBlank() ? itemCode : itemName);
+        payload.put("item_group", "All Item Groups");
+        payload.put("stock_uom", "Nos");
+        payload.put("is_stock_item", 0);
+        payload.put("is_sales_item", 1);
+        payload.put("is_purchase_item", 0);
+        payload.put("description", description == null ? "" : description);
+        erpNextClient.createResource("Item", payload);
+        return true;
+    }
+
     private boolean ensureUser(
             String email,
             String fullName,
@@ -249,7 +386,16 @@ public class SetupService {
             String fieldtype,
             String options,
             String insertAfter) {
-        if (customFieldExists(dt, fieldname)) {
+        Map<String, Object> existing = findCustomField(dt, fieldname);
+        if (existing != null) {
+            if (options != null && !options.isBlank()) {
+                String current = String.valueOf(existing.getOrDefault("options", ""));
+                if (!options.equals(current)) {
+                    String name = String.valueOf(existing.get("name"));
+                    erpNextClient.updateResource("Custom Field", name, Map.of("options", options));
+                    return true;
+                }
+            }
             return false;
         }
         Map<String, Object> payload = new HashMap<>();
@@ -266,12 +412,12 @@ public class SetupService {
         return true;
     }
 
-    private boolean customFieldExists(String dt, String fieldname) {
+    private Map<String, Object> findCustomField(String dt, String fieldname) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\"]");
+        params.put("fields", "[\"name\",\"options\"]");
         params.put("limit_page_length", "1");
         params.put("filters", "[[\"dt\",\"=\",\"" + dt + "\"],[\"fieldname\",\"=\",\"" + fieldname + "\"]]");
         List<Map<String, Object>> data = erpNextClient.listResources("Custom Field", params);
-        return !data.isEmpty();
+        return data.isEmpty() ? null : data.get(0);
     }
 }

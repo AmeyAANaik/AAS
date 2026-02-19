@@ -23,7 +23,7 @@ export class CategoryFormComponent implements OnChanges {
   ngOnChanges(): void {
     if (this.category) {
       this.form.patchValue({ categoryName: this.category.name });
-      this.form.get('categoryName')?.disable({ emitEvent: false });
+      this.form.enable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }

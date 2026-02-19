@@ -18,6 +18,10 @@ export class CategoryService {
     return this.http.post('/api/categories', { fields }, { headers: this.authHeaders() });
   }
 
+  updateCategory(id: string, fields: Record<string, unknown>): Observable<unknown> {
+    return this.http.put(`/api/categories/${id}`, { fields }, { headers: this.authHeaders() });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

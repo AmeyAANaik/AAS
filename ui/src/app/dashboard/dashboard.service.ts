@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { forkJoin, map, Observable } from 'rxjs';
+import { forkJoin, map, Observable, timeout } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import {
   BillingRow,
@@ -38,6 +38,7 @@ export class DashboardService {
       items: this.http.get<InventoryItem[]>(`/api/items`, { headers }),
       invoices: this.http.get<InvoiceSummary[]>(`/api/invoices`, { headers, params: invoiceParams })
     }).pipe(
+      timeout({ first: 15000 }),
       map(result => ({
         orderStatus: this.buildOrderStatus(result.orders ?? []),
         billsByVendor: this.buildBillingRows(result.vendorBilling ?? [], 'vendor'),

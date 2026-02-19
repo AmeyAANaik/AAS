@@ -1,6 +1,6 @@
 .category-page {
   display: grid;
-  gap: 20px;
+  gap: 24px;
 }
 
 .muted {
@@ -11,8 +11,42 @@
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 table {
   width: 100%;
+}
+
+.section-card {
+  padding: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.section-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.pro-table th,
+.pro-table .mat-mdc-header-cell {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--surface-muted);
 }

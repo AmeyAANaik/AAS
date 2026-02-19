@@ -13,6 +13,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -37,21 +38,34 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/swagger-ui.html",
                     "/swagger-ui/**",
-                    "/v3/api-docs/**"
+                    "/v3/api-docs/**",
+                    "/error"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/setup/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/vendors").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/vendors/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/shops").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/shops/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/categories").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.PUT, "/api/categories/*").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/items").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.PUT, "/api/items/*").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/orders").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(HttpMethod.POST, "/api/orders/branch-image").hasAnyRole("ADMIN", "SHOP")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/image").hasAnyRole("ADMIN", "SHOP")
+                .requestMatchers(new AntPathRequestMatcher("/api/orders/*/vendor-pdf", "POST"))
+                    .hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.POST, "/api/orders/*/vendor-bill").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.GET, "/api/orders/*/sell-preview").hasAnyRole("ADMIN", "HELPER", "SHOP")
+                .requestMatchers(HttpMethod.POST, "/api/orders/*/sell-order").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/assign-vendor").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/orders/*/status").hasAnyRole("ADMIN", "VENDOR", "HELPER")
+                .requestMatchers(HttpMethod.GET, "/api/debug/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/invoices").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("ADMIN", "SHOP")
                 .requestMatchers(HttpMethod.GET, "/api/orders").hasAnyRole("ADMIN", "VENDOR", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.GET, "/api/orders/export").hasAnyRole("ADMIN", "VENDOR", "SHOP", "HELPER")
+                .requestMatchers(HttpMethod.GET, "/api/ocr/health").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/invoices/**").hasAnyRole("ADMIN", "SHOP")
                 .requestMatchers(HttpMethod.GET, "/api/invoices/export").hasAnyRole("ADMIN", "SHOP")
                 .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "VENDOR", "SHOP")

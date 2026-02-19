@@ -2,6 +2,7 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.OrderRequest;
+import com.aas.mw.dto.UploadedFileInfo;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -12,17 +13,66 @@ import org.springframework.stereotype.Service;
 public class OrderService {
 
     private static final String DOCTYPE = "Sales Order";
+    private static final String PLACEHOLDER_ITEM_CODE = "AAS-BRANCH-IMAGE";
+    private static final double DEFAULT_MARGIN_PERCENT = 10.0;
 
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
+    private final OrderFlowStateMachine orderFlowStateMachine;
 
-    public OrderService(ErpNextClient erpNextClient, ErpNextFileService erpNextFileService) {
+    public OrderService(
+            ErpNextClient erpNextClient,
+            ErpNextFileService erpNextFileService,
+            OrderFlowStateMachine orderFlowStateMachine) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
+        this.orderFlowStateMachine = orderFlowStateMachine;
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
         return erpNextClient.createResource(DOCTYPE, request.getFields());
+    }
+
+    public Map<String, Object> createOrderWithImage(
+            String customer,
+            String company,
+            String transactionDate,
+            String deliveryDate,
+            org.springframework.web.multipart.MultipartFile file,
+            String sessionCookie) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("customer", customer);
+        payload.put("company", company);
+        payload.put("transaction_date", resolveDate(transactionDate));
+        payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
+        payload.put("aas_status", "DRAFT");
+        payload.put("aas_margin_percent", DEFAULT_MARGIN_PERCENT);
+        payload.put("items", List.of(buildPlaceholderItem()));
+        Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
+        String orderId = extractDocName(order);
+        if (orderId != null && !orderId.isBlank()) {
+            UploadedFileInfo info = erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+            if (info.fileUrl() != null) {
+                erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_branch_image", info.fileUrl()));
+            }
+        }
+        return order;
+    }
+
+    private String extractDocName(Map<String, Object> response) {
+        if (response == null) {
+            return null;
+        }
+        Object direct = response.get("name");
+        if (direct != null) {
+            return direct.toString();
+        }
+        Object data = response.get("data");
+        if (data instanceof Map<?, ?> map) {
+            Object name = map.get("name");
+            return name == null ? null : name.toString();
+        }
+        return null;
     }
 
     public Map<String, Object> getOrder(String id) {
@@ -34,11 +84,75 @@ public class OrderService {
     }
 
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
+        if (fields.containsKey("aas_status")) {
+            String targetStatus = String.valueOf(fields.get("aas_status"));
+            Map<String, Object> current = erpNextClient.getResource(DOCTYPE, id);
+            String currentStatus = readField(current, "aas_status");
+            orderFlowStateMachine.ensureTransitionAllowed(currentStatus, targetStatus);
+            fields.put("aas_status", orderFlowStateMachine.normalize(targetStatus));
+        }
         return erpNextClient.updateResource(DOCTYPE, id, fields);
     }
 
     public Map<String, Object> attachOrderImage(String orderId, org.springframework.web.multipart.MultipartFile file, String sessionCookie) {
-        return erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+        UploadedFileInfo info = erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+        Map<String, Object> update = new HashMap<>();
+        if (info.fileUrl() != null) {
+            update.put("aas_branch_image", info.fileUrl());
+        }
+        if (!update.isEmpty()) {
+            erpNextClient.updateResource(DOCTYPE, orderId, update);
+        }
+        return Map.of(
+                "orderId", orderId,
+                "fileName", info.fileName(),
+                "fileUrl", info.fileUrl(),
+                "fileId", info.fileId());
+    }
+
+    private Map<String, Object> buildPlaceholderItem() {
+        ensurePlaceholderItem();
+        Map<String, Object> item = new HashMap<>();
+        item.put("item_code", PLACEHOLDER_ITEM_CODE);
+        item.put("qty", 1);
+        item.put("rate", 0);
+        item.put("price_list_rate", 0);
+        item.put("amount", 0);
+        return item;
+    }
+
+    private void ensurePlaceholderItem() {
+        try {
+            erpNextClient.getResource("Item", PLACEHOLDER_ITEM_CODE);
+        } catch (Exception ex) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", PLACEHOLDER_ITEM_CODE);
+            payload.put("item_name", "Branch Image Placeholder");
+            payload.put("item_group", "All Item Groups");
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 0);
+            payload.put("is_sales_item", 1);
+            payload.put("is_purchase_item", 0);
+            payload.put("description", "Placeholder item for branch image orders.");
+            erpNextClient.createResource("Item", payload);
+        }
+    }
+
+    private String resolveDate(String value) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        return java.time.LocalDate.now().toString();
+    }
+
+    private String resolveDate(String value, String fallback) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        return java.time.LocalDate.now().toString();
     }
 
     public List<Map<String, Object>> listOrders(Map<String, String> filters) {
@@ -123,6 +237,18 @@ public class OrderService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String readField(Map<String, Object> resource, String fieldName) {
+        if (resource == null) {
+            return "";
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> dataMap) {
+            return String.valueOf(((Map<String, Object>) dataMap).getOrDefault(fieldName, ""));
+        }
+        return String.valueOf(resource.getOrDefault(fieldName, ""));
     }
 
     private record OrderCost(double costTotal, double marginTotal, double marginPercent) {

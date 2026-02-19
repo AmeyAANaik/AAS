@@ -32,11 +32,19 @@
     (reset)="clearSelection()">
   </app-stock-threshold-form>
 
-  <mat-card>
-    <mat-card-title>Stock list</mat-card-title>
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Stock list</div>
+        <div class="section-subtitle">Track quantities and maintain low-stock thresholds.</div>
+      </div>
+    </div>
     <mat-card-content>
-      <div class="table-wrapper" *ngIf="stockItems.length; else emptyState">
-        <table mat-table [dataSource]="stockItems" class="mat-elevation-z1">
+      <div class="feedback loading" *ngIf="isLoading">Loading stock...</div>
+      <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && stockItems.length; else emptyState">
+        <table mat-table [dataSource]="stockItems" class="mat-elevation-z1 pro-table">
           <ng-container matColumnDef="item">
             <th mat-header-cell *matHeaderCellDef>Item</th>
             <td mat-cell *matCellDef="let item">
@@ -65,7 +73,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let item">
-              <button mat-button color="primary" (click)="selectItem(item)">Set threshold</button>
+              <button mat-button class="table-action" color="primary" (click)="selectItem(item)">Set threshold</button>
             </td>
           </ng-container>
 
@@ -75,6 +83,7 @@
       </div>
       <ng-template #emptyState>
         <app-empty-state
+          *ngIf="!isLoading"
           icon="inventory_2"
           title="No stock items found"
           message="No stock data is available for the selected filters."

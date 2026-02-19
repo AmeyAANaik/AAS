@@ -11,7 +11,7 @@
   grid-template-columns: auto minmax(240px, 1fr) auto;
   align-items: center;
   gap: 16px;
-  padding: 16px 28px;
+  padding: 14px 24px;
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
@@ -26,6 +26,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: flex-end;
 }
 
 .brand {
@@ -71,8 +72,10 @@
   border: 1px solid var(--border-strong);
   background: #fff;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .header-chip.danger {
@@ -129,7 +132,7 @@
 }
 
 .shell-content {
-  padding: 24px 36px 48px;
+  padding: 22px 32px 42px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -156,25 +159,54 @@
 
   .shell-sidebar {
     flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px 18px;
+    flex-wrap: nowrap;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 12px 14px;
+    scrollbar-width: thin;
+  }
+
+  .sidebar-group {
+    min-width: 150px;
+    padding-right: 10px;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .sidebar-group:last-child {
+    border-right: 0;
+    padding-right: 0;
   }
 
   .shell-header {
     grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .header-right {
-    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
   }
 }
 
 @media (max-width: 640px) {
   .shell-content {
-    padding: 20px 18px 32px;
+    padding: 16px 14px 28px;
   }
 
   .global-search {
     min-width: 0;
+  }
+
+  .brand-sub {
+    display: none;
+  }
+
+  .breadcrumbs {
+    font-size: 11px;
+    letter-spacing: 0.08em;
   }
 }

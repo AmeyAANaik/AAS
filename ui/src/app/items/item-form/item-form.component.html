@@ -3,19 +3,19 @@
   <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()">
       <div class="form-grid">
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Item code</mat-label>
           <input matInput formControlName="itemCode" />
           <mat-error *ngIf="form.get('itemCode')?.hasError('required')">Item code is required.</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Item name</mat-label>
           <input matInput formControlName="itemName" />
           <mat-error *ngIf="form.get('itemName')?.hasError('required')">Item name is required.</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Category</mat-label>
           <mat-select formControlName="category">
             <mat-option value="">Select category</mat-option>
@@ -24,13 +24,13 @@
           <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Measure unit</mat-label>
           <input matInput formControlName="measureUnit" />
           <mat-error *ngIf="form.get('measureUnit')?.hasError('required')">Measure unit is required.</mat-error>
         </mat-form-field>
 
-        <mat-form-field appearance="fill">
+        <mat-form-field appearance="outline">
           <mat-label>Packaging unit</mat-label>
           <input matInput formControlName="packagingUnit" />
         </mat-form-field>
@@ -41,8 +41,8 @@
           Save item
         </button>
         <button mat-stroked-button type="button" (click)="clear()">Reset</button>
-        <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
       </div>
+      <div class="feedback form-status" *ngIf="statusMessage">{{ statusMessage }}</div>
     </form>
   </mat-card-content>
 </mat-card>
