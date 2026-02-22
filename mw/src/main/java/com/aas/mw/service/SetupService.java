@@ -1,6 +1,8 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.meta.VendorFieldRegistry;
+import com.aas.mw.meta.VendorFieldSpec;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +14,8 @@ import org.springframework.stereotype.Service;
 public class SetupService {
 
     private final ErpNextClient erpNextClient;
+    private final CustomFieldProvisioner customFieldProvisioner;
+    private final VendorFieldRegistry vendorFieldRegistry;
     private final boolean defaultsEnabled;
     private final String vendorRole;
     private final String shopRole;
@@ -30,6 +34,8 @@ public class SetupService {
 
     public SetupService(
             ErpNextClient erpNextClient,
+            CustomFieldProvisioner customFieldProvisioner,
+            VendorFieldRegistry vendorFieldRegistry,
             @Value("${app.defaults.enabled:true}") boolean defaultsEnabled,
             @Value("${app.role.vendor:Supplier}") String vendorRole,
             @Value("${app.role.shop:Customer}") String shopRole,
@@ -46,6 +52,8 @@ public class SetupService {
             @Value("${app.defaults.helper.name:Helper User}") String defaultHelperName,
             @Value("${app.defaults.helper.password:helper123}") String defaultHelperPassword) {
         this.erpNextClient = erpNextClient;
+        this.customFieldProvisioner = customFieldProvisioner;
+        this.vendorFieldRegistry = vendorFieldRegistry;
         this.defaultsEnabled = defaultsEnabled;
         this.vendorRole = vendorRole;
         this.shopRole = shopRole;
@@ -238,8 +246,28 @@ public class SetupService {
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
+        result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
         result.putAll(ensureDefaultUsers());
         return result;
+    }
+
+    private int ensureVendorSupplierCustomFields() {
+        int changed = 0;
+        for (VendorFieldSpec spec : vendorFieldRegistry.vendorFields()) {
+            boolean didChange = customFieldProvisioner.ensure(
+                    "Supplier",
+                    spec.fieldname(),
+                    spec.label(),
+                    spec.fieldtype(),
+                    spec.options(),
+                    spec.insertAfter(),
+                    spec.inListView(),
+                    spec.required());
+            if (didChange) {
+                changed++;
+            }
+        }
+        return changed;
     }
 
     private Map<String, Object> ensureDefaultUsers() {
@@ -386,38 +414,14 @@ public class SetupService {
             String fieldtype,
             String options,
             String insertAfter) {
-        Map<String, Object> existing = findCustomField(dt, fieldname);
-        if (existing != null) {
-            if (options != null && !options.isBlank()) {
-                String current = String.valueOf(existing.getOrDefault("options", ""));
-                if (!options.equals(current)) {
-                    String name = String.valueOf(existing.get("name"));
-                    erpNextClient.updateResource("Custom Field", name, Map.of("options", options));
-                    return true;
-                }
-            }
-            return false;
-        }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("dt", dt);
-        payload.put("fieldname", fieldname);
-        payload.put("label", label);
-        payload.put("fieldtype", fieldtype);
-        if (options != null && !options.isBlank()) {
-            payload.put("options", options);
-        }
-        payload.put("insert_after", insertAfter);
-        payload.put("in_list_view", 1);
-        erpNextClient.createResource("Custom Field", payload);
-        return true;
-    }
-
-    private Map<String, Object> findCustomField(String dt, String fieldname) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"options\"]");
-        params.put("limit_page_length", "1");
-        params.put("filters", "[[\"dt\",\"=\",\"" + dt + "\"],[\"fieldname\",\"=\",\"" + fieldname + "\"]]");
-        List<Map<String, Object>> data = erpNextClient.listResources("Custom Field", params);
-        return data.isEmpty() ? null : data.get(0);
+        return customFieldProvisioner.ensure(
+                dt,
+                fieldname,
+                label,
+                fieldtype,
+                options,
+                insertAfter,
+                true,
+                false);
     }
 }

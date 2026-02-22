@@ -1,412 +1,431 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { animate, style, transition, trigger } from '@angular/animations';
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { FormControl } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
-import { BranchService } from '../../branches/branch.service';
-import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
-import {
-  ItemOption,
-  OrderFilters,
-  OrderOption,
-  OrderStatus,
-  OrderSummary,
-  OrderView,
-  SellPreview
-} from '../order.model';
+import { OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
+
+type UiOrderStatus =
+  | 'DRAFT'
+  | 'VENDOR_ASSIGNED'
+  | 'VENDOR_PDF_RECEIVED'
+  | 'VENDOR_BILL_CAPTURED'
+  | 'SELL_ORDER_CREATED'
+  | 'INVOICED'
+  | (string & {});
+
+interface UiOrder {
+  name: string;
+  status: UiOrderStatus;
+  branch: string;
+  vendor: string;
+  billTotal: number | null;
+  billRef: string;
+  billDate: Date | null;
+  raw: OrderSummary;
+}
+
+interface UiSellPreview {
+  estimatedPrice: number;
+  itemsCount: number;
+  raw: SellPreview;
+}
+
+interface PdfParseResult {
+  fileName?: string;
+  items?: unknown[];
+  [key: string]: unknown;
+}
 
 @Component({
   selector: 'app-order-page',
   templateUrl: './order-page.component.html',
-  styleUrl: './order-page.component.scss'
+  styleUrl: './order-page.component.scss',
+  animations: [
+    trigger('slideIn', [
+      transition(':enter', [
+        style({ transform: 'translateX(20px)', opacity: 0 }),
+        animate('180ms ease-out', style({ transform: 'translateX(0)', opacity: 1 }))
+      ]),
+      transition(':leave', [
+        animate('140ms ease-in', style({ transform: 'translateX(20px)', opacity: 0 }))
+      ])
+    ])
+  ]
 })
-export class OrderPageComponent implements OnInit {
-  filtersForm: FormGroup = this.fb.group({
-    customer: [''],
-    vendor: [''],
-    status: [''],
-    from: [''],
-    to: ['']
-  });
+export class OrderPageComponent implements OnInit, OnDestroy {
+  searchControl = new FormControl<string>('', { nonNullable: true });
+  vendorControl = new FormControl<string | null>(null);
 
-  assignForm: FormGroup = this.fb.group({
-    vendorId: ['']
-  });
+  billTotalControl = new FormControl<number | null>(null);
+  billRefControl = new FormControl<string>('', { nonNullable: true });
+  billDateControl = new FormControl<Date | null>(new Date());
+  marginControl = new FormControl<number>(10, { nonNullable: true });
 
-  statusForm: FormGroup = this.fb.group({
-    status: ['DRAFT']
-  });
+  orders: UiOrder[] = [];
+  filteredOrders: UiOrder[] = [];
+  selectedOrder: UiOrder | null = null;
 
-  vendorBillForm: FormGroup = this.fb.group({
-    vendorBillTotal: [null, [Validators.required, Validators.min(0.01)]],
-    vendorBillRef: [''],
-    vendorBillDate: [''],
-    marginPercent: [10, [Validators.required, Validators.min(0)]]
-  });
+  vendors: Record<string, string[]> = {};
 
-  orders: OrderView[] = [];
-  shops: OrderOption[] = [];
-  vendors: OrderOption[] = [];
-  items: ItemOption[] = [];
-  selectedOrder: OrderView | null = null;
-  selectedVendorPdf: File | null = null;
-  sellPreview: SellPreview | null = null;
+  selectedFile: File | null = null;
+  fileError = '';
+  isUploading = false;
+  pdfData: PdfParseResult | null = null;
 
-  summary = { total: 0, pending: 0, inProgress: 0, completed: 0 };
-  statusMessage = '';
-  isLoading = false;
-  isSaving = false;
-  isPreviewLoading = false;
+  sellPreview: UiSellPreview | null = null;
+  errorMessage = '';
 
-  readonly statuses: OrderStatus[] = [
-    'DRAFT',
-    'VENDOR_ASSIGNED',
-    'VENDOR_PDF_RECEIVED',
-    'VENDOR_BILL_CAPTURED',
-    'SELL_ORDER_CREATED',
-    'INVOICED'
-  ];
-
-  readonly timelineSteps: OrderStatus[] = [
-    'DRAFT',
-    'VENDOR_ASSIGNED',
-    'VENDOR_PDF_RECEIVED',
-    'VENDOR_BILL_CAPTURED',
-    'SELL_ORDER_CREATED'
-  ];
+  private subscriptions = new Subscription();
 
   constructor(
-    private fb: FormBuilder,
     private orderService: OrderService,
-    private branchService: BranchService,
-    private vendorService: VendorService,
-    private itemService: ItemService
-  ) {
-    const today = this.formatDate(new Date());
-    this.filtersForm.patchValue({ from: today, to: today });
-    this.vendorBillForm.patchValue({ vendorBillDate: today });
-  }
+    private vendorService: VendorService
+  ) {}
 
   ngOnInit(): void {
-    this.loadReferenceData();
+    this.loadVendors();
     this.loadOrders();
+    this.subscriptions.add(
+      this.searchControl.valueChanges.subscribe(() => this.applySearch())
+    );
   }
 
-  loadReferenceData(): void {
-    this.branchService.listBranches().subscribe({
-      next: branches => {
-        this.shops = (branches ?? []).map(branch => {
-          const name = String(branch.customer_name ?? branch.name ?? '').trim();
-          return { id: String(branch.name ?? name), name: name || String(branch.name ?? '') };
-        });
-      }
-    });
+  ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
+  }
 
+  private loadVendors(): void {
     this.vendorService.listVendors().subscribe({
       next: vendors => {
-        this.vendors = (vendors ?? []).map(vendor => {
-          const name = String(vendor.supplier_name ?? vendor.name ?? '').trim();
-          return { id: String(vendor.name ?? name), name: name || String(vendor.name ?? '') };
-        });
-      }
-    });
-
-    this.itemService.listItems().subscribe({
-      next: items => {
-        this.items = (items ?? []).map(item => ({
-          id: String(item.name ?? item.item_code ?? ''),
-          name: String(item.item_name ?? item.name ?? ''),
-          code: String(item.item_code ?? item.name ?? ''),
-          category: String(item.item_group ?? ''),
-          unit: String(item.stock_uom ?? '')
-        }));
+        const names = (vendors ?? [])
+          .map(vendor => String(vendor?.name ?? vendor?.supplier_name ?? '').trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+        this.vendors = names.reduce<Record<string, string[]>>((acc, name) => {
+          const key = name.slice(0, 1).toUpperCase();
+          (acc[key] ||= []).push(name);
+          return acc;
+        }, {});
       }
     });
   }
 
   loadOrders(): void {
-    this.isLoading = true;
-    const filters = this.filtersForm.getRawValue() as OrderFilters;
-    this.orderService
-      .listOrders(filters)
-      .pipe(finalize(() => (this.isLoading = false)))
-      .subscribe({
-        next: orders => {
-          this.orders = (orders ?? []).map(order => this.toViewModel(order));
-          this.summary = this.buildSummary(this.orders);
-          this.syncSelection();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to load orders');
-        }
-      });
+    this.errorMessage = '';
+    this.orderService.listOrders({}).subscribe({
+      next: orders => {
+        this.orders = (orders ?? []).map(order => this.toUiOrder(order));
+        this.applySearch();
+        this.refreshSelection();
+      },
+      error: err => (this.errorMessage = this.formatError(err, 'Unable to load orders'))
+    });
   }
 
-  selectOrder(order: OrderView): void {
-    this.selectedOrder = order;
-    this.assignForm.patchValue({ vendorId: order.raw.aas_vendor || '' });
-    this.statusForm.patchValue({ status: order.status || 'DRAFT' });
-    this.vendorBillForm.patchValue({
-      vendorBillTotal: order.raw.aas_vendor_bill_total ?? null,
-      vendorBillRef: order.raw.aas_vendor_bill_ref ?? '',
-      vendorBillDate: order.raw.aas_vendor_bill_date ?? this.formatDate(new Date()),
-      marginPercent: order.raw.aas_margin_percent ?? 10
+  private applySearch(): void {
+    const query = this.searchControl.value.trim().toLowerCase();
+    if (!query) {
+      this.filteredOrders = [...this.orders];
+      return;
+    }
+    this.filteredOrders = this.orders.filter(order => {
+      return (
+        order.name.toLowerCase().includes(query) ||
+        order.branch.toLowerCase().includes(query) ||
+        order.vendor.toLowerCase().includes(query) ||
+        String(order.status).toLowerCase().includes(query)
+      );
     });
-    this.selectedVendorPdf = null;
+  }
+
+  selectOrder(order: UiOrder): void {
+    this.errorMessage = '';
+    this.fileError = '';
+    this.selectedOrder = order;
+    this.vendorControl.setValue(order.vendor || null);
+    this.selectedFile = null;
+    this.pdfData = null;
+    const fileUrl = String(order.raw.aas_vendor_pdf ?? '').trim();
+    if (fileUrl) {
+      const parts = fileUrl.split('/');
+      const fileName = parts[parts.length - 1] || 'Vendor PDF';
+      this.pdfData = { fileName, fileUrl };
+    }
     this.sellPreview = null;
-    this.statusMessage = '';
+
+    this.billTotalControl.setValue(order.billTotal);
+    this.billRefControl.setValue(order.billRef);
+    this.billDateControl.setValue(order.billDate ?? new Date());
+    this.marginControl.setValue(Number(order.raw.aas_margin_percent ?? 10));
+  }
+
+  closeManage(): void {
+    this.selectedOrder = null;
+    this.selectedFile = null;
+    this.pdfData = null;
+    this.sellPreview = null;
+    this.errorMessage = '';
+    this.fileError = '';
+  }
+
+  getStatusLabel(status: UiOrderStatus): string {
+    switch (status) {
+      case 'DRAFT':
+        return 'Pending';
+      case 'VENDOR_ASSIGNED':
+        return 'Vendor assigned';
+      case 'VENDOR_PDF_RECEIVED':
+        return 'PDF received';
+      case 'VENDOR_BILL_CAPTURED':
+        return 'Bill captured';
+      case 'SELL_ORDER_CREATED':
+        return 'Sell order created';
+      case 'INVOICED':
+        return 'Invoiced';
+      default:
+        return String(status || 'Pending');
+    }
+  }
+
+  isStepActive(step: 1 | 2 | 3 | 4): boolean {
+    const status = this.selectedOrder?.status ?? 'DRAFT';
+    if (step === 1) {
+      return status === 'DRAFT';
+    }
+    if (step === 2) {
+      return status === 'VENDOR_ASSIGNED';
+    }
+    if (step === 3) {
+      return status === 'VENDOR_PDF_RECEIVED';
+    }
+    return status === 'VENDOR_BILL_CAPTURED';
+  }
+
+  isStepCompleted(step: 1 | 2 | 3 | 4): boolean {
+    const status = this.selectedOrder?.status ?? 'DRAFT';
+    const index = this.statusIndex(status);
+    return index >= step;
   }
 
   assignVendor(): void {
     if (!this.selectedOrder) {
-      this.statusMessage = 'Select an order to assign a vendor.';
       return;
     }
-    const vendorId = String(this.assignForm.get('vendorId')?.value ?? '').trim();
+    const vendorId = String(this.vendorControl.value ?? '').trim();
     if (!vendorId) {
-      this.statusMessage = 'Select a vendor to assign.';
+      this.errorMessage = 'Select a vendor to assign.';
       return;
     }
-    this.isSaving = true;
+    this.errorMessage = '';
     this.orderService
-      .assignVendor(this.selectedOrder.id, vendorId)
-      .pipe(finalize(() => (this.isSaving = false)))
+      .assignVendor(this.selectedOrder.name, vendorId)
+      .pipe(finalize(() => this.loadOrders()))
       .subscribe({
         next: () => {
-          this.statusMessage = 'Vendor assigned.';
-          this.loadOrders();
+          this.selectedOrder = { ...this.selectedOrder!, vendor: vendorId, status: 'VENDOR_ASSIGNED' };
         },
-        error: err => (this.statusMessage = this.formatError(err, 'Unable to assign vendor'))
+        error: err => (this.errorMessage = this.formatError(err, 'Unable to assign vendor'))
       });
   }
 
-  updateStatus(): void {
-    if (!this.selectedOrder) {
-      this.statusMessage = 'Select an order to update status.';
-      return;
-    }
-    const status = String(this.statusForm.get('status')?.value ?? '').trim();
-    if (!status) {
-      this.statusMessage = 'Select a status.';
-      return;
-    }
-    this.isSaving = true;
-    this.orderService
-      .updateStatus(this.selectedOrder.id, status)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Status updated.';
-          this.loadOrders();
-        },
-        error: err => (this.statusMessage = this.formatError(err, 'Unable to update status'))
-      });
-  }
-
-  onVendorPdfSelected(event: Event): void {
+  onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    this.selectedVendorPdf = input?.files?.[0] ?? null;
+    this.selectedFile = input?.files?.[0] ?? null;
+    this.fileError = '';
   }
 
-  uploadVendorPdf(): void {
+  clearFile(): void {
+    this.selectedFile = null;
+    this.fileError = '';
+  }
+
+  async uploadAndParsePDF(): Promise<void> {
     if (!this.selectedOrder) {
-      this.statusMessage = 'Select an order first.';
       return;
     }
-    if (!this.selectedVendorPdf) {
-      this.statusMessage = 'Select a vendor PDF file first.';
+    if (!this.selectedFile) {
+      this.fileError = 'Select a PDF file first.';
       return;
     }
-    this.isSaving = true;
+    const isPdf =
+      this.selectedFile.type === 'application/pdf' ||
+      this.selectedFile.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      this.fileError = 'File must be a PDF.';
+      return;
+    }
+    const header = new Uint8Array(await this.selectedFile.slice(0, 4).arrayBuffer());
+    const magic = String.fromCharCode(...header);
+    if (magic !== '%PDF') {
+      this.fileError = 'Invalid PDF file. Please upload a real PDF export.';
+      return;
+    }
+    this.errorMessage = '';
+    this.fileError = '';
+    this.isUploading = true;
     this.orderService
-      .uploadVendorPdf(this.selectedOrder.id, this.selectedVendorPdf)
-      .pipe(finalize(() => (this.isSaving = false)))
+      .uploadVendorPdf(this.selectedOrder.name, this.selectedFile)
+      .pipe(finalize(() => (this.isUploading = false)))
       .subscribe({
-        next: () => {
-          this.statusMessage = 'Vendor PDF uploaded and parsed.';
-          this.selectedVendorPdf = null;
+        next: res => {
+          this.pdfData = (res ?? null) as PdfParseResult | null;
+          this.selectedFile = null;
           this.loadOrders();
-        },
-        error: err => (this.statusMessage = this.formatError(err, 'Unable to upload vendor PDF'))
-      });
-  }
-
-  captureVendorBill(): void {
-    if (!this.selectedOrder) {
-      this.statusMessage = 'Select an order first.';
-      return;
-    }
-    if (this.vendorBillForm.invalid) {
-      this.vendorBillForm.markAllAsTouched();
-      return;
-    }
-    const value = this.vendorBillForm.getRawValue();
-    this.isSaving = true;
-    this.orderService
-      .captureVendorBill(this.selectedOrder.id, {
-        vendor_bill_total: Number(value.vendorBillTotal),
-        vendor_bill_ref: String(value.vendorBillRef ?? ''),
-        vendor_bill_date: String(value.vendorBillDate ?? ''),
-        margin_percent: Number(value.marginPercent ?? 10)
-      })
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Vendor bill captured.';
-          this.loadOrders();
-          this.loadSellPreview();
-        },
-        error: err => (this.statusMessage = this.formatError(err, 'Unable to capture vendor bill'))
-      });
-  }
-
-  loadSellPreview(): void {
-    if (!this.selectedOrder) {
-      return;
-    }
-    this.isPreviewLoading = true;
-    this.orderService
-      .getSellPreview(this.selectedOrder.id)
-      .pipe(finalize(() => (this.isPreviewLoading = false)))
-      .subscribe({
-        next: preview => {
-          this.sellPreview = preview;
-          this.statusMessage = 'Sell preview calculated.';
         },
         error: err => {
-          this.sellPreview = null;
-          this.statusMessage = this.formatError(err, 'Unable to calculate sell preview');
+          this.errorMessage = this.formatError(err, 'Unable to upload and parse vendor PDF');
         }
       });
+  }
+
+  isBillFormValid(): boolean {
+    const total = Number(this.billTotalControl.value ?? 0);
+    const ref = this.billRefControl.value.trim();
+    const date = this.billDateControl.value;
+    const margin = Number(this.marginControl.value ?? 0);
+    return total > 0 && Boolean(ref) && Boolean(date) && Number.isFinite(margin) && margin >= 0;
+  }
+
+  captureBill(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    if (!this.isBillFormValid()) {
+      this.errorMessage = 'Fill in bill total, reference, date, and margin.';
+      return;
+    }
+    const total = Number(this.billTotalControl.value ?? 0);
+    const ref = this.billRefControl.value.trim();
+    const date = this.billDateControl.value ?? new Date();
+    const marginPercent = Number(this.marginControl.value ?? 10);
+    this.errorMessage = '';
+    this.orderService
+      .captureVendorBill(this.selectedOrder.name, {
+        vendor_bill_total: total,
+        vendor_bill_ref: ref,
+        vendor_bill_date: this.formatDate(date),
+        margin_percent: marginPercent
+      })
+      .pipe(finalize(() => this.loadOrders()))
+      .subscribe({
+        next: () => {
+          this.selectedOrder = {
+            ...this.selectedOrder!,
+            status: 'VENDOR_BILL_CAPTURED',
+            billTotal: total,
+            billRef: ref,
+            billDate: date
+          };
+        },
+        error: err => (this.errorMessage = this.formatError(err, 'Unable to capture vendor bill'))
+      });
+  }
+
+  calculatePreview(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    this.errorMessage = '';
+    this.orderService.getSellPreview(this.selectedOrder.name).subscribe({
+      next: preview => {
+        this.sellPreview = {
+          raw: preview,
+          estimatedPrice: Number((preview as { sellAmount?: number }).sellAmount ?? 0),
+          itemsCount: Number((this.pdfData?.items?.length ?? 0))
+        };
+      },
+      error: err => (this.errorMessage = this.formatError(err, 'Unable to calculate preview'))
+    });
   }
 
   createSellOrder(): void {
     if (!this.selectedOrder) {
       return;
     }
-    this.isSaving = true;
+    this.errorMessage = '';
     this.orderService
-      .createSellOrder(this.selectedOrder.id)
-      .pipe(finalize(() => (this.isSaving = false)))
+      .createSellOrder(this.selectedOrder.name)
+      .pipe(finalize(() => this.loadOrders()))
       .subscribe({
         next: () => {
-          this.statusMessage = 'Sell order created.';
-          this.loadOrders();
-          this.loadSellPreview();
+          this.selectedOrder = { ...this.selectedOrder!, status: 'SELL_ORDER_CREATED' };
         },
-        error: err => (this.statusMessage = this.formatError(err, 'Unable to create sell order'))
+        error: err => (this.errorMessage = this.formatError(err, 'Unable to create sell order'))
       });
   }
 
-  onOrderCreated(): void {
-    this.loadOrders();
-  }
-
-  getStatusPillClass(order: OrderView): string {
-    if (order.statusTone === 'success') {
-      return 'pill pill-success';
-    }
-    if (order.statusTone === 'warning') {
-      return 'pill pill-warning';
-    }
-    if (order.statusTone === 'info') {
-      return 'pill pill-info';
-    }
-    return 'pill pill-neutral';
-  }
-
-  isStepDone(step: OrderStatus): boolean {
-    if (!this.selectedOrder) {
-      return false;
-    }
-    return this.timelineIndex(this.selectedOrder.status) >= this.timelineIndex(step);
-  }
-
-  canCaptureBill(): boolean {
-    if (!this.selectedOrder) {
-      return false;
-    }
-    return ['VENDOR_ASSIGNED', 'VENDOR_PDF_RECEIVED'].includes(String(this.selectedOrder.status));
-  }
-
-  canCreateSellOrder(): boolean {
-    if (!this.selectedOrder) {
-      return false;
-    }
-    return String(this.selectedOrder.status) === 'VENDOR_BILL_CAPTURED';
-  }
-
-  private timelineIndex(status: OrderStatus): number {
-    return this.timelineSteps.findIndex(step => step === status);
-  }
-
-  private syncSelection(): void {
+  private refreshSelection(): void {
     if (!this.selectedOrder) {
       return;
     }
-    const refreshed = this.orders.find(order => order.id === this.selectedOrder?.id) ?? null;
-    this.selectedOrder = refreshed;
+    const updated = this.orders.find(order => order.name === this.selectedOrder?.name) ?? null;
+    if (updated) {
+      this.selectedOrder = updated;
+    }
   }
 
-  private toViewModel(order: OrderSummary): OrderView {
-    const id = String(order.name ?? '').trim();
-    const customer = String(order.customer ?? '').trim();
+  private toUiOrder(order: OrderSummary): UiOrder {
+    const name = String(order.name ?? '').trim();
+    const branch = String(order.customer ?? '').trim() || 'Unknown';
     const vendor = String(order.aas_vendor ?? '').trim();
-    const status = this.resolveStatus(order);
-    const isFinal = ['SELL_ORDER_CREATED', 'INVOICED', 'Delivered'].includes(String(status));
+    const status = this.normalizeStatus(order);
+
+    const billTotal = order.aas_vendor_bill_total === undefined ? null : Number(order.aas_vendor_bill_total);
+    const billRef = String(order.aas_vendor_bill_ref ?? '');
+    const billDate = this.parseDate(order.aas_vendor_bill_date);
+
     return {
-      id,
-      customer: customer || 'Unknown',
-      vendor: vendor || 'Unassigned',
+      name,
+      branch,
+      vendor,
       status,
-      statusLabel: status || 'Pending',
-      statusTone: this.resolveStatusTone(status),
-      orderDate: String(order.transaction_date ?? ''),
-      deliveryDate: String(order.delivery_date ?? ''),
-      totalLabel: this.resolveTotalLabel(order.grand_total),
-      isFinal,
-      isVendorAssigned: Boolean(vendor),
+      billTotal,
+      billRef,
+      billDate,
       raw: order
     };
   }
 
-  private resolveStatus(order: OrderSummary): OrderStatus {
-    const status = String(order.aas_status ?? order.status ?? '').trim();
-    return status || 'DRAFT';
+  private normalizeStatus(order: OrderSummary): UiOrderStatus {
+    const aas = String(order.aas_status ?? '').trim();
+    if (aas) {
+      return aas as UiOrderStatus;
+    }
+    const fallback = String(order.status ?? '').trim().toLowerCase();
+    if (fallback === 'draft') {
+      return 'DRAFT';
+    }
+    return 'DRAFT';
   }
 
-  private resolveStatusTone(status: OrderStatus): 'neutral' | 'success' | 'warning' | 'info' {
-    if (status === 'SELL_ORDER_CREATED' || status === 'INVOICED' || status === 'Delivered') {
-      return 'success';
+  private statusIndex(status: UiOrderStatus): number {
+    switch (status) {
+      case 'DRAFT':
+        return 1;
+      case 'VENDOR_ASSIGNED':
+        return 2;
+      case 'VENDOR_PDF_RECEIVED':
+        return 3;
+      case 'VENDOR_BILL_CAPTURED':
+        return 4;
+      case 'SELL_ORDER_CREATED':
+      case 'INVOICED':
+        return 5;
+      default:
+        return 1;
     }
-    if (status === 'VENDOR_BILL_CAPTURED' || status === 'Ready') {
-      return 'info';
-    }
-    if (status === 'VENDOR_PDF_RECEIVED' || status === 'Preparing') {
-      return 'warning';
-    }
-    return 'neutral';
   }
 
-  private resolveTotalLabel(total: number | undefined): string {
-    if (total === null || total === undefined) {
-      return 'Pending';
+  private parseDate(value: unknown): Date | null {
+    const text = String(value ?? '').trim();
+    if (!text) {
+      return null;
     }
-    const value = Number(total);
-    if (!Number.isFinite(value) || value <= 0) {
-      return 'Pending';
-    }
-    return value.toFixed(2);
-  }
-
-  private buildSummary(orders: OrderView[]): { total: number; pending: number; inProgress: number; completed: number } {
-    const total = orders.length;
-    const completed = orders.filter(order => ['SELL_ORDER_CREATED', 'INVOICED'].includes(String(order.status))).length;
-    const inProgress = orders.filter(order =>
-      ['VENDOR_ASSIGNED', 'VENDOR_PDF_RECEIVED', 'VENDOR_BILL_CAPTURED'].includes(String(order.status))
-    ).length;
-    const pending = orders.filter(order => order.status === 'DRAFT').length;
-    return { total, pending, inProgress, completed };
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   private formatDate(date: Date): string {
@@ -417,15 +436,15 @@ export class OrderPageComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
+    const message = (err as { error?: { message?: string } } | null)?.error?.message;
+    if (typeof message === 'string' && message.trim()) {
+      return message;
+    }
     if (err instanceof Error) {
       return err.message;
     }
     if (typeof err === 'string') {
       return err;
-    }
-    const status = (err as { error?: { message?: string } } | null)?.error?.message;
-    if (typeof status === 'string' && status.trim()) {
-      return status;
     }
     return fallback;
   }

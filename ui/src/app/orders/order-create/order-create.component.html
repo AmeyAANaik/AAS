@@ -1,160 +1,120 @@
 <mat-card>
   <mat-card-title>Create order</mat-card-title>
   <mat-card-content>
-    <mat-horizontal-stepper [linear]="true">
-      <mat-step [stepControl]="detailsGroup">
-        <form [formGroup]="detailsGroup" class="form-grid">
-          <ng-template matStepLabel>Order details</ng-template>
-          <mat-form-field appearance="outline">
-            <mat-label>Branch (Shop)</mat-label>
-            <mat-select formControlName="customer">
-              <mat-option value="">Select branch</mat-option>
-              <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
-            </mat-select>
-            <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Company</mat-label>
-            <input matInput formControlName="company" />
-            <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Order date</mat-label>
-            <input matInput type="date" formControlName="orderDate" />
-            <mat-error *ngIf="detailsGroup.get('orderDate')?.hasError('required')">Order date is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Delivery date</mat-label>
-            <input matInput type="date" formControlName="deliveryDate" />
-            <mat-error *ngIf="detailsGroup.get('deliveryDate')?.hasError('required')">Delivery date is required.</mat-error>
-          </mat-form-field>
-        </form>
-        <div class="step-actions">
-          <button mat-flat-button color="primary" matStepperNext [disabled]="detailsGroup.invalid">Next</button>
+    <form [formGroup]="form" class="create-form">
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Order details</p>
+          <p class="muted">Select the branch and vendor responsible for the bill.</p>
         </div>
-      </mat-step>
+      </div>
+      <div formGroupName="details" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Branch (Shop)</mat-label>
+          <mat-select formControlName="customer">
+            <mat-option value="">Select branch</mat-option>
+            <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
+        </mat-form-field>
 
-      <mat-step [stepControl]="itemLines">
-        <div formArrayName="items" class="item-lines">
-          <ng-template matStepLabel>Order item</ng-template>
-          <div class="line-card" *ngFor="let line of itemLineGroups; let i = index" [formGroupName]="i">
-            <p class="line-title">Line {{ i + 1 }}</p>
-            <div class="form-grid">
-              <mat-form-field appearance="outline">
-                <mat-label>Item</mat-label>
-                <mat-select formControlName="itemId">
-                  <mat-option value="">Select item</mat-option>
-                  <mat-option *ngFor="let item of items" [value]="item.code">{{ item.name }}</mat-option>
-                </mat-select>
-                <mat-error *ngIf="line.get('itemId')?.hasError('required')">Item is required.</mat-error>
-              </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor</mat-label>
+          <mat-select formControlName="vendor">
+            <mat-option value="">Select vendor</mat-option>
+            <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="detailsGroup.get('vendor')?.hasError('required')">Vendor is required.</mat-error>
+        </mat-form-field>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Quantity</mat-label>
-                <input matInput type="number" formControlName="quantity" min="1" />
-                <mat-error *ngIf="line.get('quantity')?.hasError('required')">Quantity is required.</mat-error>
-                <mat-error *ngIf="line.get('quantity')?.hasError('min')">Quantity must be at least 1.</mat-error>
-              </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Company</mat-label>
+          <input matInput formControlName="company" />
+          <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
+        </mat-form-field>
 
-              <mat-slide-toggle formControlName="pricingVisible">Show pricing details (Option 1)</mat-slide-toggle>
+        <mat-form-field appearance="outline">
+          <mat-label>Order date</mat-label>
+          <input matInput type="date" formControlName="orderDate" />
+          <mat-error *ngIf="detailsGroup.get('orderDate')?.hasError('required')">Order date is required.</mat-error>
+        </mat-form-field>
 
-              <mat-form-field appearance="outline" *ngIf="line.get('pricingVisible')?.value">
-                <mat-label>Rate</mat-label>
-                <input matInput type="number" formControlName="rate" min="0" />
-                <mat-error *ngIf="line.get('rate')?.hasError('required')">Rate is required when pricing is visible.</mat-error>
-                <mat-error *ngIf="line.get('rate')?.hasError('min')">Rate cannot be negative.</mat-error>
-              </mat-form-field>
-            </div>
-            <button mat-button type="button" color="warn" (click)="removeItemLine(i)" [disabled]="itemLineGroups.length === 1">
-              Remove line
+        <mat-form-field appearance="outline">
+          <mat-label>Delivery date</mat-label>
+          <input matInput type="date" formControlName="deliveryDate" />
+          <mat-error *ngIf="detailsGroup.get('deliveryDate')?.hasError('required')">Delivery date is required.</mat-error>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Attach image</p>
+          <p class="muted">Upload branch order image. This will be stored against the order.</p>
+        </div>
+      </div>
+      <div class="image-step">
+        <div class="image-controls">
+          <label class="file-label">
+            <input type="file" accept="image/*" (change)="onImageSelected($event)" />
+            <span class="file-button">Choose image</span>
+            <span class="file-name">{{ imageFile?.name || 'No image selected' }}</span>
+          </label>
+          <div class="image-actions">
+            <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
+              Clear
             </button>
           </div>
+          <p class="hint">
+            Attach a branch order image.
+          </p>
         </div>
-        <button mat-stroked-button type="button" color="primary" (click)="addItemLine()">Add another item</button>
-        <div class="pricing-summary">
-          <div>
-            <span class="label">Line total</span>
-            <span class="value">{{ lineTotal | number: '1.0-2' }}</span>
-          </div>
-          <span class="confidence">{{ pricingLabel }}</span>
+        <div class="image-preview" *ngIf="imagePreviewUrl">
+          <img [src]="imagePreviewUrl" alt="Order image preview" />
         </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext [disabled]="itemLines.invalid">Attach image</button>
-        </div>
-      </mat-step>
+      </div>
+    </section>
 
-      <mat-step optional>
-        <ng-template matStepLabel>Attach image</ng-template>
-        <div class="image-step">
-          <div class="image-controls">
-            <label class="file-label">
-              <input type="file" accept="image/*" (change)="onImageSelected($event)" />
-              <span class="file-button">Choose image</span>
-              <span class="file-name">{{ imageFile?.name || 'No image selected' }}</span>
-            </label>
-            <div class="image-actions">
-              <button mat-stroked-button color="primary" type="button" (click)="generateSampleImage()">
-                Generate sample image
-              </button>
-              <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
-                Clear
-              </button>
-            </div>
-            <p class="hint">
-              Attach a branch order image. If you do not have one, generate a sample and continue.
-            </p>
-          </div>
-          <div class="image-preview" *ngIf="imagePreviewUrl">
-            <img [src]="imagePreviewUrl" alt="Order image preview" />
-          </div>
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Review & submit</p>
+          <p class="muted">Confirm the details before creating the order.</p>
         </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext>Review</button>
+      </div>
+      <div class="review-grid">
+        <div>
+          <p class="label">Branch</p>
+          <p class="value">{{ detailsGroup.get('customer')?.value || '-' }}</p>
         </div>
-      </mat-step>
-
-      <mat-step>
-        <ng-template matStepLabel>Review & submit</ng-template>
-        <div class="review-grid">
-          <div>
-            <p class="label">Branch</p>
-            <p class="value">{{ detailsGroup.get('customer')?.value || '-' }}</p>
-          </div>
-          <div>
-            <p class="label">Order date</p>
-            <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
-          </div>
-          <div>
-            <p class="label">Delivery date</p>
-            <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
-          </div>
-          <div>
-            <p class="label">Items</p>
-            <p class="value" *ngFor="let line of itemLineGroups">
-              {{ selectedItemFor(line)?.name || 'Unselected' }} x {{ line.get('quantity')?.value }}
-            </p>
-          </div>
-          <div>
-            <p class="label">Pricing</p>
-            <p class="value">{{ pricingHint }}</p>
-          </div>
-          <div>
-            <p class="label">Image</p>
-            <p class="value">{{ imageFile?.name || 'No image attached' }}</p>
-          </div>
+        <div>
+          <p class="label">Vendor</p>
+          <p class="value">{{ detailsGroup.get('vendor')?.value || '-' }}</p>
         </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" (click)="submit()" [disabled]="!canSubmit">Create order</button>
-          <button mat-button (click)="clear()" [disabled]="isSubmitting">Clear</button>
+        <div>
+          <p class="label">Order date</p>
+          <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
         </div>
-        <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
-      </mat-step>
-    </mat-horizontal-stepper>
+        <div>
+          <p class="label">Delivery date</p>
+          <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
+        </div>
+        <div>
+          <p class="label">Image</p>
+          <p class="value">{{ imageFile?.name || 'No image attached' }}</p>
+        </div>
+      </div>
+      <div class="step-actions">
+        <button mat-flat-button color="primary" (click)="submit()" [disabled]="!canSubmit">Create order</button>
+        <button mat-button (click)="clear()" [disabled]="isSubmitting">Clear</button>
+      </div>
+      <p class="muted" *ngIf="createdOrderId">
+        Order {{ createdOrderId }} created. Use the Manage order section to upload the vendor bill PDF and capture the bill to apply margin.
+      </p>
+      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+    </section>
+    </form>
   </mat-card-content>
 </mat-card>

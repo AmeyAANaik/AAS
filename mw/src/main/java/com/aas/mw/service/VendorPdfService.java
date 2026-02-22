@@ -3,11 +3,14 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.UploadedFileInfo;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,6 +51,8 @@ public class VendorPdfService {
         if (pdfFile == null || pdfFile.isEmpty()) {
             throw new IllegalArgumentException("Vendor PDF is required.");
         }
+        byte[] pdfBytes = toBytes(pdfFile);
+        validatePdf(pdfBytes);
 
         Map<String, Object> originalOrder = erpNextClient.getResource(SALES_ORDER, orderId);
         Map<String, Object> orderData = unwrapResource(originalOrder);
@@ -63,17 +68,7 @@ public class VendorPdfService {
             throw new IllegalStateException("Order must include customer and company before processing vendor PDF.");
         }
 
-        UploadedFileInfo pdfInfo = fileService.uploadOrderPdf(orderId, pdfFile, sessionCookie);
-        if (pdfInfo.fileUrl() != null) {
-            erpNextClient.updateResource(SALES_ORDER, orderId, Map.of(
-                    "aas_vendor_pdf", pdfInfo.fileUrl(),
-                    "aas_status", "VENDOR_PDF_RECEIVED"));
-        } else {
-            erpNextClient.updateResource(SALES_ORDER, orderId, Map.of(
-                    "aas_status", "VENDOR_PDF_RECEIVED"));
-        }
-
-        String ocrText = ocrService.extractTextFromPdf(toBytes(pdfFile));
+        String ocrText = ocrService.extractTextFromPdf(pdfBytes);
         List<ParsedItem> parsedItems = parser.parseItems(ocrText);
         if (parsedItems.isEmpty()) {
             throw new IllegalStateException("No items could be parsed from vendor PDF.");
@@ -83,15 +78,25 @@ public class VendorPdfService {
         double marginPercent = resolveMarginPercent(orderData.get("aas_margin_percent"));
         List<Map<String, Object>> sourceOrderItems = withVendorRate(baseItems);
         List<Map<String, Object>> sellItems = withSellMargin(baseItems, marginPercent);
-        erpNextClient.updateResource(SALES_ORDER, orderId, Map.of(
-                "items", sourceOrderItems,
-                "aas_margin_percent", marginPercent));
 
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
 
+        UploadedFileInfo pdfInfo;
+        try {
+            pdfInfo = fileService.uploadOrderPdf(orderId, pdfFile, sessionCookie);
+        } catch (Exception ex) {
+            String fallbackName = pdfFile.getOriginalFilename() == null ? "vendor_order.pdf" : pdfFile.getOriginalFilename();
+            pdfInfo = new UploadedFileInfo(fallbackName, null, null);
+        }
+
         Map<String, Object> linkUpdate = new HashMap<>();
+        linkUpdate.put("items", sourceOrderItems);
+        linkUpdate.put("aas_margin_percent", marginPercent);
         linkUpdate.put("aas_po", extractDocName(purchaseOrder));
         linkUpdate.put("aas_status", "VENDOR_PDF_RECEIVED");
+        if (pdfInfo.fileUrl() != null) {
+            linkUpdate.put("aas_vendor_pdf", pdfInfo.fileUrl());
+        }
         erpNextClient.updateResource(SALES_ORDER, orderId, linkUpdate);
 
         Map<String, Object> response = new HashMap<>();
@@ -108,6 +113,17 @@ public class VendorPdfService {
                 "fileUrl", pdfInfo.fileUrl(),
                 "fileId", pdfInfo.fileId()));
         return response;
+    }
+
+    private void validatePdf(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0) {
+            throw new IllegalArgumentException("Vendor PDF is required.");
+        }
+        try (PDDocument ignored = Loader.loadPDF(pdfBytes)) {
+            // Valid PDF.
+        } catch (IOException ex) {
+            throw new IllegalArgumentException("Invalid PDF file. Please upload a real PDF export.");
+        }
     }
 
     private List<Map<String, Object>> resolveItems(List<ParsedItem> parsedItems) {

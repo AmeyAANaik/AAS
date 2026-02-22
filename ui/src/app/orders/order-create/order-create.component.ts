@@ -1,8 +1,7 @@
 import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { of } from 'rxjs';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize, map, switchMap } from 'rxjs/operators';
-import { ItemOption, OrderCreatePayload, OrderCreateResult, OrderOption } from '../order.model';
+import { OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
 
 @Component({
@@ -12,24 +11,22 @@ import { OrderService } from '../order.service';
 })
 export class OrderCreateComponent implements OnChanges, OnDestroy {
   @Input() shops: OrderOption[] = [];
-  @Input() items: ItemOption[] = [];
+  @Input() vendors: OrderOption[] = [];
   @Output() created = new EventEmitter<OrderCreateResult>();
 
   statusMessage = '';
   isSubmitting = false;
-  lineTotal = 0;
-  pricingLabel = '';
   imageFile: File | null = null;
   imagePreviewUrl = '';
+  createdOrderId: string | null = null;
 
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
-    company: ['AAS', Validators.required],
+    vendor: ['', Validators.required],
+    company: ['AAS Core', Validators.required],
     orderDate: ['', Validators.required],
     deliveryDate: ['', Validators.required]
   });
-
-  itemLines: FormArray<FormGroup> = this.fb.array([this.createItemLine()]);
 
   imageGroup: FormGroup = this.fb.group({
     imageName: ['']
@@ -37,19 +34,16 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
 
   form: FormGroup = this.fb.group({
     details: this.detailsGroup,
-    items: this.itemLines,
     image: this.imageGroup
   });
 
   constructor(private fb: FormBuilder, private orderService: OrderService) {
     this.setTodayDefaults();
-    this.registerPricingWatcher();
-    this.registerLineTotalWatcher();
   }
 
   ngOnChanges(): void {
     if (!this.detailsGroup.get('company')?.value) {
-      this.detailsGroup.patchValue({ company: 'AAS' });
+      this.detailsGroup.patchValue({ company: 'AAS Core' });
     }
   }
 
@@ -59,11 +53,23 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
       return;
     }
 
-    const payload = this.buildPayload();
     this.isSubmitting = true;
     this.statusMessage = 'Creating order...';
+    this.createdOrderId = null;
+    if (!this.imageFile) {
+      this.isSubmitting = false;
+      this.statusMessage = 'Upload a branch image before creating the order.';
+      return;
+    }
+    const details = this.detailsGroup.getRawValue();
+    const vendorId = String(details.vendor ?? '').trim();
     this.orderService
-      .createOrder(payload)
+      .createOrderFromBranchImage(this.imageFile, {
+        customer: String(details.customer ?? '').trim(),
+        company: String(details.company ?? '').trim(),
+        transaction_date: String(details.orderDate ?? ''),
+        delivery_date: String(details.deliveryDate ?? '')
+      })
       .pipe(
         map(response => {
           const id = this.extractOrderId(response);
@@ -73,12 +79,9 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
           return { id, response };
         }),
         switchMap(({ id, response }) => {
-          if (!this.imageFile) {
-            return of({ id, response, uploaded: false });
-          }
-          this.statusMessage = 'Uploading order image...';
-          return this.orderService.uploadOrderImage(id, this.imageFile).pipe(
-            map(uploadResponse => ({ id, response, uploaded: true, uploadResponse }))
+          this.statusMessage = 'Assigning vendor...';
+          return this.orderService.assignVendor(id, vendorId).pipe(
+            map(assignResponse => ({ id, response, assignResponse }))
           );
         }),
         finalize(() => (this.isSubmitting = false))
@@ -86,15 +89,18 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
       .subscribe({
         next: result => {
           const id = result?.id ?? '';
-          this.statusMessage = id
-            ? result?.uploaded
-              ? `Order created and image uploaded: ${id}`
-              : `Order created: ${id}`
-            : 'Order created.';
           if (id) {
-            this.created.emit({ id, customer: payload.customer });
+            this.createdOrderId = id;
+            this.statusMessage = `Order created and vendor assigned: ${id}`;
+            this.created.emit({
+              id,
+              customer: String(details.customer ?? '').trim(),
+              transactionDate: String(details.orderDate ?? '')
+            });
+          } else {
+            this.statusMessage = 'Order created.';
           }
-          this.resetForm();
+          this.resetForm(false);
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to create order');
@@ -103,7 +109,7 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
   }
 
   clear(): void {
-    this.resetForm();
+    this.resetForm(true);
   }
 
   ngOnDestroy(): void {
@@ -118,93 +124,26 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
     return Boolean(this.imageFile);
   }
 
-  get pricingHint(): string {
-    return 'Pricing per line';
-  }
-
-  get itemLineGroups(): FormGroup[] {
-    return this.itemLines.controls;
-  }
-
-  addItemLine(): void {
-    this.itemLines.push(this.createItemLine());
-    this.registerLineWatchers(this.itemLines.at(this.itemLines.length - 1));
-    this.updateLineTotal();
-  }
-
-  removeItemLine(index: number): void {
-    if (this.itemLines.length <= 1) {
-      return;
-    }
-    this.itemLines.removeAt(index);
-    this.updateLineTotal();
-  }
-
-  selectedItemFor(group: FormGroup): ItemOption | undefined {
-    const itemId = String(group.get('itemId')?.value ?? '').trim();
-    return this.items.find(item => item.code === itemId || item.id === itemId);
-  }
-
-  private buildPayload(): OrderCreatePayload {
-    const details = this.detailsGroup.getRawValue();
-    const lineItems = this.itemLines.getRawValue().map(line => {
-      const pricingVisible = Boolean(line['pricingVisible']);
-      const rate = pricingVisible ? Number(line['rate'] || 0) : 0;
-      return {
-        item_code: String(line['itemId'] ?? ''),
-        qty: Number(line['quantity'] || 0),
-        rate
-      };
-    });
-    return {
-      customer: String(details.customer ?? '').trim(),
-      company: String(details.company ?? '').trim(),
-      transaction_date: String(details.orderDate ?? ''),
-      delivery_date: String(details.deliveryDate ?? ''),
-      items: lineItems
-    } as OrderCreatePayload;
-  }
-
   private setTodayDefaults(): void {
     const today = this.formatDate(new Date());
     this.detailsGroup.patchValue({ orderDate: today, deliveryDate: today });
   }
 
-  private registerPricingWatcher(): void {
-    this.itemLineGroups.forEach(group => this.registerLineWatchers(group));
-  }
-
-  private registerLineTotalWatcher(): void {
-    this.itemLines.valueChanges.subscribe(() => this.updateLineTotal());
-    this.updateLineTotal();
-  }
-
-  private updateLineTotal(): void {
-    this.lineTotal = this.itemLineGroups.reduce((total, group) => {
-      const quantity = Number(group.get('quantity')?.value || 0);
-      const visible = Boolean(group.get('pricingVisible')?.value);
-      const rate = visible ? Number(group.get('rate')?.value || 0) : 0;
-      return total + quantity * rate;
-    }, 0);
-    this.pricingLabel = 'Derived total';
-  }
-
-  private resetForm(): void {
+  private resetForm(clearCreated: boolean): void {
     this.detailsGroup.reset({
       customer: '',
-      company: 'AAS',
+      vendor: '',
+      company: 'AAS Core',
       orderDate: this.formatDate(new Date()),
       deliveryDate: this.formatDate(new Date())
     });
-    this.itemLines.clear();
-    this.itemLines.push(this.createItemLine());
-    this.registerPricingWatcher();
     this.imageGroup.reset({ imageName: '' });
     this.imageFile = null;
     this.revokePreviewUrl();
-    this.statusMessage = '';
-    this.lineTotal = 0;
-    this.pricingLabel = '';
+    if (clearCreated) {
+      this.statusMessage = '';
+      this.createdOrderId = null;
+    }
   }
 
   private formatDate(date: Date): string {
@@ -251,11 +190,8 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
         <text x="100" y="230" font-size="18" font-family="Arial" fill="#374151">Branch: ${
           this.detailsGroup.get('customer')?.value || 'Unassigned'
         }</text>
-        <text x="100" y="270" font-size="18" font-family="Arial" fill="#374151">Item: ${
-          this.selectedItemFor(this.itemLineGroups[0] as FormGroup)?.name || 'Unselected'
-        }</text>
-        <text x="100" y="310" font-size="18" font-family="Arial" fill="#374151">Qty: ${
-          this.itemLineGroups[0]?.get('quantity')?.value || 0
+        <text x="100" y="270" font-size="18" font-family="Arial" fill="#374151">Vendor: ${
+          this.detailsGroup.get('vendor')?.value || 'Unassigned'
         }</text>
       </svg>
     `;
@@ -289,32 +225,4 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
     return String(anyResponse?.name ?? anyResponse?.data?.name ?? '').trim();
   }
 
-  private createItemLine(): FormGroup {
-    return this.fb.group({
-      itemId: ['', Validators.required],
-      quantity: [1, [Validators.required, Validators.min(1)]],
-      pricingVisible: [true],
-      rate: [0, [Validators.required, Validators.min(0)]]
-    });
-  }
-
-  private registerLineWatchers(group: FormGroup): void {
-    group.get('pricingVisible')?.valueChanges.subscribe(visible => {
-      const rateControl = group.get('rate');
-      if (!rateControl) {
-        return;
-      }
-      if (visible) {
-        rateControl.setValidators([Validators.required, Validators.min(0)]);
-        if (rateControl.value === null) {
-          rateControl.setValue(0);
-        }
-      } else {
-        rateControl.clearValidators();
-        rateControl.setValue(0, { emitEvent: false });
-      }
-      rateControl.updateValueAndValidity({ emitEvent: false });
-      this.updateLineTotal();
-    });
-  }
 }

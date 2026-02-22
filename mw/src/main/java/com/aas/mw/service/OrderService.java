@@ -30,7 +30,9 @@ public class OrderService {
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
-        return erpNextClient.createResource(DOCTYPE, request.getFields());
+        Map<String, Object> fields = request.getFields();
+        applySalesOrderDefaults(fields);
+        return erpNextClient.createResource(DOCTYPE, fields);
     }
 
     public Map<String, Object> createOrderWithImage(
@@ -80,7 +82,9 @@ public class OrderService {
     }
 
     public Map<String, Object> updateOrder(String id, OrderRequest request) {
-        return erpNextClient.updateResource(DOCTYPE, id, request.getFields());
+        Map<String, Object> fields = request.getFields();
+        applySalesOrderDefaults(fields);
+        return erpNextClient.updateResource(DOCTYPE, id, fields);
     }
 
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
@@ -158,7 +162,9 @@ public class OrderService {
     public List<Map<String, Object>> listOrders(Map<String, String> filters) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
-                "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\"]");
+                "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
+                        + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
+                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
         params.put("order_by", "transaction_date desc");
         if (!filters.isEmpty()) {
             List<List<String>> filterList = new ArrayList<>();
@@ -237,6 +243,73 @@ public class OrderService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySalesOrderDefaults(Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        Object itemsObj = fields.get("items");
+        if (!(itemsObj instanceof List<?> items) || items.isEmpty()) {
+            return;
+        }
+        String warehouse = asText(fields.get("set_warehouse"));
+        if (warehouse.isBlank()) {
+            warehouse = resolveDefaultWarehouse(asText(fields.get("company")));
+            if (!warehouse.isBlank()) {
+                fields.put("set_warehouse", warehouse);
+            }
+        }
+        if (warehouse.isBlank()) {
+            return;
+        }
+        for (Object rowObj : items) {
+            if (rowObj instanceof Map<?, ?> row) {
+                Map<String, Object> item = (Map<String, Object>) row;
+                String rowWarehouse = asText(item.get("warehouse"));
+                if (rowWarehouse.isBlank()) {
+                    item.put("warehouse", warehouse);
+                }
+            }
+        }
+    }
+
+    private String resolveDefaultWarehouse(String company) {
+        if (company.isBlank()) {
+            return "";
+        }
+        String abbr = "";
+        try {
+            Map<String, Object> companyDoc = erpNextClient.getResource("Company", company);
+            abbr = asText(companyDoc.get("abbr"));
+        } catch (Exception ex) {
+            abbr = "";
+        }
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("company", "=", company));
+        filters.add(List.of("is_group", "=", "0"));
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"warehouse_name\",\"company\",\"is_group\"]");
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> warehouses = erpNextClient.listResources("Warehouse", params);
+        if (warehouses.isEmpty()) {
+            return "";
+        }
+        if (!abbr.isBlank()) {
+            String preferred = "Stores - " + abbr;
+            for (Map<String, Object> wh : warehouses) {
+                String name = asText(wh.get("name"));
+                if (preferred.equals(name)) {
+                    return name;
+                }
+            }
+        }
+        return asText(warehouses.get(0).get("name"));
     }
 
     @SuppressWarnings("unchecked")

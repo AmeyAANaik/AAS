@@ -5,6 +5,9 @@ const BASE_URL = (process.env.MW_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, ''
 const USERNAME = process.env.MW_USERNAME || 'Administrator';
 const PASSWORD = process.env.MW_PASSWORD || 'admin';
 const DRY_RUN = process.env.DRY_RUN === '1';
+const SEED_ORDERS = process.env.SEED_ORDERS !== '0';
+const SEED_ORDERS_ALWAYS = process.env.SEED_ORDERS_ALWAYS === '1';
+const SEED_ORDERS_COUNT = Number.parseInt(process.env.SEED_ORDERS_COUNT || '6', 10);
 
 const data = {
   vendors: [
@@ -369,8 +372,82 @@ const data = {
       aas_vendor_rate: 42,
       aas_margin_percent: 9
     }
+  ],
+  orders: [
+    {
+      customer: 'Downtown Market Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-10',
+      delivery_date: '2026-02-12',
+      items: [
+        { item_code: 'ITM-LETTUCE', qty: 5, rate: 28, aas_vendor_rate: 24, aas_margin_percent: 12 },
+        { item_code: 'ITM-CARROT', qty: 10, rate: 16.2, aas_vendor_rate: 15, aas_margin_percent: 8 }
+      ]
+    },
+    {
+      customer: 'Uptown Bistro Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-12',
+      delivery_date: '2026-02-14',
+      items: [
+        { item_code: 'ITM-APPLE', qty: 3, rate: 34.5, aas_vendor_rate: 30, aas_margin_percent: 15 },
+        { item_code: 'ITM-BANANA', qty: 6, rate: 15.4, aas_vendor_rate: 14, aas_margin_percent: 10 }
+      ]
+    },
+    {
+      customer: 'Riverfront Cafe Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-15',
+      delivery_date: '2026-02-17',
+      items: [
+        { item_code: 'ITM-CHEESE', qty: 2, rate: 53.3, aas_vendor_rate: 48, aas_margin_percent: 11 },
+        { item_code: 'ITM-BUTTER', qty: 4, rate: 45.8, aas_vendor_rate: 42, aas_margin_percent: 9 }
+      ]
+    },
+    {
+      customer: 'Hillview Restaurant Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-18',
+      delivery_date: '2026-02-20',
+      items: [
+        { item_code: 'ITM-LETTUCE', qty: 8, rate: 28, aas_vendor_rate: 24, aas_margin_percent: 12 },
+        { item_code: 'ITM-APPLE', qty: 4, rate: 34.5, aas_vendor_rate: 30, aas_margin_percent: 15 }
+      ]
+    },
+    {
+      customer: 'Airport Lounge Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-20',
+      delivery_date: '2026-02-22',
+      items: [
+        { item_code: 'ITM-CARROT', qty: 12, rate: 16.2, aas_vendor_rate: 15, aas_margin_percent: 8 },
+        { item_code: 'ITM-BANANA', qty: 10, rate: 15.4, aas_vendor_rate: 14, aas_margin_percent: 10 }
+      ]
+    },
+    {
+      customer: 'Lakeside Grill Branch',
+      company: 'AAS Core',
+      transaction_date: '2026-02-22',
+      delivery_date: '2026-02-24',
+      items: [
+        { item_code: 'ITM-CHEESE', qty: 1, rate: 53.3, aas_vendor_rate: 48, aas_margin_percent: 11 },
+        { item_code: 'ITM-BUTTER', qty: 2, rate: 45.8, aas_vendor_rate: 42, aas_margin_percent: 9 }
+      ]
+    }
   ]
 };
+
+class HttpError extends Error {
+  constructor(message, { status, statusText, method, path, body }) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.statusText = statusText;
+    this.method = method;
+    this.path = path;
+    this.body = body;
+  }
+}
 
 async function request(path, options = {}) {
   const mergedHeaders = {
@@ -390,7 +467,14 @@ async function request(path, options = {}) {
   }
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`${options.method || 'GET'} ${path} failed: ${response.status} ${response.statusText} - ${text}`);
+    const method = options.method || 'GET';
+    throw new HttpError(`${method} ${path} failed: ${response.status} ${response.statusText} - ${text}`, {
+      status: response.status,
+      statusText: response.statusText,
+      method,
+      path,
+      body: text
+    });
   }
   if (response.status === 204) {
     return null;
@@ -450,11 +534,18 @@ async function createResource(path, fields, token) {
   if (DRY_RUN) {
     return { dryRun: true, fields };
   }
-  return request(path, {
-    method: 'POST',
-    headers: authHeaders(token),
-    body: JSON.stringify({ fields })
-  });
+  try {
+    return await request(path, {
+      method: 'POST',
+      headers: authHeaders(token),
+      body: JSON.stringify({ fields })
+    });
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 409) {
+      return { skipped: true, reason: 'already exists', fields };
+    }
+    throw err;
+  }
 }
 
 async function ensureList({ label, path, existingKeys, entries, nameKeys }) {
@@ -554,6 +645,8 @@ async function seed() {
       ensureAdminForWrites(role, plan.label);
     }
     console.log(`Creating ${plan.created.length} ${plan.label}...`);
+    let createdCount = 0;
+    let skippedCount = 0;
     for (const entry of plan.created) {
       const path = plan.label === 'vendors'
         ? '/api/vendors'
@@ -562,8 +655,37 @@ async function seed() {
           : plan.label === 'categories'
             ? '/api/categories'
             : '/api/items';
-      await createResource(path, entry, token);
+      const result = await createResource(path, entry, token);
+      if (result?.skipped) {
+        skippedCount += 1;
+      } else {
+        createdCount += 1;
+      }
     }
+    if (skippedCount) {
+      console.log(`Created ${createdCount} ${plan.label}; skipped ${skippedCount} (already exists).`);
+    }
+  }
+
+  if (SEED_ORDERS) {
+    const ordersExisting = await listResources('/api/orders', token);
+    const hasAnyOrders = ordersExisting.length > 0;
+    if (hasAnyOrders && !SEED_ORDERS_ALWAYS) {
+      console.log(`Orders already exist (${ordersExisting.length} found); skipping order seeding.`);
+    } else {
+      ensureAdminForWrites(role, 'orders');
+      const toCreate = data.orders.slice(0, Math.max(0, SEED_ORDERS_COUNT));
+      if (!toCreate.length) {
+        console.log('No orders configured to seed.');
+      } else {
+        console.log(`Creating ${toCreate.length} orders...`);
+        for (const order of toCreate) {
+          await createResource('/api/orders', order, token);
+        }
+      }
+    }
+  } else {
+    console.log('Order seeding disabled (SEED_ORDERS=0).');
   }
 
   console.log('Seed complete.');

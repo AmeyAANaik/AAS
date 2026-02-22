@@ -13,6 +13,7 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +40,10 @@ public class OcrService {
             throw new IllegalArgumentException("PDF content is required for OCR.");
         }
         try (PDDocument document = Loader.loadPDF(pdfBytes)) {
+            String text = extractText(document);
+            if (text != null && !text.isBlank()) {
+                return text;
+            }
             PDFRenderer renderer = new PDFRenderer(document);
             List<String> pages = new ArrayList<>();
             for (int page = 0; page < document.getNumberOfPages(); page++) {
@@ -49,6 +54,20 @@ public class OcrService {
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to read vendor PDF for OCR.", ex);
         }
+    }
+
+    private String extractText(PDDocument document) throws IOException {
+        if (document == null || document.getNumberOfPages() == 0) {
+            return "";
+        }
+        PDFTextStripper stripper = new PDFTextStripper();
+        String text = stripper.getText(document);
+        if (text == null) {
+            return "";
+        }
+        // If there's meaningful text, prefer it over image OCR (faster + more accurate for text PDFs).
+        String normalized = text.trim();
+        return normalized.length() >= 20 ? normalized : "";
     }
 
     public boolean healthCheck() {

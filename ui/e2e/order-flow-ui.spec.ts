@@ -10,7 +10,7 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
     {
       name: 'SO-0001',
       customer: 'Shop A',
-      company: 'AAS',
+      company: 'AAS Core',
       transaction_date: '2026-02-19',
       delivery_date: '2026-02-20',
       aas_vendor: currentVendor,
@@ -116,6 +116,14 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
 
   await expect(page).toHaveURL(/\/orders$/);
   await page.getByRole('button', { name: 'Manage' }).click();
+
+  await expect(page.locator('.manage-modal')).toBeVisible();
+  await expect(page.locator('.manage-backdrop')).toBeVisible();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+  await expect(
+    page.locator('.manage-modal').evaluate(el => getComputedStyle(el).position)
+  ).resolves.toBe('fixed');
 
   await page.locator('mat-select[formcontrolname="vendorId"]').click();
   await page.getByRole('option', { name: 'Vendor A' }).click();

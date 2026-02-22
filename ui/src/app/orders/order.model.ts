@@ -7,16 +7,20 @@ export interface OrderSummary {
   transaction_date?: string;
   delivery_date?: string;
   aas_vendor?: string;
+  aas_vendor_pdf?: string;
   aas_status?: string;
   status?: string;
   grand_total?: number;
   aas_cost_total?: number;
   aas_margin_total?: number;
   aas_margin_percent?: number;
+  aas_po?: string;
   aas_vendor_bill_total?: number;
   aas_vendor_bill_ref?: string;
   aas_vendor_bill_date?: string;
   aas_sell_order_total?: number;
+  aas_so_branch?: string;
+  aas_si_branch?: string;
 }
 
 export interface OrderView {
@@ -59,6 +63,7 @@ export interface OrderCreatePayload {
 export interface OrderCreateResult {
   id: string;
   customer: string;
+  transactionDate?: string;
 }
 
 export interface VendorBillPayload {

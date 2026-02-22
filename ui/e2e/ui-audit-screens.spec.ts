@@ -26,7 +26,11 @@ test('capture UI audit screenshots', async ({ page }) => {
 
   for (const [route, file] of routes) {
     await page.goto(route);
-    await page.waitForTimeout(900);
+    if (route === '/admin/dashboard') {
+      await page.waitForSelector('.kpi-grid', { timeout: 15000 });
+    } else {
+      await page.waitForTimeout(900);
+    }
     await page.screenshot({ path: path.join(outDir, file), fullPage: true });
   }
 

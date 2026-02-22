@@ -126,11 +126,16 @@ public class OrderBillingService {
             double vendorBillTotal,
             String billRef,
             String billDate) {
+        String companyCurrency = resolveCompanyCurrency(company);
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", vendor);
         payload.put("company", company);
         payload.put("posting_date", billDate);
         payload.put("bill_no", billRef);
+        payload.put("currency", companyCurrency);
+        payload.put("conversion_rate", 1.0);
+        payload.put("price_list_currency", companyCurrency);
+        payload.put("plc_conversion_rate", 1.0);
         payload.put("items", List.of(Map.of(
                 "item_code", BILL_ITEM_CODE,
                 "qty", 1,
@@ -147,14 +152,32 @@ public class OrderBillingService {
             List<Map<String, Object>> items,
             Map<String, Object> sourceOrder,
             double marginPercent) {
+        String companyCurrency = resolveCompanyCurrency(company);
+        String warehouse = resolveDefaultWarehouse(company);
+        if (warehouse != null && !warehouse.isBlank()) {
+            for (Map<String, Object> item : items) {
+                if (item == null) {
+                    continue;
+                }
+                item.putIfAbsent("warehouse", warehouse);
+            }
+        }
         Map<String, Object> payload = new HashMap<>();
         payload.put("customer", customer);
         payload.put("company", company);
         payload.put("transaction_date", resolveDate(sourceOrder.get("transaction_date")));
         payload.put("delivery_date", resolveDate(sourceOrder.get("delivery_date")));
+        payload.put("currency", companyCurrency);
+        payload.put("conversion_rate", 1.0);
+        payload.put("selling_price_list", "Standard Selling");
+        payload.put("price_list_currency", companyCurrency);
+        payload.put("plc_conversion_rate", 1.0);
         payload.put("items", items);
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
+        if (warehouse != null && !warehouse.isBlank()) {
+            payload.put("set_warehouse", warehouse);
+        }
         return erpNextClient.createResource(SALES_ORDER, payload);
     }
 
@@ -165,14 +188,73 @@ public class OrderBillingService {
             List<Map<String, Object>> items,
             Map<String, Object> sourceOrder,
             double marginPercent) {
+        String companyCurrency = resolveCompanyCurrency(company);
+        String warehouse = resolveDefaultWarehouse(company);
+        if (warehouse != null && !warehouse.isBlank()) {
+            for (Map<String, Object> item : items) {
+                if (item == null) {
+                    continue;
+                }
+                item.putIfAbsent("warehouse", warehouse);
+            }
+        }
         Map<String, Object> payload = new HashMap<>();
         payload.put("customer", customer);
         payload.put("company", company);
         payload.put("posting_date", resolveDate(sourceOrder.get("transaction_date")));
+        payload.put("currency", companyCurrency);
+        payload.put("conversion_rate", 1.0);
+        payload.put("price_list_currency", companyCurrency);
+        payload.put("plc_conversion_rate", 1.0);
         payload.put("items", items);
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
+        if (warehouse != null && !warehouse.isBlank()) {
+            payload.put("set_warehouse", warehouse);
+        }
         return erpNextClient.createResource(SALES_INVOICE, payload);
+    }
+
+    private String resolveDefaultWarehouse(String company) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"company\",\"is_group\",\"disabled\"]");
+            params.put("limit_page_length", 100);
+            List<Map<String, Object>> warehouses = erpNextClient.listResources("Warehouse", params);
+            if (warehouses == null || warehouses.isEmpty()) {
+                return null;
+            }
+            for (Map<String, Object> warehouse : warehouses) {
+                if (warehouse == null) {
+                    continue;
+                }
+                String name = asText(warehouse.get("name"));
+                String warehouseCompany = asText(warehouse.get("company"));
+                boolean isGroup = asDouble(warehouse.get("is_group")) >= 1;
+                boolean disabled = asDouble(warehouse.get("disabled")) >= 1;
+                if (name.isBlank() || isGroup || disabled) {
+                    continue;
+                }
+                if (company != null && !company.isBlank() && !company.equals(warehouseCompany)) {
+                    continue;
+                }
+                return name;
+            }
+            for (Map<String, Object> warehouse : warehouses) {
+                if (warehouse == null) {
+                    continue;
+                }
+                String name = asText(warehouse.get("name"));
+                boolean isGroup = asDouble(warehouse.get("is_group")) >= 1;
+                boolean disabled = asDouble(warehouse.get("disabled")) >= 1;
+                if (!name.isBlank() && !isGroup && !disabled) {
+                    return name;
+                }
+            }
+            return asText(warehouses.get(0).get("name"));
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private List<Map<String, Object>> buildSellItems(
@@ -240,6 +322,18 @@ public class OrderBillingService {
     private String resolveDate(Object value) {
         String text = asText(value);
         return text.isBlank() ? LocalDate.now().toString() : text;
+    }
+
+    private String resolveCompanyCurrency(String company) {
+        if (company == null || company.isBlank()) {
+            return "USD";
+        }
+        Map<String, Object> companyDoc = unwrap(erpNextClient.getResource("Company", company));
+        String currency = asText(companyDoc.get("default_currency"));
+        if (currency.isBlank()) {
+            currency = asText(companyDoc.get("currency"));
+        }
+        return currency.isBlank() ? "USD" : currency;
     }
 
     private double readRequiredPositive(Map<String, Object> fields, String key) {

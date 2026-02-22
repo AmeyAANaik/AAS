@@ -1,264 +1,231 @@
+<!-- Order Processing Page with Swiggy/Amazon style flow -->
 <div class="order-page">
-  <app-page-header title="Orders" subtitle="Branch image to vendor bill to sell order workflow.">
-    <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
-    <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
-  </app-page-header>
-
-  <div class="summary-grid">
-    <mat-card class="summary-card">
-      <div class="summary-label">Total orders</div>
-      <div class="summary-value">{{ summary.total }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">In progress</div>
-      <div class="summary-value">{{ summary.inProgress }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">Pending</div>
-      <div class="summary-value">{{ summary.pending }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">Completed</div>
-      <div class="summary-value">{{ summary.completed }}</div>
-    </mat-card>
+  <!-- Header -->
+  <div class="order-header">
+    <h1>Sales Order Processing</h1>
+    <p class="subtitle">Track your order from vendor assignment to creation</p>
+        <button mat-raised-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
   </div>
 
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Filters</div>
-        <div class="section-subtitle">Narrow orders by branch, vendor, status, and date.</div>
+  <!-- Orders Table/List -->
+  <mat-card class="orders-list-card" *ngIf="!selectedOrder">
+    <mat-card-header>
+      <div class="search-section">
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Search orders, vendors, items</mat-label>
+          <input matInput [formControl]="searchControl">
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
       </div>
-    </div>
+    </mat-card-header>
     <mat-card-content>
-      <form [formGroup]="filtersForm" class="form-grid filter-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Branch</mat-label>
-          <mat-select formControlName="customer">
-            <mat-option value="">All branches</mat-option>
-            <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Vendor</mat-label>
-          <mat-select formControlName="vendor">
-            <mat-option value="">All vendors</mat-option>
-            <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All statuses</mat-option>
-            <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>From</mat-label>
-          <input matInput type="date" formControlName="from" />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>To</mat-label>
-          <input matInput type="date" formControlName="to" />
-        </mat-form-field>
-
-        <div class="form-actions filter-actions">
-          <button class="apply-filter-btn" type="button" (click)="loadOrders()" [disabled]="isLoading">
-            Apply
-          </button>
+      <div class="orders-grid">
+        <div class="order-card" *ngFor="let order of filteredOrders" (click)="selectOrder(order)" [class.pending]="order.status === 'DRAFT'" [class.processing]="order.status === 'VENDOR_ASSIGNED'" [class.completed]="order.status === 'SELL_ORDER_CREATED'">
+          <div class="order-card-header">
+            <h3>{{ order.name }}</h3>
+            <span class="status-badge" [ngClass]="order.status | lowercase">{{ getStatusLabel(order.status) }}</span>
+          </div>
+          <div class="order-card-info">
+            <p><strong>Branch:</strong> {{ order.branch }}</p>
+            <p><strong>Vendor:</strong> {{ order.vendor || 'Not assigned' }}</p>
+          </div>
+          <div class="order-card-footer">
+            <button mat-button color="primary" (click)="selectOrder(order); $event.stopPropagation()">Manage</button>
+          </div>
         </div>
-      </form>
+      </div>
     </mat-card-content>
   </mat-card>
 
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Order list</div>
-        <div class="section-subtitle">Select an order and continue each workflow step in sequence.</div>
-      </div>
-    </div>
-    <mat-card-content>
-      <div class="feedback loading" *ngIf="isLoading">Loading orders...</div>
-      <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
-
-      <div class="table-wrapper" *ngIf="!isLoading && orders.length; else emptyState">
-        <table mat-table [dataSource]="orders" class="mat-elevation-z1 pro-table">
-          <ng-container matColumnDef="id">
-            <th mat-header-cell *matHeaderCellDef>Order</th>
-            <td mat-cell *matCellDef="let order">
-              <div class="item-name">{{ order.id }}</div>
-              <div class="muted">{{ order.customer }}</div>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Status</th>
-            <td mat-cell *matCellDef="let order">
-              <span [class]="getStatusPillClass(order)">{{ order.statusLabel }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="vendor">
-            <th mat-header-cell *matHeaderCellDef>Vendor</th>
-            <td mat-cell *matCellDef="let order">
-              <span [class.dimmed]="!order.isVendorAssigned">{{ order.vendor }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="dates">
-            <th mat-header-cell *matHeaderCellDef>Dates</th>
-            <td mat-cell *matCellDef="let order">
-              <div>{{ order.orderDate }}</div>
-              <div class="muted">Delivery: {{ order.deliveryDate }}</div>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="total">
-            <th mat-header-cell *matHeaderCellDef>Total</th>
-            <td mat-cell *matCellDef="let order">
-              <span [class.pending]="order.totalLabel === 'Pending'">{{ order.totalLabel }}</span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let order">
-              <button mat-button class="table-action" color="primary" (click)="selectOrder(order)">Manage</button>
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
-        </table>
-      </div>
-      <ng-template #emptyState>
-        <app-empty-state
-          *ngIf="!isLoading"
-          icon="assignment"
-          title="No orders found"
-          message="No orders match the selected filters."
-          hint="Create a new order or adjust the date range.">
-        </app-empty-state>
-      </ng-template>
-    </mat-card-content>
-  </mat-card>
-
-  <mat-accordion>
-    <mat-expansion-panel>
-      <mat-expansion-panel-header>
-        <mat-panel-title>Create a new order</mat-panel-title>
-        <mat-panel-description>Branch image intake</mat-panel-description>
-      </mat-expansion-panel-header>
-      <app-order-create [shops]="shops" [items]="items" (created)="onOrderCreated()"></app-order-create>
-    </mat-expansion-panel>
-  </mat-accordion>
-
-  <mat-card *ngIf="selectedOrder; else selectPrompt">
-    <mat-card-title>Manage order workflow</mat-card-title>
-    <mat-card-content>
-      <div class="manage-header">
-        <div>
-          <p class="label">Order</p>
-          <p class="value">{{ selectedOrder.id }}</p>
+  <!-- Order Processing Flow (Modal) -->
+  <div class="manage-modal" *ngIf="selectedOrder" [@slideIn]>
+    <div class="manage-backdrop" (click)="closeManage()"></div>
+    <div class="manage-dialog" role="dialog" aria-modal="true">
+      <mat-card class="manage-card">
+        <!-- Dialog Header -->
+        <div class="manage-modal-header">
+          <div>
+            <mat-card-title>Manage order workflow</mat-card-title>
+            <p class="muted">Track the order from vendor assignment to sell order creation.</p>
+          </div>
+          <button class="close-btn" (click)="closeManage()" type="button" aria-label="Close dialog">×</button>
         </div>
-        <div>
-          <p class="label">Status</p>
-          <app-status-pill [label]="selectedOrder.statusLabel"></app-status-pill>
-        </div>
-      </div>
 
-      <div class="timeline">
-        <div class="timeline-step" *ngFor="let step of timelineSteps" [class.done]="isStepDone(step)">
-          {{ step }}
+        <!-- Order ID and Status -->
+        <div class="order-info-section">
+          <div class="order-id">
+            <label>ORDER</label>
+            <h4>{{ selectedOrder.name }}</h4>
+          </div>
+          <div class="order-status">
+            <label>STATUS</label>
+            <span class="status-badge" [ngClass]="selectedOrder.status | lowercase">{{ getStatusLabel(selectedOrder.status) }}</span>
+          </div>
         </div>
-      </div>
 
-      <div class="manage-grid">
-        <div>
-          <p class="label">1) Vendor assignment</p>
-          <form [formGroup]="assignForm">
-            <mat-form-field appearance="outline">
-              <mat-label>Vendor</mat-label>
-              <mat-select formControlName="vendorId">
-                <mat-option value="">Select vendor</mat-option>
-                <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+        <!-- Step Indicator (Swiggy/Amazon style) -->
+        <div class="steps-indicator">
+          <div class="step" [class.active]="isStepActive(1)" [class.completed]="isStepCompleted(1)">
+            <div class="step-number">1</div>
+            <div class="step-label">Vendor<br/>Assignment</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(1)"></div>
+          <div class="step" [class.active]="isStepActive(2)" [class.completed]="isStepCompleted(2)">
+            <div class="step-number">2</div>
+            <div class="step-label">PDF<br/>Upload</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(2)"></div>
+          <div class="step" [class.active]="isStepActive(3)" [class.completed]="isStepCompleted(3)">
+            <div class="step-number">3</div>
+            <div class="step-label">Bill<br/>Capture</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(3)"></div>
+          <div class="step" [class.active]="isStepActive(4)" [class.completed]="isStepCompleted(4)">
+            <div class="step-number">4</div>
+            <div class="step-label">Create<br/>Order</div>
+          </div>
+        </div>
+
+        <!-- Step 1: Vendor Assignment -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'DRAFT'">
+          <div class="step-header">
+            <h3>Step 1: Vendor Assignment</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'DRAFT'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'DRAFT'">
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Select Vendor</mat-label>
+              <mat-select [formControl]="vendorControl">
+                <mat-optgroup *ngFor="let group of vendors | keyvalue" [label]="group.key">
+                  <mat-option *ngFor="let vendor of group.value" [value]="vendor">{{ vendor }}</mat-option>
+                </mat-optgroup>
               </mat-select>
             </mat-form-field>
-          </form>
-          <button mat-flat-button color="primary" (click)="assignVendor()" [disabled]="isSaving">
-            Assign vendor
-          </button>
-        </div>
-
-        <div>
-          <p class="label">2) Vendor PDF upload</p>
-          <div class="upload-row">
-            <input type="file" accept="application/pdf" (change)="onVendorPdfSelected($event)" />
+            <button mat-raised-button color="primary" (click)="assignVendor()" [disabled]="!vendorControl.value" class="full-width">Assign Vendor</button>
           </div>
-          <button mat-flat-button color="primary" (click)="uploadVendorPdf()" [disabled]="isSaving || !selectedVendorPdf">
-            Upload and parse PDF
-          </button>
-        </div>
-
-        <div>
-          <p class="label">3) Vendor bill capture</p>
-          <form [formGroup]="vendorBillForm" class="form-grid compact">
-            <mat-form-field appearance="outline">
-              <mat-label>Vendor bill total</mat-label>
-              <input matInput type="number" formControlName="vendorBillTotal" min="0.01" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Vendor bill ref</mat-label>
-              <input matInput formControlName="vendorBillRef" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Vendor bill date</mat-label>
-              <input matInput type="date" formControlName="vendorBillDate" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Margin %</mat-label>
-              <input matInput type="number" formControlName="marginPercent" min="0" />
-            </mat-form-field>
-          </form>
-          <button mat-flat-button color="primary" (click)="captureVendorBill()" [disabled]="isSaving || !canCaptureBill()">
-            Capture vendor bill
-          </button>
-        </div>
-
-        <div>
-          <p class="label">4) Sell order preview + create</p>
-          <div class="preview-actions">
-            <button mat-stroked-button color="primary" (click)="loadSellPreview()" [disabled]="isPreviewLoading">
-              Calculate preview
-            </button>
-            <button mat-flat-button color="primary" (click)="createSellOrder()" [disabled]="isSaving || !canCreateSellOrder()">
-              Create sell order
-            </button>
-          </div>
-          <div class="preview-card" *ngIf="sellPreview">
-            <div>Vendor bill: {{ sellPreview.vendorBillTotal | number: '1.2-2' }}</div>
-            <div>Margin %: {{ sellPreview.marginPercent | number: '1.2-2' }}</div>
-            <div>Margin amount: {{ sellPreview.marginAmount | number: '1.2-2' }}</div>
-            <div class="value">Sell amount: {{ sellPreview.sellAmount | number: '1.2-2' }}</div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'DRAFT'">
+            <p><strong>Assigned Vendor:</strong> {{ selectedOrder.vendor }}</p>
           </div>
         </div>
-      </div>
 
-      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
-    </mat-card-content>
-  </mat-card>
+        <!-- Step 2: PDF Upload -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_ASSIGNED'">
+          <div class="step-header">
+            <h3>Step 2: Vendor PDF Upload</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_ASSIGNED'">
+            <div class="upload-section">
+              <div class="file-upload" [class.has-file]="selectedFile">
+                <input #fileInput type="file" accept=".pdf" (change)="onFileSelected($event)" hidden />
+                <div class="upload-prompt" *ngIf="!selectedFile" (click)="fileInput.click()">
+                  <mat-icon>cloud_upload</mat-icon>
+                  <p><strong>Upload PDF Invoice</strong></p>
+                  <p class="text-muted">Click to select or drag and drop a PDF file</p>
+                  <p class="file-hint">Maximum file size: 10MB, PDF format only</p>
+                </div>
+                <div class="file-info" *ngIf="selectedFile">
+                  <mat-icon color="accent">check_circle</mat-icon>
+                  <div>
+                    <p><strong>{{ selectedFile.name }}</strong></p>
+                    <p class="text-muted">{{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+                  </div>
+                  <button mat-icon-button (click)="clearFile()" aria-label="Remove file">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </div>
+              <div class="error-message" *ngIf="fileError">
+                <mat-icon>error</mat-icon>
+                <span>{{ fileError }}</span>
+              </div>
+              <button mat-raised-button color="primary" (click)="uploadAndParsePDF()" [disabled]="!selectedFile || isUploading" class="full-width">
+                <span *ngIf="!isUploading">Upload and Parse PDF</span>
+                <mat-spinner diameter="20" *ngIf="isUploading" [ngStyle]="{'display': 'inline-block', 'margin-right': '8px'}"></mat-spinner>
+                <span *ngIf="isUploading">Processing...</span>
+              </button>
+            </div>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">
+            <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
+            <p *ngIf="pdfData?.items"><strong>Items Extracted:</strong> {{ pdfData?.items?.length ?? 0 }}</p>
+          </div>
+        </div>
 
-  <ng-template #selectPrompt>
-    <mat-card>
-      <mat-card-title>Select an order to manage</mat-card-title>
-      <mat-card-content>
-        <p class="muted">Choose an order from the list to process the workflow end to end.</p>
-      </mat-card-content>
-    </mat-card>
-  </ng-template>
+        <!-- Step 3: Bill Capture -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_PDF_RECEIVED'">
+          <div class="step-header">
+            <h3>Step 3: Vendor Bill Capture</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'VENDOR_ASSIGNED'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_PDF_RECEIVED'">
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Total *</mat-label>
+                <input matInput [formControl]="billTotalControl" type="number" step="0.01" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Reference *</mat-label>
+                <input matInput [formControl]="billRefControl" />
+              </mat-form-field>
+            </div>
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Date *</mat-label>
+                <input matInput [matDatepicker]="picker" [formControl]="billDateControl" />
+                <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker #picker></mat-datepicker>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Margin % *</mat-label>
+                <input matInput [formControl]="marginControl" type="number" step="0.01" />
+              </mat-form-field>
+            </div>
+            <button mat-raised-button color="primary" (click)="captureBill()" [disabled]="!isBillFormValid()" class="full-width">Capture Vendor Bill</button>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'VENDOR_ASSIGNED'">
+            <p><strong>Bill Total:</strong> {{ selectedOrder.billTotal | currency }}</p>
+            <p><strong>Bill Reference:</strong> {{ selectedOrder.billRef }}</p>
+            <p><strong>Bill Date:</strong> {{ selectedOrder.billDate | date:'short' }}</p>
+          </div>
+        </div>
+
+        <!-- Step 4: Create Sell Order -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+          <div class="step-header">
+            <h3>Step 4: Sell Order Preview & Create</h3>
+            <span class="step-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+            <button mat-stroked-button (click)="calculatePreview()" class="full-width mb-2">Calculate Preview</button>
+            <div *ngIf="sellPreview" class="preview-section">
+              <h4>Order Preview</h4>
+              <p><strong>Estimated Sell Price:</strong> {{ sellPreview.estimatedPrice | currency }}</p>
+              <p><strong>Items Count:</strong> {{ sellPreview.itemsCount }}</p>
+            </div>
+            <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview" class="full-width">Create Sell Order</button>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">
+            <mat-icon class="success-icon">check_circle</mat-icon>
+            <p><strong>Sell Order Created Successfully!</strong></p>
+            <p>Order Status: {{ getStatusLabel(selectedOrder.status) }}</p>
+          </div>
+        </div>
+
+        <!-- Error Display -->
+        <div class="error-alert" *ngIf="errorMessage">
+          <mat-icon>error</mat-icon>
+          <div>
+            <strong>Error</strong>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="dialog-actions">
+          <button mat-button (click)="closeManage()">Close</button>
+        </div>
+      </mat-card>
+    </div>
+  </div>
 </div>
