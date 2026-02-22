@@ -1,11 +1,18 @@
 import { animate, style, transition, trigger } from '@angular/animations';
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
-import { OrderStatus, OrderSummary, SellPreview } from '../order.model';
+import { OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
+import { MatPaginator } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
+import { OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue } from './order-advanced-filters-dialog.component';
+import { OrderDeleteConfirmDialogComponent, OrderDeleteConfirmDialogData } from './order-delete-confirm-dialog.component';
 
 type UiOrderStatus =
   | 'DRAFT'
@@ -36,6 +43,10 @@ interface UiSellPreview {
 interface PdfParseResult {
   fileName?: string;
   items?: unknown[];
+  vendorBillTotal?: number;
+  vendorBillRef?: string;
+  vendorBillDate?: string;
+  marginPercent?: number;
   [key: string]: unknown;
 }
 
@@ -55,9 +66,19 @@ interface PdfParseResult {
     ])
   ]
 })
-export class OrderPageComponent implements OnInit, OnDestroy {
+export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   searchControl = new FormControl<string>('', { nonNullable: true });
   vendorControl = new FormControl<string | null>(null);
+  fromDateControl = new FormControl<string>('', { nonNullable: true });
+  toDateControl = new FormControl<string>('', { nonNullable: true });
+
+  appliedStatusFilters = new Set<UiOrderStatus>();
+  appliedBranchFilters = new Set<string>();
+  appliedVendorFilters = new Set<string>();
+
+  draftStatusFilters = new Set<UiOrderStatus>();
+  draftBranchFilters = new Set<string>();
+  draftVendorFilters = new Set<string>();
 
   billTotalControl = new FormControl<number | null>(null);
   billRefControl = new FormControl<string>('', { nonNullable: true });
@@ -65,10 +86,20 @@ export class OrderPageComponent implements OnInit, OnDestroy {
   marginControl = new FormControl<number>(10, { nonNullable: true });
 
   orders: UiOrder[] = [];
-  filteredOrders: UiOrder[] = [];
+  readonly displayedColumns: Array<'id' | 'branch' | 'vendor' | 'status' | 'date' | 'actions'> = [
+    'id',
+    'branch',
+    'vendor',
+    'status',
+    'date',
+    'actions'
+  ];
+  readonly dataSource = new MatTableDataSource<UiOrder>([]);
   selectedOrder: UiOrder | null = null;
 
-  vendors: Record<string, string[]> = {};
+  vendorOptions: OrderOption[] = [];
+  isVendorsLoading = false;
+  vendorsError = '';
 
   selectedFile: File | null = null;
   fileError = '';
@@ -77,20 +108,71 @@ export class OrderPageComponent implements OnInit, OnDestroy {
 
   sellPreview: UiSellPreview | null = null;
   errorMessage = '';
+  isLoading = false;
 
   private subscriptions = new Subscription();
 
   constructor(
-    private orderService: OrderService,
-    private vendorService: VendorService
+    private readonly dialog: MatDialog,
+    private readonly vendorService: VendorService,
+    private readonly orderService: OrderService,
+    private readonly snackBar: MatSnackBar
   ) {}
 
+  private tableSort?: MatSort;
+  @ViewChild(MatSort)
+  set matSort(sort: MatSort | undefined) {
+    this.tableSort = sort;
+    if (sort) {
+      this.dataSource.sort = sort;
+    }
+  }
+
+  private tablePaginator?: MatPaginator;
+  @ViewChild(MatPaginator)
+  set matPaginator(paginator: MatPaginator | undefined) {
+    this.tablePaginator = paginator;
+    if (paginator) {
+      this.dataSource.paginator = paginator;
+    }
+  }
+
   ngOnInit(): void {
+    this.dataSource.filterPredicate = (order, filter) => this.matchesFilter(order, filter);
+    this.dataSource.sortingDataAccessor = (order, property) => {
+      if (property === 'date') {
+        return this.toDayNumber(String(order.raw.transaction_date ?? '')) ?? 0;
+      }
+      if (property === 'status') {
+        return String(order.status ?? '');
+      }
+      if (property === 'vendor') {
+        return String(order.vendor ?? '');
+      }
+      if (property === 'branch') {
+        return String(order.branch ?? '');
+      }
+      if (property === 'id') {
+        return String(order.name ?? '');
+      }
+      return '';
+    };
+
     this.loadVendors();
     this.loadOrders();
     this.subscriptions.add(
       this.searchControl.valueChanges.subscribe(() => this.applySearch())
     );
+    this.subscriptions.add(
+      this.fromDateControl.valueChanges.subscribe(() => this.applyDateRange())
+    );
+    this.subscriptions.add(
+      this.toDateControl.valueChanges.subscribe(() => this.applyDateRange())
+    );
+  }
+
+  ngAfterViewInit(): void {
+    // MatSort/MatPaginator are assigned via @ViewChild setters (table is under *ngIf).
   }
 
   ngOnDestroy(): void {
@@ -98,27 +180,39 @@ export class OrderPageComponent implements OnInit, OnDestroy {
   }
 
   private loadVendors(): void {
-    this.vendorService.listVendors().subscribe({
-      next: vendors => {
-        const names = (vendors ?? [])
-          .map(vendor => String(vendor?.name ?? vendor?.supplier_name ?? '').trim())
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
-        this.vendors = names.reduce<Record<string, string[]>>((acc, name) => {
-          const key = name.slice(0, 1).toUpperCase();
-          (acc[key] ||= []).push(name);
-          return acc;
-        }, {});
-      }
-    });
+    this.isVendorsLoading = true;
+    this.vendorsError = '';
+    const sub = this.vendorService
+      .listVendors()
+      .pipe(finalize(() => (this.isVendorsLoading = false)))
+      .subscribe({
+        next: vendors => {
+          const options = (vendors ?? []).map(vendor => {
+            const name = String(vendor?.supplier_name ?? vendor?.name ?? '').trim();
+            return { id: String(vendor?.name ?? name), name: name || String(vendor?.name ?? '') };
+          });
+          this.vendorOptions = options
+            .filter(option => option.id.trim() && option.name.trim())
+            .sort((a, b) => a.name.localeCompare(b.name));
+        },
+        error: err => {
+          this.vendorsError = this.formatError(err, 'Unable to load vendors');
+          this.vendorOptions = [];
+        }
+      });
+    this.subscriptions.add(sub);
   }
 
   loadOrders(): void {
     this.errorMessage = '';
-    this.orderService.listOrders({}).subscribe({
+    this.isLoading = true;
+    this.orderService.listOrders({})
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
       next: orders => {
         this.orders = (orders ?? []).map(order => this.toUiOrder(order));
-        this.applySearch();
+        this.dataSource.data = this.orders;
+        this.updateTableFilter();
         this.refreshSelection();
       },
       error: err => (this.errorMessage = this.formatError(err, 'Unable to load orders'))
@@ -126,19 +220,287 @@ export class OrderPageComponent implements OnInit, OnDestroy {
   }
 
   private applySearch(): void {
-    const query = this.searchControl.value.trim().toLowerCase();
-    if (!query) {
-      this.filteredOrders = [...this.orders];
-      return;
+    this.updateTableFilter();
+    if (this.dataSource.paginator) {
+      this.dataSource.paginator.firstPage();
     }
-    this.filteredOrders = this.orders.filter(order => {
-      return (
-        order.name.toLowerCase().includes(query) ||
-        order.branch.toLowerCase().includes(query) ||
-        order.vendor.toLowerCase().includes(query) ||
-        String(order.status).toLowerCase().includes(query)
-      );
-    });
+  }
+
+  private applyDateRange(): void {
+    this.updateTableFilter();
+    this.dataSource.paginator?.firstPage();
+  }
+
+  clearDateRange(): void {
+    this.fromDateControl.setValue('');
+    this.toDateControl.setValue('');
+    this.updateTableFilter();
+    this.dataSource.paginator?.firstPage();
+  }
+
+  openAdvancedFilters(): void {
+    const dialogRef = this.dialog.open<OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue, OrderAdvancedFiltersDialogValue>(
+      OrderAdvancedFiltersDialogComponent,
+      {
+        width: '420px',
+        data: { from: this.fromDateControl.value, to: this.toDateControl.value }
+      }
+    );
+    this.subscriptions.add(
+      dialogRef.afterClosed().subscribe(result => {
+        if (!result) {
+          return;
+        }
+        this.fromDateControl.setValue(result.from ?? '');
+        this.toDateControl.setValue(result.to ?? '');
+        this.updateTableFilter();
+        this.dataSource.paginator?.firstPage();
+      })
+    );
+  }
+
+  openFilters(): void {
+    this.draftStatusFilters = new Set(this.appliedStatusFilters);
+    this.draftBranchFilters = new Set(this.appliedBranchFilters);
+    this.draftVendorFilters = new Set(this.appliedVendorFilters);
+  }
+
+  applyFilters(): void {
+    this.appliedStatusFilters = new Set(this.draftStatusFilters);
+    this.appliedBranchFilters = new Set(this.draftBranchFilters);
+    this.appliedVendorFilters = new Set(this.draftVendorFilters);
+    this.updateTableFilter();
+    this.dataSource.paginator?.firstPage();
+  }
+
+  clearAllDraftFilters(): void {
+    this.draftStatusFilters.clear();
+    this.draftBranchFilters.clear();
+    this.draftVendorFilters.clear();
+  }
+
+  clearAllFilters(): void {
+    this.appliedStatusFilters.clear();
+    this.appliedBranchFilters.clear();
+    this.appliedVendorFilters.clear();
+    this.searchControl.setValue('');
+    this.fromDateControl.setValue('');
+    this.toDateControl.setValue('');
+    this.updateTableFilter();
+    this.dataSource.paginator?.firstPage();
+  }
+
+  toggleDraftStatus(status: UiOrderStatus): void {
+    if (this.draftStatusFilters.has(status)) {
+      this.draftStatusFilters.delete(status);
+    } else {
+      this.draftStatusFilters.add(status);
+    }
+  }
+
+  toggleDraftBranch(branch: string): void {
+    if (this.draftBranchFilters.has(branch)) {
+      this.draftBranchFilters.delete(branch);
+    } else {
+      this.draftBranchFilters.add(branch);
+    }
+  }
+
+  toggleDraftVendor(vendor: string): void {
+    if (this.draftVendorFilters.has(vendor)) {
+      this.draftVendorFilters.delete(vendor);
+    } else {
+      this.draftVendorFilters.add(vendor);
+    }
+  }
+
+  removeAppliedFilter(kind: 'status' | 'branch' | 'vendor', value: string): void {
+    if (kind === 'status') {
+      this.appliedStatusFilters.delete(value as UiOrderStatus);
+      this.draftStatusFilters.delete(value as UiOrderStatus);
+    } else if (kind === 'branch') {
+      this.appliedBranchFilters.delete(value);
+      this.draftBranchFilters.delete(value);
+    } else {
+      this.appliedVendorFilters.delete(value);
+      this.draftVendorFilters.delete(value);
+    }
+    this.updateTableFilter();
+    this.dataSource.paginator?.firstPage();
+  }
+
+  get availableStatuses(): UiOrderStatus[] {
+    const base: UiOrderStatus[] = [
+      'DRAFT',
+      'VENDOR_ASSIGNED',
+      'VENDOR_PDF_RECEIVED',
+      'VENDOR_BILL_CAPTURED',
+      'SELL_ORDER_CREATED',
+      'INVOICED'
+    ];
+    const seen = new Set<string>();
+    const extra: UiOrderStatus[] = [];
+    for (const order of this.orders) {
+      const status = String(order.status ?? '').trim();
+      if (!status) {
+        continue;
+      }
+      if (base.includes(status as UiOrderStatus)) {
+        continue;
+      }
+      if (!seen.has(status)) {
+        seen.add(status);
+        extra.push(status as UiOrderStatus);
+      }
+    }
+    return [...base, ...extra];
+  }
+
+  get availableBranches(): string[] {
+    const branches = Array.from(new Set(this.orders.map(order => order.branch).filter(Boolean)));
+    return branches.sort((a, b) => a.localeCompare(b));
+  }
+
+  get availableVendors(): string[] {
+    const vendors = Array.from(new Set(this.orders.map(order => order.vendor).filter(Boolean)));
+    return vendors.sort((a, b) => a.localeCompare(b));
+  }
+
+  get filterSummary(): string {
+    const parts: string[] = [];
+    if (this.appliedStatusFilters.size) {
+      parts.push(`Status: ${Array.from(this.appliedStatusFilters).map(s => this.getStatusLabel(s)).join(', ')}`);
+    }
+    if (this.appliedBranchFilters.size) {
+      parts.push(`Branch: ${Array.from(this.appliedBranchFilters).join(', ')}`);
+    }
+    if (this.appliedVendorFilters.size) {
+      parts.push(`Vendor: ${Array.from(this.appliedVendorFilters).join(', ')}`);
+    }
+    const from = this.fromDateControl.value.trim();
+    const to = this.toDateControl.value.trim();
+    if (from || to) {
+      parts.push(`Date: ${from || '…'} → ${to || '…'}`);
+    }
+    const query = this.searchControl.value.trim();
+    if (query) {
+      parts.push(`Search: \"${query}\"`);
+    }
+    return parts.length ? parts.join(' • ') : 'No filters applied';
+  }
+
+  get activeFilterCount(): number {
+    const from = this.fromDateControl.value.trim();
+    const to = this.toDateControl.value.trim();
+    return (
+      this.appliedStatusFilters.size +
+      this.appliedBranchFilters.size +
+      this.appliedVendorFilters.size +
+      (from ? 1 : 0) +
+      (to ? 1 : 0)
+    );
+  }
+
+  get selectedFilterChips(): Array<{ kind: 'status' | 'branch' | 'vendor'; label: string; value: string }> {
+    const chips: Array<{ kind: 'status' | 'branch' | 'vendor'; label: string; value: string }> = [];
+    for (const status of Array.from(this.appliedStatusFilters)) {
+      chips.push({ kind: 'status', value: String(status), label: this.getStatusLabel(status) });
+    }
+    for (const branch of Array.from(this.appliedBranchFilters)) {
+      chips.push({ kind: 'branch', value: branch, label: branch });
+    }
+    for (const vendor of Array.from(this.appliedVendorFilters)) {
+      chips.push({ kind: 'vendor', value: vendor, label: vendor });
+    }
+    return chips;
+  }
+
+  private updateTableFilter(): void {
+    const payload = {
+      q: this.searchControl.value.trim().toLowerCase(),
+      statuses: Array.from(this.appliedStatusFilters),
+      branches: Array.from(this.appliedBranchFilters),
+      vendors: Array.from(this.appliedVendorFilters),
+      from: this.fromDateControl.value.trim(),
+      to: this.toDateControl.value.trim()
+    };
+    this.dataSource.filter = JSON.stringify(payload);
+  }
+
+  private matchesFilter(order: UiOrder, rawFilter: string): boolean {
+    let filter: {
+      q?: string;
+      statuses?: string[];
+      branches?: string[];
+      vendors?: string[];
+      from?: string;
+      to?: string;
+    } = {};
+    const trimmed = String(rawFilter ?? '').trim();
+    if (trimmed) {
+      try {
+        filter = JSON.parse(trimmed) as typeof filter;
+      } catch {
+        filter = { q: trimmed };
+      }
+    }
+
+    const statuses = (filter.statuses ?? []).map(String);
+    if (statuses.length && !statuses.includes(String(order.status))) {
+      return false;
+    }
+    const branches = (filter.branches ?? []).map(String);
+    if (branches.length && !branches.includes(String(order.branch))) {
+      return false;
+    }
+    const vendors = (filter.vendors ?? []).map(String);
+    if (vendors.length && !vendors.includes(String(order.vendor))) {
+      return false;
+    }
+
+    const orderDay = this.toDayNumber(String(order.raw.transaction_date ?? ''));
+    const fromDay = this.toDayNumber(String(filter.from ?? ''));
+    const toDay = this.toDayNumber(String(filter.to ?? ''));
+    if ((fromDay !== null || toDay !== null) && orderDay === null) {
+      return false;
+    }
+    if (fromDay !== null && orderDay !== null && orderDay < fromDay) {
+      return false;
+    }
+    if (toDay !== null && orderDay !== null && orderDay > toDay) {
+      return false;
+    }
+
+    const q = String(filter.q ?? '').trim().toLowerCase();
+    if (!q) {
+      return true;
+    }
+    const date = String(order.raw.transaction_date ?? '');
+    return (
+      String(order.name ?? '').toLowerCase().includes(q) ||
+      String(order.branch ?? '').toLowerCase().includes(q) ||
+      String(order.vendor ?? '').toLowerCase().includes(q) ||
+      String(order.status ?? '').toLowerCase().includes(q) ||
+      date.toLowerCase().includes(q)
+    );
+  }
+
+  private toDayNumber(value: string): number | null {
+    const text = String(value ?? '').trim();
+    if (!text) {
+      return null;
+    }
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+    if (!match) {
+      return null;
+    }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+      return null;
+    }
+    return year * 10000 + month * 100 + day;
   }
 
   selectOrder(order: UiOrder): void {
@@ -222,13 +584,61 @@ export class OrderPageComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.orderService
       .assignVendor(this.selectedOrder.name, vendorId)
-      .pipe(finalize(() => this.loadOrders()))
       .subscribe({
         next: () => {
           this.selectedOrder = { ...this.selectedOrder!, vendor: vendorId, status: 'VENDOR_ASSIGNED' };
+          this.loadOrders();
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to assign vendor'))
       });
+  }
+
+  canDeleteOrder(order: UiOrder): boolean {
+    const status = (order?.status ?? 'DRAFT') as UiOrderStatus;
+    return status === 'DRAFT' || status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
+  }
+
+  confirmDeleteOrder(order: UiOrder): void {
+    const orderId = String(order?.name ?? '').trim();
+    if (!orderId) {
+      return;
+    }
+    if (!this.canDeleteOrder(order)) {
+      this.snackBar.open('Only pending (Draft) orders can be deleted.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    const dialogRef = this.dialog.open<
+      OrderDeleteConfirmDialogComponent,
+      OrderDeleteConfirmDialogData,
+      boolean
+    >(OrderDeleteConfirmDialogComponent, {
+      width: '420px',
+      data: { orderId }
+    });
+
+    this.subscriptions.add(
+      dialogRef.afterClosed().subscribe(confirmed => {
+        if (!confirmed) {
+          return;
+        }
+        this.deleteOrder(orderId);
+      })
+    );
+  }
+
+  private deleteOrder(orderId: string): void {
+    this.errorMessage = '';
+    this.orderService.deleteOrder(orderId).subscribe({
+      next: () => {
+        this.orders = this.orders.filter(o => o.name !== orderId);
+        this.dataSource.data = this.orders;
+        this.updateTableFilter();
+        this.snackBar.open(`Order ${orderId} deleted.`, 'Dismiss', { duration: 3000 });
+      },
+      error: err => {
+        this.errorMessage = this.formatError(err, `Unable to delete order ${orderId}`);
+      }
+    });
   }
 
   onFileSelected(event: Event): void {
@@ -271,7 +681,32 @@ export class OrderPageComponent implements OnInit, OnDestroy {
       .pipe(finalize(() => (this.isUploading = false)))
       .subscribe({
         next: res => {
-          this.pdfData = (res ?? null) as PdfParseResult | null;
+          const parsed = (res ?? null) as PdfParseResult | null;
+          this.pdfData = parsed;
+
+          const vendorBillTotal = Number(parsed?.vendorBillTotal ?? 0);
+          if (Number.isFinite(vendorBillTotal) && vendorBillTotal > 0) {
+            this.billTotalControl.setValue(vendorBillTotal);
+          }
+
+          const vendorBillRef = String(parsed?.vendorBillRef ?? '').trim();
+          if (vendorBillRef) {
+            this.billRefControl.setValue(vendorBillRef);
+          }
+
+          const vendorBillDateText = String(parsed?.vendorBillDate ?? '').trim();
+          if (vendorBillDateText) {
+            const parsedDate = this.parseDate(vendorBillDateText);
+            if (parsedDate) {
+              this.billDateControl.setValue(parsedDate);
+            }
+          }
+
+          const marginPercent = Number(parsed?.marginPercent ?? NaN);
+          if (Number.isFinite(marginPercent) && marginPercent >= 0) {
+            this.marginControl.setValue(marginPercent);
+          }
+
           this.selectedFile = null;
           this.loadOrders();
         },
@@ -364,6 +799,11 @@ export class OrderPageComponent implements OnInit, OnDestroy {
     const updated = this.orders.find(order => order.name === this.selectedOrder?.name) ?? null;
     if (updated) {
       this.selectedOrder = updated;
+      this.vendorControl.setValue(updated.vendor || null);
+      this.billTotalControl.setValue(updated.billTotal);
+      this.billRefControl.setValue(updated.billRef);
+      this.billDateControl.setValue(updated.billDate ?? new Date());
+      this.marginControl.setValue(Number(updated.raw.aas_margin_percent ?? 10));
     }
   }
 

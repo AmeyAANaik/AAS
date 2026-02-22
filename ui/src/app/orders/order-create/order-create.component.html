@@ -1,5 +1,10 @@
 <mat-card>
-  <mat-card-title>Create order</mat-card-title>
+  <mat-card-title class="title-row">
+    <button mat-icon-button type="button" aria-label="Back to orders list" (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>Create order</span>
+  </mat-card-title>
   <mat-card-content>
     <form [formGroup]="form" class="create-form">
     <section class="create-section">
@@ -12,20 +17,24 @@
       <div formGroupName="details" class="form-grid">
         <mat-form-field appearance="outline">
           <mat-label>Branch (Shop)</mat-label>
-          <mat-select formControlName="customer">
+          <mat-select formControlName="customer" [disabled]="isShopsLoading || !!shopsError">
             <mat-option value="">Select branch</mat-option>
+            <mat-option *ngIf="isShopsLoading" disabled>Loading branches...</mat-option>
             <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
           </mat-select>
           <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
+          <mat-hint *ngIf="shopsError">{{ shopsError }}</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Vendor</mat-label>
-          <mat-select formControlName="vendor">
+          <mat-select formControlName="vendor" [disabled]="isVendorsLoading || !!vendorsError">
             <mat-option value="">Select vendor</mat-option>
+            <mat-option *ngIf="isVendorsLoading" disabled>Loading vendors...</mat-option>
             <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
           </mat-select>
           <mat-error *ngIf="detailsGroup.get('vendor')?.hasError('required')">Vendor is required.</mat-error>
+          <mat-hint *ngIf="vendorsError">{{ vendorsError }}</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline">

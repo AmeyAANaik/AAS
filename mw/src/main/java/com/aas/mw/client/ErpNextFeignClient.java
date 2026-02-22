@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -47,6 +48,11 @@ public interface ErpNextFeignClient {
             @PathVariable("doctype") String doctype,
             @PathVariable("id") String id,
             @RequestBody Map<String, Object> payload);
+
+    @DeleteMapping("/api/resource/{doctype}/{id}")
+    Map<String, Object> deleteResource(
+            @PathVariable("doctype") String doctype,
+            @PathVariable("id") String id);
 
     @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     byte[] downloadPdf(@RequestParam("doctype") String doctype, @RequestParam("name") String name);

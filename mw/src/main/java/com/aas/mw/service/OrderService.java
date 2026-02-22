@@ -3,6 +3,7 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
+import feign.FeignException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 public class OrderService {
 
     private static final String DOCTYPE = "Sales Order";
+    private static final String PURCHASE_ORDER = "Purchase Order";
     private static final String PLACEHOLDER_ITEM_CODE = "AAS-BRANCH-IMAGE";
     private static final double DEFAULT_MARGIN_PERCENT = 10.0;
 
@@ -43,13 +45,17 @@ public class OrderService {
             org.springframework.web.multipart.MultipartFile file,
             String sessionCookie) {
         Map<String, Object> payload = new HashMap<>();
+        String warehouse = resolveDefaultWarehouse(asText(company));
+        if (!warehouse.isBlank()) {
+            payload.put("set_warehouse", warehouse);
+        }
         payload.put("customer", customer);
         payload.put("company", company);
         payload.put("transaction_date", resolveDate(transactionDate));
         payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
         payload.put("aas_status", "DRAFT");
         payload.put("aas_margin_percent", DEFAULT_MARGIN_PERCENT);
-        payload.put("items", List.of(buildPlaceholderItem()));
+        payload.put("items", List.of(buildPlaceholderItem(warehouse)));
         Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
         String orderId = extractDocName(order);
         if (orderId != null && !orderId.isBlank()) {
@@ -114,7 +120,29 @@ public class OrderService {
                 "fileId", info.fileId());
     }
 
-    private Map<String, Object> buildPlaceholderItem() {
+    public Map<String, Object> deleteOrder(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("Order id is required.");
+        }
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        String status = readField(order, "aas_status");
+        orderFlowStateMachine.ensureCanDeleteOrder(status);
+        String purchaseOrderId = readField(order, "aas_po").trim();
+
+        if (!purchaseOrderId.isBlank()) {
+            try {
+                erpNextClient.deleteResource(PURCHASE_ORDER, purchaseOrderId);
+            } catch (FeignException.NotFound notFound) {
+                // Ignore missing PO.
+            }
+        }
+        erpNextClient.deleteResource(DOCTYPE, orderId);
+        return Map.of(
+                "orderId", orderId,
+                "purchaseOrderId", purchaseOrderId);
+    }
+
+    private Map<String, Object> buildPlaceholderItem(String warehouse) {
         ensurePlaceholderItem();
         Map<String, Object> item = new HashMap<>();
         item.put("item_code", PLACEHOLDER_ITEM_CODE);
@@ -122,6 +150,9 @@ public class OrderService {
         item.put("rate", 0);
         item.put("price_list_rate", 0);
         item.put("amount", 0);
+        if (warehouse != null && !warehouse.isBlank()) {
+            item.put("warehouse", warehouse);
+        }
         return item;
     }
 

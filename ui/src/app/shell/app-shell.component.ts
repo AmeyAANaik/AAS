@@ -32,10 +32,24 @@ export class AppShellComponent implements OnDestroy {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe(event => {
-        const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];
-        const meta = this.routeMap[url] ?? this.routeMap['/admin/dashboard'];
+        const url = this.normalizeUrl((event as NavigationEnd).urlAfterRedirects);
+        const meta = this.metaForUrl(url);
         this.breadcrumbs = meta.breadcrumbs.join(' / ');
       });
+  }
+
+  private metaForUrl(url: string): ShellRouteMeta {
+    const candidates = Object.keys(this.routeMap).sort((a, b) => b.length - a.length);
+    const match = candidates.find(key => url === key || url.startsWith(`${key}/`));
+    return this.routeMap[match ?? '/admin/dashboard'];
+  }
+
+  private normalizeUrl(url: string): string {
+    const withoutQuery = url.split('?')[0];
+    if (withoutQuery.length > 1 && withoutQuery.endsWith('/')) {
+      return withoutQuery.slice(0, -1);
+    }
+    return withoutQuery;
   }
 
   logout(): void {

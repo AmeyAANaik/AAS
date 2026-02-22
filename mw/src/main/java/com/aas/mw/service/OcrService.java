@@ -61,12 +61,15 @@ public class OcrService {
             return "";
         }
         PDFTextStripper stripper = new PDFTextStripper();
+        stripper.setSortByPosition(true);
+        stripper.setLineSeparator("\n");
+        stripper.setWordSeparator(" ");
         String text = stripper.getText(document);
         if (text == null) {
             return "";
         }
         // If there's meaningful text, prefer it over image OCR (faster + more accurate for text PDFs).
-        String normalized = text.trim();
+        String normalized = text.replace('\f', '\n').trim();
         return normalized.length() >= 20 ? normalized : "";
     }
 

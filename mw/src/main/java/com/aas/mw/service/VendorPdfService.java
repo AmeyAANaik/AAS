@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +22,9 @@ public class VendorPdfService {
     private static final String SALES_ORDER = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
     private static final String ITEM = "Item";
+    private static final String WAREHOUSE = "Warehouse";
+    private static final String COMPANY = "Company";
+    private static final Pattern NON_ALNUM_PATTERN = Pattern.compile("[^a-zA-Z0-9]+");
 
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService fileService;
@@ -69,9 +73,22 @@ public class VendorPdfService {
         }
 
         String ocrText = ocrService.extractTextFromPdf(pdfBytes);
+        if (ocrText == null || ocrText.isBlank()) {
+            throw new IllegalStateException("Unable to extract any text from vendor PDF. The PDF may be scanned, encrypted, or too low quality for OCR.");
+        }
         List<ParsedItem> parsedItems = parser.parseItems(ocrText);
         if (parsedItems.isEmpty()) {
-            throw new IllegalStateException("No items could be parsed from vendor PDF.");
+            VendorPdfParser.ParseDiagnostics diagnostics = parser.diagnose(ocrText);
+            throw new IllegalStateException(
+                    "No items could be parsed from vendor PDF. "
+                            + "Extracted "
+                            + diagnostics.textLength()
+                            + " characters across "
+                            + diagnostics.lineCount()
+                            + " lines ("
+                            + diagnostics.candidateLines()
+                            + " candidate item rows). "
+                            + "Ensure the invoice contains an item table with Qty/Rate/Amount columns, or upload a clearer PDF export.");
         }
 
         List<Map<String, Object>> baseItems = resolveItems(parsedItems);
@@ -80,6 +97,10 @@ public class VendorPdfService {
         List<Map<String, Object>> sellItems = withSellMargin(baseItems, marginPercent);
 
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
+        String purchaseOrderId = extractDocName(purchaseOrder);
+        double vendorBillTotal = sumAmount(baseItems);
+        String vendorBillDate = parser.extractBillDate(ocrText);
+        String vendorBillRef = purchaseOrderId == null ? "" : purchaseOrderId;
 
         UploadedFileInfo pdfInfo;
         try {
@@ -92,8 +113,13 @@ public class VendorPdfService {
         Map<String, Object> linkUpdate = new HashMap<>();
         linkUpdate.put("items", sourceOrderItems);
         linkUpdate.put("aas_margin_percent", marginPercent);
-        linkUpdate.put("aas_po", extractDocName(purchaseOrder));
+        linkUpdate.put("aas_po", purchaseOrderId);
         linkUpdate.put("aas_status", "VENDOR_PDF_RECEIVED");
+        linkUpdate.put("aas_vendor_bill_total", vendorBillTotal);
+        linkUpdate.put("aas_vendor_bill_ref", vendorBillRef);
+        if (vendorBillDate != null && !vendorBillDate.isBlank()) {
+            linkUpdate.put("aas_vendor_bill_date", vendorBillDate);
+        }
         if (pdfInfo.fileUrl() != null) {
             linkUpdate.put("aas_vendor_pdf", pdfInfo.fileUrl());
         }
@@ -107,6 +133,9 @@ public class VendorPdfService {
                 "marginPercent", marginPercent,
                 "sellTotal", sumAmount(sellItems)));
         response.put("marginPercent", marginPercent);
+        response.put("vendorBillTotal", vendorBillTotal);
+        response.put("vendorBillRef", vendorBillRef);
+        response.put("vendorBillDate", vendorBillDate);
         response.put("items", parsedItems);
         response.put("file", Map.of(
                 "fileName", pdfInfo.fileName(),
@@ -132,7 +161,13 @@ public class VendorPdfService {
             String itemName = item.name();
             String itemCode = findItemCodeByName(itemName);
             if (itemCode == null) {
-                itemCode = createItem(itemName);
+                String normalized = normalizeNameForLookup(itemName);
+                if (!normalized.isBlank() && !normalized.equalsIgnoreCase(itemName)) {
+                    itemCode = findSingleItemCodeByLike(normalized);
+                }
+                if (itemCode == null) {
+                    itemCode = createItem(itemName);
+                }
             }
             Map<String, Object> row = new HashMap<>();
             row.put("item_code", itemCode);
@@ -147,6 +182,39 @@ public class VendorPdfService {
             rows.add(row);
         }
         return rows;
+    }
+
+    private String normalizeNameForLookup(String itemName) {
+        if (itemName == null) {
+            return "";
+        }
+        String cleaned = itemName.trim();
+        // Remove likely HSN codes / long numeric tokens.
+        cleaned = cleaned.replaceAll("\\b\\d{4,10}\\b", " ");
+        // Remove trailing qty-like tokens that OCR sometimes appends into names.
+        cleaned = cleaned.replaceAll("\\b\\d{1,3}(?:\\.\\d+)?\\b\\s*$", " ");
+        cleaned = NON_ALNUM_PATTERN.matcher(cleaned).replaceAll(" ");
+        cleaned = cleaned.replaceAll("\\s+", " ").trim();
+        return cleaned;
+    }
+
+    private String findSingleItemCodeByLike(String cleanedName) {
+        if (cleanedName == null || cleanedName.isBlank()) {
+            return null;
+        }
+        if (cleanedName.length() < 4) {
+            return null;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_name\"]");
+        params.put("limit_page_length", "5");
+        params.put("filters", "[[\"item_name\",\"like\",\"%" + escape(cleanedName) + "%\"]]");
+        List<Map<String, Object>> data = erpNextClient.listResources(ITEM, params);
+        if (data.size() != 1) {
+            return null;
+        }
+        Object name = data.get(0).get("name");
+        return name == null ? null : name.toString();
     }
 
     private List<Map<String, Object>> withVendorRate(List<Map<String, Object>> baseItems) {
@@ -212,6 +280,9 @@ public class VendorPdfService {
             List<Map<String, Object>> items,
             Map<String, Object> originalOrder) {
         String warehouse = resolveWarehouse(originalOrder);
+        if (warehouse.isBlank()) {
+            warehouse = resolveDefaultWarehouse(company);
+        }
         List<Map<String, Object>> poItems = withWarehouse(items, warehouse);
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", vendor);
@@ -246,12 +317,43 @@ public class VendorPdfService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map<String, Object> item : items) {
             Map<String, Object> copy = new HashMap<>(item);
-            if (!warehouse.isBlank()) {
+            if (!warehouse.isBlank() && asText(copy.get("warehouse")).isBlank()) {
                 copy.put("warehouse", warehouse);
             }
             rows.add(copy);
         }
         return rows;
+    }
+
+    private String resolveDefaultWarehouse(String company) {
+        if (company == null || company.isBlank()) {
+            return "";
+        }
+        String abbr = "";
+        try {
+            Map<String, Object> companyDoc = erpNextClient.getResource(COMPANY, company);
+            abbr = asText(companyDoc.get("abbr"));
+        } catch (Exception ex) {
+            abbr = "";
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"warehouse_name\",\"company\",\"is_group\"]");
+        params.put("limit_page_length", "50");
+        params.put("filters", "[[\"company\",\"=\",\"" + escape(company) + "\"],[\"is_group\",\"=\",\"0\"]]");
+        List<Map<String, Object>> warehouses = erpNextClient.listResources(WAREHOUSE, params);
+        if (warehouses.isEmpty()) {
+            return "";
+        }
+        if (!abbr.isBlank()) {
+            String preferred = "Stores - " + abbr;
+            for (Map<String, Object> wh : warehouses) {
+                String name = asText(wh.get("name"));
+                if (preferred.equals(name)) {
+                    return name;
+                }
+            }
+        }
+        return asText(warehouses.get(0).get("name"));
     }
 
     private String resolveDate(Object value) {

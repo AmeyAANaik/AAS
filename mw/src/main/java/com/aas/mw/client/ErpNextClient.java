@@ -69,6 +69,10 @@ public class ErpNextClient {
         return feignClient.updateResource(doctype, id, payload);
     }
 
+    public Map<String, Object> deleteResource(String doctype, String id) {
+        return feignClient.deleteResource(doctype, id);
+    }
+
     public byte[] downloadPdf(String doctype, String name) {
         return feignClient.downloadPdf(doctype, name);
     }

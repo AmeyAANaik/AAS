@@ -1,24 +1,32 @@
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output } from '@angular/core';
+import { Location } from '@angular/common';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { finalize, map, switchMap } from 'rxjs/operators';
 import { OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
+import { VendorService } from '../../vendors/vendor.service';
 
 @Component({
   selector: 'app-order-create',
   templateUrl: './order-create.component.html',
   styleUrl: './order-create.component.scss'
 })
-export class OrderCreateComponent implements OnChanges, OnDestroy {
+export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   @Input() shops: OrderOption[] = [];
   @Input() vendors: OrderOption[] = [];
   @Output() created = new EventEmitter<OrderCreateResult>();
 
   statusMessage = '';
   isSubmitting = false;
+  isShopsLoading = false;
+  isVendorsLoading = false;
+  shopsError = '';
+  vendorsError = '';
   imageFile: File | null = null;
   imagePreviewUrl = '';
   createdOrderId: string | null = null;
+  private subscriptions = new Subscription();
 
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
@@ -37,13 +45,30 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
     image: this.imageGroup
   });
 
-  constructor(private fb: FormBuilder, private orderService: OrderService) {
+  constructor(
+    private fb: FormBuilder,
+    private orderService: OrderService,
+    private vendorService: VendorService,
+    private location: Location
+  ) {
     this.setTodayDefaults();
+  }
+
+  ngOnInit(): void {
+    if (!this.shops?.length) {
+      this.loadShops();
+    }
+    if (!this.vendors?.length) {
+      this.loadVendors();
+    }
   }
 
   ngOnChanges(): void {
     if (!this.detailsGroup.get('company')?.value) {
       this.detailsGroup.patchValue({ company: 'AAS Core' });
+    }
+    if (!this.vendors?.length && !this.isVendorsLoading) {
+      this.loadVendors();
     }
   }
 
@@ -112,7 +137,12 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
     this.resetForm(true);
   }
 
+  goBack(): void {
+    this.location.back();
+  }
+
   ngOnDestroy(): void {
+    this.subscriptions.unsubscribe();
     this.revokePreviewUrl();
   }
 
@@ -161,6 +191,46 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
       return err;
     }
     return fallback;
+  }
+
+  private loadShops(): void {
+    this.isShopsLoading = true;
+    this.shopsError = '';
+    const sub = this.orderService
+      .listBranches()
+      .pipe(finalize(() => (this.isShopsLoading = false)))
+      .subscribe({
+        next: branches => {
+          this.shops = (branches ?? []).map(branch => {
+            const name = String(branch?.customer_name ?? branch?.name ?? '').trim();
+            return { id: String(branch?.name ?? name), name: name || String(branch?.name ?? '') };
+          });
+        },
+        error: err => {
+          this.shopsError = this.formatError(err, 'Unable to load branches');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private loadVendors(): void {
+    this.isVendorsLoading = true;
+    this.vendorsError = '';
+    const sub = this.vendorService
+      .listVendors()
+      .pipe(finalize(() => (this.isVendorsLoading = false)))
+      .subscribe({
+        next: vendors => {
+          this.vendors = (vendors ?? []).map(vendor => {
+            const name = String(vendor?.supplier_name ?? vendor?.name ?? '').trim();
+            return { id: String(vendor?.name ?? name), name: name || String(vendor?.name ?? '') };
+          });
+        },
+        error: err => {
+          this.vendorsError = this.formatError(err, 'Unable to load vendors');
+        }
+      });
+    this.subscriptions.add(sub);
   }
 
   onImageSelected(event: Event): void {

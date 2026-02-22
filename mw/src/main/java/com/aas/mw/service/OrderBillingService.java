@@ -44,6 +44,9 @@ public class OrderBillingService {
 
         double vendorBillTotal = readRequiredPositive(fields, "vendor_bill_total");
         String billRef = asText(fields.get("vendor_bill_ref"));
+        if (billRef.isBlank()) {
+            billRef = asText(orderData.get("aas_po"));
+        }
         String billDate = asText(fields.get("vendor_bill_date"));
         if (billDate.isBlank()) {
             billDate = LocalDate.now().toString();

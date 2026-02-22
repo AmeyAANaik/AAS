@@ -10,6 +10,10 @@ import { OrderCreatePayload, OrderFilters, OrderSummary, SellPreview, VendorBill
 export class OrderService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
 
+  listBranches(): Observable<any[]> {
+    return this.http.get<any[]>('/api/shops', { headers: this.authHeaders() });
+  }
+
   listOrders(filters: OrderFilters): Observable<OrderSummary[]> {
     const headers = this.authHeaders();
     let params = new HttpParams();
@@ -100,6 +104,10 @@ export class OrderService {
       { fields: payload },
       { headers: this.authHeaders() }
     );
+  }
+
+  deleteOrder(orderId: string): Observable<Record<string, unknown>> {
+    return this.http.delete<Record<string, unknown>>(`/api/orders/${orderId}`, { headers: this.authHeaders() });
   }
 
   getSellPreview(orderId: string): Observable<SellPreview> {

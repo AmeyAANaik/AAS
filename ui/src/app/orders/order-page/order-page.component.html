@@ -10,30 +10,210 @@
   <!-- Orders Table/List -->
   <mat-card class="orders-list-card" *ngIf="!selectedOrder">
     <mat-card-header>
-      <div class="search-section">
+      <div class="search-section search-row">
         <mat-form-field appearance="outline" class="search-field">
           <mat-label>Search orders, vendors, items</mat-label>
           <input matInput [formControl]="searchControl">
-          <mat-icon matSuffix>search</mat-icon>
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Advanced filters"
+            (click)="openAdvancedFilters()">
+            <mat-icon>search</mat-icon>
+          </button>
         </mat-form-field>
       </div>
     </mat-card-header>
     <mat-card-content>
-      <div class="orders-grid">
-        <div class="order-card" *ngFor="let order of filteredOrders" (click)="selectOrder(order)" [class.pending]="order.status === 'DRAFT'" [class.processing]="order.status === 'VENDOR_ASSIGNED'" [class.completed]="order.status === 'SELL_ORDER_CREATED'">
-          <div class="order-card-header">
-            <h3>{{ order.name }}</h3>
-            <span class="status-badge" [ngClass]="order.status | lowercase">{{ getStatusLabel(order.status) }}</span>
+      <div class="applied-chips" *ngIf="selectedFilterChips.length">
+        <mat-chip-set>
+          <mat-chip
+            *ngFor="let chip of selectedFilterChips"
+            [removable]="true"
+            (removed)="removeAppliedFilter(chip.kind, chip.value)">
+            {{ chip.label }}
+            <button matChipRemove aria-label="Remove filter">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-chip>
+        </mat-chip-set>
+        <button mat-button type="button" class="clear-inline" (click)="clearAllFilters()">Clear all</button>
+      </div>
+
+      <div
+        class="filter-summary-row compact"
+        *ngIf="
+          selectedFilterChips.length ||
+          searchControl.value.trim() ||
+          fromDateControl.value.trim() ||
+          toDateControl.value.trim()
+        ">
+        <div class="filter-summary">{{ filterSummary }}</div>
+      </div>
+
+      <mat-sidenav-container class="filters-container">
+        <mat-sidenav #filterSidenav mode="over" position="end" class="filters-sidenav">
+          <div class="filters-header">
+            <div class="filters-title">Filters</div>
+            <button mat-icon-button type="button" aria-label="Close filters" (click)="filterSidenav.close()">
+              <mat-icon>close</mat-icon>
+            </button>
           </div>
-          <div class="order-card-info">
-            <p><strong>Branch:</strong> {{ order.branch }}</p>
-            <p><strong>Vendor:</strong> {{ order.vendor || 'Not assigned' }}</p>
+
+          <mat-accordion>
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Status</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let status of availableStatuses"
+                  [checked]="draftStatusFilters.has(status)"
+                  (change)="toggleDraftStatus(status)">
+                  {{ getStatusLabel(status) }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Branch</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let branch of availableBranches"
+                  [checked]="draftBranchFilters.has(branch)"
+                  (change)="toggleDraftBranch(branch)">
+                  {{ branch }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Vendor</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let vendor of availableVendors"
+                  [checked]="draftVendorFilters.has(vendor)"
+                  (change)="toggleDraftVendor(vendor)">
+                  {{ vendor }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+          </mat-accordion>
+
+          <div class="filters-footer">
+            <button mat-stroked-button type="button" (click)="clearAllDraftFilters()">Clear All</button>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="applyFilters(); filterSidenav.close()">
+              Apply Filters
+            </button>
           </div>
-          <div class="order-card-footer">
-            <button mat-button color="primary" (click)="selectOrder(order); $event.stopPropagation()">Manage</button>
-          </div>
+        </mat-sidenav>
+
+        <mat-sidenav-content>
+          <!-- content continues below -->
+        </mat-sidenav-content>
+      </mat-sidenav-container>
+
+      <div class="table-toolbar">
+        <div class="table-summary">
+          Showing {{ dataSource.filteredData.length }} of {{ dataSource.data.length }} orders
+        </div>
+        <div class="table-actions">
+          <button
+            mat-stroked-button
+            color="primary"
+            class="filters-btn"
+            type="button"
+            (click)="filterSidenav.open(); openFilters()"
+            [matBadge]="activeFilterCount"
+            matBadgeColor="primary"
+            [matBadgeHidden]="activeFilterCount === 0">
+            <mat-icon>filter_list</mat-icon>
+            Filters
+          </button>
+          <button mat-stroked-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
         </div>
       </div>
+
+      <div class="feedback loading" *ngIf="isLoading">Loading orders...</div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && !errorMessage; else orderError">
+        <table mat-table [dataSource]="dataSource" matSort class="orders-table">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Order ID</th>
+            <td mat-cell *matCellDef="let order">
+              <div class="cell-title">{{ order.name }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="branch">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Branch</th>
+            <td mat-cell *matCellDef="let order">{{ order.branch }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="vendor">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Vendor</th>
+            <td mat-cell *matCellDef="let order">{{ order.vendor || 'Not assigned' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+            <td mat-cell *matCellDef="let order">
+              <span class="status-badge" [ngClass]="order.status | lowercase">{{ getStatusLabel(order.status) }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="date">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Date</th>
+            <td mat-cell *matCellDef="let order">
+              <div class="cell-title">{{ order.raw.transaction_date || '-' }}</div>
+              <div class="cell-muted" *ngIf="order.raw.delivery_date">Delivery: {{ order.raw.delivery_date }}</div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let order">
+              <button mat-button color="primary" (click)="selectOrder(order)">Manage</button>
+              <button
+                mat-icon-button
+                color="warn"
+                type="button"
+                aria-label="Delete order"
+                (click)="confirmDeleteOrder(order)"
+                [disabled]="!canDeleteOrder(order)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </div>
+      <ng-template #orderError>
+        <div class="error-alert" *ngIf="!isLoading && errorMessage">
+          <mat-icon>error</mat-icon>
+          <div>
+            <strong>Error</strong>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
+      </ng-template>
+
+      <mat-paginator
+        [pageSize]="10"
+        [pageSizeOptions]="[10, 25, 50]"
+        showFirstLastButtons>
+      </mat-paginator>
     </mat-card-content>
   </mat-card>
 
@@ -95,11 +275,12 @@
           <div class="step-body" *ngIf="selectedOrder.status === 'DRAFT'">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Select Vendor</mat-label>
-              <mat-select [formControl]="vendorControl">
-                <mat-optgroup *ngFor="let group of vendors | keyvalue" [label]="group.key">
-                  <mat-option *ngFor="let vendor of group.value" [value]="vendor">{{ vendor }}</mat-option>
-                </mat-optgroup>
+              <mat-select [formControl]="vendorControl" [disabled]="isVendorsLoading || !!vendorsError">
+                <mat-option value="">Select vendor</mat-option>
+                <mat-option *ngIf="isVendorsLoading" disabled>Loading vendors...</mat-option>
+                <mat-option *ngFor="let vendor of vendorOptions" [value]="vendor.id">{{ vendor.name }}</mat-option>
               </mat-select>
+              <mat-hint *ngIf="vendorsError">{{ vendorsError }}</mat-hint>
             </mat-form-field>
             <button mat-raised-button color="primary" (click)="assignVendor()" [disabled]="!vendorControl.value" class="full-width">Assign Vendor</button>
           </div>
