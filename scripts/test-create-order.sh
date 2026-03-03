@@ -22,7 +22,7 @@ if [[ -n "$PAYLOAD_FILE" ]]; then
   fi
   DATA="$(cat "$PAYLOAD_FILE")"
 else
-  DATA='{"fields":{"customer":"Shop A","company":"AAS Core","transaction_date":"2026-01-30","delivery_date":"2026-02-05","items":[{"item_code":"BX001","qty":1,"rate":13.2,"aas_vendor_rate":12,"aas_margin_percent":10}]}}'
+  DATA='{"fields":{"customer":"Sahyadri All-Day Dining","company":"Hotel Sahyadri Pune Pvt Ltd","transaction_date":"2026-03-02","delivery_date":"2026-03-03","aas_vendor":"FreshHarvest Agro Foods","items":[{"item_code":"VEG-POT-50","qty":2,"rate":1484,"aas_vendor_rate":1325,"aas_margin_percent":12}]}}'
 fi
 
 curl -i "${BASE_URL%/}/api/orders" \

@@ -5,12 +5,12 @@ BASE_URL="${BASE_URL:-http://localhost:8083}"
 USERNAME="${USERNAME:-Administrator}"
 PASSWORD="${PASSWORD:-admin}"
 
-BRANCH_IMAGE="${BRANCH_IMAGE:-images/branch_order.jpeg}"
-VENDOR_PDF="${VENDOR_PDF:-images/vendor_order.pdf}"
+BRANCH_IMAGE="${BRANCH_IMAGE:-images/branch_order_sahyadri.svg}"
+VENDOR_PDF="${VENDOR_PDF:-images/vendor_invoice_freshharvest.pdf}"
 
-CUSTOMER="${CUSTOMER:-Downtown Market Branch}"
-COMPANY="${COMPANY:-AAS}"
-VENDOR="${VENDOR:-Green Valley Farms}"
+CUSTOMER="${CUSTOMER:-Sahyadri All-Day Dining}"
+COMPANY="${COMPANY:-Hotel Sahyadri Pune Pvt Ltd}"
+VENDOR="${VENDOR:-FreshHarvest Agro Foods}"
 
 VENDOR_BILL_TOTAL="${VENDOR_BILL_TOTAL:-500}"
 VENDOR_BILL_REF="${VENDOR_BILL_REF:-VB-CLEAN-001}"
@@ -18,9 +18,9 @@ VENDOR_BILL_DATE="${VENDOR_BILL_DATE:-2026-02-19}"
 MARGIN_PERCENT="${MARGIN_PERCENT:-10}"
 
 CLEAN_ITEMS_JSON="${CLEAN_ITEMS_JSON:-[
-  {\"item_code\":\"ITM-LETTUCE\",\"qty\":10,\"rate\":24,\"amount\":240,\"aas_vendor_rate\":24},
-  {\"item_code\":\"ITM-APPLE\",\"qty\":5,\"rate\":30,\"amount\":150,\"aas_vendor_rate\":30},
-  {\"item_code\":\"ITM-RICE\",\"qty\":2,\"rate\":55,\"amount\":110,\"aas_vendor_rate\":55}
+  {\"item_code\":\"VEG-POT-50\",\"qty\":3,\"rate\":1484,\"amount\":4452,\"aas_vendor_rate\":1325},
+  {\"item_code\":\"VEG-ONI-50\",\"qty\":2,\"rate\":1672.4,\"amount\":3344.8,\"aas_vendor_rate\":1480},
+  {\"item_code\":\"DRY-RIC-25\",\"qty\":2,\"rate\":2686.2,\"amount\":5372.4,\"aas_vendor_rate\":2420}
 ]}"
 
 if [[ ! -f "$BRANCH_IMAGE" ]]; then
