@@ -10,6 +10,9 @@ export interface Vendor {
   gst?: string;
   pan?: string;
   food_license_no?: string;
+  invoice_template_enabled?: number | boolean;
+  invoice_template_key?: string;
+  invoice_template_sample_pdf?: string;
 }
 
 export interface VendorFormValue {
@@ -21,6 +24,8 @@ export interface VendorFormValue {
   foodLicenseNo?: string;
   priority: number | null;
   status: VendorStatus;
+  invoiceTemplateEnabled: boolean;
+  invoiceTemplateKey: string;
 }
 
 export interface VendorView {
@@ -28,5 +33,7 @@ export interface VendorView {
   name: string;
   priority: number | null;
   status: VendorStatus;
+  templateEnabled: boolean;
+  templateKey: string;
   raw: Vendor;
 }

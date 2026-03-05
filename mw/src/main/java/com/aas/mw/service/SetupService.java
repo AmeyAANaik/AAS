@@ -163,6 +163,20 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_pi_vendor");
+        boolean branchLocationField = ensureCustomField(
+                "Customer",
+                "aas_branch_location",
+                "Branch Location",
+                "Data",
+                null,
+                "customer_name");
+        boolean branchWhatsappField = ensureCustomField(
+                "Customer",
+                "aas_whatsapp_group_name",
+                "WhatsApp Group Name",
+                "Data",
+                null,
+                "aas_branch_location");
         boolean poSourceOrderField = ensureCustomField(
                 "Purchase Order",
                 "aas_source_sales_order",
@@ -219,10 +233,18 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_margin_percent");
-        boolean branchPlaceholderItem = ensureItem(
-                "AAS-BRANCH-IMAGE",
-                "Branch Image Placeholder",
-                "Placeholder item for branch image orders.");
+        boolean branchPlaceholderItem = false;
+        String branchPlaceholderItemError = "";
+        try {
+            branchPlaceholderItem = ensureItem(
+                    "AAS-BRANCH-IMAGE",
+                    "Branch Image Placeholder",
+                    "Placeholder item for branch image orders.");
+        } catch (Exception ex) {
+            // Setup should never fail entirely due to missing stock masters (Item Group/UOM).
+            branchPlaceholderItem = false;
+            branchPlaceholderItemError = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+        }
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
@@ -233,6 +255,9 @@ public class SetupService {
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
         result.put("branchPlaceholderItemCreated", branchPlaceholderItem);
+        if (!branchPlaceholderItemError.isBlank()) {
+            result.put("branchPlaceholderItemError", branchPlaceholderItemError);
+        }
         result.put("branchImageFieldCreated", branchImageField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
@@ -243,6 +268,8 @@ public class SetupService {
         result.put("vendorBillDateFieldCreated", vendorBillDateField);
         result.put("vendorPurchaseInvoiceFieldCreated", vendorPurchaseInvoiceField);
         result.put("sellOrderTotalFieldCreated", sellOrderTotalField);
+        result.put("branchLocationFieldCreated", branchLocationField);
+        result.put("branchWhatsappFieldCreated", branchWhatsappField);
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
@@ -341,10 +368,15 @@ public class SetupService {
         if (resourceExists("Item", itemCode)) {
             return false;
         }
+        ensureUom("Nos");
+        String itemGroup = resolveItemGroup();
+        if (itemGroup.isBlank()) {
+            throw new IllegalStateException("No Item Group found in ERPNext; cannot create placeholder item.");
+        }
         Map<String, Object> payload = new HashMap<>();
         payload.put("item_code", itemCode);
         payload.put("item_name", itemName == null || itemName.isBlank() ? itemCode : itemName);
-        payload.put("item_group", "All Item Groups");
+        payload.put("item_group", itemGroup);
         payload.put("stock_uom", "Nos");
         payload.put("is_stock_item", 0);
         payload.put("is_sales_item", 1);
@@ -352,6 +384,35 @@ public class SetupService {
         payload.put("description", description == null ? "" : description);
         erpNextClient.createResource("Item", payload);
         return true;
+    }
+
+    private void ensureUom(String uomName) {
+        if (uomName == null || uomName.isBlank()) {
+            return;
+        }
+        if (resourceExists("UOM", uomName)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("uom_name", uomName);
+        payload.put("must_be_whole_number", 0);
+        erpNextClient.createResource("UOM", payload);
+    }
+
+    private String resolveItemGroup() {
+        // Prefer the standard root group if it exists, otherwise use any existing Item Group.
+        if (resourceExists("Item Group", "All Item Groups")) {
+            return "All Item Groups";
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\"]");
+        params.put("limit_page_length", "1");
+        List<Map<String, Object>> groups = erpNextClient.listResources("Item Group", params);
+        if (groups.isEmpty()) {
+            return "";
+        }
+        Object name = groups.get(0).get("name");
+        return name == null ? "" : name.toString();
     }
 
     private boolean ensureUser(

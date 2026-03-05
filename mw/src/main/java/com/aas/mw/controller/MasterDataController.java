@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -27,6 +28,16 @@ public class MasterDataController {
     @GetMapping("/items")
     public ResponseEntity<List<Map<String, Object>>> listItems() {
         return ResponseEntity.ok(masterDataService.listItems());
+    }
+
+    @GetMapping("/items/paged")
+    public ResponseEntity<Map<String, Object>> listItemsPaged(
+            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
+            @RequestParam(value = "size", required = false, defaultValue = "25") int size,
+            @RequestParam(value = "search", required = false) String search,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "dir", required = false) String dir) {
+        return ResponseEntity.ok(masterDataService.listItemsPaged(page, size, search, sort, dir));
     }
 
     @GetMapping("/vendors")

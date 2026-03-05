@@ -2,7 +2,7 @@
   <header class="shell-header">
     <div class="header-left">
       <div class="brand">
-        <div class="logo">SC</div>
+        <div class="logo" aria-hidden="true">SC</div>
         <div>
           <div class="brand-title">SCM Console</div>
           <div class="brand-sub">Supply chain workspace</div>
@@ -10,13 +10,20 @@
       </div>
     </div>
     <div class="header-center">
-      <input class="global-search" type="search" placeholder="Search orders, vendors, items, invoices" />
+      <div class="search-shell" title="Global search (coming soon)">
+        <span class="material-icons search-icon" aria-hidden="true">search</span>
+        <input class="global-search" type="search" placeholder="Search (coming soon)" disabled />
+      </div>
     </div>
     <div class="header-right">
-      <button class="header-chip" type="button">Branch: Select</button>
-      <button class="header-chip" type="button">Notifications</button>
-      <button class="header-chip" type="button">User Menu</button>
-      <button class="header-chip danger" type="button" (click)="logout()">Logout</button>
+      <button class="header-chip" type="button" title="Branch selection (coming soon)" disabled>
+        <span class="material-icons" aria-hidden="true">storefront</span>
+        Branch
+      </button>
+      <button class="header-chip danger" type="button" (click)="logout()" title="Logout">
+        <span class="material-icons" aria-hidden="true">logout</span>
+        Logout
+      </button>
     </div>
   </header>
 
@@ -24,35 +31,62 @@
     <aside class="shell-sidebar">
       <nav class="sidebar-group">
         <div class="sidebar-title">Home</div>
-        <a routerLink="/admin/dashboard" routerLinkActive="active">Dashboard</a>
+        <a routerLink="/admin/dashboard" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">dashboard</span>
+          Dashboard
+        </a>
       </nav>
 
       <nav class="sidebar-group">
         <div class="sidebar-title">Procure</div>
-        <a routerLink="/orders" routerLinkActive="active">Orders</a>
+        <a routerLink="/orders" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">receipt_long</span>
+          Orders
+        </a>
       </nav>
 
       <nav class="sidebar-group">
         <div class="sidebar-title">Inventory</div>
-        <a routerLink="/stock" routerLinkActive="active">Stock</a>
+        <a routerLink="/stock" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">inventory_2</span>
+          Stock
+        </a>
       </nav>
 
       <nav class="sidebar-group">
         <div class="sidebar-title">Finance</div>
-        <a routerLink="/bills" routerLinkActive="active">Bills / Invoices</a>
+        <a routerLink="/bills" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">account_balance_wallet</span>
+          Bills / Invoices
+        </a>
       </nav>
 
       <nav class="sidebar-group">
         <div class="sidebar-title">Master Data</div>
-        <a routerLink="/vendors" routerLinkActive="active">Vendors</a>
-        <a routerLink="/branches" routerLinkActive="active">Branches</a>
-        <a routerLink="/categories" routerLinkActive="active">Categories</a>
-        <a routerLink="/items" routerLinkActive="active">Items</a>
+        <a routerLink="/vendors" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">local_shipping</span>
+          Vendors
+        </a>
+        <a routerLink="/branches" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">hub</span>
+          Branches
+        </a>
+        <a routerLink="/categories" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">category</span>
+          Categories
+        </a>
+        <a routerLink="/items" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">inventory</span>
+          Items
+        </a>
       </nav>
 
       <nav class="sidebar-group">
         <div class="sidebar-title">Reports</div>
-        <a routerLink="/reports" routerLinkActive="active">Reports</a>
+        <a routerLink="/reports" routerLinkActive="active">
+          <span class="material-icons nav-icon" aria-hidden="true">query_stats</span>
+          Reports
+        </a>
       </nav>
     </aside>
 

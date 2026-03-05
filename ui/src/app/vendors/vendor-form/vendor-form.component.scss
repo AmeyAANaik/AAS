@@ -22,6 +22,37 @@
   grid-column: 1 / -1;
 }
 
+.template-section {
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.template-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.file-upload input[type='file'] {
+  display: none;
+}
+
+.template-sample {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
 .status {
   font-size: 12px;
   color: var(--muted);

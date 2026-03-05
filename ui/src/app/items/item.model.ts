@@ -45,3 +45,10 @@ export interface ItemVendorPricingFormValue {
   originalRate: number | null;
   marginPercent: number | null;
 }
+
+export interface ItemPage {
+  items: Item[];
+  total: number;
+  page: number;
+  size: number;
+}

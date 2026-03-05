@@ -1,6 +1,8 @@
 export interface Branch {
   name?: string;
   customer_name?: string;
+  aas_branch_location?: string;
+  aas_whatsapp_group_name?: string;
 }
 
 export interface BranchMetadata {

@@ -30,6 +30,9 @@ public class VendorPdfService {
     private final ErpNextFileService fileService;
     private final OcrService ocrService;
     private final VendorPdfParser parser;
+    private final VendorInvoiceTemplateResolver templateResolver;
+    private final VendorInvoiceTemplateCatalog templateCatalog;
+    private final VendorInvoiceTemplateParser templateParser;
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final double defaultMarginPercent;
 
@@ -38,12 +41,18 @@ public class VendorPdfService {
             ErpNextFileService fileService,
             OcrService ocrService,
             VendorPdfParser parser,
+            VendorInvoiceTemplateResolver templateResolver,
+            VendorInvoiceTemplateCatalog templateCatalog,
+            VendorInvoiceTemplateParser templateParser,
             OrderFlowStateMachine orderFlowStateMachine,
             @Value("${app.order.margin.default-percent:10}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
         this.ocrService = ocrService;
         this.parser = parser;
+        this.templateResolver = templateResolver;
+        this.templateCatalog = templateCatalog;
+        this.templateParser = templateParser;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.defaultMarginPercent = defaultMarginPercent;
     }
@@ -76,7 +85,30 @@ public class VendorPdfService {
         if (ocrText == null || ocrText.isBlank()) {
             throw new IllegalStateException("Unable to extract any text from vendor PDF. The PDF may be scanned, encrypted, or too low quality for OCR.");
         }
-        List<ParsedItem> parsedItems = parser.parseItems(ocrText);
+        boolean templateConfigured = false;
+        boolean templateUsed = false;
+        String templateKey = "";
+        List<ParsedItem> parsedItems;
+        var resolvedKey = templateResolver.loadTemplateKey(vendor);
+        if (resolvedKey.isPresent()) {
+            templateConfigured = true;
+            templateKey = resolvedKey.get();
+            var template = templateCatalog.byKey(templateKey);
+            if (template.isPresent()) {
+                List<ParsedItem> templated = templateParser.parseItems(ocrText, template.get());
+                if (templated != null && !templated.isEmpty()) {
+                    templateUsed = true;
+                    parsedItems = templated;
+                } else {
+                    parsedItems = parser.parseItems(ocrText);
+                }
+            } else {
+                // Unknown key -> fallback.
+                parsedItems = parser.parseItems(ocrText);
+            }
+        } else {
+            parsedItems = parser.parseItems(ocrText);
+        }
         if (parsedItems.isEmpty()) {
             VendorPdfParser.ParseDiagnostics diagnostics = parser.diagnose(ocrText);
             throw new IllegalStateException(
@@ -137,6 +169,11 @@ public class VendorPdfService {
         response.put("vendorBillRef", vendorBillRef);
         response.put("vendorBillDate", vendorBillDate);
         response.put("items", parsedItems);
+        response.put("orderItems", baseItems);
+        response.put("template", Map.of(
+                "configured", templateConfigured,
+                "used", templateUsed,
+                "key", templateKey));
         response.put("file", Map.of(
                 "fileName", pdfInfo.fileName(),
                 "fileUrl", pdfInfo.fileUrl(),

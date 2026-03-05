@@ -6,8 +6,8 @@
 ```
 AAS/
 ├── erpmodule/      # ERPNext Docker stack (ERP Core)
-├── middleware/     # AAS backend API (to be implemented)
-├── ui/             # Custom frontend (to be implemented)
+├── mw/             # AAS middleware API (Spring Boot)
+├── ui/             # Angular frontend
 └── STARTUP_COMMANDS.md
 ```
 
@@ -37,6 +37,28 @@ cd /workspaces/AAS && docker compose -f docker-compose.mw.yml ps
 curl -I http://localhost:8080
 curl -I http://localhost:8083/swagger-ui.html
 curl -I http://localhost:4200
+```
+
+### Vendor invoice templates (optional)
+
+Vendors can have a per-vendor invoice parsing template stored in ERPNext `Supplier` custom fields. MW uses this template during `POST /api/orders/{id}/vendor-pdf` when scanning vendor PDFs.
+
+1) Ensure custom fields exist:
+```bash
+curl -X POST http://localhost:8083/api/setup/ensure -H "Authorization: Bearer <ADMIN_JWT>"
+```
+
+2) Upload a sample invoice PDF for a vendor (ADMIN only). MW will OCR the sample and auto-detect the best built-in template key:
+```bash
+curl -X POST "http://localhost:8083/api/vendors/<SUPPLIER_ID>/invoice-template/sample" \
+  -H "Authorization: Bearer <ADMIN_JWT>" \
+  -F "file=@images/vendor_invoice_freshharvest.pdf"
+```
+
+3) Clear a vendor template (ADMIN only):
+```bash
+curl -X DELETE "http://localhost:8083/api/vendors/<SUPPLIER_ID>/invoice-template" \
+  -H "Authorization: Bearer <ADMIN_JWT>"
 ```
 
 ### Generate required setup/default data (MW -> ERP)
@@ -120,7 +142,7 @@ docker compose -f pwd.yml down
 
 ### Access ERPNext UI
 
-- **URL**: http://locayelhost:8080
+- **URL**: http://localhost:8080
 - **Default User**: `Administrator`
 - **Default Password**: `admin`
 
@@ -160,8 +182,6 @@ ERPNext is configured as a **single multi-company site**:
    - Default Currency: INR
 4. Setup Warehouses and Cost Centers for the company
 5. Create users with company-specific permissions
-
-## Middleware (To Be Implemented)
 
 ## Middleware (MW)
 

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -26,7 +27,43 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
+        params.put("limit_page_length", 1000);
         return erpNextClient.listResources("Item", params);
+    }
+
+    public Map<String, Object> listItemsPaged(int page, int size, String search, String sort, String dir) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        String safeDir = "desc".equalsIgnoreCase(dir) ? "desc" : "asc";
+        String orderBy = resolveItemOrderBy(sort, safeDir);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put(
+                "fields",
+                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
+        params.put("limit_start", (safePage - 1) * safeSize);
+        params.put("limit_page_length", safeSize);
+        params.put("order_by", orderBy);
+
+        String trimmed = search == null ? "" : search.trim();
+        if (!trimmed.isEmpty()) {
+            params.put("or_filters", buildItemSearchFilters(trimmed));
+        }
+
+        List<Map<String, Object>> items = erpNextClient.listResources("Item", params);
+
+        Map<String, Object> countParams = new HashMap<>();
+        if (!trimmed.isEmpty()) {
+            countParams.put("or_filters", params.get("or_filters"));
+        }
+        long total = erpNextClient.getCount("Item", countParams);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("items", items);
+        response.put("total", total);
+        response.put("page", safePage);
+        response.put("size", safeSize);
+        return response;
     }
 
     public List<Map<String, Object>> listVendors() {
@@ -43,7 +80,12 @@ public class MasterDataService {
     }
 
     public List<Map<String, Object>> listShops() {
-        return erpNextClient.listResources("Customer", null);
+        Map<String, Object> params = new HashMap<>();
+        params.put(
+                "fields",
+                "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
+                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\"]");
+        return erpNextClient.listResources("Customer", params);
     }
 
     public Map<String, Object> createShop(FieldsRequest request) {
@@ -115,5 +157,32 @@ public class MasterDataService {
 
     public Map<String, Object> updateItem(String id, FieldsRequest request) {
         return erpNextClient.updateResource("Item", id, new HashMap<>(request.getFields()));
+    }
+
+    private String resolveItemOrderBy(String sort, String dir) {
+        if (sort == null || sort.isBlank()) {
+            return "item_name " + dir;
+        }
+        String normalized = sort.trim().toLowerCase(Locale.ROOT);
+        String field = switch (normalized) {
+            case "code" -> "item_code";
+            case "name" -> "item_name";
+            case "category" -> "item_group";
+            case "uom" -> "stock_uom";
+            case "packaging" -> "aas_packaging_unit";
+            default -> "item_name";
+        };
+        return field + " " + dir;
+    }
+
+    private String buildItemSearchFilters(String term) {
+        String escaped = escapeJson(term);
+        String pattern = "%" + escaped + "%";
+        return "[[\"Item\",\"item_code\",\"like\",\"" + pattern + "\"],"
+                + "[\"Item\",\"item_name\",\"like\",\"" + pattern + "\"]]";
+    }
+
+    private String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

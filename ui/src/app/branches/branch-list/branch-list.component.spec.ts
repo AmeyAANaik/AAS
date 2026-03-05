@@ -30,7 +30,7 @@ describe('BranchListComponent', () => {
       providers: [
         {
           provide: BranchService,
-          useValue: { listBranches: () => of([]), createBranch: () => of({}), saveMetadata: () => undefined }
+          useValue: { listBranches: () => of([]), createBranch: () => of({}), updateBranch: () => of({}) }
         }
       ]
     }).compileComponents();

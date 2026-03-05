@@ -87,7 +87,35 @@ public class VendorFieldRegistry {
                 "aas_food_license_no",
                 true,
                 false));
+
+        // Vendor invoice parsing template (used by MW OCR flow). Stored on Supplier so it can be updated at runtime.
+        defaults.add(new VendorFieldSpec(
+                "invoice_template_enabled",
+                "aas_invoice_template_enabled",
+                "Invoice Template Enabled",
+                "Check",
+                null,
+                "aas_priority",
+                true,
+                false));
+        defaults.add(new VendorFieldSpec(
+                "invoice_template_key",
+                "aas_invoice_template_key",
+                "Invoice Template Key",
+                "Select",
+                "heuristic_v1\ntable_v1",
+                "aas_invoice_template_enabled",
+                true,
+                false));
+        defaults.add(new VendorFieldSpec(
+                "invoice_template_sample_pdf",
+                "aas_invoice_template_sample_pdf",
+                "Invoice Template Sample PDF",
+                "Attach",
+                null,
+                "aas_invoice_template_key",
+                false,
+                false));
         return List.copyOf(defaults);
     }
 }
-

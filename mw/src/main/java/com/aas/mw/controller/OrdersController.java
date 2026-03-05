@@ -1,6 +1,7 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.dto.OrderRequest;
+import com.aas.mw.dto.OrderItemsRequest;
 import com.aas.mw.dto.FieldsRequest;
 import com.aas.mw.dto.VendorBillRequest;
 import com.aas.mw.service.OrderBillingService;
@@ -69,6 +70,13 @@ public class OrdersController {
             @PathVariable String id,
             @Valid @RequestBody OrderRequest request) {
         return ResponseEntity.ok(orderService.updateOrder(id, request));
+    }
+
+    @PutMapping("/{id}/items")
+    public ResponseEntity<Map<String, Object>> updateOrderItems(
+            @PathVariable String id,
+            @Valid @RequestBody OrderItemsRequest request) {
+        return ResponseEntity.ok(orderService.updateOrderItems(id, request.getItems()));
     }
 
     @GetMapping
@@ -177,7 +185,9 @@ public class OrdersController {
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "ERPNext session not found."));
+                    .body(Map.of(
+                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -207,7 +217,9 @@ public class OrdersController {
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "ERPNext session not found."));
+                    .body(Map.of(
+                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest()
@@ -224,7 +236,9 @@ public class OrdersController {
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "ERPNext session not found."));
+                    .body(Map.of(
+                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest()

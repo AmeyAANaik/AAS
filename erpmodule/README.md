@@ -43,6 +43,20 @@ docker compose -f pwd.yml down
 - Default User: `Administrator`
 - Default Password: `admin`
 
+## AAS Custom Fields (Branch Metadata)
+
+The ERPNext site initializes AAS-specific Customer fields used by the Branch tab:
+
+- `Customer.aas_branch_location` (Data)
+- `Customer.aas_whatsapp_group_name` (Data)
+
+These are applied automatically in `pwd.yml` during the `create-site` step. If you need to re-apply them manually, run:
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml run --rm create-site
+```
+
 ## Multi-Tenant Usage
 
 ### Adding a New Hotel/Restaurant

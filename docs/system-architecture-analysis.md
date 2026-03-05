@@ -11,6 +11,9 @@ This document summarizes the **as-implemented architecture** based on code inspe
 - Authentication: UI gets a JWT from `POST /api/auth/login`. Middleware logs into ERPNext, stores the ERP session cookie in memory, and issues JWTs.
 - ERPNext is the **system of record**. All CRUD and reporting data is fetched via ERPNext REST resources.
 - Reports are computed in middleware by aggregating ERPNext data, not by a separate BI tool.
+- The order lifecycle now includes **branch image upload**, **vendor PDF OCR**, **purchase order + purchase invoice creation**, **vendor bill capture**, and **sell order/sales invoice creation** with margin.
+- A lightweight **order state machine** is enforced in middleware (`DRAFT → VENDOR_ASSIGNED → VENDOR_PDF_RECEIVED → VENDOR_BILL_CAPTURED → SELL_ORDER_CREATED`).
+- Vendors can optionally have an **invoice parsing template** stored on their ERPNext `Supplier` record; MW uses it during the `POST /api/orders/{id}/vendor-pdf` OCR step and falls back to heuristics if missing/invalid.
 - Risks: ERP sessions are stored in memory (not multi-node safe). UI JWTs are in `localStorage` (XSS exposure).
 
 ## 1. High-Level Architecture (Verified in Code)
@@ -77,6 +80,13 @@ sequenceDiagram
   - `PUT /api/orders/{id}`
   - `POST /api/orders/{id}/status`
   - `POST /api/orders/{id}/assign-vendor`
+  - `POST /api/orders/branch-image`
+  - `POST /api/orders/{id}/image`
+  - `POST /api/orders/{id}/vendor-pdf`
+  - `POST /api/orders/{id}/vendor-bill`
+  - `GET /api/orders/{id}/sell-preview`
+  - `POST /api/orders/{id}/sell-order`
+  - `DELETE /api/orders/{id}`
   - `GET /api/orders/export`
   (`mw/src/main/java/com/aas/mw/controller/OrdersController.java`, `VendorAssignmentController.java`)
 - Invoices:
@@ -92,6 +102,11 @@ sequenceDiagram
   - `GET /api/categories`, `POST /api/categories`
   - `GET /api/shops`, `POST /api/shops`
   (`mw/src/main/java/com/aas/mw/controller/MasterDataController.java`)
+- Vendor invoice templates:
+  - `POST /api/vendors/{id}/invoice-template/sample` (upload sample PDF)
+  - `DELETE /api/vendors/{id}/invoice-template` (clear template)
+- Vendor metadata: `GET /api/meta/vendors/fields` (`mw/src/main/java/com/aas/mw/controller/VendorMetaController.java`)
+- OCR: `GET /api/ocr/health` (`mw/src/main/java/com/aas/mw/controller/OcrController.java`)
 - Reports: `/api/reports/*` with CSV export variants
   (`mw/src/main/java/com/aas/mw/controller/ReportsController.java`)
 - Setup: `POST /api/setup/ensure`
@@ -124,23 +139,32 @@ Endpoint access is enforced in `mw/src/main/java/com/aas/mw/config/SecurityConfi
 - `POST /api/auth/login`, Swagger docs: public.
 - `POST /api/setup/**`: ADMIN only.
 - `POST /api/vendors`, `POST /api/shops`: ADMIN only.
+- `POST /api/vendors/*/invoice-template/sample`, `DELETE /api/vendors/*/invoice-template`: ADMIN only.
 - `POST /api/categories`, `POST /api/items`: ADMIN or HELPER.
 - `POST /api/orders`: ADMIN or SHOP.
+- `POST /api/orders/branch-image`, `POST /api/orders/{id}/image`: ADMIN or SHOP.
 - `POST /api/orders/*/assign-vendor`: ADMIN only.
 - `POST /api/orders/*/status`: ADMIN, VENDOR, or HELPER.
+- `POST /api/orders/*/vendor-pdf`: ADMIN or HELPER.
+- `POST /api/orders/*/vendor-bill`: ADMIN or HELPER.
+- `GET /api/orders/*/sell-preview`: ADMIN, HELPER, SHOP.
+- `POST /api/orders/*/sell-order`: ADMIN only.
 - `POST /api/invoices`: ADMIN only.
 - `POST /api/payments`: ADMIN or SHOP.
 - `GET /api/orders`, `/api/orders/export`: ADMIN, VENDOR, SHOP, HELPER.
 - `GET /api/invoices/**`, `/api/invoices/export`: ADMIN or SHOP.
 - `/api/reports/**`: ADMIN, VENDOR, SHOP.
+- `GET /api/ocr/health`: ADMIN only.
 
 ## 4. ERP DocType Mapping (Code-Observed)
 
 This is the actual mapping of middleware services to ERPNext DocTypes.
 
 - Orders: `Sales Order` (`OrderService`)
+- Vendor purchase orders: `Purchase Order` (`VendorPdfService`)
 - Order items: `Sales Order Item` (used for cost/margin calculations)
 - Invoices: `Sales Invoice` (`InvoiceService`)
+- Vendor bills: `Purchase Invoice` (`OrderBillingService`)
 - Payments: `Payment Entry` (`ReportService` for reporting; `PaymentService` for creation)
 - Items: `Item` (`MasterDataService`)
 - Categories: `Item Group` (`MasterDataService`)
@@ -148,6 +172,7 @@ This is the actual mapping of middleware services to ERPNext DocTypes.
 - Shops: `Customer` (`MasterDataService`)
 - Users: `User` (`UserService`, `AuthenticationService`)
 - Custom fields: `Custom Field` (`SetupService`)
+- File attachments: ERPNext `File` via `/api/method/upload_file` (`ErpNextFileService`)
 
 ## 5. Setup / Provisioning Behavior
 
@@ -155,8 +180,15 @@ This is the actual mapping of middleware services to ERPNext DocTypes.
 
 Custom fields created (if missing):
 - `Sales Order`: `aas_vendor` (Link to Supplier), `aas_status` (Select)
-- `Item`: `aas_margin_percent`, `aas_vendor_rate`
+- `Sales Order`: `aas_margin_percent`, `aas_branch_image`, `aas_vendor_pdf`, `aas_po`, `aas_so_branch`, `aas_si_branch`,
+  `aas_vendor_bill_total`, `aas_vendor_bill_ref`, `aas_vendor_bill_date`, `aas_pi_vendor`, `aas_sell_order_total`
+- `Purchase Order`: `aas_source_sales_order`
+- `Purchase Invoice`: `aas_source_sales_order`
+- `Sales Invoice`: `aas_source_sales_order`
+- `Item`: `aas_margin_percent`, `aas_vendor_rate`, `aas_packaging_unit`
 - `Sales Order Item`: `aas_margin_percent`, `aas_vendor_rate`
+- `Supplier`: `aas_branch_name`, `aas_address`, `aas_phone`, `aas_gst_no`, `aas_pan_no`, `aas_food_license_no`, `aas_priority`
+- `Supplier` (invoice template): `aas_invoice_template_enabled`, `aas_invoice_template_key`, `aas_invoice_template_sample_pdf`
 
 Default users (if enabled via config):
 - Vendor user (role: Supplier)
@@ -165,7 +197,30 @@ Default users (if enabled via config):
 
 See `mw/src/main/java/com/aas/mw/service/SetupService.java`.
 
-## 6. Reporting Computation (Middleware)
+## 6. Vendor Invoice Template Parsing (MW)
+
+If `Supplier.aas_invoice_template_enabled` is true and `Supplier.aas_invoice_template_key` contains a known built-in template key, MW will attempt template-based parsing during vendor PDF processing:
+- Flow: `POST /api/orders/{id}/vendor-pdf` (`VendorPdfService`)
+- Behavior:
+  - Use the configured template key first (e.g. `table_v1`), then fall back to the existing heuristic `VendorPdfParser`.
+  - This is a best-effort feature: a bad template should not break the OCR flow.
+
+## 7. Order Flow State Machine (Middleware-Enforced)
+
+Statuses are stored in `Sales Order.aas_status` and validated in `OrderFlowStateMachine`:
+
+- `DRAFT` → `VENDOR_ASSIGNED`
+- `VENDOR_ASSIGNED` → `VENDOR_PDF_RECEIVED` or `VENDOR_BILL_CAPTURED`
+- `VENDOR_PDF_RECEIVED` → `VENDOR_BILL_CAPTURED` or `INVOICED`
+- `VENDOR_BILL_CAPTURED` → `SELL_ORDER_CREATED` or `INVOICED`
+
+Key enforcement points:
+- Vendor assignment only when `DRAFT`.
+- Vendor PDF upload only when `VENDOR_ASSIGNED`.
+- Vendor bill capture only when `VENDOR_ASSIGNED` or `VENDOR_PDF_RECEIVED`.
+- Sell order creation only when `VENDOR_BILL_CAPTURED`.
+
+## 8. Reporting Computation (Middleware)
 
 Reports are computed in middleware by fetching ERPNext data and aggregating:
 - Vendor orders by shop
@@ -178,16 +233,21 @@ Reports are computed in middleware by fetching ERPNext data and aggregating:
 These endpoints use `Sales Order` and `Payment Entry` data and compute totals, costs, and margins in Java:
 `mw/src/main/java/com/aas/mw/service/ReportService.java`.
 
-## 7. Operational Considerations / Failure Modes
+## 9. Operational Considerations / Failure Modes
 
 - **ERP session storage** is in-memory only (`ErpSessionStore`), so multi-node middleware deployments will not share ERP sessions. A restart logs everyone out.
 - **JWT in localStorage** is convenient but vulnerable to XSS. Consider HttpOnly cookies for production.
 - **Reporting overhead** can be high: reports fetch lists of orders and then fetch each order detail to compute costs.
 - **ERP availability** is a hard dependency; middleware is a thin facade and cannot operate without ERPNext.
+- **OCR dependency**: vendor PDF parsing requires Tesseract; missing OCR binaries or low-quality PDFs will cause vendor PDF processing to fail.
 
-## 8. Observed Data Flow By Feature
+## 9. Observed Data Flow By Feature
 
 - Orders: UI → `/api/orders` → ERPNext `Sales Order`.
+- Branch image orders: UI → `/api/orders/branch-image` → ERPNext `Sales Order` + `File` attachment.
+- Vendor PDF: UI → `/api/orders/{id}/vendor-pdf` → OCR + `Purchase Order` + `Sales Order` updates.
+- Vendor bill: UI → `/api/orders/{id}/vendor-bill` → ERPNext `Purchase Invoice`.
+- Sell order: UI → `/api/orders/{id}/sell-order` → ERPNext `Sales Order` + `Sales Invoice` for branch.
 - Invoices: UI → `/api/invoices` → ERPNext `Sales Invoice`.
 - Payments: UI → `/api/payments` → ERPNext `Payment Entry`.
 - Vendors/Shops/Categories/Items: UI → `/api/*` → ERPNext `Supplier/Customer/Item Group/Item`.

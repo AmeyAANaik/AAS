@@ -1,8 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { Vendor, VendorFormValue, VendorView } from '../vendor.model';
-import { VendorService } from '../vendor.service';
+import { UploadInvoiceTemplateSampleResponse, VendorService } from '../vendor.service';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 @Component({
   selector: 'app-vendor-list',
@@ -10,7 +12,7 @@ import { VendorService } from '../vendor.service';
   styleUrl: './vendor-list.component.scss'
 })
 export class VendorListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'priority', 'status', 'actions'];
+  displayedColumns: string[] = ['name', 'priority', 'template', 'status', 'actions'];
   vendors: VendorView[] = [];
   selectedVendor: VendorView | null = null;
   mode: 'create' | 'edit' = 'create';
@@ -20,7 +22,7 @@ export class VendorListComponent implements OnInit {
   isSaving = false;
   statusMessage = '';
 
-  constructor(private vendorService: VendorService) {}
+  constructor(private vendorService: VendorService, private tokenStore: AuthTokenService) {}
 
   ngOnInit(): void {
     this.loadVendors();
@@ -86,11 +88,15 @@ export class VendorListComponent implements OnInit {
     const disabled = Boolean(vendor['disabled']);
     const priorityValue = vendor['aas_priority'];
     const priority = typeof priorityValue === 'number' ? priorityValue : null;
+    const templateEnabled = this.asFlag(vendor['invoice_template_enabled']);
+    const templateKey = String(vendor['invoice_template_key'] ?? '').trim();
     return {
       id: String(vendor.name ?? name),
       name: name || String(vendor.name ?? ''),
       priority,
       status: disabled ? 'Inactive' : 'Active',
+      templateEnabled,
+      templateKey,
       raw: vendor
     };
   }
@@ -104,8 +110,56 @@ export class VendorListComponent implements OnInit {
       pan: formValue.pan?.trim() || '',
       food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
-      disabled: formValue.status === 'Inactive' ? 1 : 0
+      disabled: formValue.status === 'Inactive' ? 1 : 0,
+      invoice_template_enabled: formValue.invoiceTemplateEnabled ? 1 : 0
     };
+  }
+
+  uploadTemplateSample(file: File): void {
+    if (!this.selectedVendor) {
+      this.statusMessage = 'Select a vendor before uploading a sample PDF.';
+      return;
+    }
+    this.isSaving = true;
+    this.vendorService
+      .uploadInvoiceTemplateSample(this.selectedVendor.id, file)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: (resp: UploadInvoiceTemplateSampleResponse) => {
+          const key = resp?.templateChosen?.key?.trim();
+          const count = resp?.templateChosen?.detectedItems;
+          if (key) {
+            const suffix = typeof count === 'number' ? ` (${count} items detected)` : '';
+            this.statusMessage = `Template sample uploaded. Chosen template: ${key}${suffix}.`;
+          } else {
+            this.statusMessage = 'Template sample PDF uploaded.';
+          }
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to upload template sample PDF');
+        }
+      });
+  }
+
+  clearTemplate(): void {
+    if (!this.selectedVendor) {
+      this.statusMessage = 'Select a vendor before clearing the template.';
+      return;
+    }
+    this.isSaving = true;
+    this.vendorService
+      .clearInvoiceTemplate(this.selectedVendor.id)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Template cleared.';
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to clear template');
+        }
+      });
   }
 
   get filteredVendors(): VendorView[] {
@@ -117,6 +171,17 @@ export class VendorListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
+    if (err instanceof HttpErrorResponse) {
+      const payload: any = err.error;
+      const message = typeof payload === 'string' ? payload : payload?.error || payload?.message;
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim();
+      }
+      if (typeof err.message === 'string' && err.message.trim()) {
+        return err.message.trim();
+      }
+      return fallback;
+    }
     if (err instanceof Error) {
       return err.message;
     }
@@ -124,5 +189,31 @@ export class VendorListComponent implements OnInit {
       return err;
     }
     return fallback;
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
+  }
+
+  get canManageTemplates(): boolean {
+    // Server enforces ADMIN-only. This is just UI gating to avoid confusing 403s.
+    const role = (this.tokenStore.getRole() ?? '').toLowerCase().trim();
+    if (!role) {
+      return true;
+    }
+    return role === 'admin';
   }
 }

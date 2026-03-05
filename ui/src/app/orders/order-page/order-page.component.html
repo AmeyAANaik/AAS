@@ -330,6 +330,70 @@
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">
             <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
             <p *ngIf="pdfData?.items"><strong>Items Extracted:</strong> {{ pdfData?.items?.length ?? 0 }}</p>
+            <p *ngIf="pdfData?.template?.key"><strong>Template used:</strong> {{ pdfData?.template?.key }}</p>
+          </div>
+        </div>
+
+        <!-- Item Review / Edit -->
+        <div class="step-content" *ngIf="orderLines.length">
+          <div class="step-header">
+            <h3>Review invoice items</h3>
+            <span class="step-info muted">Edit qty/rate or remove lines before proceeding</span>
+          </div>
+          <div class="step-body">
+            <div class="table-wrapper">
+              <table mat-table [dataSource]="orderLines" class="orders-table compact">
+                <ng-container matColumnDef="item">
+                  <th mat-header-cell *matHeaderCellDef>Item</th>
+                  <td mat-cell *matCellDef="let line">
+                    <div class="cell-title">{{ line.item_name }}</div>
+                    <div class="cell-muted">{{ line.item_code }}</div>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="qty">
+                  <th mat-header-cell *matHeaderCellDef>Qty</th>
+                  <td mat-cell *matCellDef="let line">
+                    <input matInput type="number" [(ngModel)]="line.qty" (ngModelChange)="recalcLine(line)" />
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="rate">
+                  <th mat-header-cell *matHeaderCellDef>Rate</th>
+                  <td mat-cell *matCellDef="let line">
+                    <input matInput type="number" [(ngModel)]="line.rate" (ngModelChange)="recalcLine(line)" />
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="amount">
+                  <th mat-header-cell *matHeaderCellDef>Amount</th>
+                  <td mat-cell *matCellDef="let line">{{ line.amount | number:'1.2-2' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="lineActions">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let line; let i = index">
+                    <button mat-icon-button type="button" color="warn" aria-label="Remove line" (click)="removeOrderLine(i)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="['item','qty','rate','amount','lineActions']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['item','qty','rate','amount','lineActions']"></tr>
+              </table>
+            </div>
+
+            <div class="dialog-actions">
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="saveOrderLines()"
+                [disabled]="isItemsSaving || selectedOrder.status === 'VENDOR_BILL_CAPTURED' || selectedOrder.status === 'SELL_ORDER_CREATED' || selectedOrder.status === 'INVOICED'">
+                {{ isItemsSaving ? 'Saving...' : 'Update order items' }}
+              </button>
+            </div>
           </div>
         </div>
 

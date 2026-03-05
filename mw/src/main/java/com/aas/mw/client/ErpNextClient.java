@@ -1,6 +1,7 @@
 package com.aas.mw.client;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -75,6 +76,35 @@ public class ErpNextClient {
 
     public byte[] downloadPdf(String doctype, String name) {
         return feignClient.downloadPdf(doctype, name);
+    }
+
+    public long getCount(String doctype, Map<String, Object> params) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("doctype", doctype);
+        if (params != null && !params.isEmpty()) {
+            if (params.containsKey("filters")) {
+                payload.put("filters", params.get("filters"));
+            }
+            if (params.containsKey("or_filters")) {
+                payload.put("or_filters", params.get("or_filters"));
+            }
+        }
+        Map<String, Object> response = feignClient.getCount(payload);
+        if (response == null) {
+            return 0;
+        }
+        Object message = response.get("message");
+        if (message instanceof Number number) {
+            return number.longValue();
+        }
+        if (message != null) {
+            try {
+                return Long.parseLong(message.toString());
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     private String extractSessionCookie(HttpHeaders headers) {

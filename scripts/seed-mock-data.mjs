@@ -10,6 +10,7 @@ const USERNAME = process.env.MW_USERNAME || process.env.ERP_USERNAME || 'Adminis
 const PASSWORD = process.env.MW_PASSWORD || process.env.ERP_PASSWORD || 'admin';
 const DRY_RUN = process.env.DRY_RUN === '1';
 const FORCE_TRANSACTIONS = process.env.SEED_TRANSACTIONS_ALWAYS === '1';
+const SEED_SALES_PDF_ITEMS = process.env.SEED_SALES_PDF_ITEMS !== '0';
 const TODAY = new Date('2026-03-03T00:00:00Z');
 
 const companies = [
@@ -58,6 +59,8 @@ const suppliers = [
     food_license_no: 'FSSAI-11522011000781',
     aas_priority: 9,
     disabled: 0,
+    invoice_template_enabled: 0,
+    invoice_template_key: '',
     credit_days: 15,
     credit_limit: 150000
   },
@@ -73,6 +76,8 @@ const suppliers = [
     food_license_no: 'FSSAI-11522013001426',
     aas_priority: 1,
     disabled: 0,
+    invoice_template_enabled: 1,
+    invoice_template_key: 'table_v1',
     credit_days: 7,
     credit_limit: 350000
   },
@@ -88,6 +93,8 @@ const suppliers = [
     food_license_no: 'FSSAI-11521022001966',
     aas_priority: 2,
     disabled: 0,
+    invoice_template_enabled: 0,
+    invoice_template_key: '',
     credit_days: 15,
     credit_limit: 500000
   },
@@ -336,6 +343,99 @@ const customers = [
     shipping: { line1: 'Dock 2, MIDC Central Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400093', country: 'India' }
   }
 ];
+
+const salesPdfItems = [
+  { name: 'SFK SAMRAT ATTA 50KG', hsn: '11010000', rate: 35.5 },
+  { name: 'MAIDA SAMRAT', hsn: '11010000', rate: 37 },
+  { name: 'SFK MAKKA ATTA', hsn: '10059000', rate: 50 },
+  { name: 'Talod Dhokla Mix Yellow 1kg', hsn: '21069099', rate: 190 },
+  { name: 'TOORDAL PRESIDENT', hsn: '07139010', rate: 115 },
+  { name: 'DOUBLE BEE', hsn: '07132000', rate: 110 },
+  { name: 'SFK CHAWLI', hsn: '07132000', rate: 85 },
+  { name: 'SFK GREEN MOONG', hsn: '07132000', rate: 104 },
+  { name: 'SFK RAJ MA BIG', hsn: '07132000', rate: 90 },
+  { name: 'SFK BROWN CHANA', hsn: '07132000', rate: 70 },
+  { name: 'SFK MASOOR WHOLE', hsn: '07132000', rate: 72 },
+  { name: 'SFK MATKI', hsn: '07134000', rate: 72 },
+  { name: 'BASMATI RICE HEAVEN HARVEST', hsn: '10063010', rate: 95 },
+  { name: 'STAFF RICE CHOTU', hsn: '10063010', rate: 34 },
+  { name: 'STAFF RICE YESS BOSS', hsn: '10063010', rate: 44 },
+  { name: 'AMBEMOHAR RICE', hsn: '10063010', rate: 150 },
+  { name: 'SFK SUGAR', hsn: '17011490', rate: 42 },
+  { name: 'GUD BLACK', hsn: '17011390', rate: 51 },
+  { name: 'TATA SALT 1KG', hsn: '25010020', rate: 26.5 },
+  { name: 'SFK KIRTI GOLD SUNFLOWER OIL 13kg', hsn: '15121910', rate: 2380 },
+  { name: 'SF MAHAVIR MUSTARD OIL 1LTR', hsn: '15149910', rate: 161 },
+  { name: 'SF TILL OIL', hsn: '15151910', rate: 110 },
+  { name: 'SFK SABUDANA', hsn: '07149010', rate: 57 },
+  { name: 'SFK SHINGDANA', hsn: '12024210', rate: 134 },
+  { name: 'SUJI RAVA (BADA)', hsn: '11010000', rate: 39 },
+  { name: 'PRAVIN AMBARI MIRCHI POWDER', hsn: '09103090', rate: 400 },
+  { name: 'PRAVIN AMBARI HALDI POWDER', hsn: '09103090', rate: 390 },
+  { name: 'PRAVIN AMBARI DHANIYA POWDER', hsn: '09103090', rate: 330 },
+  { name: 'EVEREST CHAT MASALA 500GM', hsn: '21039040', rate: 310 },
+  { name: 'LG HING 50GM', hsn: '13019013', rate: 75 },
+  { name: 'UTSAV KASTURI METHI', hsn: '09109990', rate: 240 },
+  { name: 'SFK JEERA', hsn: '09093129', rate: 290 },
+  { name: 'MOHARI', hsn: '12075010', rate: 84 },
+  { name: 'OVA AJ WAIN', hsn: '09109914', rate: 220 },
+  { name: 'ENO', hsn: '30049011', rate: 140 },
+  { name: 'SFK KHOBRA KHIS', hsn: '08011100', rate: 240 },
+  { name: 'SF CITRIC ACID', hsn: '29181400', rate: 150 },
+  { name: 'SFK BLACK SALT', hsn: '250100', rate: 20 },
+  { name: 'KASHMIRI CHILLY WHOLE', hsn: '09042110', rate: 420 },
+  { name: 'SAMOSA PAPAD 1', hsn: '19059030', rate: 80 },
+  { name: 'NACHNI PAPAD', hsn: '19059030', rate: 90 },
+  { name: 'SFK KHAJUR SEEDLESS', hsn: '08041020', rate: 150 },
+  { name: 'KAJ UKANI BHARI', hsn: '08013210', rate: 460.01 },
+  { name: 'SFK ANJEER', hsn: '08042090', rate: 1000 },
+  { name: 'SFK KALINGAD MAGAJ 1KG', hsn: '12077090', rate: 525 },
+  { name: 'SFK BADISHEP', hsn: '09096139', rate: 190 },
+  { name: 'SFK KHADHI SHAKAR RAVALGAON', hsn: '17019990', rate: 60 },
+  { name: 'SF NIRMA 500GM', hsn: '34029019', rate: 31 },
+  { name: 'HABIT PANKO BREAD CRUMB', hsn: '19054000', rate: 120 },
+  { name: 'TATA TEA AGNI 1KG', hsn: '09023020', rate: 220 },
+  { name: 'PRAVIN PICKLE TOOFAN 5KG MANGO', hsn: '20011000', rate: 320 },
+  { name: 'SF ZERO SEV', hsn: '21069099', rate: 130 },
+  { name: 'FARSAN', hsn: '21069099', rate: 130 },
+  { name: 'KISSAN DIP SAUCE POUCH 930GM', hsn: '21032000', rate: 75 },
+  { name: 'MANAMA ROSE SYRUP 750ML', hsn: '21069011', rate: 135 },
+  { name: 'MANAMA KALA KHATTA CORDIAL 750ML', hsn: '20089919', rate: 140 },
+  { name: 'MANAMA KIWI CRUSH 1LTR', hsn: '20089919', rate: 320 },
+  { name: 'SF LI J AT PAPAD SMALL', hsn: '19059040', rate: 320 },
+  { name: 'AAMCHOOR POWDER', hsn: '09109100', rate: 80 }
+];
+
+function salesPdfItemGroup(name) {
+  const value = String(name).toUpperCase();
+  if (/(JEERA|HING|METHI|MASALA|CHILLI|HALDI|DHANIYA|AJ\\s*WAIN|AMCHOOR|CHAT|CITRIC)/.test(value)) {
+    return 'Spices & Seasoning';
+  }
+  if (/(SYRUP|CORDIAL|CRUSH)/.test(value)) {
+    return 'Packaged Juices';
+  }
+  if (/(NIRMA)/.test(value)) {
+    return 'Cleaning Chemicals';
+  }
+  if (/(PANKO)/.test(value)) {
+    return 'Bakery Inputs';
+  }
+  return 'Dry Goods & Staples';
+}
+
+function salesPdfStockUom(name) {
+  const value = String(name).toUpperCase();
+  if (/(TIN)/.test(value)) {
+    return 'Tin';
+  }
+  if (/(KG|1KG|50KG|25KG|30KG|5KG)/.test(value)) {
+    return 'Kg';
+  }
+  if (/(500GM|930GM|750ML|1LTR|LTR|ML)/.test(value)) {
+    return 'Nos';
+  }
+  return 'Nos';
+}
 
 const extraUsers = {
   admin: [
@@ -802,6 +902,16 @@ async function erpUpdate(doctype, name, payload) {
   return unwrap(body);
 }
 
+async function erpDelete(doctype, name) {
+  if (DRY_RUN) {
+    return null;
+  }
+  await erp.request(`/api/resource/${encodeSegment(doctype)}/${encodeSegment(name)}`, {
+    method: 'DELETE'
+  });
+  return null;
+}
+
 async function erpEnsure(doctype, name, payload, updateFields = []) {
   const existing = await erpGet(doctype, name);
   if (!existing) {
@@ -941,7 +1051,9 @@ async function ensureSupplierAddresses() {
         aas_gst_no: supplier.gst,
         aas_pan_no: supplier.pan,
         aas_food_license_no: supplier.food_license_no,
-        aas_priority: supplier.aas_priority
+        aas_priority: supplier.aas_priority,
+        aas_invoice_template_enabled: supplier.invoice_template_enabled ?? 0,
+        aas_invoice_template_key: supplier.invoice_template_key ?? ''
       },
       [
         'supplier_type',
@@ -953,7 +1065,9 @@ async function ensureSupplierAddresses() {
         'aas_gst_no',
         'aas_pan_no',
         'aas_food_license_no',
-        'aas_priority'
+        'aas_priority',
+        'aas_invoice_template_enabled',
+        'aas_invoice_template_key'
       ]
     );
 
@@ -1068,6 +1182,84 @@ async function ensureItems() {
     );
   }
   return items;
+}
+
+function ocrItemCode(name) {
+  const base = `OCR-${slug(name).toUpperCase()}`;
+  return base.length > 48 ? base.slice(0, 48) : base;
+}
+
+async function cleanupOcrItems() {
+  const items = await erpList('Item', {
+    fields: JSON.stringify(['name', 'item_code']),
+    filters: toFilterJson([['item_code', 'like', 'OCR-%']]),
+    limit_page_length: '1000'
+  });
+  for (const item of items) {
+    if (!item?.name) {
+      continue;
+    }
+    await erpDelete('Item', item.name);
+  }
+}
+
+async function ensureSalesPdfItems() {
+  await erpEnsure('Item Group', 'All Item Groups', { is_group: 1 });
+  const groups = new Set(salesPdfItems.map(item => salesPdfItemGroup(item.name)));
+  for (const group of groups) {
+    await erpEnsure(
+      'Item Group',
+      group,
+      { parent_item_group: 'All Item Groups', is_group: 0 },
+      ['parent_item_group', 'is_group']
+    );
+  }
+  const uoms = new Set(salesPdfItems.map(item => salesPdfStockUom(item.name)));
+  for (const uom of uoms) {
+    await erpEnsure('UOM', uom, { must_be_whole_number: 0 });
+  }
+  await cleanupOcrItems();
+
+  const usedCodes = new Set();
+  for (const item of salesPdfItems) {
+    const baseCode = String(item.hsn || '').trim();
+    let code = baseCode;
+    if (usedCodes.has(code)) {
+      let index = 2;
+      while (usedCodes.has(`${code}-${index}`)) {
+        index += 1;
+      }
+      code = `${code}-${index}`;
+    }
+    usedCodes.add(code);
+    const itemGroup = salesPdfItemGroup(item.name);
+    const stockUom = salesPdfStockUom(item.name);
+    await erpEnsure(
+      'Item',
+      code,
+      {
+        item_code: code,
+        item_name: item.name,
+        item_group: itemGroup,
+        stock_uom: stockUom,
+        is_stock_item: 1,
+        is_sales_item: 1,
+        is_purchase_item: 1,
+        aas_vendor_rate: item.rate,
+        aas_margin_percent: 0
+      },
+      [
+        'item_name',
+        'item_group',
+        'stock_uom',
+        'is_stock_item',
+        'is_sales_item',
+        'is_purchase_item',
+        'aas_vendor_rate',
+        'aas_margin_percent'
+      ]
+    );
+  }
 }
 
 async function ensureUsers() {
@@ -1599,6 +1791,9 @@ export async function main() {
   await ensureCustomerAddresses();
   await ensureItemGroups();
   const items = await ensureItems();
+  if (SEED_SALES_PDF_ITEMS) {
+    await ensureSalesPdfItems();
+  }
   await ensureUsers();
   companyIndex = await refreshCompanyIndex();
 

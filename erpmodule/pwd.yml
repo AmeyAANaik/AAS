@@ -122,6 +122,7 @@ services:
         else
           echo "Setup already completed";
         fi;
+        bench --site aas.core.local execute frappe.utils.safe_exec.safe_exec --kwargs "{'script': \"import frappe; from frappe.custom.doctype.custom_field.custom_field import create_custom_field;\\n\\n def ensure(dt, fieldname, label, fieldtype, insert_after):\\n  if frappe.db.exists('Custom Field', {'dt': dt, 'fieldname': fieldname}):\\n    return\\n  create_custom_field(dt, {'fieldname': fieldname, 'label': label, 'fieldtype': fieldtype, 'insert_after': insert_after});\\n\\n ensure('Customer', 'aas_branch_location', 'Branch Location', 'Data', 'customer_name');\\n ensure('Customer', 'aas_whatsapp_group_name', 'WhatsApp Group Name', 'Data', 'aas_branch_location');\\n frappe.db.commit()\"}";
 
   db:
     image: mariadb:10.6

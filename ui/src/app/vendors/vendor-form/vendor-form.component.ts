@@ -12,8 +12,11 @@ export class VendorFormComponent implements OnChanges {
   @Input() mode: 'create' | 'edit' = 'create';
   @Input() isSaving = false;
   @Input() statusMessage = '';
+  @Input() canManageTemplates = true;
   @Output() save = new EventEmitter<VendorFormValue>();
   @Output() reset = new EventEmitter<void>();
+  @Output() uploadTemplateSample = new EventEmitter<File>();
+  @Output() clearTemplate = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
     supplierName: ['', [Validators.required, Validators.maxLength(140)]],
@@ -23,7 +26,9 @@ export class VendorFormComponent implements OnChanges {
     pan: [''],
     foodLicenseNo: [''],
     priority: [null, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
-    status: ['Active', [Validators.required]]
+    status: ['Active', [Validators.required]],
+    invoiceTemplateEnabled: [false],
+    invoiceTemplateKey: [{ value: '', disabled: true }]
   });
 
   constructor(private fb: FormBuilder) {}
@@ -39,13 +44,18 @@ export class VendorFormComponent implements OnChanges {
         pan: String(raw['pan'] ?? ''),
         foodLicenseNo: String(raw['food_license_no'] ?? ''),
         priority: this.vendor.priority,
-        status: this.vendor.status
+        status: this.vendor.status,
+        invoiceTemplateEnabled: this.asFlag(raw['invoice_template_enabled']),
+        invoiceTemplateKey: String(raw['invoice_template_key'] ?? '')
       });
       this.form.enable({ emitEvent: false });
+      // Keep template key read-only; it is set by uploading a sample PDF.
+      this.form.get('invoiceTemplateKey')?.disable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
     this.form.enable({ emitEvent: false });
+    this.form.get('invoiceTemplateKey')?.disable({ emitEvent: false });
     this.form.reset({
       supplierName: '',
       address: '',
@@ -54,7 +64,9 @@ export class VendorFormComponent implements OnChanges {
       pan: '',
       foodLicenseNo: '',
       priority: null,
-      status: 'Active'
+      status: 'Active',
+      invoiceTemplateEnabled: false,
+      invoiceTemplateKey: ''
     });
   }
 
@@ -66,6 +78,23 @@ export class VendorFormComponent implements OnChanges {
     this.save.emit(this.form.getRawValue() as VendorFormValue);
   }
 
+  onTemplateFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      return;
+    }
+    this.uploadTemplateSample.emit(file);
+    // Allow selecting the same file again.
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  clearInvoiceTemplate(): void {
+    this.clearTemplate.emit();
+  }
+
   clear(): void {
     this.form.reset({
       supplierName: '',
@@ -75,8 +104,27 @@ export class VendorFormComponent implements OnChanges {
       pan: '',
       foodLicenseNo: '',
       priority: null,
-      status: 'Active'
+      status: 'Active',
+      invoiceTemplateEnabled: false,
+      invoiceTemplateKey: ''
     });
     this.reset.emit();
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 }

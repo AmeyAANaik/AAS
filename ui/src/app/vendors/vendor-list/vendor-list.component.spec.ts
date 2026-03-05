@@ -6,6 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { VendorFormComponent } from '../vendor-form/vendor-form.component';
@@ -27,6 +28,7 @@ describe('VendorListComponent', () => {
         MatInputModule,
         MatSelectModule,
         MatTableModule,
+        MatSlideToggleModule,
         NoopAnimationsModule
       ],
       providers: [

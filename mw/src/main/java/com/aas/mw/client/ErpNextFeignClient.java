@@ -56,4 +56,7 @@ public interface ErpNextFeignClient {
 
     @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     byte[] downloadPdf(@RequestParam("doctype") String doctype, @RequestParam("name") String name);
+
+    @GetMapping("/api/method/frappe.desk.reportview.get_count")
+    Map<String, Object> getCount(@RequestParam Map<String, Object> params);
 }

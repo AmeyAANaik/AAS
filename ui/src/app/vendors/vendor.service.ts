@@ -4,6 +4,12 @@ import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { Vendor } from './vendor.model';
 
+export interface UploadInvoiceTemplateSampleResponse {
+  templateChosen?: { key?: string; detectedItems?: number };
+  file?: { fileUrl?: string; fileName?: string; fileId?: string };
+  vendor?: unknown;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -20,6 +26,20 @@ export class VendorService {
 
   updateVendor(id: string, fields: Record<string, unknown>): Observable<unknown> {
     return this.http.put(`/api/vendors/${id}`, { fields }, { headers: this.authHeaders() });
+  }
+
+  uploadInvoiceTemplateSample(id: string, file: File): Observable<UploadInvoiceTemplateSampleResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<UploadInvoiceTemplateSampleResponse>(
+      `/api/vendors/${encodeURIComponent(id)}/invoice-template/sample`,
+      formData,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  clearInvoiceTemplate(id: string): Observable<unknown> {
+    return this.http.delete(`/api/vendors/${encodeURIComponent(id)}/invoice-template`, { headers: this.authHeaders() });
   }
 
   private authHeaders(): HttpHeaders {

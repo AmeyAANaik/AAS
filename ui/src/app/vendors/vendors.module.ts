@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { StatusPillComponent } from '../shared/status-pill/status-pill.component';
@@ -25,6 +26,7 @@ import { VendorsRoutingModule } from './vendors-routing.module';
     MatInputModule,
     MatSelectModule,
     MatTableModule,
+    MatSlideToggleModule,
     PageHeaderComponent,
     EmptyStateComponent,
     StatusPillComponent,

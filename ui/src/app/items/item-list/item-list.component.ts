@@ -1,4 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
+import { MatPaginator, PageEvent } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
+import { MatTableDataSource } from '@angular/material/table';
+import { firstValueFrom } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
@@ -6,7 +10,7 @@ import { Vendor } from '../../vendors/vendor.model';
 import { VendorService } from '../../vendors/vendor.service';
 import { ItemMetadataService } from '../item-metadata.service';
 import { ItemVendorPricingService } from '../item-vendor-pricing.service';
-import { Item, ItemFormValue, ItemVendorPricingEntry, ItemView } from '../item.model';
+import { Item, ItemFormValue, ItemPage, ItemVendorPricingEntry, ItemView } from '../item.model';
 import { ItemService } from '../item.service';
 
 @Component({
@@ -16,13 +20,26 @@ import { ItemService } from '../item.service';
 })
 export class ItemListComponent implements OnInit {
   displayedColumns: string[] = ['code', 'name', 'category', 'uom', 'packaging'];
+  dataSource = new MatTableDataSource<ItemView>([]);
+  // Convenience alias used by the vendor-pricing widget.
   items: ItemView[] = [];
+  pricingItems: ItemView[] = [];
   categories: Category[] = [];
   vendors: Vendor[] = [];
   pricing: ItemVendorPricingEntry[] = [];
-  isLoading = false;
+  isLoadingItems = false;
   isSaving = false;
   statusMessage = '';
+  searchTerm = '';
+  totalItems = 0;
+  pageSize = 20;
+  pageIndex = 0;
+  pageSizeOptions = [20, 50, 100];
+  sortActive = 'name';
+  sortDirection: 'asc' | 'desc' = 'asc';
+
+  @ViewChild(MatSort) sort?: MatSort;
+  @ViewChild(MatPaginator) paginator?: MatPaginator;
 
   constructor(
     private itemService: ItemService,
@@ -33,20 +50,27 @@ export class ItemListComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.loadReferenceData();
+    this.loadStaticReferenceData();
+    this.loadItemsPage(1);
+    this.loadAllItemsForPricing();
     this.loadPricing();
   }
 
-  loadReferenceData(): void {
-    this.isLoading = true;
+  ngAfterViewInit(): void {
+    if (this.sort) {
+      this.dataSource.sort = this.sort;
+      this.dataSource.sortData = data => data;
+      this.dataSource.sort.active = 'name';
+      this.dataSource.sort.direction = 'asc';
+    }
+  }
+
+  loadStaticReferenceData(): void {
     Promise.all([
-      this.itemService.listItems().toPromise(),
       this.vendorService.listVendors().toPromise(),
       this.categoryService.listCategories().toPromise()
     ])
-      .then(([items, vendors, categories]) => {
-        const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
-        this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
+      .then(([vendors, categories]) => {
         this.vendors = vendors ?? [];
         this.categories = (categories ?? []).map(category => ({
           ...category,
@@ -56,9 +80,58 @@ export class ItemListComponent implements OnInit {
       .catch(err => {
         this.statusMessage = this.formatError(err, 'Unable to load item data');
       })
+  }
+
+  loadItemsPage(page: number): void {
+    this.isLoadingItems = true;
+    this.itemService
+      .listItemsPaged(page, this.pageSize, this.searchTerm, this.sortActive, this.sortDirection)
+      .toPromise()
+      .then((response?: ItemPage) => {
+        const payload = response ?? { items: [], total: 0, page, size: this.pageSize };
+        const mergedItems = this.metadataService.mergeMetadata((payload.items ?? []) as Item[]);
+        const rows = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
+        this.dataSource.data = rows;
+        this.items = rows;
+        this.totalItems = Number(payload.total ?? 0);
+        this.pageIndex = Math.max((payload.page ?? page) - 1, 0);
+      })
+      .catch(err => {
+        this.statusMessage = this.formatError(err, 'Unable to load item data');
+      })
       .finally(() => {
-        this.isLoading = false;
+        this.isLoadingItems = false;
       });
+  }
+
+  loadAllItemsForPricing(): void {
+    const pageSize = 200;
+    const load = async () => {
+      const collected: ItemView[] = [];
+      let page = 1;
+      let total = 0;
+      do {
+        const response = await firstValueFrom(
+          this.itemService.listItemsPaged(page, pageSize, '', 'name', 'asc')
+        );
+        const items = response?.items ?? [];
+        total = Number(response?.total ?? 0);
+        const mergedItems = this.metadataService.mergeMetadata(items as Item[]);
+        const rows = mergedItems.map(item =>
+          this.toViewModel(item as Item & { packagingUnit?: string })
+        );
+        collected.push(...rows);
+        if (!items.length) {
+          break;
+        }
+        page += 1;
+      } while (total === 0 || collected.length < total);
+      this.pricingItems = collected;
+    };
+
+    load().catch(err => {
+      this.statusMessage = this.formatError(err, 'Unable to load item data');
+    });
   }
 
   loadPricing(): void {
@@ -83,7 +156,8 @@ export class ItemListComponent implements OnInit {
             packagingUnit: formValue.packagingUnit
           });
           this.statusMessage = 'Item saved.';
-          this.loadReferenceData();
+          this.loadItemsPage(this.pageIndex + 1);
+          this.loadAllItemsForPricing();
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to save item');
@@ -94,6 +168,14 @@ export class ItemListComponent implements OnInit {
   savePricing(entry: ItemVendorPricingEntry): void {
     this.pricingService.upsertPricing(entry);
     this.loadPricing();
+  }
+
+  applyFilter(value: string): void {
+    this.searchTerm = value.trim();
+    if (this.paginator) {
+      this.paginator.firstPage();
+    }
+    this.loadItemsPage(1);
   }
 
   private toViewModel(item: Item & { packagingUnit?: string }): ItemView {
@@ -117,5 +199,20 @@ export class ItemListComponent implements OnInit {
       return err;
     }
     return fallback;
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadItemsPage(this.pageIndex + 1);
+  }
+
+  onSortChange(sort: { active: string; direction: string }): void {
+    this.sortActive = sort.active || 'name';
+    this.sortDirection = sort.direction === 'desc' ? 'desc' : 'asc';
+    if (this.paginator) {
+      this.paginator.firstPage();
+    }
+    this.loadItemsPage(1);
   }
 }

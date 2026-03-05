@@ -69,7 +69,10 @@
 - **Auth**: ERPNext login → session cookie → JWT token
 - **Role Mapping**: ERPNext roles to app roles (ADMIN, VENDOR, SHOP, HELPER)
 - **Domain APIs**: Orders, invoices, payments, reports, master data
+- **Order Workflow**: Branch image upload, vendor assignment, vendor PDF OCR, vendor bill capture, sell order creation
 - **ERPNext Proxy**: Use ERPNext REST resources and methods via Feign client
+- **Files**: Attachments to ERPNext (`/api/method/upload_file`)
+- **Vendor Templates**: Optional vendor invoice parsing templates stored on ERPNext `Supplier` records (used during vendor PDF OCR).
 
 **Key Packages**:
 - Controllers: `mw/src/main/java/com/aas/mw/controller/*`
@@ -87,9 +90,20 @@
 - `POST /api/orders`, `GET /api/orders`, `PUT /api/orders/{id}`
 - `POST /api/orders/{id}/status`
 - `POST /api/orders/{id}/assign-vendor`
+- `POST /api/orders/branch-image` (create order + attach branch image)
+- `POST /api/orders/{id}/image` (attach branch image)
+- `POST /api/orders/{id}/vendor-pdf` (OCR + purchase order creation)
+- `POST /api/orders/{id}/vendor-bill` (capture vendor bill)
+- `GET /api/orders/{id}/sell-preview`
+- `POST /api/orders/{id}/sell-order`
+- `DELETE /api/orders/{id}`
 - `GET /api/orders/export`
 - `POST /api/invoices`, `GET /api/invoices`, `GET /api/invoices/export`, `GET /api/invoices/{id}/pdf`
 - `POST /api/payments`
+- `GET /api/ocr/health`
+- `GET /api/meta/vendors/fields`
+- `POST /api/vendors/{id}/invoice-template/sample`
+- `DELETE /api/vendors/{id}/invoice-template`
 - `GET /api/reports/*` (+ export endpoints)
 - `POST /api/setup/ensure`
 
@@ -130,10 +144,61 @@
 - **UI → Middleware**: REST calls secured by JWT.
 - **Middleware → ERPNext**: REST calls via Feign client, normalizes ERPNext responses.
 - **ERPNext → MariaDB**: Data persistence and ERP workflows.
+- **File uploads**: Middleware uploads branch images/vendor PDFs to ERPNext via `/api/method/upload_file` and links File URLs to `Sales Order`.
 
 ---
 
-## 5. LOCAL DEVELOPMENT (CURRENT)
+## 5. ORDER WORKFLOW (IMPLEMENTED)
+
+**Branch Image → Vendor PDF → Vendor Bill → Sell Order**
+1. `POST /api/orders/branch-image` creates a `Sales Order` with a placeholder item and attaches the branch image. Status starts at `DRAFT`.
+2. `POST /api/orders/{id}/assign-vendor` sets `aas_vendor` and transitions to `VENDOR_ASSIGNED`.
+3. `POST /api/orders/{id}/vendor-pdf` runs OCR, creates a `Purchase Order`, updates items, and stores `aas_vendor_pdf` and vendor bill metadata. Status → `VENDOR_PDF_RECEIVED`.
+4. `POST /api/orders/{id}/vendor-bill` creates a `Purchase Invoice` and stores bill totals + ref. Status → `VENDOR_BILL_CAPTURED`.
+5. `GET /api/orders/{id}/sell-preview` returns margin-based sell totals.
+6. `POST /api/orders/{id}/sell-order` creates a branch `Sales Order` and `Sales Invoice`, links them back to the source order. Status → `SELL_ORDER_CREATED`.
+
+**State Machine (enforced in middleware)**:
+`DRAFT → VENDOR_ASSIGNED → VENDOR_PDF_RECEIVED → VENDOR_BILL_CAPTURED → SELL_ORDER_CREATED` (with controlled transitions and validation).
+
+---
+
+## 6. CUSTOM FIELDS / SETUP (PROVISIONED BY `POST /api/setup/ensure`)
+
+**Sales Order**:
+- `aas_vendor` (Link → Supplier)
+- `aas_status` (Select)
+- `aas_margin_percent` (Float)
+- `aas_branch_image` (Attach)
+- `aas_vendor_pdf` (Attach)
+- `aas_po` (Link → Purchase Order)
+- `aas_so_branch` (Link → Sales Order)
+- `aas_si_branch` (Link → Sales Invoice)
+- `aas_vendor_bill_total` (Currency)
+- `aas_vendor_bill_ref` (Data)
+- `aas_vendor_bill_date` (Date)
+- `aas_pi_vendor` (Link → Purchase Invoice)
+- `aas_sell_order_total` (Currency)
+
+**Purchase Order / Purchase Invoice / Sales Invoice**:
+- `aas_source_sales_order` (Link → Sales Order)
+
+**Item**:
+- `aas_margin_percent` (Float)
+- `aas_vendor_rate` (Currency)
+- `aas_packaging_unit` (Data)
+
+**Sales Order Item**:
+- `aas_margin_percent` (Float)
+- `aas_vendor_rate` (Currency)
+
+**Supplier (Vendor custom fields)**:
+- `aas_branch_name`, `aas_address`, `aas_phone`, `aas_gst_no`, `aas_pan_no`, `aas_food_license_no`, `aas_priority`
+- Invoice template (auto-detected from sample PDF): `aas_invoice_template_enabled`, `aas_invoice_template_key`, `aas_invoice_template_sample_pdf`
+
+---
+
+## 7. LOCAL DEVELOPMENT (CURRENT)
 
 - ERPNext: `erpmodule/pwd.yml` via Docker Compose
 - Middleware: Spring Boot on `http://localhost:8083`
@@ -141,7 +206,7 @@
 
 ---
 
-## 6. OUTDATED / NOT IN CODEBASE
+## 8. OUTDATED / NOT IN CODEBASE
 
 The following items appear in older architecture docs but are **not implemented**:
 - Directus (Generic CRUD middleware)

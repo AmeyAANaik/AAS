@@ -72,6 +72,12 @@ table {
   margin-top: 4px;
 }
 
+.count {
+  color: rgba(16, 24, 40, 0.55);
+  font-weight: 600;
+  margin-left: 6px;
+}
+
 .list-card mat-card-content,
 .list-card .mat-mdc-card-content {
   padding: 0 16px 16px;
@@ -107,6 +113,11 @@ table {
 .pro-table tr:hover td,
 .pro-table .mat-mdc-row:hover .mat-mdc-cell {
   background: rgba(29, 111, 122, 0.04);
+}
+
+.pro-table tr.selected td,
+.pro-table .mat-mdc-row.selected .mat-mdc-cell {
+  background: rgba(215, 162, 89, 0.14);
 }
 
 @media (max-width: 900px) {

@@ -39,7 +39,7 @@ export class BranchListComponent implements OnInit {
 
   selectBranch(branch: BranchView): void {
     this.selectedBranch = branch;
-    this.statusMessage = 'Branch name edits are not available yet.';
+    this.statusMessage = '';
   }
 
   clearSelection(): void {
@@ -50,25 +50,35 @@ export class BranchListComponent implements OnInit {
   saveBranch(formValue: BranchFormValue): void {
     this.isSaving = true;
     if (this.selectedBranch) {
-      this.branchService.saveMetadata(this.selectedBranch.id, {
-        location: formValue.location,
-        whatsappGroupName: formValue.whatsappGroupName
-      });
-      this.statusMessage = 'Branch details updated locally.';
-      this.isSaving = false;
-      this.loadBranches();
+      const payload = {
+        aas_branch_location: formValue.location,
+        aas_whatsapp_group_name: formValue.whatsappGroupName
+      };
+      this.branchService
+        .updateBranch(this.selectedBranch.id, payload)
+        .pipe(finalize(() => (this.isSaving = false)))
+        .subscribe({
+          next: () => {
+            this.statusMessage = 'Branch details updated.';
+            this.selectedBranch = null;
+            this.loadBranches();
+          },
+          error: err => {
+            this.statusMessage = this.formatError(err, 'Unable to update branch');
+          }
+        });
       return;
     }
-    const payload = { customer_name: formValue.branchName.trim() };
+    const payload = {
+      customer_name: formValue.branchName.trim(),
+      aas_branch_location: formValue.location,
+      aas_whatsapp_group_name: formValue.whatsappGroupName
+    };
     this.branchService
       .createBranch(payload)
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: () => {
-          this.branchService.saveMetadata(formValue.branchName.trim(), {
-            location: formValue.location,
-            whatsappGroupName: formValue.whatsappGroupName
-          });
           this.statusMessage = 'Branch saved.';
           this.selectedBranch = null;
           this.loadBranches();
@@ -84,8 +94,8 @@ export class BranchListComponent implements OnInit {
     return {
       id: String(branch.name ?? name),
       name: name || String(branch.name ?? ''),
-      location: branch.location ?? '',
-      whatsappGroupName: branch.whatsappGroupName ?? '',
+      location: branch.aas_branch_location ?? branch.location ?? '',
+      whatsappGroupName: branch.aas_whatsapp_group_name ?? branch.whatsappGroupName ?? '',
       raw: branch
     };
   }

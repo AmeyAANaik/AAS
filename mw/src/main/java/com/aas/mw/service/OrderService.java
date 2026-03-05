@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.dto.OrderItemLine;
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
 import feign.FeignException;
@@ -51,6 +52,8 @@ public class OrderService {
         }
         payload.put("customer", customer);
         payload.put("company", company);
+        // ERPNext often requires a selling price list + currency fields on Sales Order.
+        ensureSalesOrderPricingDefaults(payload, asText(company));
         payload.put("transaction_date", resolveDate(transactionDate));
         payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
         payload.put("aas_status", "DRAFT");
@@ -66,6 +69,62 @@ public class OrderService {
         }
         return order;
     }
+
+    private void ensureSalesOrderPricingDefaults(Map<String, Object> payload, String company) {
+        if (payload == null) {
+            return;
+        }
+        if (!payload.containsKey("selling_price_list")) {
+            PriceListChoice choice = resolveSellingPriceList();
+            if (!choice.name().isBlank()) {
+                payload.put("selling_price_list", choice.name());
+                if (!payload.containsKey("price_list_currency") && !choice.currency().isBlank()) {
+                    payload.put("price_list_currency", choice.currency());
+                }
+            }
+        }
+        String currency = asText(payload.get("price_list_currency"));
+        if (currency.isBlank()) {
+            currency = resolveCompanyCurrency(company);
+            if (!currency.isBlank()) {
+                payload.put("price_list_currency", currency);
+            }
+        }
+        if (!payload.containsKey("plc_conversion_rate")) {
+            payload.put("plc_conversion_rate", 1);
+        }
+    }
+
+    private PriceListChoice resolveSellingPriceList() {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"currency\"]");
+            params.put("limit_page_length", "1");
+            params.put("filters", "[[\"selling\",\"=\",\"1\"],[\"enabled\",\"=\",\"1\"]]");
+            List<Map<String, Object>> lists = erpNextClient.listResources("Price List", params);
+            if (lists.isEmpty()) {
+                return new PriceListChoice("", "");
+            }
+            Map<String, Object> row = lists.get(0);
+            return new PriceListChoice(asText(row.get("name")), asText(row.get("currency")));
+        } catch (Exception ex) {
+            return new PriceListChoice("", "");
+        }
+    }
+
+    private String resolveCompanyCurrency(String company) {
+        if (company == null || company.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> companyDoc = erpNextClient.getResource("Company", company);
+            return asText(companyDoc.get("default_currency"));
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private record PriceListChoice(String name, String currency) {}
 
     private String extractDocName(Map<String, Object> response) {
         if (response == null) {
@@ -91,6 +150,55 @@ public class OrderService {
         Map<String, Object> fields = request.getFields();
         applySalesOrderDefaults(fields);
         return erpNextClient.updateResource(DOCTYPE, id, fields);
+    }
+
+    public Map<String, Object> updateOrderItems(String orderId, List<OrderItemLine> items) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("Order id is required.");
+        }
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("Items are required.");
+        }
+
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
+        String status = asText(orderData.get("aas_status"));
+        // Allow updating items after vendor assignment / pdf parsing, while order is still draft in ERPNext.
+        orderFlowStateMachine.ensureCanDeleteOrder(status);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> existingSoItems =
+                orderData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        List<Map<String, Object>> updatedSoItems = buildUpdatedChildItems(
+                "Sales Order Item",
+                existingSoItems,
+                items);
+        Map<String, Object> updatedOrder = erpNextClient.updateResource(DOCTYPE, orderId, Map.of("items", updatedSoItems));
+
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        Map<String, Object> updatedPo = null;
+        if (!purchaseOrderId.isBlank()) {
+            Map<String, Object> po = erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId);
+            Map<String, Object> poData = unwrap(po);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> existingPoItems =
+                    poData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+            List<Map<String, Object>> updatedPoItems = buildUpdatedChildItems(
+                    "Purchase Order Item",
+                    existingPoItems,
+                    items);
+            updatedPo = erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of("items", updatedPoItems));
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("orderId", orderId);
+        response.put("order", updatedOrder);
+        response.put("purchaseOrderId", purchaseOrderId);
+        if (updatedPo != null) {
+            response.put("purchaseOrder", updatedPo);
+        }
+        response.put("items", extractSimpleItems(unwrap(updatedOrder)));
+        return response;
     }
 
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
@@ -129,13 +237,15 @@ public class OrderService {
         orderFlowStateMachine.ensureCanDeleteOrder(status);
         String purchaseOrderId = readField(order, "aas_po").trim();
 
+        // ERPNext will block deleting/cancelling Sales Orders that are linked to a Purchase Order.
+        // In our flow, `aas_po` is set once the vendor PDF is processed; after that, treat the order as non-deletable here.
         if (!purchaseOrderId.isBlank()) {
-            try {
-                erpNextClient.deleteResource(PURCHASE_ORDER, purchaseOrderId);
-            } catch (FeignException.NotFound notFound) {
-                // Ignore missing PO.
-            }
+            throw new IllegalStateException(
+                    "Order cannot be deleted because it is linked with Purchase Order "
+                            + purchaseOrderId
+                            + ". Cancel/delete the Purchase Order (and any linked Purchase Receipt/Invoice) in ERPNext first.");
         }
+
         erpNextClient.deleteResource(DOCTYPE, orderId);
         return Map.of(
                 "orderId", orderId,
@@ -380,5 +490,88 @@ public class OrderService {
 
     private String escape(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrap(Map<String, Object> resource) {
+        if (resource == null) {
+            return Map.of();
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return resource;
+    }
+
+    private List<Map<String, Object>> buildUpdatedChildItems(
+            String childDoctype,
+            List<Map<String, Object>> existing,
+            List<OrderItemLine> desired) {
+        // Match existing rows by item_code (first unused match) so updates are stable and don't create duplicates.
+        boolean[] used = new boolean[existing == null ? 0 : existing.size()];
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (OrderItemLine line : desired) {
+            String itemCode = asText(line.getItem_code());
+            if (itemCode.isBlank()) {
+                continue;
+            }
+            int matchIdx = -1;
+            for (int i = 0; i < used.length; i++) {
+                if (used[i]) {
+                    continue;
+                }
+                Map<String, Object> row = existing.get(i);
+                if (itemCode.equalsIgnoreCase(asText(row.get("item_code")))) {
+                    matchIdx = i;
+                    used[i] = true;
+                    break;
+                }
+            }
+            Map<String, Object> row = new HashMap<>();
+            row.put("doctype", childDoctype);
+            row.put("item_code", itemCode);
+            row.put("qty", line.getQty());
+            row.put("rate", line.getRate());
+            row.put("amount", line.getQty() * line.getRate());
+            if (matchIdx >= 0) {
+                Map<String, Object> existingRow = existing.get(matchIdx);
+                Object name = existingRow.get("name");
+                if (name != null) {
+                    row.put("name", name);
+                }
+                Object warehouse = existingRow.get("warehouse");
+                if (warehouse != null) {
+                    row.put("warehouse", warehouse);
+                }
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractSimpleItems(Map<String, Object> doc) {
+        if (doc == null) {
+            return List.of();
+        }
+        Object itemsObj = doc.get("items");
+        if (!(itemsObj instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object obj : list) {
+            if (obj instanceof Map<?, ?> map) {
+                Map<String, Object> row = (Map<String, Object>) map;
+                Map<String, Object> simple = new HashMap<>();
+                simple.put("item_code", row.get("item_code"));
+                simple.put("item_name", row.getOrDefault("item_name", row.get("item_code")));
+                simple.put("qty", row.get("qty"));
+                simple.put("rate", row.get("rate"));
+                simple.put("amount", row.get("amount"));
+                out.add(simple);
+            }
+        }
+        return out;
     }
 }

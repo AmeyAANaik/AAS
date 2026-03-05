@@ -118,6 +118,21 @@ export class OrderService {
     return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/sell-order`, {}, { headers: this.authHeaders() });
   }
 
+  getOrder(orderId: string): Observable<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>(`/api/orders/${encodeURIComponent(orderId)}`, { headers: this.authHeaders() });
+  }
+
+  updateOrderItems(
+    orderId: string,
+    items: Array<{ item_code: string; qty: number; rate: number }>
+  ): Observable<Record<string, unknown>> {
+    return this.http.put<Record<string, unknown>>(
+      `/api/orders/${encodeURIComponent(orderId)}/items`,
+      { items },
+      { headers: this.authHeaders() }
+    );
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

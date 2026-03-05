@@ -42,12 +42,23 @@ interface UiSellPreview {
 
 interface PdfParseResult {
   fileName?: string;
+  fileUrl?: string;
   items?: unknown[];
+  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number }>;
+  template?: { configured?: boolean; used?: boolean; key?: string };
   vendorBillTotal?: number;
   vendorBillRef?: string;
   vendorBillDate?: string;
   marginPercent?: number;
   [key: string]: unknown;
+}
+
+interface UiOrderLine {
+  item_code: string;
+  item_name: string;
+  qty: number;
+  rate: number;
+  amount: number;
 }
 
 @Component({
@@ -105,6 +116,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   fileError = '';
   isUploading = false;
   pdfData: PdfParseResult | null = null;
+  orderLines: UiOrderLine[] = [];
+  isItemsSaving = false;
 
   sellPreview: UiSellPreview | null = null;
   errorMessage = '';
@@ -517,11 +530,32 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.pdfData = { fileName, fileUrl };
     }
     this.sellPreview = null;
+    this.orderLines = [];
 
     this.billTotalControl.setValue(order.billTotal);
     this.billRefControl.setValue(order.billRef);
     this.billDateControl.setValue(order.billDate ?? new Date());
     this.marginControl.setValue(Number(order.raw.aas_margin_percent ?? 10));
+
+    this.orderService.getOrder(order.name).subscribe({
+      next: res => {
+        const data = (res as any)?.data ?? res;
+        const items = Array.isArray(data?.items) ? data.items : [];
+        this.orderLines = items
+          .map((row: any) => ({
+            item_code: String(row?.item_code ?? '').trim(),
+            item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
+            qty: Number(row?.qty ?? 0),
+            rate: Number(row?.rate ?? 0),
+            amount: Number(row?.amount ?? 0)
+          }))
+          .filter((row: UiOrderLine) => row.item_code);
+      },
+      error: () => {
+        // Non-blocking: user can still proceed with upload/capture steps.
+        this.orderLines = [];
+      }
+    });
   }
 
   closeManage(): void {
@@ -595,6 +629,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   canDeleteOrder(order: UiOrder): boolean {
     const status = (order?.status ?? 'DRAFT') as UiOrderStatus;
+    const hasPo = Boolean(String(order?.raw?.aas_po ?? '').trim());
+    if (hasPo) {
+      // ERPNext blocks deleting/cancelling Sales Orders linked to a Purchase Order.
+      return false;
+    }
     return status === 'DRAFT' || status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
   }
 
@@ -604,7 +643,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (!this.canDeleteOrder(order)) {
-      this.snackBar.open('Only pending (Draft) orders can be deleted.', 'Dismiss', { duration: 3000 });
+      const hasPo = Boolean(String(order?.raw?.aas_po ?? '').trim());
+      const message = hasPo
+        ? 'This order has a linked Purchase Order and cannot be deleted here. Cancel/delete the Purchase Order in ERPNext first.'
+        : 'This order cannot be deleted in its current status.';
+      this.snackBar.open(message, 'Dismiss', { duration: 4500 });
       return;
     }
     const dialogRef = this.dialog.open<
@@ -683,6 +726,18 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         next: res => {
           const parsed = (res ?? null) as PdfParseResult | null;
           this.pdfData = parsed;
+          const lines = parsed?.orderItems ?? [];
+          if (Array.isArray(lines) && lines.length) {
+            this.orderLines = lines
+              .map(line => ({
+                item_code: String(line?.item_code ?? '').trim(),
+                item_name: String(line?.item_name ?? line?.item_code ?? '').trim(),
+                qty: Number(line?.qty ?? 0),
+                rate: Number(line?.rate ?? 0),
+                amount: Number(line?.amount ?? 0)
+              }))
+              .filter(row => row.item_code);
+          }
 
           const vendorBillTotal = Number(parsed?.vendorBillTotal ?? 0);
           if (Number.isFinite(vendorBillTotal) && vendorBillTotal > 0) {
@@ -712,6 +767,62 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         },
         error: err => {
           this.errorMessage = this.formatError(err, 'Unable to upload and parse vendor PDF');
+        }
+      });
+  }
+
+  removeOrderLine(index: number): void {
+    if (index < 0 || index >= this.orderLines.length) {
+      return;
+    }
+    this.orderLines = this.orderLines.filter((_, i) => i !== index);
+  }
+
+  recalcLine(line: UiOrderLine): void {
+    const qty = Number(line.qty ?? 0);
+    const rate = Number(line.rate ?? 0);
+    line.qty = Number.isFinite(qty) ? qty : 0;
+    line.rate = Number.isFinite(rate) ? rate : 0;
+    line.amount = Math.round(line.qty * line.rate * 100) / 100;
+  }
+
+  saveOrderLines(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    if (!this.orderLines.length) {
+      this.errorMessage = 'At least one item line is required.';
+      return;
+    }
+    const payload = this.orderLines.map(line => ({
+      item_code: line.item_code,
+      qty: Number(line.qty ?? 0),
+      rate: Number(line.rate ?? 0)
+    }));
+    this.isItemsSaving = true;
+    this.errorMessage = '';
+    this.orderService
+      .updateOrderItems(this.selectedOrder.name, payload)
+      .pipe(finalize(() => (this.isItemsSaving = false)))
+      .subscribe({
+        next: res => {
+          const items = (res as any)?.items ?? [];
+          if (Array.isArray(items) && items.length) {
+            this.orderLines = items
+              .map((row: any) => ({
+                item_code: String(row?.item_code ?? '').trim(),
+                item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
+                qty: Number(row?.qty ?? 0),
+                rate: Number(row?.rate ?? 0),
+                amount: Number(row?.amount ?? 0)
+              }))
+              .filter((row: UiOrderLine) => row.item_code);
+          }
+          this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
+          this.loadOrders();
+        },
+        error: err => {
+          this.errorMessage = this.formatError(err, 'Unable to update order items');
         }
       });
   }
