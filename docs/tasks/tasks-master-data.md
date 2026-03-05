@@ -30,3 +30,7 @@ Objective: Refactor category CRUD with multi-select assigned vendors/items per S
 ### Task ID: MD-04
 Module: items
 Objective: Refactor item CRUD with vendor-specific pricing and final rate calculation; enforce item-vendor mapping rules.
+
+### Task ID: MD-05
+Module: vendors
+Objective: Replace vendor sample-PDF template upload with a vendor-managed JSON template field (`invoice_template_json`) and use it during order PDF scanning.

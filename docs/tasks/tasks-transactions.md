@@ -25,3 +25,7 @@ Objective: Refactor order creation/editing to support Option 1/Option 2 views, s
 ### Task ID: TXN-03
 Module: bills
 Objective: Refactor bills UI to hide margin/original rate, support manual bill creation, and enforce read-only after creation.
+
+### Task ID: TXN-04
+Module: orders
+Objective: During Manage Order PDF upload, parse items using the assigned vendor’s JSON template (if configured) and allow users to review/edit extracted lines before bill capture.

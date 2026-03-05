@@ -270,7 +270,18 @@ public class OrderService {
 
     private void ensurePlaceholderItem() {
         try {
-            erpNextClient.getResource("Item", PLACEHOLDER_ITEM_CODE);
+            Map<String, Object> item = erpNextClient.getResource("Item", PLACEHOLDER_ITEM_CODE);
+            Object data = item == null ? null : item.get("data");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> doc = data instanceof Map<?, ?> map ? (Map<String, Object>) map : item;
+            Object disabled = doc == null ? null : doc.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
+            }
         } catch (Exception ex) {
             Map<String, Object> payload = new HashMap<>();
             payload.put("item_code", PLACEHOLDER_ITEM_CODE);
@@ -280,6 +291,7 @@ public class OrderService {
             payload.put("is_stock_item", 0);
             payload.put("is_sales_item", 1);
             payload.put("is_purchase_item", 0);
+            payload.put("disabled", 0);
             payload.put("description", "Placeholder item for branch image orders.");
             erpNextClient.createResource("Item", payload);
         }
@@ -308,7 +320,8 @@ public class OrderService {
                 "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
                         + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
-        params.put("order_by", "transaction_date desc");
+        // Sort by last modification so newly created orders show up reliably on the first page.
+        params.put("order_by", "modified desc");
         if (!filters.isEmpty()) {
             List<List<String>> filterList = new ArrayList<>();
             filters.forEach((key, value) -> {
@@ -542,14 +555,27 @@ public class OrderService {
                 if (name != null) {
                     row.put("name", name);
                 }
-                Object warehouse = existingRow.get("warehouse");
-                if (warehouse != null) {
-                    row.put("warehouse", warehouse);
-                }
+                copyIfPresent(existingRow, row, "warehouse");
+                copyIfPresent(existingRow, row, "uom");
+                copyIfPresent(existingRow, row, "stock_uom");
+                copyIfPresent(existingRow, row, "conversion_factor");
+                copyIfPresent(existingRow, row, "schedule_date");
+                copyIfPresent(existingRow, row, "expense_account");
+                copyIfPresent(existingRow, row, "cost_center");
+                copyIfPresent(existingRow, row, "aas_vendor_rate");
             }
             out.add(row);
         }
         return out;
+    }
+
+    private void copyIfPresent(Map<String, Object> from, Map<String, Object> to, String key) {
+        if (from == null || to == null || key == null) {
+            return;
+        }
+        if (from.containsKey(key) && from.get(key) != null) {
+            to.put(key, from.get(key));
+        }
     }
 
     @SuppressWarnings("unchecked")

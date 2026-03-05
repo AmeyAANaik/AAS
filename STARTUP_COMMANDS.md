@@ -80,6 +80,15 @@ cd /workspaces/AAS
 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
 
+### Seed Sales_3231 items (59 items, margin 10%)
+
+```bash
+cd /workspaces/AAS
+MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:items
+```
+
+See `scripts/seed/README.md` for tab-wise seed scripts.
+
 ### Run OCR order flow test
 
 ```bash
@@ -117,8 +126,8 @@ erp.setup.email=admin@example.com
 erp.setup.password=admin
 erp.setup.company-name=AAS Core
 erp.setup.company-abbr=AAS
-erp.setup.country=United States
-erp.setup.currency=USD
+erp.setup.country=India
+erp.setup.currency=INR
 erp.setup.timezone=America/New_York
 erp.setup.fy-start-date=2026-01-01
 erp.setup.fy-end-date=2026-12-31

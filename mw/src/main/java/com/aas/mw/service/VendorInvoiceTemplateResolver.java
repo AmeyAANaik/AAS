@@ -32,6 +32,22 @@ public class VendorInvoiceTemplateResolver {
         return key.isBlank() ? Optional.empty() : Optional.of(key);
     }
 
+    public Optional<String> loadTemplateJson(String supplierName) {
+        if (supplierName == null || supplierName.isBlank()) {
+            return Optional.empty();
+        }
+        Map<String, Object> supplier = unwrapResource(erpNextClient.getResource(SUPPLIER, supplierName));
+        if (supplier == null || supplier.isEmpty()) {
+            return Optional.empty();
+        }
+        Object enabled = supplier.get("aas_invoice_template_enabled");
+        if (!isEnabled(enabled)) {
+            return Optional.empty();
+        }
+        String json = asText(supplier.get("aas_invoice_template_json"));
+        return json.isBlank() ? Optional.empty() : Optional.of(json);
+    }
+
     private boolean isEnabled(Object value) {
         if (value == null) {
             return false;
@@ -65,4 +81,3 @@ public class VendorInvoiceTemplateResolver {
         return response;
     }
 }
-

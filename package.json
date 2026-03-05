@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "seed:mock": "node scripts/seed-mock-data.mjs"
+    "seed:mock": "node scripts/seed-mock-data.mjs",
+    "seed:items": "node scripts/seed/items.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2"

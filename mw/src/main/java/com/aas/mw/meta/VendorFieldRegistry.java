@@ -108,12 +108,21 @@ public class VendorFieldRegistry {
                 true,
                 false));
         defaults.add(new VendorFieldSpec(
+                "invoice_template_json",
+                "aas_invoice_template_json",
+                "Invoice Template JSON",
+                "Code",
+                null,
+                "aas_invoice_template_key",
+                false,
+                false));
+        defaults.add(new VendorFieldSpec(
                 "invoice_template_sample_pdf",
                 "aas_invoice_template_sample_pdf",
                 "Invoice Template Sample PDF",
                 "Attach",
                 null,
-                "aas_invoice_template_key",
+                "aas_invoice_template_json",
                 false,
                 false));
         return List.copyOf(defaults);

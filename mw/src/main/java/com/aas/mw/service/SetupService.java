@@ -177,6 +177,13 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_branch_location");
+        boolean branchCreditDaysField = ensureCustomField(
+                "Customer",
+                "aas_credit_days",
+                "Credit Days",
+                "Int",
+                null,
+                "aas_whatsapp_group_name");
         boolean poSourceOrderField = ensureCustomField(
                 "Purchase Order",
                 "aas_source_sales_order",
@@ -270,12 +277,36 @@ public class SetupService {
         result.put("sellOrderTotalFieldCreated", sellOrderTotalField);
         result.put("branchLocationFieldCreated", branchLocationField);
         result.put("branchWhatsappFieldCreated", branchWhatsappField);
+        result.put("branchCreditDaysFieldCreated", branchCreditDaysField);
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
+        result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
         result.putAll(ensureDefaultUsers());
         return result;
+    }
+
+    private boolean ensureSupplierGroupRoot() {
+        // ERPNext expects a valid Supplier Group on Supplier. Some test sites start without the root group,
+        // which breaks vendor creation via API.
+        final String doctype = "Supplier Group";
+        final String name = "All Supplier Groups";
+        try {
+            erpNextClient.getResource(doctype, name);
+            return false;
+        } catch (Exception ignored) {
+            // create
+        }
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("supplier_group_name", name);
+            payload.put("is_group", 1);
+            erpNextClient.createResource(doctype, payload);
+            return true;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private int ensureVendorSupplierCustomFields() {

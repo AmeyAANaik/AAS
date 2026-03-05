@@ -134,6 +134,7 @@ public class VendorInvoiceTemplateController {
         Map<String, Object> update = new HashMap<>();
         update.put("aas_invoice_template_enabled", 0);
         update.put("aas_invoice_template_key", "");
+        update.put("aas_invoice_template_json", "");
         update.put("aas_invoice_template_sample_pdf", "");
         Map<String, Object> supplier = erpNextClient.updateResource(SUPPLIER, id, update);
         return ResponseEntity.ok(Map.of("vendor", supplier));

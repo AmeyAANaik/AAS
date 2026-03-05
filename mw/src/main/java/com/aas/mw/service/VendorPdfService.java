@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Value;
@@ -34,6 +36,7 @@ public class VendorPdfService {
     private final VendorInvoiceTemplateCatalog templateCatalog;
     private final VendorInvoiceTemplateParser templateParser;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final ObjectMapper objectMapper;
     private final double defaultMarginPercent;
 
     public VendorPdfService(
@@ -45,6 +48,7 @@ public class VendorPdfService {
             VendorInvoiceTemplateCatalog templateCatalog,
             VendorInvoiceTemplateParser templateParser,
             OrderFlowStateMachine orderFlowStateMachine,
+            ObjectMapper objectMapper,
             @Value("${app.order.margin.default-percent:10}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
@@ -54,6 +58,7 @@ public class VendorPdfService {
         this.templateCatalog = templateCatalog;
         this.templateParser = templateParser;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.objectMapper = objectMapper;
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
@@ -89,13 +94,14 @@ public class VendorPdfService {
         boolean templateUsed = false;
         String templateKey = "";
         List<ParsedItem> parsedItems;
-        var resolvedKey = templateResolver.loadTemplateKey(vendor);
-        if (resolvedKey.isPresent()) {
+        VendorInvoiceTemplate vendorTemplate = null;
+        var resolvedJson = templateResolver.loadTemplateJson(vendor);
+        if (resolvedJson.isPresent()) {
             templateConfigured = true;
-            templateKey = resolvedKey.get();
-            var template = templateCatalog.byKey(templateKey);
-            if (template.isPresent()) {
-                List<ParsedItem> templated = templateParser.parseItems(ocrText, template.get());
+            templateKey = "vendor_json";
+            vendorTemplate = parseVendorTemplate(resolvedJson.get()).orElse(null);
+            if (vendorTemplate != null) {
+                List<ParsedItem> templated = templateParser.parseItems(ocrText, vendorTemplate);
                 if (templated != null && !templated.isEmpty()) {
                     templateUsed = true;
                     parsedItems = templated;
@@ -103,11 +109,29 @@ public class VendorPdfService {
                     parsedItems = parser.parseItems(ocrText);
                 }
             } else {
-                // Unknown key -> fallback.
                 parsedItems = parser.parseItems(ocrText);
             }
         } else {
-            parsedItems = parser.parseItems(ocrText);
+            var resolvedKey = templateResolver.loadTemplateKey(vendor);
+            if (resolvedKey.isPresent()) {
+                templateConfigured = true;
+                templateKey = resolvedKey.get();
+                var template = templateCatalog.byKey(templateKey);
+                if (template.isPresent()) {
+                    List<ParsedItem> templated = templateParser.parseItems(ocrText, template.get());
+                    if (templated != null && !templated.isEmpty()) {
+                        templateUsed = true;
+                        parsedItems = templated;
+                    } else {
+                        parsedItems = parser.parseItems(ocrText);
+                    }
+                } else {
+                    // Unknown key -> fallback.
+                    parsedItems = parser.parseItems(ocrText);
+                }
+            } else {
+                parsedItems = parser.parseItems(ocrText);
+            }
         }
         if (parsedItems.isEmpty()) {
             VendorPdfParser.ParseDiagnostics diagnostics = parser.diagnose(ocrText);
@@ -131,7 +155,13 @@ public class VendorPdfService {
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
         String purchaseOrderId = extractDocName(purchaseOrder);
         double vendorBillTotal = sumAmount(baseItems);
-        String vendorBillDate = parser.extractBillDate(ocrText);
+        String vendorBillDate = "";
+        if (templateUsed && vendorTemplate != null && vendorTemplate.billDateRegex() != null && !vendorTemplate.billDateRegex().isBlank()) {
+            vendorBillDate = extractBillDateByRegex(ocrText, vendorTemplate.billDateRegex());
+        }
+        if (vendorBillDate == null || vendorBillDate.isBlank()) {
+            vendorBillDate = parser.extractBillDate(ocrText);
+        }
         String vendorBillRef = purchaseOrderId == null ? "" : purchaseOrderId;
 
         UploadedFileInfo pdfInfo;
@@ -181,6 +211,154 @@ public class VendorPdfService {
         return response;
     }
 
+    private java.util.Optional<VendorInvoiceTemplate> parseVendorTemplate(String json) {
+        if (json == null || json.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        // 1) Preferred: JSON config stored as { "version": 1, "itemLineRegex": "...", "billDateRegex": "..." }
+        try {
+            Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            Object versionObj = map.get("version");
+            Object regexObj = map.get("itemLineRegex");
+            if (versionObj != null && regexObj != null) {
+                int version = versionObj instanceof Number n ? n.intValue() : Integer.parseInt(versionObj.toString().trim());
+                String itemLineRegex = regexObj.toString();
+                String billDateRegex = map.get("billDateRegex") == null ? null : String.valueOf(map.get("billDateRegex"));
+                if (version > 0 && itemLineRegex != null && !itemLineRegex.isBlank()) {
+                    return java.util.Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex));
+                }
+            }
+
+            // 2) Backward-compatible: if user pasted an "invoice schema JSON" with an items[] array,
+            // use a generic single-line item regex (serial + description + hsn + qty + unit + rate + amount).
+            if (map.containsKey("items")) {
+                Object itemsObj = map.get("items");
+                if (itemsObj instanceof List<?> list && !list.isEmpty()) {
+                    // Generic invoice line:
+                    //   1 SFK SAMRAT ATTA 50KG 11010000 500 KG 35.50 17750.00
+                    // Named groups required by VendorInvoiceTemplateParser: name/qty/rate/amount/(optional hsn)
+                    String generic = "^(?:\\d+\\s+)?(?<name>.+?)\\s+(?<hsn>\\d{4,10})\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s*(?:[A-Za-z]{1,6})?\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)$";
+                    return java.util.Optional.of(new VendorInvoiceTemplate(1, generic, null));
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through
+        }
+        return java.util.Optional.empty();
+    }
+
+    private String extractBillDateByRegex(String ocrText, String billDateRegex) {
+        if (ocrText == null || ocrText.isBlank() || billDateRegex == null || billDateRegex.isBlank()) {
+            return "";
+        }
+        try {
+            var pattern = java.util.regex.Pattern.compile(billDateRegex, java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.MULTILINE);
+            var matcher = pattern.matcher(ocrText);
+            if (!matcher.find()) {
+                return "";
+            }
+            String raw;
+            try {
+                raw = matcher.group("date");
+            } catch (IllegalArgumentException ex) {
+                raw = matcher.group(1);
+            }
+            String cleaned = raw == null ? "" : raw.trim();
+            return normalizeDateToIso(cleaned);
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private String normalizeDateToIso(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String text = raw.trim();
+        if (text.isEmpty()) {
+            return "";
+        }
+        // Strip common OCR artifacts like leading punctuation/letters before the date.
+        text = text.replaceAll("^[^0-9]+", "").trim();
+        // Prefer ISO-like yyyy-mm-dd
+        java.util.regex.Matcher ymd = java.util.regex.Pattern
+                .compile("\\b(\\d{4})[\\-/.](\\d{1,2})[\\-/.](\\d{1,2})\\b")
+                .matcher(text);
+        if (ymd.find()) {
+            int y = safeInt(ymd.group(1));
+            int m = safeInt(ymd.group(2));
+            int d = safeInt(ymd.group(3));
+            return toIsoDate(y, m, d);
+        }
+        java.util.regex.Matcher dmy = java.util.regex.Pattern
+                .compile("\\b(\\d{1,2})[\\-/.](\\d{1,2})[\\-/.](\\d{2,4})\\b")
+                .matcher(text);
+        if (dmy.find()) {
+            int d = safeInt(dmy.group(1));
+            int m = safeInt(dmy.group(2));
+            int y = safeInt(dmy.group(3));
+            if (y < 100) {
+                y += 2000;
+            }
+            return toIsoDate(y, m, d);
+        }
+        // Month name format: 27-Feb-26 / 27-Feb-2026
+        java.util.regex.Matcher dMonY = java.util.regex.Pattern
+                .compile("\\b(\\d{1,2})[\\-/.]([A-Za-z]{3,})[\\-/.](\\d{2,4})\\b")
+                .matcher(text);
+        if (dMonY.find()) {
+            int d = safeInt(dMonY.group(1));
+            int m = monthToNumber(dMonY.group(2));
+            int y = safeInt(dMonY.group(3));
+            if (y < 100) {
+                y += 2000;
+            }
+            return toIsoDate(y, m, d);
+        }
+        return "";
+    }
+
+    private int safeInt(String raw) {
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
+
+    private String toIsoDate(int y, int m, int d) {
+        try {
+            return java.time.LocalDate.of(y, m, d).toString();
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private int monthToNumber(String raw) {
+        if (raw == null) {
+            return 0;
+        }
+        String key = raw.trim().toLowerCase();
+        if (key.length() >= 3) {
+            key = key.substring(0, 3);
+        }
+        return switch (key) {
+            case "jan" -> 1;
+            case "feb" -> 2;
+            case "mar" -> 3;
+            case "apr" -> 4;
+            case "may" -> 5;
+            case "jun" -> 6;
+            case "jul" -> 7;
+            case "aug" -> 8;
+            case "sep" -> 9;
+            case "oct" -> 10;
+            case "nov" -> 11;
+            case "dec" -> 12;
+            default -> 0;
+        };
+    }
+
     private void validatePdf(byte[] pdfBytes) {
         if (pdfBytes == null || pdfBytes.length == 0) {
             throw new IllegalArgumentException("Vendor PDF is required.");
@@ -206,6 +384,7 @@ public class VendorPdfService {
                     itemCode = createItem(itemName);
                 }
             }
+            ensureItemEnabled(itemCode);
             Map<String, Object> row = new HashMap<>();
             row.put("item_code", itemCode);
             row.put("item_name", itemName);
@@ -219,6 +398,25 @@ public class VendorPdfService {
             rows.add(row);
         }
         return rows;
+    }
+
+    private void ensureItemEnabled(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
+            Object disabled = item == null ? null : item.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            }
+        } catch (Exception ignored) {
+            // Best-effort. If enabling fails, PO creation might still fail and the user will see ERP error.
+        }
     }
 
     private String normalizeNameForLookup(String itemName) {

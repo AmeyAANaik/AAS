@@ -3,6 +3,7 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.UploadedFileInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,7 @@ class VendorPdfServiceTest {
                 templateCatalog,
                 templateParser,
                 orderFlowStateMachine,
+                new ObjectMapper(),
                 10.0);
     }
 

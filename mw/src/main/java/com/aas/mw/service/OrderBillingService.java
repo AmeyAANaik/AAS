@@ -43,6 +43,14 @@ public class OrderBillingService {
         }
 
         double vendorBillTotal = readRequiredPositive(fields, "vendor_bill_total");
+        double itemsTotal = sumOrderItemsTotal(orderData);
+        double diff = round(vendorBillTotal - itemsTotal);
+        // Hard validation: bill total must match the scanned items total (within rounding tolerance).
+        if (itemsTotal > 0 && Math.abs(diff) > 0.5) {
+            throw new IllegalArgumentException(
+                    "Vendor bill total must match scanned items total. "
+                            + "Items total=" + itemsTotal + ", Bill total=" + round(vendorBillTotal) + ", Diff=" + diff + ".");
+        }
         String billRef = asText(fields.get("vendor_bill_ref"));
         if (billRef.isBlank()) {
             billRef = asText(orderData.get("aas_po"));
@@ -307,7 +315,19 @@ public class OrderBillingService {
 
     private void ensureBillItem() {
         try {
-            erpNextClient.getResource("Item", BILL_ITEM_CODE);
+            Map<String, Object> existing = unwrap(erpNextClient.getResource("Item", BILL_ITEM_CODE));
+            Object disabled = existing.get("disabled");
+            boolean isDisabled = false;
+            if (disabled instanceof Boolean b) {
+                isDisabled = b;
+            } else if (disabled instanceof Number n) {
+                isDisabled = n.intValue() != 0;
+            } else if (disabled != null) {
+                isDisabled = "1".equals(disabled.toString().trim());
+            }
+            if (isDisabled) {
+                erpNextClient.updateResource("Item", BILL_ITEM_CODE, Map.of("disabled", 0));
+            }
         } catch (Exception ex) {
             Map<String, Object> payload = new HashMap<>();
             payload.put("item_code", BILL_ITEM_CODE);
@@ -317,6 +337,7 @@ public class OrderBillingService {
             payload.put("is_stock_item", 0);
             payload.put("is_sales_item", 1);
             payload.put("is_purchase_item", 1);
+            payload.put("disabled", 0);
             payload.put("description", "Synthetic item for vendor bill total mapping.");
             erpNextClient.createResource("Item", payload);
         }
@@ -363,6 +384,26 @@ public class OrderBillingService {
         double total = 0.0;
         for (Map<String, Object> item : items) {
             total += asDouble(item.get("amount"));
+        }
+        return round(total);
+    }
+
+    private double sumOrderItemsTotal(Map<String, Object> orderData) {
+        if (orderData == null) {
+            return 0.0;
+        }
+        Object itemsObj = orderData.get("items");
+        if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Object rowObj : list) {
+            if (rowObj instanceof Map<?, ?> row) {
+                double amount = asDouble(((Map<?, ?>) row).get("amount"));
+                if (amount > 0) {
+                    total += amount;
+                }
+            }
         }
         return round(total);
     }

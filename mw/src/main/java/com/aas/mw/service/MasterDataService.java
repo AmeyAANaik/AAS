@@ -27,6 +27,7 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
+        params.put("filters", "[[\"Item\",\"disabled\",\"=\",0]]");
         params.put("limit_page_length", 1000);
         return erpNextClient.listResources("Item", params);
     }
@@ -44,6 +45,7 @@ public class MasterDataService {
         params.put("limit_start", (safePage - 1) * safeSize);
         params.put("limit_page_length", safeSize);
         params.put("order_by", orderBy);
+        params.put("filters", "[[\"Item\",\"disabled\",\"=\",0]]");
 
         String trimmed = search == null ? "" : search.trim();
         if (!trimmed.isEmpty()) {
@@ -53,6 +55,7 @@ public class MasterDataService {
         List<Map<String, Object>> items = erpNextClient.listResources("Item", params);
 
         Map<String, Object> countParams = new HashMap<>();
+        countParams.put("filters", params.get("filters"));
         if (!trimmed.isEmpty()) {
             countParams.put("or_filters", params.get("or_filters"));
         }
@@ -84,7 +87,7 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
-                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\"]");
+                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\"]");
         return erpNextClient.listResources("Customer", params);
     }
 
@@ -170,6 +173,7 @@ public class MasterDataService {
             case "category" -> "item_group";
             case "uom" -> "stock_uom";
             case "packaging" -> "aas_packaging_unit";
+            case "margin" -> "aas_margin_percent";
             default -> "item_name";
         };
         return field + " " + dir;
