@@ -163,8 +163,10 @@ public class OrderService {
         Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
         Map<String, Object> orderData = unwrap(order);
         String status = asText(orderData.get("aas_status"));
-        // Allow updating items after vendor assignment / pdf parsing, while order is still draft in ERPNext.
-        orderFlowStateMachine.ensureCanDeleteOrder(status);
+        String normalized = orderFlowStateMachine.normalize(status);
+        if (!"VENDOR_ASSIGNED".equals(normalized) && !"VENDOR_PDF_RECEIVED".equals(normalized)) {
+            throw new IllegalStateException("Order items can only be edited when status is VENDOR_ASSIGNED or VENDOR_PDF_RECEIVED.");
+        }
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> existingSoItems =
