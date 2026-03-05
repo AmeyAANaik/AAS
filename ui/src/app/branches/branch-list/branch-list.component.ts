@@ -9,7 +9,7 @@ import { BranchService } from '../branch.service';
   styleUrl: './branch-list.component.scss'
 })
 export class BranchListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'location', 'whatsapp', 'actions'];
+  displayedColumns: string[] = ['name', 'location', 'whatsapp', 'creditDays', 'actions'];
   branches: BranchView[] = [];
   selectedBranch: BranchView | null = null;
   isLoading = false;
@@ -52,7 +52,8 @@ export class BranchListComponent implements OnInit {
     if (this.selectedBranch) {
       const payload = {
         aas_branch_location: formValue.location,
-        aas_whatsapp_group_name: formValue.whatsappGroupName
+        aas_whatsapp_group_name: formValue.whatsappGroupName,
+        aas_credit_days: formValue.creditDays ?? 0
       };
       this.branchService
         .updateBranch(this.selectedBranch.id, payload)
@@ -72,7 +73,8 @@ export class BranchListComponent implements OnInit {
     const payload = {
       customer_name: formValue.branchName.trim(),
       aas_branch_location: formValue.location,
-      aas_whatsapp_group_name: formValue.whatsappGroupName
+      aas_whatsapp_group_name: formValue.whatsappGroupName,
+      aas_credit_days: formValue.creditDays ?? 0
     };
     this.branchService
       .createBranch(payload)
@@ -96,6 +98,8 @@ export class BranchListComponent implements OnInit {
       name: name || String(branch.name ?? ''),
       location: branch.aas_branch_location ?? branch.location ?? '',
       whatsappGroupName: branch.aas_whatsapp_group_name ?? branch.whatsappGroupName ?? '',
+      creditDays:
+        typeof branch.aas_credit_days === 'number' ? branch.aas_credit_days : null,
       raw: branch
     };
   }

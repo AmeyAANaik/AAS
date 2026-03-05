@@ -124,6 +124,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   isLoading = false;
 
   private subscriptions = new Subscription();
+  private orderDetailsSeq = 0;
 
   constructor(
     private readonly dialog: MatDialog,
@@ -537,8 +538,13 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.billDateControl.setValue(order.billDate ?? new Date());
     this.marginControl.setValue(Number(order.raw.aas_margin_percent ?? 10));
 
+    const seq = ++this.orderDetailsSeq;
     this.orderService.getOrder(order.name).subscribe({
       next: res => {
+        // Guard against late/stale responses overwriting newer data (e.g., after PDF upload).
+        if (seq !== this.orderDetailsSeq || this.selectedOrder?.name !== order.name) {
+          return;
+        }
         const data = (res as any)?.data ?? res;
         const items = Array.isArray(data?.items) ? data.items : [];
         this.orderLines = items
@@ -553,7 +559,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       },
       error: () => {
         // Non-blocking: user can still proceed with upload/capture steps.
-        this.orderLines = [];
+        if (seq === this.orderDetailsSeq) {
+          this.orderLines = [];
+        }
       }
     });
   }
@@ -565,6 +573,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.sellPreview = null;
     this.errorMessage = '';
     this.fileError = '';
+    this.orderLines = [];
+    this.isItemsSaving = false;
   }
 
   getStatusLabel(status: UiOrderStatus): string {
@@ -719,6 +729,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.errorMessage = '';
     this.fileError = '';
     this.isUploading = true;
+    // Invalidate any in-flight order detail requests so they can't overwrite parsed lines.
+    this.orderDetailsSeq++;
     this.orderService
       .uploadVendorPdf(this.selectedOrder.name, this.selectedFile)
       .pipe(finalize(() => (this.isUploading = false)))
@@ -786,6 +798,49 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
   }
 
+  adjustQty(line: UiOrderLine, delta: number): void {
+    const next = Number(line.qty ?? 0) + delta;
+    line.qty = Math.max(0, Math.round(next * 100) / 100);
+    this.recalcLine(line);
+  }
+
+  get itemsTotal(): number {
+    const sum = this.orderLines.reduce((acc, line) => acc + Number(line.amount ?? 0), 0);
+    return Math.round(sum * 100) / 100;
+  }
+
+  get billTotal(): number {
+    const v = Number(this.billTotalControl.value ?? 0);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  get billDiff(): number {
+    return Math.round((this.billTotal - this.itemsTotal) * 100) / 100;
+  }
+
+  get billMatchesItems(): boolean {
+    // Treat small rounding differences as match.
+    return Math.abs(this.billDiff) <= 0.5;
+  }
+
+  get billValidationMessage(): string {
+    if (!this.orderLines.length) {
+      return '';
+    }
+    const total = this.billTotal;
+    if (total <= 0) {
+      return '';
+    }
+    if (this.billMatchesItems) {
+      return '';
+    }
+    return `Bill total must match items total. Diff: ${this.billDiff.toFixed(2)}`;
+  }
+
+  applyItemsTotalToBill(): void {
+    this.billTotalControl.setValue(this.itemsTotal);
+  }
+
   saveOrderLines(): void {
     if (!this.selectedOrder) {
       return;
@@ -819,6 +874,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
               .filter((row: UiOrderLine) => row.item_code);
           }
           this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
+          // Keep bill total aligned unless user explicitly changed it after editing.
+          if (this.billTotalControl.value === null || this.billTotalControl.value === 0 || this.billMatchesItems) {
+            this.applyItemsTotalToBill();
+          }
           this.loadOrders();
         },
         error: err => {
@@ -832,11 +891,22 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const ref = this.billRefControl.value.trim();
     const date = this.billDateControl.value;
     const margin = Number(this.marginControl.value ?? 0);
-    return total > 0 && Boolean(ref) && Boolean(date) && Number.isFinite(margin) && margin >= 0;
+    return (
+      total > 0 &&
+      Boolean(ref) &&
+      Boolean(date) &&
+      Number.isFinite(margin) &&
+      margin >= 0 &&
+      this.billMatchesItems
+    );
   }
 
   captureBill(): void {
     if (!this.selectedOrder) {
+      return;
+    }
+    if (!this.billMatchesItems) {
+      this.errorMessage = this.billValidationMessage || 'Bill total must match items total.';
       return;
     }
     if (!this.isBillFormValid()) {

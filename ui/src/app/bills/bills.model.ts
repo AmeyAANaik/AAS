@@ -34,6 +34,7 @@ export interface InvoiceCreatePayload {
   customer: string;
   company: string;
   items: InvoiceCreateLine[];
+  apply_gst?: boolean;
 }
 
 export interface InvoiceCreateResult {

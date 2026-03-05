@@ -1,39 +1,68 @@
 <mat-card class="item-form-card">
-  <mat-card-title>{{ item ? 'Edit item' : 'Create item' }}</mat-card-title>
+  <div class="form-header">
+    <div>
+      <div class="form-title">{{ item ? 'Edit item' : 'Create item' }}</div>
+      <div class="form-subtitle">Define code, category, units, and default margin.</div>
+    </div>
+    <div class="form-meta">
+      <div class="meta-label">Default Margin</div>
+      <div class="meta-value">{{ form.get('marginPercent')?.value ?? 0 }}%</div>
+    </div>
+  </div>
+  <mat-divider></mat-divider>
   <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()">
       <div class="form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Item code</mat-label>
-          <input matInput formControlName="itemCode" />
-          <mat-error *ngIf="form.get('itemCode')?.hasError('required')">Item code is required.</mat-error>
-        </mat-form-field>
+        <div class="form-section">
+          <div class="section-title">Identity</div>
+          <mat-form-field appearance="outline">
+            <mat-label>Item code</mat-label>
+            <input matInput formControlName="itemCode" placeholder="HSN or internal code" />
+            <mat-error *ngIf="form.get('itemCode')?.hasError('required')">Item code is required.</mat-error>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Item name</mat-label>
-          <input matInput formControlName="itemName" />
-          <mat-error *ngIf="form.get('itemName')?.hasError('required')">Item name is required.</mat-error>
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Item name</mat-label>
+            <input matInput formControlName="itemName" placeholder="Readable item name" />
+            <mat-error *ngIf="form.get('itemName')?.hasError('required')">Item name is required.</mat-error>
+          </mat-form-field>
+        </div>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Category</mat-label>
-          <mat-select formControlName="category">
-            <mat-option value="">Select category</mat-option>
-            <mat-option *ngFor="let category of categories" [value]="category.name">{{ category.name }}</mat-option>
-          </mat-select>
-          <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
-        </mat-form-field>
+        <div class="form-section">
+          <div class="section-title">Classification</div>
+          <mat-form-field appearance="outline">
+            <mat-label>Category</mat-label>
+            <mat-select formControlName="category">
+              <mat-option value="">Select category</mat-option>
+              <mat-option *ngFor="let category of categories" [value]="category.name">{{ category.name }}</mat-option>
+            </mat-select>
+            <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Measure unit</mat-label>
-          <input matInput formControlName="measureUnit" />
-          <mat-error *ngIf="form.get('measureUnit')?.hasError('required')">Measure unit is required.</mat-error>
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Measure unit</mat-label>
+            <input matInput formControlName="measureUnit" placeholder="Nos, KG, LTR" />
+            <mat-error *ngIf="form.get('measureUnit')?.hasError('required')">Measure unit is required.</mat-error>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Packaging unit</mat-label>
-          <input matInput formControlName="packagingUnit" />
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Packaging unit</mat-label>
+            <input matInput formControlName="packagingUnit" placeholder="Bag, Box, Tin" />
+          </mat-form-field>
+        </div>
+
+        <div class="form-section">
+          <div class="section-title">Commercials</div>
+          <mat-form-field appearance="outline">
+            <mat-label>Default margin</mat-label>
+            <input matInput type="number" formControlName="marginPercent" min="0" max="100" />
+            <span matSuffix>%</span>
+            <mat-hint>Used as the default margin for this item.</mat-hint>
+            <mat-error *ngIf="form.get('marginPercent')?.hasError('required')">Margin is required.</mat-error>
+            <mat-error *ngIf="form.get('marginPercent')?.hasError('min')">Margin cannot be negative.</mat-error>
+            <mat-error *ngIf="form.get('marginPercent')?.hasError('max')">Margin cannot exceed 100%.</mat-error>
+          </mat-form-field>
+        </div>
       </div>
 
       <div class="form-actions">

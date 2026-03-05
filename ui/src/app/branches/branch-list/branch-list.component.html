@@ -39,6 +39,11 @@
             <td mat-cell *matCellDef="let branch">{{ branch.whatsappGroupName || '—' }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="creditDays">
+            <th mat-header-cell *matHeaderCellDef>Credit days</th>
+            <td mat-cell *matCellDef="let branch">{{ branch.creditDays ?? '—' }}</td>
+          </ng-container>
+
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let branch">

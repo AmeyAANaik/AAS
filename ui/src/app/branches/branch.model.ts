@@ -3,6 +3,7 @@ export interface Branch {
   customer_name?: string;
   aas_branch_location?: string;
   aas_whatsapp_group_name?: string;
+  aas_credit_days?: number;
 }
 
 export interface BranchMetadata {
@@ -14,6 +15,7 @@ export interface BranchFormValue {
   branchName: string;
   location: string;
   whatsappGroupName: string;
+  creditDays: number | null;
 }
 
 export interface BranchView {
@@ -21,5 +23,6 @@ export interface BranchView {
   name: string;
   location: string;
   whatsappGroupName: string;
+  creditDays: number | null;
   raw: Branch;
 }

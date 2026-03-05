@@ -57,23 +57,22 @@
           </mat-slide-toggle>
 
           <mat-form-field appearance="outline" class="full">
-            <mat-label>Detected template</mat-label>
-            <input matInput formControlName="invoiceTemplateKey" placeholder="Upload a sample PDF to detect" />
-            <mat-hint>Upload a sample invoice PDF to auto-detect the best template.</mat-hint>
+            <mat-label>Template JSON</mat-label>
+            <textarea
+              matInput
+              rows="10"
+              formControlName="invoiceTemplateJson"
+              placeholder='Paste vendor template JSON here'></textarea>
+            <mat-hint>
+              Paste a JSON template (stored on the vendor) that MW will use when scanning PDFs for this vendor.
+              If parsing fails, MW falls back to the default OCR parser.
+            </mat-hint>
+            <mat-error *ngIf="form.get('invoiceTemplateJson')?.hasError('json')">
+              Invalid JSON. Fix formatting and try again.
+            </mat-error>
           </mat-form-field>
 
           <div class="template-actions">
-            <label class="file-upload">
-              <input
-                type="file"
-                accept="application/pdf"
-                (change)="onTemplateFileSelected($event)"
-                [disabled]="mode !== 'edit' || !canManageTemplates" />
-              <button mat-stroked-button type="button" [disabled]="mode !== 'edit' || !canManageTemplates">
-                Upload sample PDF
-              </button>
-            </label>
-
             <button
               mat-stroked-button
               type="button"
@@ -85,14 +84,10 @@
           </div>
 
           <div class="status muted" *ngIf="mode !== 'edit'">
-            Save the vendor first, then upload a sample invoice PDF.
+            Save the vendor first, then paste the template JSON.
           </div>
           <div class="status muted" *ngIf="mode === 'edit' && !canManageTemplates">
-            Uploading/clearing templates is Admin-only.
-          </div>
-
-          <div class="template-sample muted" *ngIf="vendor?.raw?.invoice_template_sample_pdf as sampleUrl">
-            Sample PDF: <a [href]="sampleUrl" target="_blank" rel="noreferrer">{{ sampleUrl }}</a>
+            Editing/clearing templates is Admin-only.
           </div>
         </div>
       </div>

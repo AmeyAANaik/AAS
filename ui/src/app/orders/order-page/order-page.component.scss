@@ -174,7 +174,9 @@
     height: 100%;
     z-index: 1000;
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
+    align-items: center;
+    padding: 18px;
 
     .manage-backdrop {
       position: absolute;
@@ -189,18 +191,37 @@
     .manage-dialog {
       position: relative;
       width: 100%;
-      max-width: 550px;
-      height: 100%;
+      max-width: 980px;
+      max-height: min(92vh, 920px);
       background: white;
-      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+      border-radius: 16px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
       overflow-y: auto;
     }
 
     .manage-card {
-      border-radius: 0;
+      border-radius: 16px;
       box-shadow: none;
-      min-height: 100%;
+      min-height: auto;
       padding: 24px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .manage-modal {
+      padding: 0;
+      align-items: stretch;
+
+      .manage-dialog {
+        max-width: none;
+        max-height: none;
+        height: 100%;
+        border-radius: 0;
+      }
+
+      .manage-card {
+        border-radius: 0;
+      }
     }
   }
 
@@ -441,6 +462,18 @@
     justify-content: flex-end;
     border-top: 1px solid #f1f3f5;
     padding-top: 16px;
+  }
+
+  .qty-cell {
+    display: grid;
+    grid-template-columns: auto minmax(84px, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+  }
+
+  table.orders-table.compact .mat-mdc-cell,
+  table.orders-table.compact .mat-mdc-header-cell {
+    padding: 10px 12px;
   }
 
   .create-order-btn {

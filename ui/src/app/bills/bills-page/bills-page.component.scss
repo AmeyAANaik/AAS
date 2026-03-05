@@ -20,6 +20,8 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .summary-label {
@@ -89,6 +91,12 @@ table {
   margin-bottom: 12px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .section-title {
   font-weight: 600;
   font-size: 14px;
@@ -99,4 +107,9 @@ table {
   font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
+}
+
+.table-wrapper {
+  border: 1px solid var(--border);
+  background: var(--surface);
 }

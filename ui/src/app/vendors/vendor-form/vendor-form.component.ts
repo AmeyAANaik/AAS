@@ -15,7 +15,6 @@ export class VendorFormComponent implements OnChanges {
   @Input() canManageTemplates = true;
   @Output() save = new EventEmitter<VendorFormValue>();
   @Output() reset = new EventEmitter<void>();
-  @Output() uploadTemplateSample = new EventEmitter<File>();
   @Output() clearTemplate = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
@@ -28,7 +27,7 @@ export class VendorFormComponent implements OnChanges {
     priority: [null, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
     status: ['Active', [Validators.required]],
     invoiceTemplateEnabled: [false],
-    invoiceTemplateKey: [{ value: '', disabled: true }]
+    invoiceTemplateJson: ['']
   });
 
   constructor(private fb: FormBuilder) {}
@@ -46,16 +45,13 @@ export class VendorFormComponent implements OnChanges {
         priority: this.vendor.priority,
         status: this.vendor.status,
         invoiceTemplateEnabled: this.asFlag(raw['invoice_template_enabled']),
-        invoiceTemplateKey: String(raw['invoice_template_key'] ?? '')
+        invoiceTemplateJson: String(raw['invoice_template_json'] ?? '')
       });
       this.form.enable({ emitEvent: false });
-      // Keep template key read-only; it is set by uploading a sample PDF.
-      this.form.get('invoiceTemplateKey')?.disable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.get('invoiceTemplateKey')?.disable({ emitEvent: false });
     this.form.reset({
       supplierName: '',
       address: '',
@@ -66,7 +62,7 @@ export class VendorFormComponent implements OnChanges {
       priority: null,
       status: 'Active',
       invoiceTemplateEnabled: false,
-      invoiceTemplateKey: ''
+      invoiceTemplateJson: ''
     });
   }
 
@@ -75,20 +71,17 @@ export class VendorFormComponent implements OnChanges {
       this.form.markAllAsTouched();
       return;
     }
+    const enabled = Boolean(this.form.get('invoiceTemplateEnabled')?.value);
+    const json = String(this.form.get('invoiceTemplateJson')?.value ?? '').trim();
+    if (enabled && json) {
+      try {
+        JSON.parse(json);
+      } catch {
+        this.form.get('invoiceTemplateJson')?.setErrors({ json: true });
+        return;
+      }
+    }
     this.save.emit(this.form.getRawValue() as VendorFormValue);
-  }
-
-  onTemplateFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) {
-      return;
-    }
-    this.uploadTemplateSample.emit(file);
-    // Allow selecting the same file again.
-    if (input) {
-      input.value = '';
-    }
   }
 
   clearInvoiceTemplate(): void {
@@ -106,7 +99,7 @@ export class VendorFormComponent implements OnChanges {
       priority: null,
       status: 'Active',
       invoiceTemplateEnabled: false,
-      invoiceTemplateKey: ''
+      invoiceTemplateJson: ''
     });
     this.reset.emit();
   }

@@ -1,7 +1,10 @@
-<mat-card>
-  <mat-card-title>Create invoice</mat-card-title>
-  <mat-card-content>
-    <div class="toggle-row">
+<mat-card class="invoice-card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Create invoice</div>
+      <div class="card-subtitle">Generate from orders or create a manual bill.</div>
+    </div>
+    <div class="mode-toggle">
       <button mat-stroked-button color="primary" [class.active]="mode === 'order'" (click)="setMode('order')">
         From order
       </button>
@@ -9,6 +12,10 @@
         Manual entry
       </button>
     </div>
+    <mat-slide-toggle [formControl]="gstControl" class="gst-toggle">Apply GST</mat-slide-toggle>
+  </div>
+  <mat-divider></mat-divider>
+  <mat-card-content>
 
     <div *ngIf="mode === 'order'" class="mode-panel">
       <form [formGroup]="orderForm" class="form-grid">

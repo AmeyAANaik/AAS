@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { BillsService } from '../bills.service';
 import {
@@ -38,6 +38,8 @@ export class InvoiceCreateComponent {
     qty: [1, [Validators.required, Validators.min(1)]],
     rate: [0, [Validators.required, Validators.min(0)]]
   });
+
+  gstControl = new FormControl(true);
 
   constructor(private fb: FormBuilder, private billsService: BillsService) {}
 
@@ -95,7 +97,8 @@ export class InvoiceCreateComponent {
         item_code: String(item.item_code ?? ''),
         qty: Number(item.qty ?? 0),
         rate: Number(item.rate ?? 0)
-      }))
+      })),
+      apply_gst: this.gstControl.value ?? true
     };
     this.createInvoice(payload, customer);
   }
@@ -115,7 +118,8 @@ export class InvoiceCreateComponent {
           qty: Number(formValue.qty ?? 0),
           rate: Number(formValue.rate ?? 0)
         }
-      ]
+      ],
+      apply_gst: this.gstControl.value ?? true
     };
     this.createInvoice(payload, payload.customer);
   }

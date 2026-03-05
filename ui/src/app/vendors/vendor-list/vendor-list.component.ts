@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { Vendor, VendorFormValue, VendorView } from '../vendor.model';
-import { UploadInvoiceTemplateSampleResponse, VendorService } from '../vendor.service';
+import { VendorService } from '../vendor.service';
 import { AuthTokenService } from '../../shared/auth-token.service';
 
 @Component({
@@ -90,6 +90,7 @@ export class VendorListComponent implements OnInit {
     const priority = typeof priorityValue === 'number' ? priorityValue : null;
     const templateEnabled = this.asFlag(vendor['invoice_template_enabled']);
     const templateKey = String(vendor['invoice_template_key'] ?? '').trim();
+    const templateHasJson = String(vendor['invoice_template_json'] ?? '').trim().length > 0;
     return {
       id: String(vendor.name ?? name),
       name: name || String(vendor.name ?? ''),
@@ -97,6 +98,7 @@ export class VendorListComponent implements OnInit {
       status: disabled ? 'Inactive' : 'Active',
       templateEnabled,
       templateKey,
+      templateHasJson,
       raw: vendor
     };
   }
@@ -111,35 +113,9 @@ export class VendorListComponent implements OnInit {
       food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
       disabled: formValue.status === 'Inactive' ? 1 : 0,
-      invoice_template_enabled: formValue.invoiceTemplateEnabled ? 1 : 0
+      invoice_template_enabled: formValue.invoiceTemplateEnabled ? 1 : 0,
+      invoice_template_json: String(formValue.invoiceTemplateJson ?? '').trim()
     };
-  }
-
-  uploadTemplateSample(file: File): void {
-    if (!this.selectedVendor) {
-      this.statusMessage = 'Select a vendor before uploading a sample PDF.';
-      return;
-    }
-    this.isSaving = true;
-    this.vendorService
-      .uploadInvoiceTemplateSample(this.selectedVendor.id, file)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: (resp: UploadInvoiceTemplateSampleResponse) => {
-          const key = resp?.templateChosen?.key?.trim();
-          const count = resp?.templateChosen?.detectedItems;
-          if (key) {
-            const suffix = typeof count === 'number' ? ` (${count} items detected)` : '';
-            this.statusMessage = `Template sample uploaded. Chosen template: ${key}${suffix}.`;
-          } else {
-            this.statusMessage = 'Template sample PDF uploaded.';
-          }
-          this.loadVendors();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to upload template sample PDF');
-        }
-      });
   }
 
   clearTemplate(): void {

@@ -12,6 +12,7 @@ export interface Vendor {
   food_license_no?: string;
   invoice_template_enabled?: number | boolean;
   invoice_template_key?: string;
+  invoice_template_json?: string;
   invoice_template_sample_pdf?: string;
 }
 
@@ -25,7 +26,7 @@ export interface VendorFormValue {
   priority: number | null;
   status: VendorStatus;
   invoiceTemplateEnabled: boolean;
-  invoiceTemplateKey: string;
+  invoiceTemplateJson: string;
 }
 
 export interface VendorView {
@@ -35,5 +36,6 @@ export interface VendorView {
   status: VendorStatus;
   templateEnabled: boolean;
   templateKey: string;
+  templateHasJson: boolean;
   raw: Vendor;
 }

@@ -5,6 +5,7 @@ export interface Item {
   item_group?: string;
   stock_uom?: string;
   aas_packaging_unit?: string;
+  aas_margin_percent?: number;
 }
 
 export interface ItemMetadata {
@@ -17,6 +18,7 @@ export interface ItemFormValue {
   category: string;
   measureUnit: string;
   packagingUnit: string;
+  marginPercent: number | null;
 }
 
 export interface ItemView {
@@ -26,6 +28,7 @@ export interface ItemView {
   category: string;
   measureUnit: string;
   packagingUnit: string;
+  marginPercent: number | null;
   raw: Item;
 }
 

@@ -21,7 +21,8 @@ export class ItemFormComponent implements OnChanges {
     itemName: ['', [Validators.required, Validators.maxLength(140)]],
     category: ['', [Validators.required]],
     measureUnit: ['', [Validators.required, Validators.maxLength(64)]],
-    packagingUnit: ['']
+    packagingUnit: [''],
+    marginPercent: [10, [Validators.required, Validators.min(0), Validators.max(100)]]
   });
 
   constructor(private fb: FormBuilder) {}
@@ -33,7 +34,8 @@ export class ItemFormComponent implements OnChanges {
         itemName: this.item.name,
         category: this.item.category,
         measureUnit: this.item.measureUnit,
-        packagingUnit: this.item.packagingUnit
+        packagingUnit: this.item.packagingUnit,
+        marginPercent: this.item.marginPercent ?? 10
       });
       this.form.get('itemCode')?.disable({ emitEvent: false });
       this.form.get('itemName')?.disable({ emitEvent: false });
@@ -46,7 +48,8 @@ export class ItemFormComponent implements OnChanges {
       itemName: '',
       category: '',
       measureUnit: 'Nos',
-      packagingUnit: ''
+      packagingUnit: '',
+      marginPercent: 10
     });
   }
 
@@ -65,7 +68,8 @@ export class ItemFormComponent implements OnChanges {
       itemName: '',
       category: '',
       measureUnit: 'Nos',
-      packagingUnit: ''
+      packagingUnit: '',
+      marginPercent: 10
     });
     this.reset.emit();
   }

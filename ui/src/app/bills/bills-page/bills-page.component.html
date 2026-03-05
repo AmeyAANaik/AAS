@@ -1,5 +1,5 @@
 <div class="bills-page">
-  <app-page-header title="Bills & invoices" subtitle="Track invoice status, create new bills, and record payments.">
+  <app-page-header title="Billing & finance" subtitle="Track invoices, collections, and cash flow status.">
     <button mat-stroked-button color="primary" routerLink="/orders">Orders</button>
     <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Refresh</button>
   </app-page-header>
@@ -29,7 +29,10 @@
     <div class="section-header">
       <div>
         <div class="section-title">Invoice filters</div>
-        <div class="section-subtitle">Filter by branch and billing date range.</div>
+        <div class="section-subtitle">Filter by branch and billing window.</div>
+      </div>
+      <div class="section-actions">
+        <button mat-stroked-button color="primary" (click)="downloadCsv()">Export CSV</button>
       </div>
     </div>
     <mat-card-content>
@@ -54,7 +57,7 @@
 
         <div class="form-actions">
           <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Apply</button>
-          <button mat-stroked-button color="primary" (click)="downloadCsv()">Export CSV</button>
+          <button mat-stroked-button type="button" (click)="filtersForm.reset()">Clear</button>
         </div>
       </form>
     </mat-card-content>
@@ -64,7 +67,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">Invoice list</div>
-        <div class="section-subtitle">Use the actions to download invoice PDFs.</div>
+        <div class="section-subtitle">Latest invoices and current status.</div>
       </div>
     </div>
     <mat-card-content>
