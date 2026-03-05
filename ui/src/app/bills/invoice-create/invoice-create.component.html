@@ -46,6 +46,20 @@
           <span class="confidence">Derived</span>
         </div>
       </div>
+      <div *ngIf="orderPayments.length" class="payments-panel">
+        <p class="label">Bill payments</p>
+        <div class="payments-row" *ngFor="let payment of orderPayments">
+          <span>{{ payment.due_date || 'Due date unknown' }}</span>
+          <span>{{ payment.payment_amount | number: '1.0-2' }}</span>
+          <span [class.open]="payment.outstanding > 0">
+            Outstanding {{ payment.outstanding | number: '1.0-2' }}
+          </span>
+        </div>
+        <div class="payments-total">
+          <span>Total outstanding</span>
+          <strong>{{ orderOutstanding ?? orderSnapshot?.grand_total ?? '0.00' | number: '1.0-2' }}</strong>
+        </div>
+      </div>
     </div>
 
     <div *ngIf="mode === 'manual'" class="mode-panel">

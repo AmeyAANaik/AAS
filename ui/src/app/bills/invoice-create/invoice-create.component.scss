@@ -102,6 +102,37 @@
   color: var(--muted);
 }
 
+.payments-panel {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(15, 118, 110, 0.08);
+  border: 1px solid rgba(15, 118, 110, 0.15);
+}
+
+.payments-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+.payments-row + .payments-row {
+  margin-top: 8px;
+}
+
+.payments-row .open {
+  color: #b45309;
+}
+
+.payments-total {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .card-header {
     flex-direction: column;

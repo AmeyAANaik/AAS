@@ -1,5 +1,6 @@
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { InvoiceCreatePayload, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload } from './bills.model';
@@ -32,8 +33,10 @@ export class BillsService {
     );
   }
 
-  getOrderSnapshot(orderId: string): Observable<OrderSnapshot> {
-    return this.http.get<OrderSnapshot>(`/api/orders/${orderId}`, { headers: this.authHeaders() });
+  getOrderSnapshot(orderId: string): Observable<OrderSnapshot | null> {
+    return this.http
+      .get<{ data?: OrderSnapshot }>(`/api/orders/${orderId}`, { headers: this.authHeaders() })
+      .pipe(map(response => response?.data ?? null));
   }
 
   downloadInvoicePdf(invoiceId: string): Observable<Blob> {

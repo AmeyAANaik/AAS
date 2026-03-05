@@ -2,9 +2,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { BillsService } from '../bills.service';
@@ -28,9 +30,11 @@ describe('InvoiceCreateComponent', () => {
         ReactiveFormsModule,
         MatButtonModule,
         MatCardModule,
+        MatDividerModule,
         MatFormFieldModule,
         MatInputModule,
         MatSelectModule,
+        MatSlideToggleModule,
         NoopAnimationsModule
       ],
       providers: [{ provide: BillsService, useValue: billsService }]
@@ -63,7 +67,8 @@ describe('InvoiceCreateComponent', () => {
     expect(billsService.createInvoice).toHaveBeenCalledWith({
       customer: 'SHOP-1',
       company: 'aas',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 12 }]
+      items: [{ item_code: 'ITM-1', qty: 2, rate: 12 }],
+      apply_gst: true
     });
   });
 
@@ -78,7 +83,8 @@ describe('InvoiceCreateComponent', () => {
     expect(billsService.createInvoice).toHaveBeenCalledWith({
       customer: 'Shop A',
       company: 'aas',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }]
+      items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }],
+      apply_gst: true
     });
   });
 });

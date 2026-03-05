@@ -165,6 +165,30 @@ export class InvoiceCreateComponent {
     return `${this.orderSnapshot.customer ?? 'Unknown'} · ${itemCount} item(s)`;
   }
 
+  get orderPayments(): Array<{ due_date?: string; payment_amount?: number; outstanding?: number }> {
+    const schedule = this.orderSnapshot?.payment_schedule;
+    if (!Array.isArray(schedule)) {
+      return [];
+    }
+    return schedule.map(entry => ({
+      due_date: entry?.due_date,
+      payment_amount: Number(entry?.payment_amount ?? 0),
+      outstanding: Number(entry?.outstanding ?? 0)
+    }));
+  }
+
+  get orderOutstanding(): number | null {
+    if (!this.orderSnapshot) {
+      return null;
+    }
+    const payments = this.orderPayments;
+    if (!payments.length) {
+      return this.orderSnapshot.grand_total ?? null;
+    }
+    const outstanding = payments.reduce((sum, payment) => sum + (payment.outstanding ?? 0), 0);
+    return Number.isFinite(outstanding) ? outstanding : null;
+  }
+
   get manualTotal(): number {
     const qty = Number(this.manualForm.get('qty')?.value || 0);
     const rate = Number(this.manualForm.get('rate')?.value || 0);

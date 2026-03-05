@@ -49,6 +49,7 @@ export interface OrderSnapshot {
   company?: string;
   items?: Array<{ item_code?: string; qty?: number; rate?: number }>;
   grand_total?: number;
+  payment_schedule?: Array<{ due_date?: string; payment_amount?: number; outstanding?: number }>;
 }
 
 export interface PaymentPayload {
