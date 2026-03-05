@@ -318,6 +318,7 @@ public class OrderService {
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
                 "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
+                        + "\"currency\",\"price_list_currency\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
                         + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
         // Sort by last modification so newly created orders show up reliably on the first page.

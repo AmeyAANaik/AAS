@@ -145,7 +145,11 @@
         <mat-panel-title>Record payment</mat-panel-title>
         <mat-panel-description>Customer receipts</mat-panel-description>
       </mat-expansion-panel-header>
-      <app-payment-form [customers]="customers" (created)="onPaymentCreated()"></app-payment-form>
+      <app-payment-form
+        [customers]="customers"
+        [invoices]="invoiceOptions"
+        (created)="onPaymentCreated()">
+      </app-payment-form>
     </mat-expansion-panel>
   </mat-accordion>
 

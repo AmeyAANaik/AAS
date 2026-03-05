@@ -24,7 +24,13 @@
         </div>
 
         <div class="feedback loading" *ngIf="isLoading">Loading vendors...</div>
-        <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
+        <div
+          class="feedback"
+          [class.error]="statusIsError"
+          [class.success]="!statusIsError"
+          *ngIf="!isLoading && statusMessage">
+          {{ statusMessage }}
+        </div>
 
         <div class="table-wrapper" *ngIf="!isLoading && filteredVendors.length; else emptyState">
           <table mat-table [dataSource]="filteredVendors" class="mat-elevation-z1 pro-table">

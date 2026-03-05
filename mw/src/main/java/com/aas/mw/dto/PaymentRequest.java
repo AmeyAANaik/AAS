@@ -19,6 +19,8 @@ public class PaymentRequest {
 
     private String referenceDate;
 
+    private String invoiceId;
+
     public String getCustomer() {
         return customer;
     }
@@ -57,5 +59,13 @@ public class PaymentRequest {
 
     public void setReferenceDate(String referenceDate) {
         this.referenceDate = referenceDate;
+    }
+
+    public String getInvoiceId() {
+        return invoiceId;
+    }
+
+    public void setInvoiceId(String invoiceId) {
+        this.invoiceId = invoiceId;
     }
 }

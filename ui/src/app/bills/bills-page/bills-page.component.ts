@@ -5,7 +5,7 @@ import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
 import { BillsService } from '../bills.service';
-import { InvoiceFilters, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
+import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
 
 @Component({
   selector: 'app-bills-page',
@@ -20,6 +20,7 @@ export class BillsPageComponent implements OnInit {
   });
 
   invoices: InvoiceView[] = [];
+  invoiceOptions: InvoiceOption[] = [];
   customers: OptionItem[] = [];
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
@@ -84,6 +85,17 @@ export class BillsPageComponent implements OnInit {
       .subscribe({
         next: invoices => {
           this.invoices = (invoices ?? []).map(invoice => this.toViewModel(invoice));
+          this.invoiceOptions = this.invoices
+            .filter(invoice => invoice.status.toLowerCase() !== 'paid')
+            .map(invoice => {
+              const outstanding = Number(invoice.raw.outstanding_amount ?? invoice.raw.grand_total ?? 0);
+              return {
+                id: invoice.id,
+                name: `${invoice.id} • ${invoice.customer} • Due ${outstanding.toFixed(2)}`,
+                customer: invoice.customer,
+                outstanding
+              };
+            });
           this.summary = this.buildSummary(this.invoices);
           this.statusMessage = '';
         },

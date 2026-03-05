@@ -58,10 +58,16 @@ export class VendorListComponent implements OnInit {
   }
 
   clearSelection(): void {
+    this.clearSelectionInternal(true);
+  }
+
+  private clearSelectionInternal(clearStatus: boolean): void {
     this.selectedVendor = null;
     this.isFormOpen = false;
     this.mode = 'create';
-    this.statusMessage = '';
+    if (clearStatus) {
+      this.statusMessage = '';
+    }
   }
 
   saveVendor(formValue: VendorFormValue): void {
@@ -74,7 +80,8 @@ export class VendorListComponent implements OnInit {
     request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
       next: () => {
         this.statusMessage = this.mode === 'edit' ? 'Vendor updated.' : 'Vendor saved.';
-        this.clearSelection();
+        // Keep the status message visible after closing the form.
+        this.clearSelectionInternal(false);
         this.loadVendors();
       },
       error: err => {
@@ -144,6 +151,14 @@ export class VendorListComponent implements OnInit {
       return this.vendors;
     }
     return this.vendors.filter(vendor => vendor.name.toLowerCase().includes(term));
+  }
+
+  get statusIsError(): boolean {
+    const msg = (this.statusMessage ?? '').toLowerCase();
+    if (!msg.trim()) {
+      return false;
+    }
+    return msg.includes('unable') || msg.includes('error') || msg.includes('failed') || msg.includes('forbidden');
   }
 
   private formatError(err: unknown, fallback: string): string {

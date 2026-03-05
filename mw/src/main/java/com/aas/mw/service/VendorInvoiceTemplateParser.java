@@ -106,6 +106,14 @@ public class VendorInvoiceTemplateParser {
             if (rate <= 0 && qty > 0 && amount > 0) {
                 rate = amount / qty;
             }
+            // If both rate and amount are present but inconsistent (common when rate includes tax but amount is taxable),
+            // keep amount as source of truth and normalize rate so ERPNext won't recompute a different amount.
+            if (qty > 0 && rate > 0 && amount > 0) {
+                double expected = Math.round(qty * rate * 100.0) / 100.0;
+                if (Math.abs(expected - amount) > 0.5) {
+                    rate = amount / qty;
+                }
+            }
             if (rate <= 0 || amount <= 0) {
                 return null;
             }

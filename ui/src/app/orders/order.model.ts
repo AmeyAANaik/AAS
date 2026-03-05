@@ -6,6 +6,8 @@ export interface OrderSummary {
   company?: string;
   transaction_date?: string;
   delivery_date?: string;
+  currency?: string;
+  price_list_currency?: string;
   aas_vendor?: string;
   aas_vendor_pdf?: string;
   aas_status?: string;

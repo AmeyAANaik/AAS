@@ -28,6 +28,7 @@ interface UiOrder {
   status: UiOrderStatus;
   branch: string;
   vendor: string;
+  currency: string;
   billTotal: number | null;
   billRef: string;
   billDate: Date | null;
@@ -182,6 +183,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     );
     this.subscriptions.add(
       this.toDateControl.valueChanges.subscribe(() => this.applyDateRange())
+    );
+
+    this.subscriptions.add(
+      this.billTotalControl.valueChanges.subscribe(() => this.updateBillMismatchError())
     );
   }
 
@@ -750,6 +755,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
               }))
               .filter(row => row.item_code);
           }
+          this.updateBillMismatchError();
 
           const vendorBillTotal = Number(parsed?.vendorBillTotal ?? 0);
           if (Number.isFinite(vendorBillTotal) && vendorBillTotal > 0) {
@@ -775,6 +781,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           }
 
           this.selectedFile = null;
+          this.updateBillMismatchError();
           this.loadOrders();
         },
         error: err => {
@@ -788,6 +795,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.orderLines = this.orderLines.filter((_, i) => i !== index);
+    this.updateBillMismatchError();
   }
 
   recalcLine(line: UiOrderLine): void {
@@ -796,6 +804,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     line.qty = Number.isFinite(qty) ? qty : 0;
     line.rate = Number.isFinite(rate) ? rate : 0;
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
+    this.updateBillMismatchError();
   }
 
   adjustQty(line: UiOrderLine, delta: number): void {
@@ -839,6 +848,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   applyItemsTotalToBill(): void {
     this.billTotalControl.setValue(this.itemsTotal);
+    this.updateBillMismatchError();
   }
 
   saveOrderLines(): void {
@@ -873,6 +883,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
               }))
               .filter((row: UiOrderLine) => row.item_code);
           }
+          this.updateBillMismatchError();
           this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
           // Keep bill total aligned unless user explicitly changed it after editing.
           if (this.billTotalControl.value === null || this.billTotalControl.value === 0 || this.billMatchesItems) {
@@ -940,6 +951,25 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       });
   }
 
+  private updateBillMismatchError(): void {
+    const ctrl = this.billTotalControl;
+    const total = this.billTotal;
+    const shouldValidate = this.orderLines.length > 0 && total > 0;
+    const mismatch = shouldValidate && !this.billMatchesItems;
+
+    const current = ctrl.errors ?? {};
+    if (mismatch) {
+      if (!current['mismatch']) {
+        ctrl.setErrors({ ...current, mismatch: true });
+      }
+      return;
+    }
+    if (current['mismatch']) {
+      const { mismatch: _ignored, ...rest } = current as any;
+      ctrl.setErrors(Object.keys(rest).length ? rest : null);
+    }
+  }
+
   calculatePreview(): void {
     if (!this.selectedOrder) {
       return;
@@ -993,6 +1023,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const branch = String(order.customer ?? '').trim() || 'Unknown';
     const vendor = String(order.aas_vendor ?? '').trim();
     const status = this.normalizeStatus(order);
+    const currency = this.resolveCurrency(order);
 
     const billTotal = order.aas_vendor_bill_total === undefined ? null : Number(order.aas_vendor_bill_total);
     const billRef = String(order.aas_vendor_bill_ref ?? '');
@@ -1003,11 +1034,25 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       branch,
       vendor,
       status,
+      currency,
       billTotal,
       billRef,
       billDate,
       raw: order
     };
+  }
+
+  private resolveCurrency(order: OrderSummary): string {
+    const currency = String(order.currency ?? '').trim();
+    if (currency) {
+      return currency;
+    }
+    const priceListCurrency = String(order.price_list_currency ?? '').trim();
+    if (priceListCurrency) {
+      return priceListCurrency;
+    }
+    // Fall back to the expected ERPNext default in this project.
+    return 'INR';
   }
 
   private normalizeStatus(order: OrderSummary): UiOrderStatus {

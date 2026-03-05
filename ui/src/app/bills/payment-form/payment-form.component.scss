@@ -49,6 +49,35 @@
   color: var(--muted);
 }
 
+.balance-panel {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.balance-row + .balance-row {
+  margin-top: 6px;
+}
+
+.balance-row strong {
+  font-weight: 600;
+}
+
+.balance-row.surplus {
+  color: #0f766e;
+}
+
 @media (max-width: 900px) {
   .card-header {
     flex-direction: column;

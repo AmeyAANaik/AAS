@@ -437,7 +437,7 @@
               <mat-form-field appearance="outline" class="half-width">
                 <mat-label>Vendor Bill Total *</mat-label>
                 <input matInput [formControl]="billTotalControl" type="number" step="0.01" />
-                <mat-error *ngIf="billValidationMessage">{{ billValidationMessage }}</mat-error>
+                <mat-error *ngIf="billTotalControl.hasError('mismatch')">{{ billValidationMessage }}</mat-error>
               </mat-form-field>
               <mat-form-field appearance="outline" class="half-width">
                 <mat-label>Vendor Bill Reference *</mat-label>
@@ -456,10 +456,14 @@
                 <input matInput [formControl]="marginControl" type="number" step="0.01" />
               </mat-form-field>
             </div>
+            <div class="bill-validation" *ngIf="billValidationMessage">
+              <mat-icon>error</mat-icon>
+              <span>{{ billValidationMessage }}</span>
+            </div>
             <button mat-raised-button color="primary" (click)="captureBill()" [disabled]="!isBillFormValid()" class="full-width">Capture Vendor Bill</button>
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'VENDOR_ASSIGNED'">
-            <p><strong>Bill Total:</strong> {{ selectedOrder.billTotal | currency }}</p>
+            <p><strong>Bill Total:</strong> {{ selectedOrder.billTotal | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
             <p><strong>Bill Reference:</strong> {{ selectedOrder.billRef }}</p>
             <p><strong>Bill Date:</strong> {{ selectedOrder.billDate | date:'short' }}</p>
           </div>
@@ -475,7 +479,7 @@
             <button mat-stroked-button (click)="calculatePreview()" class="full-width mb-2">Calculate Preview</button>
             <div *ngIf="sellPreview" class="preview-section">
               <h4>Order Preview</h4>
-              <p><strong>Estimated Sell Price:</strong> {{ sellPreview.estimatedPrice | currency }}</p>
+              <p><strong>Estimated Sell Price:</strong> {{ sellPreview.estimatedPrice | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
               <p><strong>Items Count:</strong> {{ sellPreview.itemsCount }}</p>
             </div>
             <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview" class="full-width">Create Sell Order</button>

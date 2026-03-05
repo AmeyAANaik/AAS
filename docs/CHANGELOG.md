@@ -4,7 +4,7 @@ This changelog records user-visible functional changes to the AAS stack (UI + MW
 
 ## 2026-03-05
 
-### Vendor Invoice Templates (ERPNext-backed, OCR Auto-Detection)
+### Vendor Invoice Templates (ERPNext-backed, Vendor JSON)
 
 Vendors can now have an invoice parsing template stored in ERPNext. Middleware uses this template during the vendor PDF OCR step to improve item extraction.
 
@@ -12,39 +12,37 @@ Vendors can now have an invoice parsing template stored in ERPNext. Middleware u
 - DocType: `Supplier`
 - Fields (custom fields provisioned by MW `POST /api/setup/ensure`):
   - `aas_invoice_template_enabled` (Check)
-  - `aas_invoice_template_key` (Select: `heuristic_v1`, `table_v1`)
+  - `aas_invoice_template_key` (Select, legacy: `heuristic_v1`, `table_v1`)
   - `aas_invoice_template_json` (Code, optional)
   - `aas_invoice_template_sample_pdf` (Attach)
 
-**How templates are chosen**
-- Upload a vendor’s sample invoice PDF.
-- MW OCRs the sample and auto-selects a built-in template key (currently:
-  - `table_v1` (best for invoices with consistent `Qty/Rate/Amount/HSN` columns)
-  - `heuristic_v1` (fallback parser))
-- MW stores the chosen key in `Supplier.aas_invoice_template_key`.
+**Preferred configuration**
+- Paste a vendor-specific Template JSON into `Supplier.aas_invoice_template_json` and enable it.
+- UI supports editing this JSON directly in the Vendor edit form.
 
 **Runtime behavior**
 - When processing `POST /api/orders/{id}/vendor-pdf`, MW:
   1. Loads the order’s assigned vendor (`Sales Order.aas_vendor`).
   2. Loads `Supplier` by name from ERPNext.
-  3. If template is enabled and a known `aas_invoice_template_key` is set, parses items using that template first.
-  4. If template parsing yields no items (or key is unknown), falls back to the existing heuristic parser (`VendorPdfParser`).
+  3. If template is enabled and `aas_invoice_template_json` is present, parses items using the vendor JSON template first (`template.key=vendor_json`).
+  4. If template parsing yields no items, falls back to the existing heuristic parser (`VendorPdfParser`).
 
 ### New MW Endpoints (Admin-only)
 
-- Upload/update the vendor’s sample invoice PDF (auto-detect template key):
+Optional/legacy support:
+- Upload/update the vendor’s sample invoice PDF (auto-detect a built-in template key):
   - `POST /api/vendors/{id}/invoice-template/sample` (multipart form field `file`)
-  - Uploads to ERPNext via `/api/method/upload_file` and stores the resulting file URL in `Supplier.aas_invoice_template_sample_pdf`.
-  - Sets `Supplier.aas_invoice_template_enabled = 1`.
-  - Sets `Supplier.aas_invoice_template_key` based on OCR detection.
+  - Uploads to ERPNext and stores the file URL in `Supplier.aas_invoice_template_sample_pdf`
+  - Sets `Supplier.aas_invoice_template_enabled = 1`
+  - Sets `Supplier.aas_invoice_template_key` based on OCR detection (`table_v1` or `heuristic_v1`)
 
 - Clear a vendor template:
   - `DELETE /api/vendors/{id}/invoice-template`
-  - Clears `enabled/key/sample` fields on `Supplier`.
+  - Clears `enabled/key/json/sample` fields on `Supplier`.
 
 ### UI: Vendor Tab Enhancements
 
-- Vendor list shows a `Template` column (template key when enabled).
+- Vendor list shows whether a vendor has a JSON template configured.
 - Vendor edit form includes:
   - Enable toggle
   - Template JSON editor (paste JSON; stored on `Supplier.aas_invoice_template_json`)
@@ -88,6 +86,22 @@ Manage Order (Orders page modal) now supports a practical “review and fix” l
   - attempt to parse items using the vendor JSON template (supports multi-line OCR rows by joining small windows of adjacent lines)
   - normalize bill date matches to ERPNext format (`YYYY-MM-DD`)
   - fall back to the default heuristic parser if the template yields no items
+
+### Vendor Bill Capture Validation (Totals Must Match)
+
+- UI disables **Capture Vendor Bill** and shows a validation message when:
+  - `Vendor Bill Total` does not match the scanned/edited `Items total`
+- MW enforces the same rule server-side (tolerance `0.5`) and returns a validation error if it does not match.
+
+### Currency Display Uses ERPNext Currency
+
+- Vendor bill totals and sell preview amounts are now formatted using the order’s ERPNext currency (for example `INR`) instead of the browser/default `$` formatting.
+
+### Invoice PDF Download Uses ERPNext Print Format (Company-controlled)
+
+- `/api/invoices/{id}/pdf` now supports a Company-level print format configuration stored in ERPNext:
+  - `Company.aas_sales_invoice_print_format` (Link to `Print Format`)
+- If the configured print format fails and ERPNext returns a non-PDF error payload, MW now detects it and returns a clear error instead of downloading a corrupt file.
 
 ### Order Reliability Fixes
 

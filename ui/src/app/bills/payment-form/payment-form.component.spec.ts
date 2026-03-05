@@ -45,6 +45,7 @@ describe('PaymentFormComponent', () => {
 
   it('submits payment payload', () => {
     component.form.patchValue({
+      invoiceId: 'ACC-SINV-0001',
       customer: 'SHOP-1',
       company: 'aas',
       amount: 250,
@@ -55,6 +56,7 @@ describe('PaymentFormComponent', () => {
     component.submit();
 
     expect(billsService.createPayment).toHaveBeenCalledWith({
+      invoiceId: 'ACC-SINV-0001',
       customer: 'SHOP-1',
       company: 'aas',
       amount: 250,

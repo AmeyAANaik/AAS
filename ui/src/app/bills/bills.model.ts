@@ -5,6 +5,7 @@ export interface InvoiceSummary {
   customer?: string;
   posting_date?: string;
   grand_total?: number;
+  outstanding_amount?: number;
   status?: string;
 }
 
@@ -54,6 +55,7 @@ export interface PaymentPayload {
   customer: string;
   company: string;
   amount: number;
+  invoiceId?: string;
   referenceNo?: string;
   referenceDate?: string;
 }
@@ -61,6 +63,13 @@ export interface PaymentPayload {
 export interface OptionItem {
   id: string;
   name: string;
+}
+
+export interface InvoiceOption {
+  id: string;
+  name: string;
+  customer: string;
+  outstanding: number;
 }
 
 export interface ItemOption {

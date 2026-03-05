@@ -205,6 +205,13 @@ public class SetupService {
                 "Link",
                 "Sales Order",
                 "customer");
+        boolean companyInvoicePrintFormatField = ensureCustomField(
+                "Company",
+                "aas_sales_invoice_print_format",
+                "Sales Invoice Print Format",
+                "Link",
+                "Print Format",
+                "default_currency");
         boolean marginField = ensureCustomField(
                 "Item",
                 "aas_margin_percent",
@@ -281,6 +288,7 @@ public class SetupService {
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
+        result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
         result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
         result.putAll(ensureDefaultUsers());

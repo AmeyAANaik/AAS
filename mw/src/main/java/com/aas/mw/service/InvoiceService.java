@@ -63,7 +63,7 @@ public class InvoiceService {
 
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"status\"]");
+        params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (customer != null && !customer.isBlank()) {
@@ -82,7 +82,36 @@ public class InvoiceService {
     }
 
     public byte[] downloadPdf(String invoiceId) {
-        return erpNextClient.downloadPdf(DOCTYPE, invoiceId);
+        String printFormat = resolveInvoicePrintFormat(invoiceId);
+        byte[] pdf = printFormat.isBlank()
+                ? erpNextClient.downloadPdf(DOCTYPE, invoiceId)
+                : erpNextClient.downloadPdf(DOCTYPE, invoiceId, Map.of("format", printFormat));
+        // Guard: ERPNext may return an HTML/JSON error payload (still 200) if print format fails.
+        if (pdf == null || pdf.length < 4 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F') {
+            String snippet = pdf == null ? "" : new String(pdf, 0, Math.min(pdf.length, 240));
+            throw new IllegalStateException("ERPNext did not return a valid PDF for " + invoiceId + ". " + snippet);
+        }
+        return pdf;
+    }
+
+    private String resolveInvoicePrintFormat(String invoiceId) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> invoice = erpNextClient.getResource(DOCTYPE, invoiceId);
+            Map<String, Object> invoiceDoc = unwrap(invoice);
+            String company = asText(invoiceDoc.get("company"));
+            if (company.isBlank()) {
+                return "";
+            }
+            Map<String, Object> companyResp = erpNextClient.getResource("Company", company);
+            Map<String, Object> companyDoc = unwrap(companyResp);
+            return asText(companyDoc.get("aas_sales_invoice_print_format"));
+        } catch (Exception ex) {
+            // Never block downloads due to missing optional configuration.
+            return "";
+        }
     }
 
     private String toJson(List<List<String>> filters) {

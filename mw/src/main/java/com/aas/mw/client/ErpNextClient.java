@@ -70,12 +70,28 @@ public class ErpNextClient {
         return feignClient.updateResource(doctype, id, payload);
     }
 
+    public Map<String, Object> submitDoc(Map<String, Object> doc) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("doc", doc);
+        return feignClient.submit(payload);
+    }
+
     public Map<String, Object> deleteResource(String doctype, String id) {
         return feignClient.deleteResource(doctype, id);
     }
 
     public byte[] downloadPdf(String doctype, String name) {
         return feignClient.downloadPdf(doctype, name);
+    }
+
+    public byte[] downloadPdf(String doctype, String name, Map<String, Object> params) {
+        Map<String, Object> query = new HashMap<>();
+        query.put("doctype", doctype);
+        query.put("name", name);
+        if (params != null && !params.isEmpty()) {
+            query.putAll(params);
+        }
+        return feignClient.downloadPdfWithParams(query);
     }
 
     public long getCount(String doctype, Map<String, Object> params) {
