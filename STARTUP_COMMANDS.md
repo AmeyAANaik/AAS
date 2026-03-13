@@ -66,6 +66,14 @@ curl -X DELETE "http://localhost:8083/api/vendors/<SUPPLIER_ID>/invoice-template
 
 ### Generate required setup/default data (MW -> ERP)
 
+Use this on a fresh ERPNext site, after wiping ERP data, or after MW adds new required custom fields.
+
+Why the login token is needed:
+- `/api/setup/ensure` is an authenticated admin endpoint
+- The first command logs in to MW and extracts an admin JWT
+- The second command uses that JWT to run setup safely
+- This avoids manually copying a bearer token from Swagger or the browser
+
 ```bash
 TOKEN=$(curl -sS http://localhost:8083/api/auth/login \
   -H 'content-type: application/json' \
@@ -75,6 +83,22 @@ TOKEN=$(curl -sS http://localhost:8083/api/auth/login \
 curl -X POST http://localhost:8083/api/setup/ensure \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+What this provisions:
+- ERPNext custom fields used by vendors, shops, items, sales orders, and invoice parsing
+- Default master data required by MW flows
+- Optional default users configured in `mw/src/main/resources/application.properties`
+
+Why this matters:
+- Login can work before setup is applied
+- But vendor, item, shop, and order flows can fail until these custom fields exist
+- This command is required before first end-to-end testing on a fresh environment
+
+How to read the response:
+- Keys ending in `Created` or `Ensured` report whether setup had to create something during this run
+- `false` usually means that resource or custom field already existed
+- A response with mostly `false` values is normal when setup has already been applied earlier
+- Example: `statusFieldCreated:false` means the field was already present, not that setup failed
 
 ### Generate mock master data (Admin only)
 

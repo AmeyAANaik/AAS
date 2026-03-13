@@ -85,6 +85,11 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.listShops());
     }
 
+    @GetMapping("/companies")
+    public ResponseEntity<List<Map<String, Object>>> listCompanies() {
+        return ResponseEntity.ok(masterDataService.listCompanies());
+    }
+
     @PostMapping("/shops")
     public ResponseEntity<Map<String, Object>> createShop(@Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.createShop(request));

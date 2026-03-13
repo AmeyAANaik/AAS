@@ -21,17 +21,20 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   isSubmitting = false;
   isShopsLoading = false;
   isVendorsLoading = false;
+  isCompaniesLoading = false;
   shopsError = '';
   vendorsError = '';
+  companiesError = '';
   imageFile: File | null = null;
   imagePreviewUrl = '';
   createdOrderId: string | null = null;
+  companies: OrderOption[] = [];
   private subscriptions = new Subscription();
 
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
     vendor: ['', Validators.required],
-    company: ['AAS Core', Validators.required],
+    company: ['', Validators.required],
     orderDate: ['', Validators.required],
     deliveryDate: ['', Validators.required]
   });
@@ -55,6 +58,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.loadCompanies();
     if (!this.shops?.length) {
       this.loadShops();
     }
@@ -64,9 +68,6 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnChanges(): void {
-    if (!this.detailsGroup.get('company')?.value) {
-      this.detailsGroup.patchValue({ company: 'AAS Core' });
-    }
     if (!this.vendors?.length && !this.isVendorsLoading) {
       this.loadVendors();
     }
@@ -88,6 +89,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     }
     const details = this.detailsGroup.getRawValue();
     const vendorId = String(details.vendor ?? '').trim();
+    let createdOrderId = '';
     this.orderService
       .createOrderFromBranchImage(this.imageFile, {
         customer: String(details.customer ?? '').trim(),
@@ -101,6 +103,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           if (!id) {
             throw new Error('Order created but ID missing.');
           }
+          createdOrderId = id;
           return { id, response };
         }),
         switchMap(({ id, response }) => {
@@ -128,7 +131,10 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           this.resetForm(false);
         },
         error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to create order');
+          const fallback = createdOrderId
+            ? `Order ${createdOrderId} was created, but vendor assignment failed.`
+            : 'Unable to create order.';
+          this.statusMessage = this.formatError(err, fallback);
         }
       });
   }
@@ -163,7 +169,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.detailsGroup.reset({
       customer: '',
       vendor: '',
-      company: 'AAS Core',
+      company: this.defaultCompanyId,
       orderDate: this.formatDate(new Date()),
       deliveryDate: this.formatDate(new Date())
     });
@@ -184,13 +190,49 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
+    const anyErr = err as { error?: unknown; message?: string } | null;
+    const payload = anyErr?.error;
+    if (payload && typeof payload === 'object') {
+      const message = (payload as { message?: unknown; error?: unknown }).message
+        ?? (payload as { message?: unknown; error?: unknown }).error;
+      if (typeof message === 'string' && message.trim()) {
+        return message.trim();
+      }
+    }
+    if (err instanceof Error && err.message.trim()) {
       return err.message;
     }
     if (typeof err === 'string') {
       return err;
     }
+    if (typeof anyErr?.message === 'string' && anyErr.message.trim()) {
+      return anyErr.message.trim();
+    }
     return fallback;
+  }
+
+  private loadCompanies(): void {
+    this.isCompaniesLoading = true;
+    this.companiesError = '';
+    const sub = this.orderService
+      .listCompanies()
+      .pipe(finalize(() => (this.isCompaniesLoading = false)))
+      .subscribe({
+        next: companies => {
+          this.companies = (companies ?? []).map(company => {
+            const name = String(company?.name ?? '').trim();
+            return { id: name, name };
+          });
+          this.detailsGroup.patchValue({ company: this.defaultCompanyId });
+        },
+        error: err => {
+          this.companiesError = this.formatError(err, 'Unable to load companies');
+          if (!this.detailsGroup.get('company')?.value) {
+            this.detailsGroup.patchValue({ company: 'AAS' });
+          }
+        }
+      });
+    this.subscriptions.add(sub);
   }
 
   private loadShops(): void {
@@ -316,6 +358,13 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   private extractOrderId(response: unknown): string {
     const anyResponse = response as { name?: string; data?: { name?: string } } | null;
     return String(anyResponse?.name ?? anyResponse?.data?.name ?? '').trim();
+  }
+
+  get defaultCompanyId(): string {
+    if (!this.companies.length) {
+      return 'AAS';
+    }
+    return this.companies.find(company => company.id === 'AAS')?.id ?? this.companies[0].id;
   }
 
 }

@@ -14,6 +14,10 @@ export class OrderService {
     return this.http.get<any[]>('/api/shops', { headers: this.authHeaders() });
   }
 
+  listCompanies(): Observable<any[]> {
+    return this.http.get<any[]>('/api/companies', { headers: this.authHeaders() });
+  }
+
   listOrders(filters: OrderFilters): Observable<OrderSummary[]> {
     const headers = this.authHeaders();
     let params = new HttpParams();

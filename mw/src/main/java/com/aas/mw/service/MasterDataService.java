@@ -120,6 +120,13 @@ public class MasterDataService {
         return erpNextClient.listResources("Customer", params);
     }
 
+    public List<Map<String, Object>> listCompanies() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"abbr\",\"default_currency\"]");
+        params.put("filters", "[[\"Company\",\"is_group\",\"=\",0]]");
+        return erpNextClient.listResources("Company", params);
+    }
+
     public Map<String, Object> createShop(FieldsRequest request) {
         Map<String, Object> payload = new HashMap<>(request.getFields());
         payload.putIfAbsent("customer_type", "Company");

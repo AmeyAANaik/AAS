@@ -21,10 +21,11 @@ describe('OrderCreateComponent', () => {
   let location: jasmine.SpyObj<Location>;
 
   beforeEach(async () => {
-    orderService = jasmine.createSpyObj('OrderService', ['createOrderFromBranchImage', 'assignVendor', 'listBranches']);
+    orderService = jasmine.createSpyObj('OrderService', ['createOrderFromBranchImage', 'assignVendor', 'listBranches', 'listCompanies']);
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'ORD-1' }));
     orderService.assignVendor.and.returnValue(of({}));
     orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Shop A' }]));
+    orderService.listCompanies.and.returnValue(of([{ name: 'AAS' }, { name: 'AAS Core' }]));
 
     vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
     vendorService.listVendors.and.returnValue(of([]));
@@ -64,6 +65,12 @@ describe('OrderCreateComponent', () => {
     expect(component.shops).toEqual([{ id: 'SHOP-1', name: 'Shop A' }]);
   });
 
+  it('loads companies and defaults to AAS', () => {
+    expect(orderService.listCompanies).toHaveBeenCalled();
+    expect(component.companies).toEqual([{ id: 'AAS', name: 'AAS' }, { id: 'AAS Core', name: 'AAS Core' }]);
+    expect(component.detailsGroup.get('company')?.value).toBe('AAS');
+  });
+
   it('marks form invalid when required fields are missing', () => {
     component.detailsGroup.patchValue({ customer: '', vendor: '', company: '', orderDate: '', deliveryDate: '' });
     expect(component.form.invalid).toBeTrue();
@@ -73,7 +80,7 @@ describe('OrderCreateComponent', () => {
     component.detailsGroup.patchValue({
       customer: 'SHOP-1',
       vendor: 'VENDOR-1',
-      company: 'AAS Core',
+      company: 'AAS',
       orderDate: '2024-01-10',
       deliveryDate: '2024-01-12'
     });

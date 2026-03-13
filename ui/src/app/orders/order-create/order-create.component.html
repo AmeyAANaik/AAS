@@ -39,8 +39,13 @@
 
         <mat-form-field appearance="outline">
           <mat-label>Company</mat-label>
-          <input matInput formControlName="company" />
+          <mat-select formControlName="company" [disabled]="isCompaniesLoading || !!companiesError">
+            <mat-option value="">Select company</mat-option>
+            <mat-option *ngIf="isCompaniesLoading" disabled>Loading companies...</mat-option>
+            <mat-option *ngFor="let company of companies" [value]="company.id">{{ company.name }}</mat-option>
+          </mat-select>
           <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
+          <mat-hint *ngIf="companiesError">{{ companiesError }}</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
