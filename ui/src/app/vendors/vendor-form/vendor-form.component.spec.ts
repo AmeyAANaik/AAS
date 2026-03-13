@@ -3,8 +3,8 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { VendorFormComponent } from './vendor-form.component';
 
@@ -20,8 +20,8 @@ describe('VendorFormComponent', () => {
         MatFormFieldModule,
         MatInputModule,
         MatSelectModule,
-        MatSlideToggleModule,
         MatButtonModule,
+        MatCardModule,
         NoopAnimationsModule
       ]
     }).compileComponents();
@@ -41,8 +41,7 @@ describe('VendorFormComponent', () => {
       supplierName: 'Vendor A',
       priority: 1,
       status: 'Active',
-      invoiceTemplateEnabled: false,
-      invoiceTemplateKey: ''
+      invoiceTemplateJson: '{"targetSchema":{"items":[]},"parser":{"version":1,"itemLineRegex":"(?<name>item)\\\\s+(?<item_id>1234)\\\\s+(?<qty>1)\\\\s+(?<rate>10)\\\\s+(?<gst>5)\\\\s+(?<total>10)"}}'
     });
     expect(component.form.valid).toBeTrue();
   });

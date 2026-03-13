@@ -1,4 +1,4 @@
-# AAS – Codex Seed Data Tasks (Mature, Non‑Dummy)
+# AAS - Codex Seed Data Tasks (Mature, Non-Dummy)
 
 Goal: Create realistic, production‑like seed data for AAS so reports, flows, and OCR tests feel like a real Indian hotel/restaurant operation. Avoid lorem ipsum or "Test 1/2/3".
 

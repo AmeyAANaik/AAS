@@ -223,8 +223,14 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         next: vendors => {
           this.vendors = (vendors ?? []).map(vendor => {
             const name = String(vendor?.supplier_name ?? vendor?.name ?? '').trim();
-            return { id: String(vendor?.name ?? name), name: name || String(vendor?.name ?? '') };
-          });
+            return {
+              id: String(vendor?.name ?? name),
+              name: name || String(vendor?.name ?? ''),
+              disabled: this.isDisabled(vendor?.disabled)
+            };
+          })
+          .filter(vendor => !vendor.disabled)
+          .map(({ id, name }) => ({ id, name }));
         },
         error: err => {
           this.vendorsError = this.formatError(err, 'Unable to load vendors');
@@ -241,6 +247,23 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
     this.setImage(file);
+  }
+
+  private isDisabled(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 
   generateSampleImage(): void {

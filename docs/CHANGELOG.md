@@ -2,6 +2,48 @@
 
 This changelog records user-visible functional changes to the AAS stack (UI + MW + ERPNext integration).
 
+## 2026-03-12
+
+### Documentation: Codex Repo Context Added
+
+Added a new persistent context file for future Codex sessions:
+
+- `docs/codex-repo-context.md`
+
+This document captures:
+
+- current repository structure
+- architecture and entry points
+- main business flows
+- known operational risks
+- repo hygiene issues
+- documentation drift to keep in mind during future work
+
+### Documentation: Docs Index Added
+
+Added:
+
+- `docs/README.md`
+
+This serves as a navigation entry point for architecture docs, Codex prompts, and task breakdowns.
+
+### Documentation: Folder Cleanup
+
+Cleaned up the docs set by:
+
+- renaming `docs/codex-seed-data-spec.md.md` to `docs/codex-seed-data-spec.md`
+- updating docs links to the corrected filename
+- refreshing seed-data command examples to use the current local repository path
+- aligning architecture and context docs with the current documentation state
+
+### Documentation: Architecture Review Refreshed
+
+Updated `docs/system-architecture-analysis.md` to:
+
+- refresh the review date
+- point future agents to the new Codex context file
+- record current repo and documentation maintenance notes
+
 ## 2026-03-05
 
 ### Vendor Invoice Templates (ERPNext-backed, Vendor JSON)

@@ -67,18 +67,14 @@ public class VendorInvoiceTemplateParser {
             return null;
         }
         try {
-            String name = trim(matcher.group("name"));
+            String name = firstGroup(matcher, "name", "item_name", "itemName");
             // Strip leading serial numbers (common on invoices: "1 ITEM NAME ...").
             name = name.replaceFirst("^\\d+\\s+", "").trim();
-            String qtyText = trim(matcher.group("qty"));
-            String rateText = trim(matcher.group("rate"));
-            String amountText = trim(matcher.group("amount"));
-            String hsn = "";
-            try {
-                hsn = trim(matcher.group("hsn"));
-            } catch (IllegalArgumentException ignored) {
-                // optional
-            }
+            String qtyText = firstGroup(matcher, "qty", "quantity");
+            String rateText = firstGroup(matcher, "rate", "rate_after_tax");
+            String amountText = firstGroup(matcher, "amount", "total", "total_value_after_tax", "totalValueAfterTax");
+            String hsn = firstGroup(matcher, "hsn", "item_id", "itemId", "hsn_code", "hsnCode", "id");
+            String gstText = firstGroup(matcher, "gst", "tax", "tax_percent", "taxPercent", "gst_percent", "gstPercent");
             if (name.isBlank()) {
                 return null;
             }
@@ -97,14 +93,18 @@ public class VendorInvoiceTemplateParser {
             double qty = parseNumber(qtyText);
             double rate = parseNumber(rateText);
             double amount = parseNumber(amountText);
+            double gstPercent = parseNumber(gstText);
             if (qty <= 0) {
-                return null;
+                qty = 1.0;
             }
             if (amount <= 0 && qty > 0 && rate > 0) {
                 amount = rate * qty;
             }
             if (rate <= 0 && qty > 0 && amount > 0) {
                 rate = amount / qty;
+            }
+            if (rate <= 0 && amount > 0 && gstPercent > 0) {
+                rate = amount;
             }
             // If both rate and amount are present but inconsistent (common when rate includes tax but amount is taxable),
             // keep amount as source of truth and normalize rate so ERPNext won't recompute a different amount.
@@ -117,7 +117,8 @@ public class VendorInvoiceTemplateParser {
             if (rate <= 0 || amount <= 0) {
                 return null;
             }
-            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn);
+            Double gstPercentValue = gstPercent > 0 ? gstPercent : null;
+            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn, gstPercentValue);
         } catch (IllegalArgumentException ex) {
             return null;
         }
@@ -176,6 +177,20 @@ public class VendorInvoiceTemplateParser {
 
     private String trim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private String firstGroup(Matcher matcher, String... names) {
+        for (String name : names) {
+            try {
+                String value = trim(matcher.group(name));
+                if (!value.isBlank()) {
+                    return value;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // try next alias
+            }
+        }
+        return "";
     }
 
     private double parseNumber(String raw) {

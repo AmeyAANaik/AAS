@@ -51,8 +51,8 @@
         <div class="payments-row" *ngFor="let payment of orderPayments">
           <span>{{ payment.due_date || 'Due date unknown' }}</span>
           <span>{{ payment.payment_amount | number: '1.0-2' }}</span>
-          <span [class.open]="payment.outstanding > 0">
-            Outstanding {{ payment.outstanding | number: '1.0-2' }}
+          <span [class.open]="(payment.outstanding ?? 0) > 0">
+            Outstanding {{ (payment.outstanding ?? 0) | number: '1.0-2' }}
           </span>
         </div>
         <div class="payments-total">

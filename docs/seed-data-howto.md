@@ -24,14 +24,14 @@ The seed includes:
 Start ERPNext and middleware first, then run:
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
 
 Optional:
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 SEED_TRANSACTIONS_ALWAYS=1 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
 
@@ -50,7 +50,7 @@ The seeded OCR scripts now target:
 Run the end-to-end OCR flow:
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 BASE_URL=http://localhost:8083 \
 USERNAME=Administrator \
 PASSWORD=admin \

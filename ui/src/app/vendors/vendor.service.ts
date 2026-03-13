@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { Vendor } from './vendor.model';
+import { Vendor, VendorTemplateValidation } from './vendor.model';
 
 @Injectable({
   providedIn: 'root'
@@ -22,8 +22,25 @@ export class VendorService {
     return this.http.put(`/api/vendors/${id}`, { fields }, { headers: this.authHeaders() });
   }
 
+  deleteVendor(id: string): Observable<unknown> {
+    return this.http.delete(`/api/vendors/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
+  }
+
   clearInvoiceTemplate(id: string): Observable<unknown> {
     return this.http.delete(`/api/vendors/${encodeURIComponent(id)}/invoice-template`, { headers: this.authHeaders() });
+  }
+
+  uploadInvoiceTemplateSample(id: string, file: File, templateJson: string): Observable<{ validation: VendorTemplateValidation }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (templateJson.trim()) {
+      formData.append('templateJson', templateJson.trim());
+    }
+    return this.http.post<{ validation: VendorTemplateValidation }>(
+      `/api/vendors/${encodeURIComponent(id)}/invoice-template/sample`,
+      formData,
+      { headers: this.authHeaders() }
+    );
   }
 
   private authHeaders(): HttpHeaders {

@@ -1,8 +1,10 @@
 # AAS System Architecture Review (Code-Based)
 
-Date: 2026-02-09
+Date: 2026-03-12
 
 This document summarizes the **as-implemented architecture** based on code inspection of `mw/` (Spring Boot), `ui/` (Angular), and repository docs. It is intended as shared context for future agents.
+
+For a faster bootstrap file aimed at future Codex sessions, see `docs/codex-repo-context.md`.
 
 ## One-Page Summary
 
@@ -241,7 +243,14 @@ These endpoints use `Sales Order` and `Payment Entry` data and compute totals, c
 - **ERP availability** is a hard dependency; middleware is a thin facade and cannot operate without ERPNext.
 - **OCR dependency**: vendor PDF parsing requires Tesseract; missing OCR binaries or low-quality PDFs will cause vendor PDF processing to fail.
 
-## 9. Observed Data Flow By Feature
+## 10. Repository / Documentation Notes
+
+- `docs/README.md` is the docs entry point for architecture, prompts, and task docs.
+- `ui/README.md` and `STARTUP_COMMANDS.md` reflect the current repo layout and local commands.
+- The repository currently tracks generated or local-environment artifacts such as `node_modules/`, `.m2/`, and `erpmodule/.env`; this is a maintenance and hygiene concern rather than an architecture concern.
+- Backend automated test coverage is currently minimal relative to workflow complexity.
+
+## 11. Observed Data Flow By Feature
 
 - Orders: UI → `/api/orders` → ERPNext `Sales Order`.
 - Branch image orders: UI → `/api/orders/branch-image` → ERPNext `Sales Order` + `File` attachment.
@@ -253,13 +262,13 @@ These endpoints use `Sales Order` and `Payment Entry` data and compute totals, c
 - Vendors/Shops/Categories/Items: UI → `/api/*` → ERPNext `Supplier/Customer/Item Group/Item`.
 - Reports: UI → `/api/reports/*` → ERPNext `Sales Order` + `Payment Entry` + computed metrics.
 
-## 9. ERP Core (ERPNext/Frappe)
+## 12. ERP Core (ERPNext/Frappe)
 
 - ERPNext is the **system of record**.
 - Middleware uses ERPNext REST resources for all CRUD and reporting.
 - ERPNext custom fields and default users can be provisioned via `POST /api/setup/ensure` (`SetupService`).
 
-## 10. Not Present (Confirmed By Repo)
+## 13. Not Present (Confirmed By Repo)
 
 Legacy/previous architecture items are not present in this codebase:
 - Directus middleware
@@ -267,7 +276,7 @@ Legacy/previous architecture items are not present in this codebase:
 - Metabase/Power BI
 - Separate Postgres/MySQL data stores
 
-## 11. Runtime / Dev
+## 14. Runtime / Dev
 
 - Angular dev server (`ui/`) → middleware proxy at `/api`.
 - Spring Boot middleware runs on port 8083 (per `SYSTEM_DESIGN.md`).
@@ -277,7 +286,7 @@ Legacy/previous architecture items are not present in this codebase:
 
 If you need a deeper audit (e.g., exact field usage per endpoint, data model mappings, or performance risks in reporting), extend this doc with code references and profiling notes.
 
-## 12. Usage Guide For Agents
+## 15. Usage Guide For Agents
 
 Use this document as the first stop for architecture context before reading code.
 

@@ -1,27 +1,59 @@
-what is # AasUi
+# AAS UI
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
+Angular 17 frontend for the AAS platform.
 
-## Development server
+## Purpose
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+The UI is the role-based client for:
 
-## Code scaffolding
+- orders and branch-image order flow
+- bills and payments
+- vendors, branches, categories, and items
+- stock and dashboard views
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+The UI talks only to the middleware through `/api` and does not call ERPNext directly.
 
-## Build
+## Local Development
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+Recommended workflow:
 
-## Running unit tests
+- UI only: use `npm`
+- Middleware: use Docker Compose from the repo root
+- ERPNext: use Docker Compose from `erpmodule/`
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+From the repository root:
 
-## Running end-to-end tests
+```bash
+cd /Users/roshninaik/Projects/AAS/ui
+npm install
+npm start
+```
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+Default local URL:
 
-## Further help
+- `http://localhost:4200`
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+The dev server proxies `/api` requests to the middleware using `proxy.conf.json`.
+
+## Useful Commands
+
+```bash
+npm start
+npm run build
+npm test
+npm run test:e2e
+```
+
+## Key Files
+
+- `src/main.ts`
+- `src/app/app.config.ts`
+- `src/app/app.routes.ts`
+- `proxy.conf.json`
+
+## Notes
+
+- Auth tokens are currently stored in browser `localStorage`.
+- Middleware is expected at `http://localhost:8083` during local development.
+- For full platform startup, use the root `STARTUP_COMMANDS.md`.
+- UI development is the only part documented here to run through `npm`; MW and ERPNext are expected to run in Docker.

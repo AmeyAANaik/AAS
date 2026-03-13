@@ -120,6 +120,10 @@ table {
   background: rgba(215, 162, 89, 0.14);
 }
 
+.table-action.danger {
+  color: #b63d24;
+}
+
 @media (max-width: 900px) {
   .content-grid {
     grid-template-columns: 1fr;

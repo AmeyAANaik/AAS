@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,6 +56,11 @@ public class MasterDataController {
             @PathVariable String id,
             @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.updateVendor(id, request));
+    }
+
+    @DeleteMapping("/vendors/{id}")
+    public ResponseEntity<Map<String, Object>> deleteVendor(@PathVariable String id) {
+        return ResponseEntity.ok(masterDataService.deleteVendor(id));
     }
 
     @GetMapping("/categories")

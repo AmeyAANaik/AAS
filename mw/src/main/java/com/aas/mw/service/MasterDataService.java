@@ -2,24 +2,53 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.FieldsRequest;
+import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.meta.VendorFieldMapper;
 import com.aas.mw.meta.VendorFieldRegistry;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.Locale;
+import java.util.LinkedHashSet;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class MasterDataService {
 
     private final ErpNextClient erpNextClient;
     private final VendorFieldRegistry vendorFieldRegistry;
+    private final ObjectMapper objectMapper;
+    private final OcrService ocrService;
+    private final VendorInvoiceTemplateParser templateParser;
+    private final InvoiceTemplateModelService invoiceTemplateModelService;
+    private final String erpBaseUrl;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
-    public MasterDataService(ErpNextClient erpNextClient, VendorFieldRegistry vendorFieldRegistry) {
+    public MasterDataService(
+            ErpNextClient erpNextClient,
+            VendorFieldRegistry vendorFieldRegistry,
+            ObjectMapper objectMapper,
+            OcrService ocrService,
+            VendorInvoiceTemplateParser templateParser,
+            InvoiceTemplateModelService invoiceTemplateModelService,
+            @Value("${erpnext.base-url}") String erpBaseUrl) {
         this.erpNextClient = erpNextClient;
         this.vendorFieldRegistry = vendorFieldRegistry;
+        this.objectMapper = objectMapper;
+        this.ocrService = ocrService;
+        this.templateParser = templateParser;
+        this.invoiceTemplateModelService = invoiceTemplateModelService;
+        this.erpBaseUrl = erpBaseUrl;
     }
 
     public List<Map<String, Object>> listItems() {
@@ -100,21 +129,45 @@ public class MasterDataService {
     }
 
     public Map<String, Object> createVendor(FieldsRequest request) {
+        validateVendorTemplateRequirement(null, request.getFields());
         VendorFieldMapper mapper = new VendorFieldMapper(vendorFieldRegistry.vendorFields());
         Map<String, Object> payload = new HashMap<>();
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
+        applyTemplateFlags(payload);
         payload.putIfAbsent("supplier_type", "Company");
         payload.putIfAbsent("supplier_group", "All Supplier Groups");
         return erpNextClient.createResource("Supplier", payload);
     }
 
     public Map<String, Object> updateVendor(String id, FieldsRequest request) {
+        validateVendorTemplateRequirement(id, request.getFields());
         VendorFieldMapper mapper = new VendorFieldMapper(vendorFieldRegistry.vendorFields());
         Map<String, Object> payload = new HashMap<>();
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
+        applyTemplateFlags(payload);
         return erpNextClient.updateResource("Supplier", id, payload);
+    }
+
+    public Map<String, Object> deleteVendor(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Vendor id is required.");
+        }
+        Map<String, Object> vendor = unwrapResource(erpNextClient.getResource("Supplier", id));
+        if (vendor.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found.");
+        }
+        if (!asFlag(vendor.get("disabled"))) {
+            throw new IllegalStateException("Only inactive vendors can be deleted.");
+        }
+        if (hasLinkedVendorUsage("Sales Order", "aas_vendor", id)
+                || hasLinkedVendorUsage("Purchase Order", "supplier", id)
+                || hasLinkedVendorUsage("Purchase Invoice", "supplier", id)) {
+            throw new IllegalStateException("Vendor cannot be deleted because it is linked to orders or bills.");
+        }
+        erpNextClient.deleteResource("Supplier", id);
+        return Map.of("vendorId", id, "deleted", true);
     }
 
     private Map<String, Object> filterVendorBaseFields(Map<String, Object> fields) {
@@ -188,5 +241,246 @@ public class MasterDataService {
 
     private String escapeJson(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapResource(Map<String, Object> response) {
+        if (response == null) {
+            return Map.of();
+        }
+        Object data = response.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return response;
+    }
+
+    private boolean hasLinkedVendorUsage(String doctype, String field, String vendorId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("filters", "[[\"" + escapeJson(doctype) + "\",\"" + escapeJson(field) + "\",\"=\",\"" + escapeJson(vendorId) + "\"]]");
+        return erpNextClient.getCount(doctype, params) > 0;
+    }
+
+    private void validateVendorTemplateRequirement(String vendorId, Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        boolean disabled = asFlag(fields.get("disabled"));
+        if (disabled) {
+            return;
+        }
+        String templateJson = asText(fields.get("invoice_template_json"));
+        if (templateJson.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Active vendors require invoice template JSON to be present.");
+        }
+        if (!hasTemplateParser(templateJson)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Vendor invoice template JSON must include a parser with itemLineRegex.");
+        }
+        Map<String, Object> supplier = vendorId == null || vendorId.isBlank()
+                ? Map.of()
+                : unwrapResource(erpNextClient.getResource("Supplier", vendorId));
+        if (!hasTemplateSample(supplier)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Active vendors require a validated sample invoice PDF before activation.");
+        }
+        if (!sampleMatchesTemplate(supplier, templateJson)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Active vendors require a sample invoice that parses item_name, item_id, qty, rate, gst, and total.");
+        }
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private void applyTemplateFlags(Map<String, Object> payload) {
+        String templateJson = asText(payload.get("aas_invoice_template_json"));
+        payload.put("aas_invoice_template_enabled", templateJson.isBlank() ? 0 : 1);
+    }
+
+    private boolean hasTemplateParser(String templateJson) {
+        try {
+            Map<String, Object> map = objectMapper.readValue(templateJson, new TypeReference<Map<String, Object>>() {});
+            Object parserObj = map.get("parser");
+            Map<String, Object> parser = map;
+            if (parserObj instanceof Map<?, ?> parserMap) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> casted = (Map<String, Object>) parserMap;
+                parser = casted;
+            }
+            String itemLineRegex = asText(parser.get("itemLineRegex"));
+            return !itemLineRegex.isBlank();
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private boolean hasTemplateSample(Map<String, Object> supplier) {
+        String samplePdf = asText(supplier.get("aas_invoice_template_sample_pdf"));
+        return !samplePdf.isBlank();
+    }
+
+    private boolean sampleMatchesTemplate(Map<String, Object> supplier, String templateJson) {
+        if (supplier == null || supplier.isEmpty()) {
+            return false;
+        }
+        String samplePdf = asText(supplier.get("aas_invoice_template_sample_pdf"));
+        if (samplePdf.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> map = objectMapper.readValue(templateJson, new TypeReference<Map<String, Object>>() {});
+            Object parserObj = map.get("parser");
+            Map<String, Object> parser = map;
+            if (parserObj instanceof Map<?, ?> parserMap) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> casted = (Map<String, Object>) parserMap;
+                parser = casted;
+            }
+            int version = parser.get("version") instanceof Number n
+                    ? n.intValue()
+                    : Integer.parseInt(asText(parser.get("version")));
+            String itemLineRegex = asText(parser.get("itemLineRegex"));
+            String billDateRegex = asText(parser.get("billDateRegex"));
+            String finalAmountRegex = asText(parser.get("finalAmountRegex"));
+            if (version <= 0 || itemLineRegex.isBlank()) {
+                return false;
+            }
+            HttpRequest request = HttpRequest.newBuilder(URI.create(resolveFileUrl(samplePdf))).GET().build();
+            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return false;
+            }
+            String ocrText = ocrService.extractTextFromPdf(response.body());
+            List<ParsedItem> items = templateParser.parseItems(
+                    ocrText,
+                    new VendorInvoiceTemplate(
+                            version,
+                            itemLineRegex,
+                            billDateRegex.isBlank() ? null : billDateRegex,
+                            finalAmountRegex.isBlank() ? null : finalAmountRegex));
+            if (items.isEmpty()) {
+                return false;
+            }
+            Set<String> parsedColumns = new LinkedHashSet<>();
+            for (ParsedItem item : items) {
+                if (item == null) {
+                    continue;
+                }
+                if (hasText(item.name())) {
+                    parsedColumns.add("item_name");
+                }
+                if (hasText(item.hsn())) {
+                    parsedColumns.add("item_id");
+                }
+                if (item.qty() > 0) {
+                    parsedColumns.add("qty");
+                }
+                if (item.rate() > 0) {
+                    parsedColumns.add("rate");
+                }
+                if (item.gstPercent() != null && item.gstPercent() > 0) {
+                    parsedColumns.add("gst");
+                }
+                if (item.amount() > 0) {
+                    parsedColumns.add("total");
+                }
+            }
+            if (!parsedColumns.containsAll(invoiceTemplateModelService.requiredItemKeys())) {
+                return false;
+            }
+            Set<String> parsedSummaryFields = new LinkedHashSet<>();
+            String finalBillAmount = extractFinalAmount(
+                    ocrText,
+                    new VendorInvoiceTemplate(
+                            version,
+                            itemLineRegex,
+                            billDateRegex.isBlank() ? null : billDateRegex,
+                            finalAmountRegex.isBlank() ? null : finalAmountRegex));
+            if (!finalBillAmount.isBlank()) {
+                parsedSummaryFields.add("final_bill_amount");
+            }
+            return parsedSummaryFields.containsAll(invoiceTemplateModelService.requiredSummaryKeys());
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private String resolveFileUrl(String filePath) {
+        String base = erpBaseUrl.endsWith("/") ? erpBaseUrl.substring(0, erpBaseUrl.length() - 1) : erpBaseUrl;
+        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+            return filePath;
+        }
+        String path = filePath.startsWith("/") ? filePath : "/" + filePath;
+        return base + path;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String extractFinalAmount(String ocrText, VendorInvoiceTemplate template) {
+        if (ocrText == null || ocrText.isBlank() || template == null || !hasText(template.finalAmountRegex())) {
+            return "";
+        }
+        try {
+            var matcher = java.util.regex.Pattern.compile(template.finalAmountRegex(), java.util.regex.Pattern.MULTILINE).matcher(ocrText);
+            String lastPositive = "";
+            while (matcher.find()) {
+            for (String group : List.of("finalBillAmount", "final_bill_amount", "amount", "total", "grandTotal", "grand_total", "invoiceTotal", "invoice_total")) {
+                    try {
+                        String value = asText(matcher.group(group));
+                        if (!value.isBlank() && parseAmount(value) > 0) {
+                            lastPositive = value;
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+                String whole = asText(matcher.group());
+                if (!whole.isBlank() && parseAmount(whole) > 0) {
+                    lastPositive = whole;
+                }
+            }
+            return lastPositive;
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private double parseAmount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0.0;
+        }
+        String text = raw.replace(",", "").trim();
+        text = text.replace('O', '0').replace('o', '0');
+        text = text.replaceAll("(?i)inr|rs\\.?", "").trim();
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException ex) {
+            return 0.0;
+        }
+    }
+
+    private boolean asFlag(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        if (value instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        String text = value.toString().trim();
+        if (text.isEmpty()) {
+            return false;
+        }
+        return "1".equals(text) || "true".equalsIgnoreCase(text) || "yes".equalsIgnoreCase(text);
     }
 }

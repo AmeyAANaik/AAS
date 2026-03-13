@@ -208,10 +208,16 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         next: vendors => {
           const options = (vendors ?? []).map(vendor => {
             const name = String(vendor?.supplier_name ?? vendor?.name ?? '').trim();
-            return { id: String(vendor?.name ?? name), name: name || String(vendor?.name ?? '') };
+            return {
+              id: String(vendor?.name ?? name),
+              name: name || String(vendor?.name ?? ''),
+              disabled: this.isDisabled(vendor?.disabled)
+            };
           });
           this.vendorOptions = options
+            .filter(option => !option.disabled)
             .filter(option => option.id.trim() && option.name.trim())
+            .map(({ id, name }) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name));
         },
         error: err => {
@@ -255,6 +261,23 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.toDateControl.setValue('');
     this.updateTableFilter();
     this.dataSource.paginator?.firstPage();
+  }
+
+  private isDisabled(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 
   openAdvancedFilters(): void {

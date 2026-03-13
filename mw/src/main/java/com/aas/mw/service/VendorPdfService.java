@@ -155,6 +155,12 @@ public class VendorPdfService {
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
         String purchaseOrderId = extractDocName(purchaseOrder);
         double vendorBillTotal = sumAmount(baseItems);
+        if (templateUsed && vendorTemplate != null && vendorTemplate.finalAmountRegex() != null && !vendorTemplate.finalAmountRegex().isBlank()) {
+            double extractedTotal = extractAmountByRegex(ocrText, vendorTemplate.finalAmountRegex());
+            if (extractedTotal > 0) {
+                vendorBillTotal = extractedTotal;
+            }
+        }
         String vendorBillDate = "";
         if (templateUsed && vendorTemplate != null && vendorTemplate.billDateRegex() != null && !vendorTemplate.billDateRegex().isBlank()) {
             vendorBillDate = extractBillDateByRegex(ocrText, vendorTemplate.billDateRegex());
@@ -218,14 +224,22 @@ public class VendorPdfService {
         // 1) Preferred: JSON config stored as { "version": 1, "itemLineRegex": "...", "billDateRegex": "..." }
         try {
             Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
-            Object versionObj = map.get("version");
-            Object regexObj = map.get("itemLineRegex");
+            Map<String, Object> parserMap = map;
+            Object parserObj = map.get("parser");
+            if (parserObj instanceof Map<?, ?> parserCandidate) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> casted = (Map<String, Object>) parserCandidate;
+                parserMap = casted;
+            }
+            Object versionObj = parserMap.get("version");
+            Object regexObj = parserMap.get("itemLineRegex");
             if (versionObj != null && regexObj != null) {
                 int version = versionObj instanceof Number n ? n.intValue() : Integer.parseInt(versionObj.toString().trim());
                 String itemLineRegex = regexObj.toString();
-                String billDateRegex = map.get("billDateRegex") == null ? null : String.valueOf(map.get("billDateRegex"));
+                String billDateRegex = parserMap.get("billDateRegex") == null ? null : String.valueOf(parserMap.get("billDateRegex"));
                 if (version > 0 && itemLineRegex != null && !itemLineRegex.isBlank()) {
-                    return java.util.Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex));
+                    String finalAmountRegex = parserMap.get("finalAmountRegex") == null ? null : String.valueOf(parserMap.get("finalAmountRegex"));
+                    return java.util.Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex, finalAmountRegex));
                 }
             }
 
@@ -238,7 +252,7 @@ public class VendorPdfService {
                     //   1 SFK SAMRAT ATTA 50KG 11010000 500 KG 35.50 17750.00
                     // Named groups required by VendorInvoiceTemplateParser: name/qty/rate/amount/(optional hsn)
                     String generic = "^(?:\\d+\\s+)?(?<name>.+?)\\s+(?<hsn>\\d{4,10})\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s*(?:[A-Za-z]{1,6})?\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)$";
-                    return java.util.Optional.of(new VendorInvoiceTemplate(1, generic, null));
+                    return java.util.Optional.of(new VendorInvoiceTemplate(1, generic, null, null));
                 }
             }
         } catch (Exception ignored) {
@@ -267,6 +281,49 @@ public class VendorPdfService {
             return normalizeDateToIso(cleaned);
         } catch (Exception ex) {
             return "";
+        }
+    }
+
+    private double extractAmountByRegex(String ocrText, String amountRegex) {
+        if (ocrText == null || ocrText.isBlank() || amountRegex == null || amountRegex.isBlank()) {
+            return 0.0;
+        }
+        try {
+            var matcher = Pattern.compile(amountRegex, Pattern.MULTILINE).matcher(ocrText);
+            double lastPositive = 0.0;
+            while (matcher.find()) {
+            for (String group : List.of("finalBillAmount", "final_bill_amount", "amount", "total", "grandTotal", "grand_total", "invoiceTotal", "invoice_total")) {
+                    try {
+                        String value = matcher.group(group);
+                        double parsed = parseNumber(value);
+                        if (parsed > 0) {
+                            lastPositive = parsed;
+                        }
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                }
+                double parsed = parseNumber(matcher.group());
+                if (parsed > 0) {
+                    lastPositive = parsed;
+                }
+            }
+            return lastPositive;
+        } catch (Exception ex) {
+            return 0.0;
+        }
+    }
+
+    private double parseNumber(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0.0;
+        }
+        String text = raw.replace(",", "").trim();
+        text = text.replace('O', '0').replace('o', '0');
+        text = text.replaceAll("(?i)inr|rs\\.?", "").trim();
+        try {
+            return Double.parseDouble(text);
+        } catch (NumberFormatException ex) {
+            return 0.0;
         }
     }
 

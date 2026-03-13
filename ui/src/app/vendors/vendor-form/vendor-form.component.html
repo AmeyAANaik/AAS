@@ -52,11 +52,28 @@
 
         <div class="full template-section">
           <div class="template-header">Vendor invoice template</div>
-          <mat-slide-toggle formControlName="invoiceTemplateEnabled">
-            Enable template-based parsing
-          </mat-slide-toggle>
+          <div class="status muted">{{ templateHint }}</div>
 
-          <mat-form-field appearance="outline" class="full">
+          <div class="model-block" *ngIf="itemFields.length || summaryFields.length">
+            <div class="model-title">Internal model</div>
+            <div class="template-columns">
+              <span class="column-chip" *ngFor="let field of itemFields">{{ field.key }}</span>
+            </div>
+            <div class="mapping-list" *ngFor="let field of itemFields">
+              <strong>{{ field.label }}</strong>: {{ field.key }}
+              <span class="muted" *ngIf="field.sourceAliases.length"> <- {{ field.sourceAliases.join(', ') }}</span>
+            </div>
+            <div class="model-title" *ngIf="summaryFields.length">Billing summary</div>
+            <div class="template-columns" *ngIf="summaryFields.length">
+              <span class="column-chip" *ngFor="let field of summaryFields">{{ field.key }}</span>
+            </div>
+            <div class="mapping-list" *ngFor="let field of summaryFields">
+              <strong>{{ field.label }}</strong>: {{ field.key }}
+              <span class="muted" *ngIf="field.sourceAliases.length"> <- {{ field.sourceAliases.join(', ') }}</span>
+            </div>
+          </div>
+
+          <mat-form-field appearance="outline" class="full template-json-field">
             <mat-label>Template JSON</mat-label>
             <textarea
               matInput
@@ -64,30 +81,119 @@
               formControlName="invoiceTemplateJson"
               placeholder='Paste vendor template JSON here'></textarea>
             <mat-hint>
-              Paste a JSON template (stored on the vendor) that MW will use when scanning PDFs for this vendor.
-              If parsing fails, MW falls back to the default OCR parser.
+              Add the vendor invoice template JSON here. Active vendors must have this template.
             </mat-hint>
             <mat-error *ngIf="form.get('invoiceTemplateJson')?.hasError('json')">
               Invalid JSON. Fix formatting and try again.
             </mat-error>
+            <mat-error *ngIf="activeTemplateRequired">
+              Active vendors require a visible invoice template JSON.
+            </mat-error>
+            <mat-error *ngIf="sampleRequiredForActive">
+              Active vendors require a validated sample invoice PDF.
+            </mat-error>
           </mat-form-field>
 
           <div class="template-actions">
+            <input
+              #sampleInput
+              type="file"
+              accept="application/pdf"
+              class="template-file-input"
+              (change)="onSampleFileSelected($event)" />
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="sampleInput.click()"
+              [disabled]="mode !== 'edit' || isValidatingTemplate">
+              {{ sampleFile ? 'Change sample PDF' : 'Choose sample PDF' }}
+            </button>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="validateSample()"
+              [disabled]="mode !== 'edit' || !sampleFile || isValidatingTemplate">
+              {{ isValidatingTemplate ? 'Validating...' : 'Validate sample' }}
+            </button>
             <button
               mat-stroked-button
               type="button"
               color="warn"
               (click)="clearInvoiceTemplate()"
-              [disabled]="mode !== 'edit' || !canManageTemplates">
+              [disabled]="mode !== 'edit'">
               Clear template
             </button>
           </div>
 
-          <div class="status muted" *ngIf="mode !== 'edit'">
-            Save the vendor first, then paste the template JSON.
+          <div class="status" *ngIf="sampleFile">Selected sample: {{ sampleFile.name }}</div>
+
+          <div class="validation-panel" *ngIf="templateValidation as validation">
+            <div class="validation-summary" [class.ready]="validation.activationReady">
+              <span>Parser used: {{ validation.parserSource }}</span>
+              <span>Items found: {{ validation.detectedItems }}</span>
+              <span>OCR lines: {{ validation.ocrLineCount }}</span>
+              <span>{{ validation.activationReady ? 'Activation ready' : 'Not activation ready' }}</span>
+            </div>
+
+            <div class="validation-columns">
+              <span
+                class="column-chip"
+                [class.ok]="validation.parsedColumns.includes(column)"
+                [class.missing]="validation.missingColumns.includes(column)"
+                *ngFor="let column of validation.requiredColumns">
+                {{ column }}
+              </span>
+            </div>
+
+            <div class="validation-columns" *ngIf="validation.requiredSummaryFields.length">
+              <span
+                class="column-chip"
+                [class.ok]="validation.parsedSummaryFields.includes(field)"
+                [class.missing]="validation.missingSummaryFields.includes(field)"
+                *ngFor="let field of validation.requiredSummaryFields">
+                {{ field }}
+              </span>
+            </div>
+
+            <div class="status" *ngIf="validation.missingColumns.length">
+              Missing columns: {{ validation.missingColumns.join(', ') }}
+            </div>
+            <div class="status" *ngIf="validation.missingSummaryFields.length">
+              Missing billing fields: {{ validation.missingSummaryFields.join(', ') }}
+            </div>
+            <div class="status" *ngIf="validation.finalBillAmount">
+              Final bill amount: {{ validation.finalBillAmount }}
+            </div>
+
+            <div class="preview-table" *ngIf="validation.previewItems.length">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>ID</th>
+                    <th>Qty</th>
+                    <th>Rate</th>
+                    <th>GST</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of validation.previewItems">
+                    <td>{{ row['item_name'] }}</td>
+                    <td>{{ row['item_id'] || '—' }}</td>
+                    <td>{{ row['qty'] }}</td>
+                    <td>{{ row['rate'] }}</td>
+                    <td>{{ row['gst'] || '—' }}</td>
+                    <td>{{ row['total'] }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div class="status muted" *ngIf="mode === 'edit' && !canManageTemplates">
-            Editing/clearing templates is Admin-only.
+
+          <div class="status muted">
+            Vendors should stay inactive until template validation shows all required item columns are parsed.
           </div>
         </div>
       </div>

@@ -2,9 +2,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { Vendor, VendorFormValue, VendorView } from '../vendor.model';
+import { Vendor, VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
-import { AuthTokenService } from '../../shared/auth-token.service';
+import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
 
 @Component({
   selector: 'app-vendor-list',
@@ -20,15 +20,27 @@ export class VendorListComponent implements OnInit {
   searchControl = new FormControl('');
   isLoading = false;
   isSaving = false;
+  isValidatingTemplate = false;
   statusMessage = '';
+  templateValidation: VendorTemplateValidation | null = null;
+  invoiceTemplateModel: InvoiceTemplateModel | null = null;
 
-  constructor(private vendorService: VendorService, private tokenStore: AuthTokenService) {}
+  constructor(
+    private vendorService: VendorService,
+    private invoiceTemplateModelService: InvoiceTemplateModelService
+  ) {}
 
   ngOnInit(): void {
+    this.invoiceTemplateModelService.getModel().subscribe({
+      next: model => {
+        this.invoiceTemplateModel = model;
+      }
+    });
     this.loadVendors();
   }
 
   loadVendors(): void {
+    const selectedId = this.selectedVendor?.id ?? null;
     this.isLoading = true;
     this.vendorService
       .listVendors()
@@ -36,6 +48,9 @@ export class VendorListComponent implements OnInit {
       .subscribe({
         next: vendors => {
           this.vendors = vendors.map(vendor => this.toViewModel(vendor));
+          if (selectedId) {
+            this.selectedVendor = this.vendors.find(vendor => vendor.id === selectedId) ?? this.selectedVendor;
+          }
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to load vendors');
@@ -48,6 +63,7 @@ export class VendorListComponent implements OnInit {
     this.mode = 'edit';
     this.isFormOpen = true;
     this.statusMessage = '';
+    this.templateValidation = null;
   }
 
   openCreate(): void {
@@ -55,6 +71,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = true;
     this.statusMessage = '';
+    this.templateValidation = null;
   }
 
   clearSelection(): void {
@@ -65,6 +82,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = false;
     this.mode = 'create';
+    this.templateValidation = null;
     if (clearStatus) {
       this.statusMessage = '';
     }
@@ -90,21 +108,42 @@ export class VendorListComponent implements OnInit {
     });
   }
 
+  validateTemplateSample(payload: { file: File; templateJson: string }): void {
+    if (!this.selectedVendor) {
+      this.statusMessage = 'Save the vendor first before validating a sample invoice.';
+      return;
+    }
+    this.isValidatingTemplate = true;
+    this.vendorService
+      .uploadInvoiceTemplateSample(this.selectedVendor.id, payload.file, payload.templateJson)
+      .pipe(finalize(() => (this.isValidatingTemplate = false)))
+      .subscribe({
+        next: response => {
+          this.templateValidation = response.validation;
+          this.statusMessage = response.validation.activationReady
+            ? 'Template validation passed. Vendor can be activated.'
+            : 'Template validation did not capture all required item columns.';
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to validate template sample');
+          this.templateValidation = null;
+        }
+      });
+  }
+
   private toViewModel(vendor: Vendor): VendorView {
     const name = String(vendor['supplier_name'] ?? vendor.name ?? '').trim();
-    const disabled = Boolean(vendor['disabled']);
+    const disabled = this.asFlag(vendor['disabled']);
     const priorityValue = vendor['aas_priority'];
-    const priority = typeof priorityValue === 'number' ? priorityValue : null;
-    const templateEnabled = this.asFlag(vendor['invoice_template_enabled']);
-    const templateKey = String(vendor['invoice_template_key'] ?? '').trim();
+    const priority = priorityValue === undefined || priorityValue === null ? null : Number(priorityValue);
     const templateHasJson = String(vendor['invoice_template_json'] ?? '').trim().length > 0;
     return {
       id: String(vendor.name ?? name),
       name: name || String(vendor.name ?? ''),
       priority,
       status: disabled ? 'Inactive' : 'Active',
-      templateEnabled,
-      templateKey,
+      templateKey: '',
       templateHasJson,
       raw: vendor
     };
@@ -120,7 +159,6 @@ export class VendorListComponent implements OnInit {
       food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
       disabled: formValue.status === 'Inactive' ? 1 : 0,
-      invoice_template_enabled: formValue.invoiceTemplateEnabled ? 1 : 0,
       invoice_template_json: String(formValue.invoiceTemplateJson ?? '').trim()
     };
   }
@@ -141,6 +179,37 @@ export class VendorListComponent implements OnInit {
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to clear template');
+        }
+      });
+  }
+
+  deleteVendor(vendor: VendorView, event?: Event): void {
+    event?.stopPropagation();
+    if (!vendor) {
+      return;
+    }
+    if (vendor.status !== 'Inactive') {
+      this.statusMessage = 'Only inactive vendors can be deleted.';
+      return;
+    }
+    const confirmed = window.confirm(`Delete vendor "${vendor.name}"? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+    this.isSaving = true;
+    this.vendorService
+      .deleteVendor(vendor.id)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          if (this.selectedVendor?.id === vendor.id) {
+            this.clearSelectionInternal(false);
+          }
+          this.statusMessage = 'Vendor deleted.';
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to delete vendor');
         }
       });
   }
@@ -197,14 +266,5 @@ export class VendorListComponent implements OnInit {
       return false;
     }
     return text === '1' || text === 'true' || text === 'yes';
-  }
-
-  get canManageTemplates(): boolean {
-    // Server enforces ADMIN-only. This is just UI gating to avoid confusing 403s.
-    const role = (this.tokenStore.getRole() ?? '').toLowerCase().trim();
-    if (!role) {
-      return true;
-    }
-    return role === 'admin';
   }
 }

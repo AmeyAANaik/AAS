@@ -14,6 +14,7 @@ public class VendorInvoiceTemplateCatalog {
             1,
             // Greedy name group is required because item names often contain numbers (e.g. "50 kg sack").
             "^(?<name>.+)\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)\\s+(?<hsn>\\d{4,10})$",
+            null,
             null
     );
 
@@ -34,4 +35,3 @@ public class VendorInvoiceTemplateCatalog {
         );
     }
 }
-

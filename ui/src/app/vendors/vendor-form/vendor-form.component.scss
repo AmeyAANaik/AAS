@@ -40,13 +40,118 @@
   margin-top: 8px;
 }
 
-.file-upload input[type='file'] {
+.template-columns,
+.validation-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.model-block {
+  margin: 10px 0 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f7f3ea;
+  border: 1px solid var(--border-subtle);
+}
+
+.model-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--ink);
+}
+
+.mapping-list {
+  font-size: 12px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+.column-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0ece2;
+  color: #4d4535;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.column-chip.ok {
+  background: #e3f5e7;
+  color: #17633b;
+}
+
+.column-chip.missing {
+  background: #fde8e4;
+  color: #a33e2b;
+}
+
+.template-file-input {
   display: none;
 }
 
-.template-sample {
-  margin-top: 8px;
+.validation-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fffdf7;
+}
+
+.validation-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   font-size: 12px;
+  color: var(--muted);
+}
+
+.validation-summary.ready {
+  color: #17633b;
+}
+
+.preview-table {
+  overflow-x: auto;
+  margin-top: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: white;
+}
+
+.preview-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.preview-table th,
+.preview-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  font-size: 12px;
+}
+
+.preview-table th {
+  color: var(--muted);
+  background: #faf7ef;
+}
+
+.preview-table tr:last-child td {
+  border-bottom: none;
+}
+
+:host ::ng-deep .template-json-field .mat-mdc-text-field-wrapper {
+  background: #fff8ea;
+}
+
+:host ::ng-deep .template-json-field textarea.mat-mdc-input-element,
+:host ::ng-deep .template-json-field textarea.mat-input-element {
+  color: var(--ink);
+  caret-color: var(--accent-strong);
 }
 
 .muted {

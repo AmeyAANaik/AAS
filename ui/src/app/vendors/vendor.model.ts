@@ -10,7 +10,6 @@ export interface Vendor {
   gst?: string;
   pan?: string;
   food_license_no?: string;
-  invoice_template_enabled?: number | boolean;
   invoice_template_key?: string;
   invoice_template_json?: string;
   invoice_template_sample_pdf?: string;
@@ -25,8 +24,24 @@ export interface VendorFormValue {
   foodLicenseNo?: string;
   priority: number | null;
   status: VendorStatus;
-  invoiceTemplateEnabled: boolean;
   invoiceTemplateJson: string;
+}
+
+export interface VendorTemplateValidation {
+  configured: boolean;
+  used: boolean;
+  parserSource: string;
+  detectedItems: number;
+  requiredColumns: string[];
+  parsedColumns: string[];
+  missingColumns: string[];
+  requiredSummaryFields: string[];
+  parsedSummaryFields: string[];
+  missingSummaryFields: string[];
+  finalBillAmount: string;
+  activationReady: boolean;
+  ocrLineCount: number;
+  previewItems: Array<Record<string, unknown>>;
 }
 
 export interface VendorView {
@@ -34,7 +49,6 @@ export interface VendorView {
   name: string;
   priority: number | null;
   status: VendorStatus;
-  templateEnabled: boolean;
   templateKey: string;
   templateHasJson: boolean;
   raw: Vendor;

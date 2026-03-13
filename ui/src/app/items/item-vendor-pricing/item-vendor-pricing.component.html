@@ -16,7 +16,7 @@
           <mat-label>Vendor</mat-label>
           <mat-select formControlName="vendorId">
             <mat-option value="">Select vendor</mat-option>
-            <mat-option *ngFor="let vendor of vendors" [value]="vendor.name">{{ vendor.supplier_name || vendor.name }}</mat-option>
+            <mat-option *ngFor="let vendor of activeVendors" [value]="vendor.name">{{ vendor.supplier_name || vendor.name }}</mat-option>
           </mat-select>
           <mat-error *ngIf="form.get('vendorId')?.hasError('required')">Vendor is required.</mat-error>
         </mat-form-field>

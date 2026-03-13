@@ -1,8 +1,5 @@
 # AAS Platform - Startup Commands
 
-#tree -L 2 -a
-
-
 ```
 AAS/
 ├── erpmodule/      # ERPNext Docker stack (ERP Core)
@@ -13,27 +10,33 @@ AAS/
 
 ## System Commands (UI + MW + ERP)
 
+Preferred local workflow:
+
+- UI: run with `npm` from `ui/`
+- MW: run with Docker Compose
+- ERPNext: run with Docker Compose
+
 ### Stop all services
 
 ```bash
-cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml down
-cd /workspaces/AAS && docker compose -f docker-compose.mw.yml down
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml down
+cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml down
 pkill -f "ng serve" || true
 ```
 
 ### Start all services
 
 ```bash
-cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml up -d
-cd /workspaces/AAS && docker compose -f docker-compose.mw.yml up -d --build
-cd /workspaces/AAS/ui && npm start -- --host 0.0.0.0 --port 4200
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml up -d
+cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml up -d --build
+cd /Users/roshninaik/Projects/AAS/ui && npm start -- --host 0.0.0.0 --port 4200
 ```
 
 ### Verify services
 
 ```bash
-cd /workspaces/AAS/erpmodule && docker compose -f pwd.yml ps
-cd /workspaces/AAS && docker compose -f docker-compose.mw.yml ps
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml ps
+cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml ps
 curl -I http://localhost:8080
 curl -I http://localhost:8083/swagger-ui.html
 curl -I http://localhost:4200
@@ -76,14 +79,14 @@ curl -X POST http://localhost:8083/api/setup/ensure \
 ### Generate mock master data (Admin only)
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
 
 ### Seed Sales_3231 items (59 items, margin 10%)
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:items
 ```
 
@@ -92,7 +95,7 @@ See `scripts/seed/README.md` for tab-wise seed scripts.
 ### Run OCR order flow test
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 BASE_URL=http://localhost:8083 \
 USERNAME=Administrator \
 PASSWORD=admin \
@@ -103,11 +106,13 @@ bash ./scripts/test-ocr-flow.sh
 ### Run UI end-to-end tests
 
 ```bash
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 npx playwright test -c ui/playwright.config.ts --reporter=line
 ```
 
 ## ERPNext Module (ERP Core)
+
+Use Docker Compose for ERPNext changes and local runtime.
 
 ### Start ERPNext
 
@@ -194,12 +199,7 @@ ERPNext is configured as a **single multi-company site**:
 
 ## Middleware (MW)
 
-### Start MW locally
-
-```bash
-cd mw
-./mvnw spring-boot:run
-```
+Use Docker Compose for MW changes and local runtime.
 
 ### Start MW via Docker
 
@@ -219,7 +219,7 @@ If you run MW via Docker, the Dockerfile installs Tesseract and the compose file
 OCR_TESSERACT_DATAPATH=/usr/share/tesseract-ocr/5/tessdata
 ```
 
-If you run MW locally, install Tesseract on the host and set `OCR_TESSERACT_DATAPATH` to the `tessdata` folder.
+If you temporarily choose to run MW outside Docker, install Tesseract on the host and set `OCR_TESSERACT_DATAPATH` to the `tessdata` folder.
 
 Health check:
 
@@ -229,7 +229,7 @@ curl -H "Authorization: Bearer <ADMIN_JWT>" http://localhost:8083/api/ocr/health
 
 ## UI
 
-Custom frontend:
+Use `npm` for UI development:
 
 ```bash
 cd ui
@@ -246,10 +246,10 @@ npm start
 
 ## Development Workflow
 
-1. **Start ERPNext** (always first)
+1. **Start ERPNext with Docker** (always first)
 2. Configure companies and master data in ERPNext UI
-3. **Start Middleware (MW)** to expose APIs
-4. **Start UI** for custom UX
+3. **Start Middleware (MW) with Docker** to expose APIs
+4. **Start UI with npm** for custom UX
 5. **Seed mock master data** (vendors/branches/items)
 
 ```bash
@@ -262,14 +262,14 @@ npm run seed:mock
 cd erpmodule
 docker compose -f pwd.yml up -d
 
-cd /workspaces/AAS
+cd /Users/roshninaik/Projects/AAS
 docker compose -f docker-compose.mw.yml up --build
 ```
 
 ## Verification (End-to-End)
 
 1) **ERPNext UI**
-- URL: http://localhoist:8080
+- URL: http://localhost:8080
 - Login: `Administrator` / `admin`
 
 2) **MW health (Swagger UI)**
@@ -278,9 +278,9 @@ docker compose -f docker-compose.mw.yml up --build
 
 3) **Default users created**
 After first login (admin), MW calls `/api/setup/ensure` and creates:
-- `vendor@example.com` / `vendor123` (Supplier `Vendor A`)
-- `shop@example.com` / `shop123` (Customer `Shop A`)
-- `helper@example.com` / `helper123`
+- `vendor@example.com` / `VendorAAS!2026` (Supplier `Vendor A`)
+- `shop@example.com` / `ShopAAS!2026` (Customer `Shop A`)
+- `helper@example.com` / `HelperAAS!2026`
 
 4) **UI**
 - URL: http://localhost:4200

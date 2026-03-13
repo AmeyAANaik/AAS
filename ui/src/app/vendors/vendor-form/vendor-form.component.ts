@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { VendorFormValue, VendorView } from '../vendor.model';
+import { VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
+import { InvoiceTemplateModel } from '../../shared/invoice-template-model.service';
 
 @Component({
   selector: 'app-vendor-form',
@@ -12,10 +13,13 @@ export class VendorFormComponent implements OnChanges {
   @Input() mode: 'create' | 'edit' = 'create';
   @Input() isSaving = false;
   @Input() statusMessage = '';
-  @Input() canManageTemplates = true;
+  @Input() isValidatingTemplate = false;
+  @Input() templateValidation: VendorTemplateValidation | null = null;
+  @Input() invoiceTemplateModel: InvoiceTemplateModel | null = null;
   @Output() save = new EventEmitter<VendorFormValue>();
   @Output() reset = new EventEmitter<void>();
   @Output() clearTemplate = new EventEmitter<void>();
+  @Output() validateTemplateSample = new EventEmitter<{ file: File; templateJson: string }>();
 
   form: FormGroup = this.fb.group({
     supplierName: ['', [Validators.required, Validators.maxLength(140)]],
@@ -25,10 +29,10 @@ export class VendorFormComponent implements OnChanges {
     pan: [''],
     foodLicenseNo: [''],
     priority: [null, [Validators.required, Validators.min(0), Validators.pattern(/^\d+$/)]],
-    status: ['Active', [Validators.required]],
-    invoiceTemplateEnabled: [false],
+    status: ['Inactive', [Validators.required]],
     invoiceTemplateJson: ['']
   });
+  sampleFile: File | null = null;
 
   constructor(private fb: FormBuilder) {}
 
@@ -44,7 +48,6 @@ export class VendorFormComponent implements OnChanges {
         foodLicenseNo: String(raw['food_license_no'] ?? ''),
         priority: this.vendor.priority,
         status: this.vendor.status,
-        invoiceTemplateEnabled: this.asFlag(raw['invoice_template_enabled']),
         invoiceTemplateJson: String(raw['invoice_template_json'] ?? '')
       });
       this.form.enable({ emitEvent: false });
@@ -60,8 +63,7 @@ export class VendorFormComponent implements OnChanges {
       pan: '',
       foodLicenseNo: '',
       priority: null,
-      status: 'Active',
-      invoiceTemplateEnabled: false,
+      status: 'Inactive',
       invoiceTemplateJson: ''
     });
   }
@@ -71,9 +73,17 @@ export class VendorFormComponent implements OnChanges {
       this.form.markAllAsTouched();
       return;
     }
-    const enabled = Boolean(this.form.get('invoiceTemplateEnabled')?.value);
+    const status = String(this.form.get('status')?.value ?? 'Inactive');
     const json = String(this.form.get('invoiceTemplateJson')?.value ?? '').trim();
-    if (enabled && json) {
+    if (status === 'Active' && !json) {
+      this.form.get('invoiceTemplateJson')?.setErrors({ requiredForActive: true });
+      return;
+    }
+    if (status === 'Active' && !this.hasValidatedSample) {
+      this.form.get('invoiceTemplateJson')?.setErrors({ sampleRequiredForActive: true });
+      return;
+    }
+    if (json) {
       try {
         JSON.parse(json);
       } catch {
@@ -88,6 +98,22 @@ export class VendorFormComponent implements OnChanges {
     this.clearTemplate.emit();
   }
 
+  onSampleFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.item(0) ?? null;
+    this.sampleFile = file;
+  }
+
+  validateSample(): void {
+    if (this.mode !== 'edit' || !this.vendor || !this.sampleFile) {
+      return;
+    }
+    this.validateTemplateSample.emit({
+      file: this.sampleFile,
+      templateJson: String(this.form.get('invoiceTemplateJson')?.value ?? '')
+    });
+  }
+
   clear(): void {
     this.form.reset({
       supplierName: '',
@@ -97,27 +123,40 @@ export class VendorFormComponent implements OnChanges {
       pan: '',
       foodLicenseNo: '',
       priority: null,
-      status: 'Active',
-      invoiceTemplateEnabled: false,
+      status: 'Inactive',
       invoiceTemplateJson: ''
     });
     this.reset.emit();
   }
 
-  private asFlag(value: unknown): boolean {
-    if (value === null || value === undefined) {
-      return false;
+  get activeTemplateRequired(): boolean {
+    return this.form.get('invoiceTemplateJson')?.hasError('requiredForActive') === true;
+  }
+
+  get sampleRequiredForActive(): boolean {
+    return this.form.get('invoiceTemplateJson')?.hasError('sampleRequiredForActive') === true;
+  }
+
+  get hasValidatedSample(): boolean {
+    if (this.templateValidation?.activationReady) {
+      return true;
     }
-    if (typeof value === 'boolean') {
-      return value;
+    const raw = (this.vendor?.raw ?? {}) as Record<string, unknown>;
+    return String(raw['invoice_template_sample_pdf'] ?? '').trim().length > 0;
+  }
+
+  get templateHint(): string {
+    if (this.mode !== 'edit') {
+      return 'Save the vendor first, then upload a sample invoice to validate the parser before activation.';
     }
-    if (typeof value === 'number') {
-      return value !== 0;
-    }
-    const text = String(value).trim().toLowerCase();
-    if (!text) {
-      return false;
-    }
-    return text === '1' || text === 'true' || text === 'yes';
+    return 'Upload a sample invoice PDF to validate the template and confirm required item columns are extracted.';
+  }
+
+  get itemFields() {
+    return this.invoiceTemplateModel?.itemFields ?? [];
+  }
+
+  get summaryFields() {
+    return this.invoiceTemplateModel?.summaryFields ?? [];
   }
 }

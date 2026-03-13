@@ -540,11 +540,16 @@ public class VendorPdfParser {
             String key = buildDedupKey(name, hsn);
             MutableParsedItem current = merged.get(key);
             if (current == null) {
-                merged.put(key, new MutableParsedItem(name, hsn, item.qty(), item.rate(), item.amount()));
+                merged.put(key, new MutableParsedItem(name, hsn, item.qty(), item.rate(), item.amount(), item.gstPercent()));
             } else {
                 current.qty += item.qty();
                 current.rate = Math.max(current.rate, item.rate());
                 current.amount = Math.max(current.amount, item.amount());
+                if (current.gstPercent == null && item.gstPercent() != null) {
+                    current.gstPercent = item.gstPercent();
+                } else if (current.gstPercent != null && item.gstPercent() != null) {
+                    current.gstPercent = Math.max(current.gstPercent, item.gstPercent());
+                }
                 if (name.length() > current.name.length()) {
                     current.name = name;
                 }
@@ -564,7 +569,7 @@ public class VendorPdfParser {
             if (qty > 0 && rate <= 0 && amount > 0) {
                 rate = amount / qty;
             }
-            result.add(new ParsedItem(item.name, qty, rate, amount, item.hsn.isBlank() ? null : item.hsn));
+            result.add(new ParsedItem(item.name, qty, rate, amount, item.hsn.isBlank() ? null : item.hsn, item.gstPercent));
         }
         return result;
     }
@@ -636,13 +641,15 @@ public class VendorPdfParser {
         private double qty;
         private double rate;
         private double amount;
+        private Double gstPercent;
 
-        private MutableParsedItem(String name, String hsn, double qty, double rate, double amount) {
+        private MutableParsedItem(String name, String hsn, double qty, double rate, double amount, Double gstPercent) {
             this.name = name == null ? "" : name;
             this.hsn = hsn == null ? "" : hsn;
             this.qty = qty;
             this.rate = rate;
             this.amount = amount;
+            this.gstPercent = gstPercent;
         }
     }
 

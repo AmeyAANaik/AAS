@@ -15,6 +15,7 @@ class VendorInvoiceTemplateParserTest {
         VendorInvoiceTemplate template = new VendorInvoiceTemplate(
                 1,
                 "^(?<name>.+?)\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)\\s+(?<hsn>\\d{4,10})$",
+                null,
                 null);
 
         String text = """
@@ -34,4 +35,3 @@ class VendorInvoiceTemplateParserTest {
         assertEquals("0701", items.get(0).hsn());
     }
 }
-
