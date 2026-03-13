@@ -10,7 +10,7 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
     {
       name: 'SO-0001',
       customer: 'Shop A',
-      company: 'AAS Core',
+      company: 'AAS',
       transaction_date: '2026-02-19',
       delivery_date: '2026-02-20',
       aas_vendor: currentVendor,

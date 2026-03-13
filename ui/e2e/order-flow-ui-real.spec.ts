@@ -34,7 +34,7 @@ test('real UI flow against MW/ERP: assign vendor -> vendor pdf -> vendor bill ->
     data: {
       fields: {
         customer: 'Downtown Market Branch',
-        company: 'AAS Core',
+        company: 'AAS',
         transaction_date: today,
         delivery_date: today,
         aas_status: 'DRAFT',

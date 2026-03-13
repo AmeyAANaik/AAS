@@ -36,6 +36,7 @@ services:
         bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
         bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        bench set-config -g host_name "$${HOST_NAME:-http://frontend:8080}";
         bench set-config -g server_script_enabled 1;
     environment:
       DB_HOST: db
@@ -43,6 +44,7 @@ services:
       REDIS_CACHE: redis-cache:6379
       REDIS_QUEUE: redis-queue:6379
       SOCKETIO_PORT: "9000"
+      HOST_NAME: "http://frontend:8080"
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
@@ -110,7 +112,7 @@ services:
         if [ -z "$$ERP_SETUP_FULL_NAME" ]; then ERP_SETUP_FULL_NAME="Administrator"; fi;
         if [ -z "$$ERP_SETUP_EMAIL" ]; then ERP_SETUP_EMAIL="admin@example.com"; fi;
         if [ -z "$$ERP_SETUP_PASSWORD" ]; then ERP_SETUP_PASSWORD="admin"; fi;
-        if [ -z "$$ERP_SETUP_COMPANY_NAME" ]; then ERP_SETUP_COMPANY_NAME="AAS Core"; fi;
+        if [ -z "$$ERP_SETUP_COMPANY_NAME" ]; then ERP_SETUP_COMPANY_NAME="AAS"; fi;
         if [ -z "$$ERP_SETUP_COMPANY_ABBR" ]; then ERP_SETUP_COMPANY_ABBR="AAS"; fi;
         if [ -z "$$ERP_SETUP_COUNTRY" ]; then ERP_SETUP_COUNTRY="United States"; fi;
         if [ -z "$$ERP_SETUP_CURRENCY" ]; then ERP_SETUP_CURRENCY="INR"; fi;

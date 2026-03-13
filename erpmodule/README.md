@@ -1,4 +1,4 @@
-# ERPNext Module - AAS Core
+# ERPNext Module - AAS
 
 ## Architecture
 
@@ -42,6 +42,30 @@ docker compose -f pwd.yml down
 - URL: http://localhost:8080
 - Default User: `Administrator`
 - Default Password: `admin`
+
+### Invoice PDF Rendering Note
+
+ERPNext PDF generation runs `wkhtmltopdf` inside the `backend` container. For Sales Invoice PDF downloads to work, the ERP site host must be reachable from that container.
+
+This stack sets:
+
+```text
+host_name = http://frontend:8080
+```
+
+in `sites/common_site_config.json` via `pwd.yml`.
+
+Why this matters:
+- Browser users still open ERP at `http://localhost:8080`
+- But `wkhtmltopdf` inside the backend container cannot reliably render PDFs against `http://aas.core.local`
+- Using `http://frontend:8080` gives the renderer an internal Docker-network URL it can reach
+
+If invoice PDF download starts failing with `wkhtmltopdf ... ConnectionRefusedError`, rerun the ERP stack so this config is applied:
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml up -d --build
+```
 
 ## AAS Custom Fields (Branch Metadata)
 

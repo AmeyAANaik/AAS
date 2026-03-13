@@ -25,7 +25,7 @@ describe('OrderCreateComponent', () => {
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'ORD-1' }));
     orderService.assignVendor.and.returnValue(of({}));
     orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Shop A' }]));
-    orderService.listCompanies.and.returnValue(of([{ name: 'AAS' }, { name: 'AAS Core' }]));
+    orderService.listCompanies.and.returnValue(of([{ name: 'AAS' }]));
 
     vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
     vendorService.listVendors.and.returnValue(of([]));
@@ -67,7 +67,7 @@ describe('OrderCreateComponent', () => {
 
   it('loads companies and defaults to AAS', () => {
     expect(orderService.listCompanies).toHaveBeenCalled();
-    expect(component.companies).toEqual([{ id: 'AAS', name: 'AAS' }, { id: 'AAS Core', name: 'AAS Core' }]);
+    expect(component.companies).toEqual([{ id: 'AAS', name: 'AAS' }]);
     expect(component.detailsGroup.get('company')?.value).toBe('AAS');
   });
 

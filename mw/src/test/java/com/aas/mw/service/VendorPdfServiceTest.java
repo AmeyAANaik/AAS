@@ -61,7 +61,7 @@ class VendorPdfServiceTest {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
                 .thenReturn(Map.of(
                         "customer", "Shop A",
-                        "company", "AAS Core",
+                        "company", "AAS",
                         "aas_vendor", "Vendor A",
                         "aas_status", "VENDOR_ASSIGNED"));
         when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
@@ -92,7 +92,7 @@ class VendorPdfServiceTest {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
                 .thenReturn(Map.of(
                         "customer", "Shop A",
-                        "company", "AAS Core",
+                        "company", "AAS",
                         "aas_vendor", "Vendor A",
                         "aas_status", "VENDOR_ASSIGNED"));
         when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.of("table_v1"));
@@ -114,7 +114,7 @@ class VendorPdfServiceTest {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
                 .thenReturn(Map.of(
                         "customer", "Shop A",
-                        "company", "AAS Core",
+                        "company", "AAS",
                         "aas_vendor", "Vendor A",
                         "aas_status", "DRAFT"));
 
