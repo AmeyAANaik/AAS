@@ -18,7 +18,7 @@
 
       <mat-form-field appearance="outline">
         <mat-label>Branch (Customer)</mat-label>
-        <mat-select formControlName="customer">
+        <mat-select formControlName="customer" (selectionChange)="onCustomerChange()">
           <mat-option value="">Select branch</mat-option>
           <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
         </mat-select>
@@ -27,7 +27,8 @@
 
       <mat-form-field appearance="outline">
         <mat-label>Company</mat-label>
-        <input matInput formControlName="company" />
+        <input matInput formControlName="company" readonly />
+        <mat-hint>Locked from the selected invoice or branch</mat-hint>
         <mat-error *ngIf="form.get('company')?.hasError('required')">Company is required.</mat-error>
       </mat-form-field>
 
@@ -51,8 +52,15 @@
     <p class="helper" *ngIf="!customers.length">
       No branches loaded yet. Create or sync branches before recording payments.
     </p>
+    <p class="helper" *ngIf="customers.length">
+      Company is auto-selected so receipts stay aligned with the chosen branch or invoice.
+    </p>
 
     <div class="balance-panel" *ngIf="pendingBalance !== null">
+      <div class="balance-row">
+        <span>Locked company</span>
+        <strong>{{ companyDisplay }}</strong>
+      </div>
       <div class="balance-row">
         <span>Pending balance</span>
         <strong>{{ pendingBalance | number: '1.2-2' }}</strong>

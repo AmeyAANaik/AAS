@@ -24,19 +24,22 @@ class OrderBillingServiceTest {
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        service = new OrderBillingService(erpNextClient, new OrderFlowStateMachine(), 10.0);
+        service = new OrderBillingService(erpNextClient, new OrderFlowStateMachine(), 7.0);
     }
 
     @Test
     void calculatesSellPreviewFromVendorBillAndMargin() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_vendor_bill_total", 200.0,
-                "aas_margin_percent", 10.0));
+                "items", List.of(
+                        Map.of("item_code", "ITEM-1", "qty", 2, "aas_vendor_rate", 50.0, "aas_margin_percent", 10.0),
+                        Map.of("item_code", "ITEM-2", "qty", 1, "aas_vendor_rate", 100.0, "aas_margin_percent", 20.0))));
 
         Map<String, Object> preview = service.getSellPreview("SO-1");
 
-        assertEquals(220.0, preview.get("sellAmount"));
-        assertEquals(20.0, preview.get("marginAmount"));
+        assertEquals(230.0, preview.get("sellAmount"));
+        assertEquals(30.0, preview.get("marginAmount"));
+        assertEquals(15.0, preview.get("marginPercent"));
     }
 
     @Test
@@ -45,7 +48,7 @@ class OrderBillingServiceTest {
                 "aas_status", "VENDOR_PDF_RECEIVED",
                 "aas_vendor", "SUP-1",
                 "company", "AAS",
-                "aas_margin_percent", 10.0));
+                "items", List.of(Map.of("item_code", "ITEM-1", "qty", 5, "rate", 50.0, "amount", 250.0, "aas_margin_percent", 12.0))));
         when(erpNextClient.getResource(eq("Item"), eq("AAS-VENDOR-BILL")))
                 .thenReturn(Map.of("name", "AAS-VENDOR-BILL"));
         when(erpNextClient.createResource(eq("Purchase Invoice"), anyMap()))
@@ -57,11 +60,11 @@ class OrderBillingServiceTest {
         fields.put("vendor_bill_total", 250);
         fields.put("vendor_bill_ref", "VB-1");
         fields.put("vendor_bill_date", "2026-02-19");
-        fields.put("margin_percent", 10);
 
         Map<String, Object> response = service.captureVendorBill("SO-1", fields);
 
         assertEquals(250.0, response.get("vendorBillTotal"));
+        assertEquals(12.0, response.get("marginPercent"));
         verify(erpNextClient).createResource(eq("Purchase Invoice"), anyMap());
     }
 
@@ -74,20 +77,35 @@ class OrderBillingServiceTest {
                 "transaction_date", "2026-02-19",
                 "delivery_date", "2026-02-20",
                 "aas_vendor_bill_total", 100.0,
-                "aas_margin_percent", 10.0,
-                "items", List.of(Map.of("item_code", "ITEM-1", "qty", 2, "aas_vendor_rate", 50))));
+                "items", List.of(
+                        Map.of("item_code", "ITEM-1", "qty", 1, "aas_vendor_rate", 50.0, "aas_margin_percent", 10.0),
+                        Map.of("item_code", "ITEM-2", "qty", 1, "aas_vendor_rate", 50.0, "aas_margin_percent", 20.0))));
         when(erpNextClient.createResource(eq("Sales Order"), anyMap())).thenReturn(Map.of("name", "SO-SELL"));
         when(erpNextClient.createResource(eq("Sales Invoice"), anyMap())).thenReturn(Map.of("name", "SI-SELL"));
         when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of("name", "SO-1"));
 
         Map<String, Object> response = service.createSellOrder("SO-1");
 
-        assertEquals(110.0, response.get("sellTotal"));
+        assertEquals(115.0, response.get("sellTotal"));
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(erpNextClient).createResource(eq("Sales Order"), captor.capture());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) captor.getValue().get("items");
         assertEquals(55.0, items.get(0).get("rate"));
+        assertEquals(60.0, items.get(1).get("rate"));
+    }
+
+    @Test
+    void fallsBackToDefaultMarginWhenStoredMarginIsZero() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_vendor_bill_total", 100.0,
+                "aas_margin_percent", 0.0));
+
+        Map<String, Object> preview = service.getSellPreview("SO-1");
+
+        assertEquals(107.0, preview.get("sellAmount"));
+        assertEquals(7.0, preview.get("marginAmount"));
+        assertEquals(7.0, preview.get("marginPercent"));
     }
 
     @Test

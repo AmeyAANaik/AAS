@@ -18,7 +18,21 @@ public class PaymentService {
     }
 
     public Map<String, Object> createPayment(PaymentRequest request) {
-        Map<String, Object> response = erpNextClient.getResource("Company", request.getCompany());
+        String customer = request.getCustomer();
+        String companyName = request.getCompany();
+        if (request.getInvoiceId() != null && !request.getInvoiceId().isBlank()) {
+            Map<String, Object> invoiceDoc = loadInvoice(request.getInvoiceId());
+            String invoiceCustomer = asString(invoiceDoc.get("customer"));
+            String invoiceCompany = asString(invoiceDoc.get("company"));
+            if (invoiceCustomer != null && !invoiceCustomer.isBlank()) {
+                customer = invoiceCustomer;
+            }
+            if (invoiceCompany != null && !invoiceCompany.isBlank()) {
+                companyName = invoiceCompany;
+            }
+        }
+
+        Map<String, Object> response = erpNextClient.getResource("Company", companyName);
         Map<String, Object> company = unwrap(response);
         String receivable = asString(company.get("default_receivable_account"));
         String cash = asString(company.get("default_cash_account"));
@@ -28,8 +42,8 @@ public class PaymentService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("payment_type", "Receive");
         payload.put("party_type", "Customer");
-        payload.put("party", request.getCustomer());
-        payload.put("company", request.getCompany());
+        payload.put("party", customer);
+        payload.put("company", companyName);
         payload.put("paid_amount", request.getAmount());
         payload.put("received_amount", request.getAmount());
         payload.put("paid_from", receivable);

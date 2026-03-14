@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { OrderCreatePayload, OrderFilters, OrderSummary, SellPreview, VendorBillPayload } from './order.model';
+import { OrderCreatePayload, OrderFilters, OrderItemPayload, OrderSummary, SellPreview, VendorBillPayload } from './order.model';
 
 @Injectable({
   providedIn: 'root'
@@ -128,7 +128,7 @@ export class OrderService {
 
   updateOrderItems(
     orderId: string,
-    items: Array<{ item_code: string; qty: number; rate: number }>
+    items: OrderItemPayload[]
   ): Observable<Record<string, unknown>> {
     return this.http.put<Record<string, unknown>>(
       `/api/orders/${encodeURIComponent(orderId)}/items`,

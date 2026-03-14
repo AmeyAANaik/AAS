@@ -31,6 +31,7 @@ public class SetupService {
     private final String defaultHelperEmail;
     private final String defaultHelperName;
     private final String defaultHelperPassword;
+    private final double defaultMarginPercent;
 
     public SetupService(
             ErpNextClient erpNextClient,
@@ -50,7 +51,8 @@ public class SetupService {
             @Value("${app.defaults.shop.customer:}") String defaultShopCustomer,
             @Value("${app.defaults.helper.email:}") String defaultHelperEmail,
             @Value("${app.defaults.helper.name:Helper User}") String defaultHelperName,
-            @Value("${app.defaults.helper.password:helper123}") String defaultHelperPassword) {
+            @Value("${app.defaults.helper.password:helper123}") String defaultHelperPassword,
+            @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.customFieldProvisioner = customFieldProvisioner;
         this.vendorFieldRegistry = vendorFieldRegistry;
@@ -69,6 +71,7 @@ public class SetupService {
         this.defaultHelperEmail = defaultHelperEmail;
         this.defaultHelperName = defaultHelperName;
         this.defaultHelperPassword = defaultHelperPassword;
+        this.defaultMarginPercent = defaultMarginPercent;
     }
 
     public Map<String, Object> ensureSetup() {
@@ -247,18 +250,6 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_margin_percent");
-        boolean branchPlaceholderItem = false;
-        String branchPlaceholderItemError = "";
-        try {
-            branchPlaceholderItem = ensureItem(
-                    "AAS-BRANCH-IMAGE",
-                    "Branch Image Placeholder",
-                    "Placeholder item for branch image orders.");
-        } catch (Exception ex) {
-            // Setup should never fail entirely due to missing stock masters (Item Group/UOM).
-            branchPlaceholderItem = false;
-            branchPlaceholderItemError = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-        }
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
@@ -268,10 +259,6 @@ public class SetupService {
         result.put("packagingUnitFieldCreated", packagingUnitField);
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
-        result.put("branchPlaceholderItemCreated", branchPlaceholderItem);
-        if (!branchPlaceholderItemError.isBlank()) {
-            result.put("branchPlaceholderItemError", branchPlaceholderItemError);
-        }
         result.put("branchImageFieldCreated", branchImageField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
@@ -291,8 +278,140 @@ public class SetupService {
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
         result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
+        MarginBackfillResult salesOrderBackfill = backfillSalesOrdersAndItems();
+        result.put("salesOrdersMarginBackfilled", salesOrderBackfill.documentCount());
+        result.put("salesOrderItemsMarginBackfilled", salesOrderBackfill.itemCount());
+        result.put("itemsMarginBackfilled", backfillMarginPercent("Item", "aas_margin_percent"));
         result.putAll(ensureDefaultUsers());
         return result;
+    }
+
+    private MarginBackfillResult backfillSalesOrdersAndItems() {
+        int ordersUpdated = 0;
+        int itemsUpdated = 0;
+        int start = 0;
+        final int pageSize = 200;
+        while (true) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"aas_margin_percent\"]");
+            params.put("limit_page_length", pageSize);
+            params.put("limit_start", start);
+            List<Map<String, Object>> rows = erpNextClient.listResources("Sales Order", params);
+            if (rows == null || rows.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : rows) {
+                String name = asText(row.get("name"));
+                if (name.isBlank()) {
+                    continue;
+                }
+                Map<String, Object> orderDoc = unwrap(erpNextClient.getResource("Sales Order", name));
+                boolean documentChanged = shouldBackfillMargin(orderDoc.get("aas_margin_percent"));
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> items =
+                        orderDoc.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+                List<Map<String, Object>> updatedItems = new java.util.ArrayList<>();
+                int changedItemsForOrder = 0;
+                for (Map<String, Object> item : items) {
+                    if (item == null) {
+                        continue;
+                    }
+                    Map<String, Object> copy = new HashMap<>(item);
+                    if (shouldBackfillMargin(copy.get("aas_margin_percent"))) {
+                        copy.put("aas_margin_percent", defaultMarginPercent);
+                        changedItemsForOrder++;
+                    }
+                    updatedItems.add(copy);
+                }
+                if (!documentChanged && changedItemsForOrder == 0) {
+                    continue;
+                }
+                Map<String, Object> payload = new HashMap<>();
+                if (documentChanged) {
+                    payload.put("aas_margin_percent", defaultMarginPercent);
+                }
+                if (changedItemsForOrder > 0) {
+                    payload.put("items", updatedItems);
+                }
+                erpNextClient.updateResource("Sales Order", name, payload);
+                if (documentChanged) {
+                    ordersUpdated++;
+                }
+                itemsUpdated += changedItemsForOrder;
+            }
+            if (rows.size() < pageSize) {
+                break;
+            }
+            start += pageSize;
+        }
+        return new MarginBackfillResult(ordersUpdated, itemsUpdated);
+    }
+
+    private int backfillMarginPercent(String doctype, String fieldname) {
+        int updated = 0;
+        int start = 0;
+        final int pageSize = 500;
+        while (true) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"" + fieldname + "\"]");
+            params.put("limit_page_length", pageSize);
+            params.put("limit_start", start);
+            List<Map<String, Object>> rows = erpNextClient.listResources(doctype, params);
+            if (rows == null || rows.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : rows) {
+                if (row == null) {
+                    continue;
+                }
+                String name = asText(row.get("name"));
+                if (name.isBlank() || !shouldBackfillMargin(row.get(fieldname))) {
+                    continue;
+                }
+                erpNextClient.updateResource(doctype, name, Map.of(fieldname, defaultMarginPercent));
+                updated++;
+            }
+            if (rows.size() < pageSize) {
+                break;
+            }
+            start += pageSize;
+        }
+        return updated;
+    }
+
+    private boolean shouldBackfillMargin(Object value) {
+        if (value == null) {
+            return true;
+        }
+        String text = value.toString().trim();
+        if (text.isEmpty()) {
+            return true;
+        }
+        try {
+            double margin = Double.parseDouble(text);
+            return margin == 0.0 || margin == 10.0;
+        } catch (NumberFormatException ex) {
+            return false;
+        }
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrap(Map<String, Object> resource) {
+        if (resource == null) {
+            return Map.of();
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return resource;
+    }
+
+    private record MarginBackfillResult(int documentCount, int itemCount) {
     }
 
     private boolean ensureSupplierGroupRoot() {

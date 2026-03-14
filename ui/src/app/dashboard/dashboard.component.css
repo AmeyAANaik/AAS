@@ -39,6 +39,16 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.vendor-ops-card {
+  padding: 12px;
+}
+
+.vendor-ops-summary .metric {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
 .card {
   padding: 12px;
 }

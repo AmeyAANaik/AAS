@@ -12,6 +12,7 @@ const DRY_RUN = process.env.DRY_RUN === '1';
 const FORCE_TRANSACTIONS = process.env.SEED_TRANSACTIONS_ALWAYS === '1';
 const SEED_SALES_PDF_ITEMS = process.env.SEED_SALES_PDF_ITEMS !== '0';
 const TODAY = new Date('2026-03-03T00:00:00Z');
+const RUN_DATE = formatDate(new Date());
 
 const companies = [
   {
@@ -737,6 +738,10 @@ function addDays(date, days) {
   return copy;
 }
 
+function maxDate(left, right) {
+  return left >= right ? left : right;
+}
+
 function weeksBetween(start, end) {
   const dates = [];
   for (let cursor = new Date(start.getTime()); cursor <= end; cursor = addDays(cursor, 7)) {
@@ -1337,13 +1342,46 @@ function computeSellRate(item, uplift = 1) {
   return round(item.aas_vendor_rate * (1 + (item.aas_margin_percent * uplift) / 100));
 }
 
+function daysSinceSeedDate(date) {
+  const diff = TODAY.getTime() - date.getTime();
+  return Math.floor(diff / (24 * 60 * 60 * 1000));
+}
+
+function seedOrderStatus(date) {
+  const age = daysSinceSeedDate(date);
+  if (age >= 18) {
+    return 'Delivered';
+  }
+  if (age >= 12) {
+    return 'Accepted';
+  }
+  if (age >= 8) {
+    return 'SELL_ORDER_CREATED';
+  }
+  if (age >= 5) {
+    return 'VENDOR_BILL_CAPTURED';
+  }
+  if (age >= 3) {
+    return 'VENDOR_PDF_RECEIVED';
+  }
+  if (age >= 1) {
+    return 'VENDOR_ASSIGNED';
+  }
+  return 'DRAFT';
+}
+
+function normalizeSeedQty(item, qty) {
+  const rawQty = qty < 1 ? 1 : qty;
+  return item?.stock_uom === 'Nos' ? Math.ceil(rawQty) : rawQty;
+}
+
 function buildOrderRecord(seedKey, date, customerName, companyName, vendorName, chosenItems, sizeMultiplier, status, notes = '') {
   const transactionDate = formatDate(date);
   const deliveryDate = formatDate(addDays(date, 1));
   const warehouse = warehouseForCompany(companyName);
   const items = chosenItems.map((item, index) => {
     const qty = round((index + 1) * sizeMultiplier);
-    const safeQty = qty < 1 ? 1 : qty;
+    const safeQty = normalizeSeedQty(item, qty);
     const rate = computeSellRate(item, vendorName === 'Regal Spirits Distributors' ? 0.9 : 1);
     return {
       item_code: item.item_code,
@@ -1355,6 +1393,10 @@ function buildOrderRecord(seedKey, date, customerName, companyName, vendorName, 
       warehouse
     };
   });
+  const itemsTotal = round(items.reduce((sum, item) => sum + Number(item.amount || 0), 0));
+  const hasVendorPdf = ['VENDOR_PDF_RECEIVED', 'VENDOR_BILL_CAPTURED', 'SELL_ORDER_CREATED'].includes(status);
+  const hasVendorBill = ['VENDOR_PDF_RECEIVED', 'VENDOR_BILL_CAPTURED', 'SELL_ORDER_CREATED'].includes(status);
+  const hasSellOrder = ['SELL_ORDER_CREATED'].includes(status);
   return {
     seedKey,
     customer: customerName,
@@ -1365,7 +1407,12 @@ function buildOrderRecord(seedKey, date, customerName, companyName, vendorName, 
     status,
     set_warehouse: warehouse,
     note: notes,
-    items
+    items,
+    vendor_pdf: hasVendorPdf ? `/files/${seedKey.toLowerCase()}.pdf` : '',
+    vendor_bill_total: hasVendorBill ? itemsTotal : 0,
+    vendor_bill_ref: hasVendorBill ? `BILL-${seedKey.replace(/^AAS-SEED-/, '')}` : '',
+    vendor_bill_date: hasVendorBill ? deliveryDate : '',
+    sell_order_total: hasSellOrder ? itemsTotal : 0
   };
 }
 
@@ -1394,7 +1441,7 @@ function buildHistoricalOrders(itemIndex) {
           'SpiceRoute Traders',
           pick('Dry Goods & Staples').slice(0, 3),
           pantrySize,
-          monday < addDays(TODAY, -18) ? 'Delivered' : 'Accepted',
+          seedOrderStatus(monday),
           'Weekly pantry replenishment'
         )
       );
@@ -1408,7 +1455,7 @@ function buildHistoricalOrders(itemIndex) {
           'FreshHarvest Agro Foods',
           [...pick('Vegetables – Fresh').slice(0, 3), ...pick('Herbs & Aromatics').slice(0, 2)],
           vegSize,
-          addDays(monday, 1) < addDays(TODAY, -12) ? 'Delivered' : 'Ready',
+          seedOrderStatus(addDays(monday, 1)),
           'Fresh produce cycle'
         )
       );
@@ -1422,7 +1469,7 @@ function buildHistoricalOrders(itemIndex) {
           'PrimeDairy Distributors',
           [...pick('Dairy & Eggs').slice(0, 3), ...pick('Bakery Inputs').slice(0, 1)],
           outlet.size,
-          addDays(monday, 2) < addDays(TODAY, -10) ? 'Delivered' : 'Accepted',
+          seedOrderStatus(addDays(monday, 2)),
           'Mid-week dairy and bakery top-up'
         )
       );
@@ -1438,7 +1485,7 @@ function buildHistoricalOrders(itemIndex) {
           proteinVendor,
           pick(proteinGroup).slice(0, 4),
           proteinSize,
-          addDays(monday, 3) < addDays(TODAY, -8) ? 'Delivered' : 'Accepted',
+          seedOrderStatus(addDays(monday, 3)),
           'Protein dispatch aligned to menu plan'
         )
       );
@@ -1452,7 +1499,7 @@ function buildHistoricalOrders(itemIndex) {
           'FreshHarvest Agro Foods',
           [...pick('Fruits – Fresh').slice(0, 3), ...pick('Vegetables – Fresh').slice(2, 4)],
           vegSize * 0.95,
-          addDays(monday, 4) < addDays(TODAY, -6) ? 'Delivered' : 'Ready',
+          seedOrderStatus(addDays(monday, 4)),
           'Weekend mise en place'
         )
       );
@@ -1469,7 +1516,7 @@ function buildHistoricalOrders(itemIndex) {
             beverageVendor,
             [...pick(beverageGroup).slice(0, 3), ...pick('Bottled Water').slice(0, 1)],
             outlet.size * weekendFactor,
-            addDays(monday, 5) < addDays(TODAY, -4) ? 'Delivered' : 'Accepted',
+            seedOrderStatus(addDays(monday, 5)),
             'Weekend bar and banquet beverage load'
           )
         );
@@ -1485,7 +1532,7 @@ function buildHistoricalOrders(itemIndex) {
             outlet.segment === 'banquet' ? 'LinenLux Textiles' : 'CrystalClean Housekeeping Supplies',
             outlet.segment === 'banquet' ? pick('Linen').slice(0, 3) : [...pick('Cleaning Chemicals').slice(0, 3), ...pick('Guest Amenities').slice(0, 2)],
             outlet.size * 0.65,
-            addDays(monday, 6) < addDays(TODAY, -14) ? 'Delivered' : 'DRAFT',
+            seedOrderStatus(addDays(monday, 6)),
             'Housekeeping and service inventory cycle'
           )
         );
@@ -1505,7 +1552,7 @@ function buildHistoricalOrders(itemIndex) {
           'FreshHarvest Agro Foods',
           [...pick('Vegetables – Fresh').slice(0, 4), ...pick('Herbs & Aromatics').slice(0, 2)],
           outlet.size * 2.2,
-          date < addDays(TODAY, -3) ? 'Delivered' : 'Accepted',
+          seedOrderStatus(date),
           'Wedding and banquet volume spike'
         )
       );
@@ -1518,7 +1565,7 @@ function buildHistoricalOrders(itemIndex) {
           'Metro Packaging Solutions',
           pick('Packaging Material').slice(0, 4),
           outlet.size * 1.9,
-          date < addDays(TODAY, -3) ? 'Delivered' : 'Accepted',
+          seedOrderStatus(date),
           'Banquet service and takeaway packaging load'
         )
       );
@@ -1528,66 +1575,50 @@ function buildHistoricalOrders(itemIndex) {
   return orders;
 }
 
-async function seededOrdersExist() {
-  const existing = await erpList('Sales Order', {
-    fields: '["name","po_no"]',
-    filters: toFilterJson([['po_no', 'like', 'AAS-SEED-%']]),
-    limit_page_length: '1'
-  });
-  return existing.length > 0;
-}
-
-async function seededInvoicesExist() {
-  const existing = await erpList('Sales Invoice', {
-    fields: '["name","remarks"]',
-    filters: toFilterJson([['remarks', 'like', '%AAS-SEED%']]),
-    limit_page_length: '1'
-  });
-  return existing.length > 0;
-}
-
-async function seededPaymentsExist(referencePrefix) {
-  const existing = await erpList('Payment Entry', {
-    fields: '["name","reference_no"]',
-    filters: toFilterJson([['reference_no', 'like', `${referencePrefix}%`]]),
-    limit_page_length: '1'
-  });
-  return existing.length > 0;
-}
-
 async function createSalesOrders(orderRecords) {
   const created = [];
   for (const record of orderRecords) {
-    const existing = await erpFindOne('Sales Order', [['po_no', '=', record.seedKey]], ['name']);
-    if (existing) {
-      created.push({ ...record, name: existing.name });
-      continue;
-    }
     const payload = {
       customer: record.customer,
       company: record.company,
       transaction_date: record.transaction_date,
       delivery_date: record.delivery_date,
       set_warehouse: record.set_warehouse,
+      selling_price_list: 'Standard Selling',
+      price_list_currency: 'INR',
+      plc_conversion_rate: 1,
       po_no: record.seedKey,
       aas_vendor: record.vendor,
       aas_status: record.status,
+      aas_vendor_pdf: record.vendor_pdf,
+      aas_vendor_bill_total: record.vendor_bill_total,
+      aas_vendor_bill_ref: record.vendor_bill_ref,
+      aas_vendor_bill_date: record.vendor_bill_date,
+      aas_sell_order_total: record.sell_order_total,
       remarks: record.note,
       items: record.items
     };
-    const createdDoc = await erpCreate('Sales Order', payload);
+    const existing = await erpFindOne('Sales Order', [['po_no', '=', record.seedKey]], ['name']);
+    if (existing) {
+      await erpUpdate('Sales Order', existing.name, payload);
+      created.push({ ...record, name: existing.name });
+      continue;
+    }
+    let createdDoc;
+    try {
+      createdDoc = await erpCreate('Sales Order', payload);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw new Error(
+          `Sales Order seed failed for ${record.seedKey} (${record.customer} / ${record.company}) `
+          + `txn=${record.transaction_date} delivery=${record.delivery_date}: ${error.body}`
+        );
+      }
+      throw error;
+    }
     created.push({ ...record, name: createdDoc.name || createdDoc?.data?.name });
   }
   return created;
-}
-
-async function loadSeededOrders(orderRecords) {
-  const hydrated = [];
-  for (const record of orderRecords) {
-    const existing = await erpFindOne('Sales Order', [['po_no', '=', record.seedKey]], ['name']);
-    hydrated.push({ ...record, name: existing?.name });
-  }
-  return hydrated;
 }
 
 function createInvoicePlan(orders, itemIndex) {
@@ -1596,7 +1627,7 @@ function createInvoicePlan(orders, itemIndex) {
     .filter(order => order.transaction_date <= '2026-02-25')
     .slice(0, 120)
     .map((order, index) => {
-      const postingDate = order.delivery_date;
+      const postingDate = maxDate(order.delivery_date, RUN_DATE);
       const dueDate = formatDate(addDays(new Date(`${postingDate}T00:00:00Z`), [7, 15, 30][index % 3]));
       const discount = index % 5 === 0 ? 2.5 : index % 7 === 0 ? 1.25 : 0;
       const lineItems = order.items.map(row => {
@@ -1650,30 +1681,36 @@ async function createSalesInvoices(invoicePlans) {
       posting_date: plan.posting_date,
       due_date: plan.due_date,
       set_warehouse: plan.set_warehouse,
+      selling_price_list: 'Standard Selling',
+      price_list_currency: 'INR',
+      plc_conversion_rate: 1,
       aas_source_sales_order: plan.aas_source_sales_order,
       remarks: plan.remarks,
       additional_discount_percentage: plan.additional_discount_percentage,
       items: plan.items
     };
-    const createdDoc = await erpCreate('Sales Invoice', payload);
+    let createdDoc;
+    try {
+      createdDoc = await erpCreate('Sales Invoice', payload);
+    } catch (error) {
+      if (error instanceof HttpError) {
+        throw new Error(
+          `Sales Invoice seed failed for ${plan.seedKey} (${plan.customer} / ${plan.company}) `
+          + `posting=${plan.posting_date} due=${plan.due_date}: ${error.body}`
+        );
+      }
+      throw error;
+    }
     created.push({ ...plan, name: createdDoc.name || createdDoc?.data?.name, grand_total: plan.invoiceTotal });
   }
   return created;
 }
 
-async function loadSeededInvoices(invoicePlans) {
-  const invoices = [];
-  for (const plan of invoicePlans) {
-    const existing = await erpFindOne('Sales Invoice', [['remarks', '=', plan.remarks]], ['name', 'grand_total']);
-    invoices.push({ ...plan, name: existing?.name, grand_total: Number(existing?.grand_total || plan.invoiceTotal) });
-  }
-  return invoices;
+async function findPaymentEntryByReference(referenceNo) {
+  return erpFindOne('Payment Entry', [['reference_no', '=', referenceNo]], ['name']);
 }
 
 async function createCustomerPayments(invoices, companyIndex) {
-  if (await seededPaymentsExist('AAS-SEED-COL-')) {
-    return;
-  }
   for (let index = 0; index < invoices.length; index += 1) {
     const invoice = invoices[index];
     const companyDoc = companyIndex.get(invoice.company) || {};
@@ -1685,9 +1722,14 @@ async function createCustomerPayments(invoices, companyIndex) {
     const behavior = index % 6;
     const paidAmount = behavior === 0 ? round(invoice.grand_total * 0.55) : round(invoice.grand_total);
     const delayDays = behavior === 1 ? 3 : behavior === 2 ? 10 : behavior === 3 ? 18 : behavior === 4 ? 28 : 5;
-    const postingDate = formatDate(addDays(new Date(`${invoice.due_date}T00:00:00Z`), delayDays));
-    if (postingDate > formatDate(TODAY)) {
-      continue;
+    const candidatePostingDate = formatDate(addDays(new Date(`${invoice.due_date}T00:00:00Z`), delayDays));
+    const postingDate = candidatePostingDate > RUN_DATE ? RUN_DATE : candidatePostingDate;
+    const referenceNo = `AAS-SEED-COL-${slug(invoice.customer)}-${index + 1}`;
+    if (!FORCE_TRANSACTIONS) {
+      const existing = await findPaymentEntryByReference(referenceNo);
+      if (existing) {
+        continue;
+      }
     }
     await erpCreate('Payment Entry', {
       payment_type: 'Receive',
@@ -1699,7 +1741,7 @@ async function createCustomerPayments(invoices, companyIndex) {
       received_amount: paidAmount,
       paid_from: receivable,
       paid_to: cash,
-      reference_no: `AAS-SEED-COL-${slug(invoice.customer)}-${index + 1}`,
+      reference_no: referenceNo,
       reference_date: postingDate
     });
   }
@@ -1719,13 +1761,12 @@ function aggregateVendorAmounts(orders) {
       bucket.lastDate = order.delivery_date;
     }
   }
-  return [...map.values()];
+  return [...map.values()].sort((left, right) =>
+    `${left.vendor}::${left.company}`.localeCompare(`${right.vendor}::${right.company}`)
+  );
 }
 
 async function createSupplierPayments(orders, companyIndex) {
-  if (await seededPaymentsExist('AAS-SEED-VPAY-')) {
-    return;
-  }
   const aggregates = aggregateVendorAmounts(orders);
   let counter = 1;
   for (const aggregate of aggregates) {
@@ -1739,7 +1780,16 @@ async function createSupplierPayments(orders, companyIndex) {
     const amount = full ? aggregate.amount : round(aggregate.amount * 0.62);
     const postingDate = formatDate(addDays(new Date(`${aggregate.lastDate}T00:00:00Z`), counter % 3 === 0 ? 18 : 7));
     if (postingDate > formatDate(TODAY)) {
+      counter += 1;
       continue;
+    }
+    const referenceNo = `AAS-SEED-VPAY-${slug(aggregate.vendor)}-${counter}`;
+    if (!FORCE_TRANSACTIONS) {
+      const existing = await findPaymentEntryByReference(referenceNo);
+      if (existing) {
+        counter += 1;
+        continue;
+      }
     }
     await erpCreate('Payment Entry', {
       payment_type: 'Pay',
@@ -1751,7 +1801,7 @@ async function createSupplierPayments(orders, companyIndex) {
       received_amount: amount,
       paid_from: cash,
       paid_to: payable,
-      reference_no: `AAS-SEED-VPAY-${slug(aggregate.vendor)}-${counter}`,
+      reference_no: referenceNo,
       reference_date: postingDate
     });
     counter += 1;
@@ -1800,24 +1850,12 @@ export async function main() {
   const itemIndex = buildItemIndex(items);
   const orders = buildHistoricalOrders(itemIndex);
 
-  let seededOrders;
-  if (!(await seededOrdersExist()) || FORCE_TRANSACTIONS) {
-    console.log(`Creating ${orders.length} seeded sales orders...`);
-    seededOrders = await createSalesOrders(orders);
-  } else {
-    console.log('Seeded sales orders already exist; skipping order creation.');
-    seededOrders = await loadSeededOrders(orders);
-  }
+  console.log(`Ensuring ${orders.length} seeded sales orders...`);
+  const seededOrders = await createSalesOrders(orders);
 
   const invoicePlans = createInvoicePlan(seededOrders, itemIndex);
-  let seededInvoices;
-  if (!(await seededInvoicesExist()) || FORCE_TRANSACTIONS) {
-    console.log(`Creating ${invoicePlans.length} seeded sales invoices...`);
-    seededInvoices = await createSalesInvoices(invoicePlans);
-  } else {
-    console.log('Seeded sales invoices already exist; skipping invoice creation.');
-    seededInvoices = await loadSeededInvoices(invoicePlans);
-  }
+  console.log(`Ensuring ${invoicePlans.length} seeded sales invoices...`);
+  const seededInvoices = await createSalesInvoices(invoicePlans);
 
   await createCustomerPayments(seededInvoices, companyIndex);
   await createSupplierPayments(seededOrders, companyIndex);

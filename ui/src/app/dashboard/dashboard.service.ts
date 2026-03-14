@@ -11,7 +11,9 @@ import {
   OrderStatusRow,
   OrderSummary,
   SalesSummary,
-  StockSnapshot
+  BranchOperationsSnapshot,
+  StockSnapshot,
+  VendorOperationsSnapshot
 } from './dashboard.model';
 
 @Injectable({
@@ -35,6 +37,8 @@ export class DashboardService {
       orders: this.http.get<OrderSummary[]>(`/api/orders`, { headers, params: orderParams }),
       vendorBilling: this.http.get<BillingSummary[]>(`/api/reports/vendor-billing`, { headers, params: reportParams }),
       branchBilling: this.http.get<BillingSummary[]>(`/api/reports/shop-billing`, { headers, params: reportParams }),
+      vendorOps: this.http.get<{ totals?: VendorOperationsSnapshot }>(`/api/vendor-ops/summary`, { headers }),
+      branchOps: this.http.get<{ totals?: BranchOperationsSnapshot }>(`/api/branch-ops/summary`, { headers }),
       items: this.http.get<InventoryItem[]>(`/api/items`, { headers }),
       invoices: this.http.get<InvoiceSummary[]>(`/api/invoices`, { headers, params: invoiceParams })
     }).pipe(
@@ -45,9 +49,33 @@ export class DashboardService {
         billsByBranch: this.buildBillingRows(result.branchBilling ?? [], 'shop'),
         stockSnapshot: this.buildStockSnapshot(result.items ?? []),
         salesSummary: this.buildSalesSummary(result.invoices ?? [], rangeStart, rangeEnd),
+        vendorOperations: this.buildVendorOperationsSummary(result.vendorOps?.totals),
+        branchOperations: this.buildBranchOperationsSummary(result.branchOps?.totals),
         periodLabel: monthLabel
       }))
     );
+  }
+
+  private buildVendorOperationsSummary(totals?: VendorOperationsSnapshot): VendorOperationsSnapshot {
+    return {
+      totalVendors: Number(totals?.totalVendors) || 0,
+      vendorsWithPendingOrders: Number(totals?.vendorsWithPendingOrders) || 0,
+      totalPendingOrders: Number(totals?.totalPendingOrders) || 0,
+      awaitingPdf: Number(totals?.awaitingPdf) || 0,
+      awaitingBillCapture: Number(totals?.awaitingBillCapture) || 0,
+      totalPendingBillAmount: Number(totals?.totalPendingBillAmount) || 0
+    };
+  }
+
+  private buildBranchOperationsSummary(totals?: BranchOperationsSnapshot): BranchOperationsSnapshot {
+    return {
+      totalBranches: Number(totals?.totalBranches) || 0,
+      branchesWithPendingOrders: Number(totals?.branchesWithPendingOrders) || 0,
+      totalPendingOrders: Number(totals?.totalPendingOrders) || 0,
+      awaitingVendorAssignment: Number(totals?.awaitingVendorAssignment) || 0,
+      awaitingVendorResponse: Number(totals?.awaitingVendorResponse) || 0,
+      openReceivableAmount: Number(totals?.openReceivableAmount) || 0
+    };
   }
 
   private buildOrderStatus(orders: OrderSummary[]): OrderStatusRow[] {

@@ -19,6 +19,21 @@ export const routes: Routes = [
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
         canMatch: [adminDashboardGuard]
       },
+      {
+        path: 'vendor-ops',
+        loadChildren: () => import('./vendor-ops/vendor-ops.module').then(m => m.VendorOpsModule),
+        canMatch: [adminDashboardGuard]
+      },
+      {
+        path: 'branch-ops',
+        loadChildren: () => import('./branch-ops/branch-ops.module').then(m => m.BranchOpsModule),
+        canMatch: [adminDashboardGuard]
+      },
+      {
+        path: 'company-settings',
+        loadChildren: () => import('./company-settings/company-settings.module').then(m => m.CompanySettingsModule),
+        canMatch: [adminDashboardGuard]
+      },
       { path: 'orders', loadChildren: () => import('./orders/orders.module').then(m => m.OrdersModule) },
       { path: 'stock', loadChildren: () => import('./stock/stock.module').then(m => m.StockModule) },
       { path: 'bills', loadChildren: () => import('./bills/bills.module').then(m => m.BillsModule) },

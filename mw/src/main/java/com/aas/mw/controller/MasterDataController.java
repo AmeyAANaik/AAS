@@ -1,11 +1,14 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.service.MasterDataService;
+import com.aas.mw.service.UserService;
 import com.aas.mw.dto.FieldsRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MasterDataController {
 
     private final MasterDataService masterDataService;
+    private final UserService userService;
 
-    public MasterDataController(MasterDataService masterDataService) {
+    public MasterDataController(MasterDataService masterDataService, UserService userService) {
         this.masterDataService = masterDataService;
+        this.userService = userService;
     }
 
     @GetMapping("/items")
@@ -88,6 +93,28 @@ public class MasterDataController {
     @GetMapping("/companies")
     public ResponseEntity<List<Map<String, Object>>> listCompanies() {
         return ResponseEntity.ok(masterDataService.listCompanies());
+    }
+
+    @GetMapping("/company-context")
+    public ResponseEntity<Map<String, Object>> companyContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth == null ? null : auth.getName();
+        Map<String, Object> profile = userService.getUserProfile(username);
+        return ResponseEntity.ok(masterDataService.getCompanyContext(
+                String.valueOf(profile.getOrDefault("company", "")),
+                String.valueOf(profile.getOrDefault("customer", ""))));
+    }
+
+    @GetMapping("/companies/{id}")
+    public ResponseEntity<Map<String, Object>> getCompany(@PathVariable String id) {
+        return ResponseEntity.ok(masterDataService.getCompanyProfile(id));
+    }
+
+    @PutMapping("/companies/{id}")
+    public ResponseEntity<Map<String, Object>> updateCompany(
+            @PathVariable String id,
+            @Valid @RequestBody FieldsRequest request) {
+        return ResponseEntity.ok(masterDataService.updateCompanyProfile(id, request));
     }
 
     @PostMapping("/shops")

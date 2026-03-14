@@ -6,9 +6,10 @@ import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
 import feign.FeignException;
 import java.util.ArrayList;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,20 +17,20 @@ public class OrderService {
 
     private static final String DOCTYPE = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
-    private static final String PLACEHOLDER_ITEM_CODE = "AAS-BRANCH-IMAGE";
-    private static final double DEFAULT_MARGIN_PERCENT = 10.0;
-
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final double defaultMarginPercent;
 
     public OrderService(
             ErpNextClient erpNextClient,
             ErpNextFileService erpNextFileService,
-            OrderFlowStateMachine orderFlowStateMachine) {
+            OrderFlowStateMachine orderFlowStateMachine,
+            @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.defaultMarginPercent = defaultMarginPercent;
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
@@ -57,8 +58,7 @@ public class OrderService {
         payload.put("transaction_date", resolveDate(transactionDate));
         payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
         payload.put("aas_status", "DRAFT");
-        payload.put("aas_margin_percent", DEFAULT_MARGIN_PERCENT);
-        payload.put("items", List.of(buildPlaceholderItem(warehouse)));
+        payload.put("aas_margin_percent", defaultMarginPercent);
         Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
         String orderId = extractDocName(order);
         if (orderId != null && !orderId.isBlank()) {
@@ -254,49 +254,6 @@ public class OrderService {
                 "purchaseOrderId", purchaseOrderId);
     }
 
-    private Map<String, Object> buildPlaceholderItem(String warehouse) {
-        ensurePlaceholderItem();
-        Map<String, Object> item = new HashMap<>();
-        item.put("item_code", PLACEHOLDER_ITEM_CODE);
-        item.put("qty", 1);
-        item.put("rate", 0);
-        item.put("price_list_rate", 0);
-        item.put("amount", 0);
-        if (warehouse != null && !warehouse.isBlank()) {
-            item.put("warehouse", warehouse);
-        }
-        return item;
-    }
-
-    private void ensurePlaceholderItem() {
-        try {
-            Map<String, Object> item = erpNextClient.getResource("Item", PLACEHOLDER_ITEM_CODE);
-            Object data = item == null ? null : item.get("data");
-            @SuppressWarnings("unchecked")
-            Map<String, Object> doc = data instanceof Map<?, ?> map ? (Map<String, Object>) map : item;
-            Object disabled = doc == null ? null : doc.get("disabled");
-            if (disabled instanceof Number n && n.intValue() != 0) {
-                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
-            } else if (disabled instanceof Boolean b && b) {
-                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
-            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
-                erpNextClient.updateResource("Item", PLACEHOLDER_ITEM_CODE, Map.of("disabled", 0));
-            }
-        } catch (Exception ex) {
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("item_code", PLACEHOLDER_ITEM_CODE);
-            payload.put("item_name", "Branch Image Placeholder");
-            payload.put("item_group", "All Item Groups");
-            payload.put("stock_uom", "Nos");
-            payload.put("is_stock_item", 0);
-            payload.put("is_sales_item", 1);
-            payload.put("is_purchase_item", 0);
-            payload.put("disabled", 0);
-            payload.put("description", "Placeholder item for branch image orders.");
-            erpNextClient.createResource("Item", payload);
-        }
-    }
-
     private String resolveDate(String value) {
         if (value != null && !value.isBlank()) {
             return value;
@@ -404,36 +361,6 @@ public class OrderService {
 
     private String asText(Object value) {
         return value == null ? "" : value.toString().trim();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void applySalesOrderDefaults(Map<String, Object> fields) {
-        if (fields == null || fields.isEmpty()) {
-            return;
-        }
-        Object itemsObj = fields.get("items");
-        if (!(itemsObj instanceof List<?> items) || items.isEmpty()) {
-            return;
-        }
-        String warehouse = asText(fields.get("set_warehouse"));
-        if (warehouse.isBlank()) {
-            warehouse = resolveDefaultWarehouse(asText(fields.get("company")));
-            if (!warehouse.isBlank()) {
-                fields.put("set_warehouse", warehouse);
-            }
-        }
-        if (warehouse.isBlank()) {
-            return;
-        }
-        for (Object rowObj : items) {
-            if (rowObj instanceof Map<?, ?> row) {
-                Map<String, Object> item = (Map<String, Object>) row;
-                String rowWarehouse = asText(item.get("warehouse"));
-                if (rowWarehouse.isBlank()) {
-                    item.put("warehouse", warehouse);
-                }
-            }
-        }
     }
 
     private String resolveDefaultWarehouse(String company) {
@@ -550,6 +477,7 @@ public class OrderService {
             row.put("qty", line.getQty());
             row.put("rate", line.getRate());
             row.put("amount", line.getQty() * line.getRate());
+            row.put("aas_margin_percent", resolveMarginPercent(line.getAas_margin_percent(), itemCode));
             if (matchIdx >= 0) {
                 Map<String, Object> existingRow = existing.get(matchIdx);
                 Object name = existingRow.get("name");
@@ -598,9 +526,79 @@ public class OrderService {
                 simple.put("qty", row.get("qty"));
                 simple.put("rate", row.get("rate"));
                 simple.put("amount", row.get("amount"));
+                simple.put("aas_margin_percent", row.get("aas_margin_percent"));
                 out.add(simple);
             }
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySalesOrderDefaults(Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        double margin = asDouble(fields.get("aas_margin_percent"));
+        if (!fields.containsKey("aas_margin_percent") || margin <= 0) {
+            fields.put("aas_margin_percent", defaultMarginPercent);
+        }
+        Object itemsObj = fields.get("items");
+        if (!(itemsObj instanceof List<?> items) || items.isEmpty()) {
+            return;
+        }
+        String warehouse = asText(fields.get("set_warehouse"));
+        if (warehouse.isBlank()) {
+            warehouse = resolveDefaultWarehouse(asText(fields.get("company")));
+            if (!warehouse.isBlank()) {
+                fields.put("set_warehouse", warehouse);
+            }
+        }
+        for (Object rowObj : items) {
+            if (!(rowObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            Map<String, Object> item = (Map<String, Object>) row;
+            String itemCode = asText(item.get("item_code"));
+            item.put("aas_margin_percent", resolveMarginPercent(item.get("aas_margin_percent"), itemCode));
+            if (!warehouse.isBlank() && asText(item.get("warehouse")).isBlank()) {
+                item.put("warehouse", warehouse);
+            }
+        }
+    }
+
+    private Map<String, Object> applyItemMarginDefaults(Map<String, Object> item) {
+        if (item == null) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new HashMap<>(item);
+        String itemCode = asText(copy.get("item_code"));
+        copy.put("aas_margin_percent", resolveMarginPercent(copy.get("aas_margin_percent"), itemCode));
+        return copy;
+    }
+
+    private double resolveMarginPercent(Object value, String itemCode) {
+        double margin = asDouble(value);
+        if (value != null && !value.toString().trim().isEmpty() && margin > 0) {
+            return margin;
+        }
+        double itemMargin = resolveItemMarginPercent(itemCode);
+        if (itemMargin > 0) {
+            return itemMargin;
+        }
+        return defaultMarginPercent;
+    }
+
+    private double resolveItemMarginPercent(String itemCode) {
+        String code = asText(itemCode);
+        if (code.isBlank()) {
+            return 0.0;
+        }
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource("Item", code));
+            double margin = asDouble(item.get("aas_margin_percent"));
+            return margin > 0 ? margin : 0.0;
+        } catch (Exception ex) {
+            return 0.0;
+        }
     }
 }

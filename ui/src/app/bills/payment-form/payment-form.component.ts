@@ -36,9 +36,11 @@ export class PaymentFormComponent {
       return;
     }
     const value = this.form.getRawValue();
+    const customer = this.selectedInvoice?.customer || String(value.customer ?? '').trim();
+    const company = this.selectedInvoice?.company || String(value.company ?? '').trim();
     const payload: PaymentPayload = {
-      customer: String(value.customer ?? '').trim(),
-      company: String(value.company ?? '').trim(),
+      customer,
+      company,
       amount: Number(value.amount || 0),
       invoiceId: String(value.invoiceId ?? '').trim() || undefined,
       referenceNo: String(value.referenceNo ?? '').trim() || undefined,
@@ -77,18 +79,27 @@ export class PaymentFormComponent {
     const invoiceId = String(this.form.get('invoiceId')?.value ?? '').trim();
     if (!invoiceId) {
       this.selectedInvoice = undefined;
+      this.syncCompanyFromCustomer();
       return;
     }
     const invoice = this.invoices.find(entry => entry.id === invoiceId);
     if (!invoice) {
       this.selectedInvoice = undefined;
+      this.syncCompanyFromCustomer();
       return;
     }
     this.selectedInvoice = invoice;
-    this.form.patchValue({ customer: invoice.customer });
+    this.form.patchValue({ customer: invoice.customer, company: invoice.company });
     if (Number.isFinite(invoice.outstanding)) {
       this.form.patchValue({ amount: invoice.outstanding });
     }
+  }
+
+  onCustomerChange(): void {
+    if (this.selectedInvoice) {
+      return;
+    }
+    this.syncCompanyFromCustomer();
   }
 
   get pendingBalance(): number | null {
@@ -112,6 +123,16 @@ export class PaymentFormComponent {
       return null;
     }
     return balance < 0 ? Math.abs(balance) : 0;
+  }
+
+  get companyDisplay(): string {
+    return String(this.form.get('company')?.value ?? '').trim() || 'Select branch or invoice to lock company';
+  }
+
+  private syncCompanyFromCustomer(): void {
+    const customerId = String(this.form.get('customer')?.value ?? '').trim();
+    const company = this.customers.find(customer => customer.id === customerId)?.company?.trim() || this.defaultCompany;
+    this.form.patchValue({ company }, { emitEvent: false });
   }
 
   private formatError(err: unknown, fallback: string): string {

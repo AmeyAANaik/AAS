@@ -75,7 +75,6 @@ test('real UI flow against MW/ERP: assign vendor -> vendor pdf -> vendor bill ->
   await page.locator('input[formcontrolname="vendorBillTotal"]').fill('500');
   await page.locator('input[formcontrolname="vendorBillRef"]').fill(`VB-REAL-${Date.now()}`);
   await page.locator('input[formcontrolname="vendorBillDate"]').fill(today);
-  await page.locator('input[formcontrolname="marginPercent"]').fill('10');
   await expect(page.getByRole('button', { name: 'Capture vendor bill' })).toBeEnabled({ timeout: 60000 });
   await page.getByRole('button', { name: 'Capture vendor bill' }).click();
   await expect

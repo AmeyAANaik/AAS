@@ -1,8 +1,11 @@
 import { CommonModule } from '@angular/common';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
+import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
 import { DashboardService } from './dashboard.service';
@@ -14,6 +17,22 @@ const snapshotStub: DashboardSnapshot = {
   billsByVendor: [{ name: 'Vendor X', total: 900 }],
   stockSnapshot: { totalItems: 4, totalQuantity: 150 },
   salesSummary: { invoiceCount: 3, totalRevenue: 4500, dateRangeLabel: '2025-01-01 to 2025-01-31' },
+  vendorOperations: {
+    totalVendors: 4,
+    vendorsWithPendingOrders: 2,
+    totalPendingOrders: 6,
+    awaitingPdf: 2,
+    awaitingBillCapture: 3,
+    totalPendingBillAmount: 15000
+  },
+  branchOperations: {
+    totalBranches: 3,
+    branchesWithPendingOrders: 2,
+    totalPendingOrders: 5,
+    awaitingVendorAssignment: 1,
+    awaitingVendorResponse: 3,
+    openReceivableAmount: 4200
+  },
   periodLabel: '2025-01'
 };
 
@@ -23,7 +42,8 @@ describe('DashboardComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       declarations: [DashboardComponent],
-      imports: [CommonModule, MatCardModule, MatTableModule, NoopAnimationsModule],
+      imports: [CommonModule, MatButtonModule, MatCardModule, MatTableModule, RouterTestingModule, NoopAnimationsModule],
+      schemas: [NO_ERRORS_SCHEMA],
       providers: [
         {
           provide: DashboardService,
@@ -45,12 +65,13 @@ describe('DashboardComponent', () => {
 
   it('should render all dashboard widgets', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const titles = Array.from(compiled.querySelectorAll('mat-card-title')).map(element => element.textContent?.trim());
+    const titles = Array.from(compiled.querySelectorAll('.card-title')).map(element => element.textContent?.trim());
 
     expect(titles).toContain('Order status summary');
     expect(titles).toContain('Bills due per branch');
     expect(titles).toContain('Bills due per vendor');
-    expect(titles).toContain('Stock quantity snapshot');
+    expect(titles).toContain('Vendor Operations');
+    expect(titles).toContain('Branch Operations');
     expect(titles).toContain('Sales / revenue summary');
   });
 });

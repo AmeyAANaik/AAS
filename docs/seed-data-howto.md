@@ -35,7 +35,13 @@ cd /Users/roshninaik/Projects/AAS
 SEED_TRANSACTIONS_ALWAYS=1 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
 
-Use `SEED_TRANSACTIONS_ALWAYS=1` only when you intentionally want to add the transactional seed set again.
+Default behavior is idempotent:
+
+- rerunning `npm run seed:mock` now backfills missing orders, invoices, and payments
+- existing seeded records are reused instead of causing whole transaction stages to be skipped
+- this is the preferred mode after mock structure or ops screens change
+
+Use `SEED_TRANSACTIONS_ALWAYS=1` only when you intentionally want to bypass payment-entry reuse checks.
 
 ## OCR Fixture Defaults
 

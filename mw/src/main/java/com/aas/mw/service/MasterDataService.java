@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.Locale;
 import java.util.LinkedHashSet;
@@ -125,6 +126,85 @@ public class MasterDataService {
         params.put("fields", "[\"name\",\"abbr\",\"default_currency\"]");
         params.put("filters", "[[\"Company\",\"is_group\",\"=\",0]]");
         return erpNextClient.listResources("Company", params);
+    }
+
+    public Map<String, Object> getCompanyContext(String preferredCompanyId, String preferredBranchId) {
+        List<Map<String, Object>> companies = listCompanies();
+        List<Map<String, Object>> branches = listShops();
+
+        String companyId = hasText(preferredCompanyId)
+                ? preferredCompanyId
+                : companies.stream().map(company -> asText(company.get("name"))).filter(this::hasText).findFirst().orElse("");
+        String branchId = hasText(preferredBranchId)
+                ? preferredBranchId
+                : branches.stream().map(branch -> asText(branch.get("name"))).filter(this::hasText).findFirst().orElse("");
+
+        Map<String, Object> company = companyId.isBlank() ? Map.of() : getCompanyProfile(companyId);
+        Map<String, Object> branch = branchId.isBlank() ? Map.of() : getBranchProfile(branchId);
+
+        return Map.of(
+                "company", company,
+                "branch", branch,
+                "companies", companies,
+                "branches", branches);
+    }
+
+    public Map<String, Object> getCompanyProfile(String id) {
+        if (id == null || id.isBlank()) {
+            return Map.of();
+        }
+        Map<String, Object> company = unwrapResource(erpNextClient.getResource("Company", id));
+        if (company.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Company not found.");
+        }
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("id", asText(company.get("name")));
+        profile.put("name", asText(company.get("company_name")).isBlank() ? asText(company.get("name")) : asText(company.get("company_name")));
+        profile.put("abbr", asText(company.get("abbr")));
+        profile.put("default_currency", asText(company.get("default_currency")));
+        profile.put("country", asText(company.get("country")));
+        profile.put("default_letter_head", asText(company.get("default_letter_head")));
+        profile.put("tax_id", firstText(company.get("tax_id"), company.get("gstin")));
+        profile.put("logo_url", firstText(company.get("company_logo"), company.get("logo"), company.get("letter_head_image")));
+        return profile;
+    }
+
+    public Map<String, Object> updateCompanyProfile(String id, FieldsRequest request) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Company id is required.");
+        }
+        Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
+        Map<String, Object> payload = new HashMap<>();
+        copyIfPresent(fields, payload, "abbr");
+        copyIfPresent(fields, payload, "default_currency");
+        copyIfPresent(fields, payload, "country");
+        copyIfPresent(fields, payload, "default_letter_head");
+        copyIfPresent(fields, payload, "tax_id");
+        copyIfPresent(fields, payload, "company_logo");
+        copyIfPresent(fields, payload, "logo");
+        if (payload.isEmpty()) {
+            return getCompanyProfile(id);
+        }
+        erpNextClient.updateResource("Company", id, payload);
+        return getCompanyProfile(id);
+    }
+
+    public Map<String, Object> getBranchProfile(String id) {
+        if (id == null || id.isBlank()) {
+            return Map.of();
+        }
+        Map<String, Object> branch = unwrapResource(erpNextClient.getResource("Customer", id));
+        if (branch.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
+        }
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("id", asText(branch.get("name")));
+        profile.put("name", asText(branch.get("customer_name")).isBlank() ? asText(branch.get("name")) : asText(branch.get("customer_name")));
+        profile.put("location", asText(branch.get("aas_branch_location")));
+        profile.put("whatsapp_group", asText(branch.get("aas_whatsapp_group_name")));
+        profile.put("credit_days", branch.getOrDefault("aas_credit_days", 0));
+        profile.put("logo_url", firstText(branch.get("image"), branch.get("logo")));
+        return profile;
     }
 
     public Map<String, Object> createShop(FieldsRequest request) {
@@ -248,6 +328,22 @@ public class MasterDataService {
 
     private String escapeJson(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        if (source.containsKey(key)) {
+            target.put(key, source.get(key));
+        }
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = asText(value);
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
     }
 
     @SuppressWarnings("unchecked")

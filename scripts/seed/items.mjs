@@ -6,7 +6,7 @@ const MW_BASE_URL = (process.env.MW_BASE_URL || DEFAULT_MW_BASE_URL).replace(/\/
 const ERP_BASE_URL = (process.env.ERP_BASE_URL || process.env.ERPNEXT_BASE_URL || DEFAULT_ERP_BASE_URL).replace(/\/$/, '');
 const USERNAME = process.env.MW_USERNAME || process.env.ERP_USERNAME || 'Administrator';
 const PASSWORD = process.env.MW_PASSWORD || process.env.ERP_PASSWORD || 'admin';
-const DEFAULT_MARGIN = Number(process.env.DEFAULT_MARGIN ?? 10);
+const DEFAULT_MARGIN = Number(process.env.DEFAULT_MARGIN ?? 7);
 const DRY_RUN = process.env.DRY_RUN === '1';
 
 const RAW_ITEMS = [

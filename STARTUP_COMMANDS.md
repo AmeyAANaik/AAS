@@ -24,6 +24,18 @@ cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml dow
 pkill -f "ng serve" || true
 ```
 
+### Clean all data
+
+This wipes all ERPNext data by removing the ERP Docker volumes, then stops MW and UI.
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml down -v
+cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml down
+pkill -f "ng serve" || true
+```
+
+After a wipe, start the stack again and rerun setup/seed commands.
+
 ### Start all services
 
 ```bash
@@ -106,6 +118,8 @@ How to read the response:
 cd /Users/roshninaik/Projects/AAS
 MW_USERNAME=Administrator MW_PASSWORD=admin npm run seed:mock
 ```
+
+Rerunning `npm run seed:mock` is safe and now backfills missing seeded transactions after model or ops changes instead of skipping the full stage when partial seed data already exists.
 
 ### Seed Sales_3231 items (59 items, margin 10%)
 

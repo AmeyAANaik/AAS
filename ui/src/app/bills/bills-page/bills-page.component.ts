@@ -24,6 +24,7 @@ export class BillsPageComponent implements OnInit {
   customers: OptionItem[] = [];
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
+  private customerCompanies = new Map<string, string>();
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
   statusMessage = '';
   isLoading = false;
@@ -49,7 +50,12 @@ export class BillsPageComponent implements OnInit {
       next: branches => {
         this.customers = (branches ?? []).map(branch => {
           const name = String(branch.customer_name ?? branch.name ?? '').trim();
-          return { id: String(branch.name ?? name), name: name || String(branch.name ?? '') };
+          const id = String(branch.name ?? name);
+          return {
+            id,
+            name: name || String(branch.name ?? ''),
+            company: this.customerCompanies.get(id) || undefined
+          };
         });
       }
     });
@@ -68,10 +74,22 @@ export class BillsPageComponent implements OnInit {
 
     this.orderService.listOrders({}).subscribe({
       next: orders => {
+        this.customerCompanies.clear();
+        (orders ?? []).forEach(order => {
+          const customerId = String(order.customer ?? '').trim();
+          const company = String(order.company ?? '').trim();
+          if (customerId && company && !this.customerCompanies.has(customerId)) {
+            this.customerCompanies.set(customerId, company);
+          }
+        });
         this.orders = (orders ?? []).map(order => {
           const name = String(order.name ?? '').trim();
-          return { id: name, name };
+          return { id: name, name, company: String(order.company ?? '').trim() || undefined };
         });
+        this.customers = this.customers.map(customer => ({
+          ...customer,
+          company: customer.company || this.customerCompanies.get(customer.id) || undefined
+        }));
       }
     });
   }
@@ -89,13 +107,14 @@ export class BillsPageComponent implements OnInit {
             .filter(invoice => invoice.status.toLowerCase() !== 'paid')
             .map(invoice => {
               const outstanding = Number(invoice.raw.outstanding_amount ?? invoice.raw.grand_total ?? 0);
-              return {
-                id: invoice.id,
-                name: `${invoice.id} • ${invoice.customer} • Due ${outstanding.toFixed(2)}`,
-                customer: invoice.customer,
-                outstanding
-              };
-            });
+            return {
+              id: invoice.id,
+              name: `${invoice.id} • ${invoice.customer} • Due ${outstanding.toFixed(2)}`,
+              customer: invoice.customer,
+              company: invoice.company,
+              outstanding
+            };
+          });
           this.summary = this.buildSummary(this.invoices);
           this.statusMessage = '';
         },
@@ -173,6 +192,7 @@ export class BillsPageComponent implements OnInit {
     return {
       id: String(invoice.name ?? '').trim(),
       customer: String(invoice.customer ?? '').trim() || 'Unknown',
+      company: String(invoice.company ?? '').trim(),
       date: String(invoice.posting_date ?? '').trim(),
       totalLabel: this.resolveTotalLabel(invoice.grand_total),
       status,

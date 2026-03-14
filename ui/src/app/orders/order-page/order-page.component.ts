@@ -1,12 +1,13 @@
 import { animate, style, transition, trigger } from '@angular/animations';
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
-import { OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
+import { OrderItemPayload, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
@@ -45,7 +46,7 @@ interface PdfParseResult {
   fileName?: string;
   fileUrl?: string;
   items?: unknown[];
-  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number }>;
+  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number; aas_margin_percent?: number }>;
   template?: { configured?: boolean; used?: boolean; key?: string };
   vendorBillTotal?: number;
   vendorBillRef?: string;
@@ -60,6 +61,7 @@ interface UiOrderLine {
   qty: number;
   rate: number;
   amount: number;
+  aas_margin_percent: number;
 }
 
 @Component({
@@ -95,7 +97,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   billTotalControl = new FormControl<number | null>(null);
   billRefControl = new FormControl<string>('', { nonNullable: true });
   billDateControl = new FormControl<Date | null>(new Date());
-  marginControl = new FormControl<number>(10, { nonNullable: true });
 
   orders: UiOrder[] = [];
   readonly displayedColumns: Array<'id' | 'branch' | 'vendor' | 'status' | 'date' | 'actions'> = [
@@ -126,8 +127,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private subscriptions = new Subscription();
   private orderDetailsSeq = 0;
+  private requestedOrderId: string | null = null;
 
   constructor(
+    private readonly route: ActivatedRoute,
     private readonly dialog: MatDialog,
     private readonly vendorService: VendorService,
     private readonly orderService: OrderService,
@@ -188,6 +191,12 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscriptions.add(
       this.billTotalControl.valueChanges.subscribe(() => this.updateBillMismatchError())
     );
+    this.subscriptions.add(
+      this.route.queryParamMap.subscribe(params => {
+        this.requestedOrderId = String(params.get('orderId') ?? '').trim() || null;
+        this.selectRequestedOrder();
+      })
+    );
   }
 
   ngAfterViewInit(): void {
@@ -239,6 +248,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         this.dataSource.data = this.orders;
         this.updateTableFilter();
         this.refreshSelection();
+        this.selectRequestedOrder();
       },
       error: err => (this.errorMessage = this.formatError(err, 'Unable to load orders'))
     });
@@ -564,8 +574,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.billTotalControl.setValue(order.billTotal);
     this.billRefControl.setValue(order.billRef);
     this.billDateControl.setValue(order.billDate ?? new Date());
-    this.marginControl.setValue(Number(order.raw.aas_margin_percent ?? 10));
-
     const seq = ++this.orderDetailsSeq;
     this.orderService.getOrder(order.name).subscribe({
       next: res => {
@@ -575,15 +583,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         }
         const data = (res as any)?.data ?? res;
         const items = Array.isArray(data?.items) ? data.items : [];
-        this.orderLines = items
-          .map((row: any) => ({
-            item_code: String(row?.item_code ?? '').trim(),
-            item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
-            qty: Number(row?.qty ?? 0),
-            rate: Number(row?.rate ?? 0),
-            amount: Number(row?.amount ?? 0)
-          }))
-          .filter((row: UiOrderLine) => row.item_code);
+        this.orderLines = items.map((row: any) => this.toUiOrderLine(row)).filter((row: UiOrderLine) => row.item_code);
       },
       error: () => {
         // Non-blocking: user can still proceed with upload/capture steps.
@@ -768,15 +768,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.pdfData = parsed;
           const lines = parsed?.orderItems ?? [];
           if (Array.isArray(lines) && lines.length) {
-            this.orderLines = lines
-              .map(line => ({
-                item_code: String(line?.item_code ?? '').trim(),
-                item_name: String(line?.item_name ?? line?.item_code ?? '').trim(),
-                qty: Number(line?.qty ?? 0),
-                rate: Number(line?.rate ?? 0),
-                amount: Number(line?.amount ?? 0)
-              }))
-              .filter(row => row.item_code);
+            this.orderLines = lines.map(line => this.toUiOrderLine(line)).filter(row => row.item_code);
           }
           this.updateBillMismatchError();
 
@@ -796,11 +788,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
             if (parsedDate) {
               this.billDateControl.setValue(parsedDate);
             }
-          }
-
-          const marginPercent = Number(parsed?.marginPercent ?? NaN);
-          if (Number.isFinite(marginPercent) && marginPercent >= 0) {
-            this.marginControl.setValue(marginPercent);
           }
 
           this.selectedFile = null;
@@ -824,8 +811,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   recalcLine(line: UiOrderLine): void {
     const qty = Number(line.qty ?? 0);
     const rate = Number(line.rate ?? 0);
+    const margin = Number(line.aas_margin_percent ?? 0);
     line.qty = Number.isFinite(qty) ? qty : 0;
     line.rate = Number.isFinite(rate) ? rate : 0;
+    line.aas_margin_percent = Number.isFinite(margin) && margin >= 0 ? margin : 0;
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
     this.updateBillMismatchError();
   }
@@ -882,10 +871,16 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.errorMessage = 'At least one item line is required.';
       return;
     }
-    const payload = this.orderLines.map(line => ({
+    const invalidMargin = this.orderLines.some(line => !Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) < 0);
+    if (invalidMargin) {
+      this.errorMessage = 'Margin must be a non-negative number for every item.';
+      return;
+    }
+    const payload: OrderItemPayload[] = this.orderLines.map(line => ({
       item_code: line.item_code,
       qty: Number(line.qty ?? 0),
-      rate: Number(line.rate ?? 0)
+      rate: Number(line.rate ?? 0),
+      aas_margin_percent: Number(line.aas_margin_percent ?? 0)
     }));
     this.isItemsSaving = true;
     this.errorMessage = '';
@@ -896,15 +891,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         next: res => {
           const items = (res as any)?.items ?? [];
           if (Array.isArray(items) && items.length) {
-            this.orderLines = items
-              .map((row: any) => ({
-                item_code: String(row?.item_code ?? '').trim(),
-                item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
-                qty: Number(row?.qty ?? 0),
-                rate: Number(row?.rate ?? 0),
-                amount: Number(row?.amount ?? 0)
-              }))
-              .filter((row: UiOrderLine) => row.item_code);
+            this.orderLines = items.map((row: any) => this.toUiOrderLine(row)).filter((row: UiOrderLine) => row.item_code);
           }
           this.updateBillMismatchError();
           this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
@@ -924,13 +911,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const total = Number(this.billTotalControl.value ?? 0);
     const ref = this.billRefControl.value.trim();
     const date = this.billDateControl.value;
-    const margin = Number(this.marginControl.value ?? 0);
     return (
       total > 0 &&
       Boolean(ref) &&
       Boolean(date) &&
-      Number.isFinite(margin) &&
-      margin >= 0 &&
       this.billMatchesItems
     );
   }
@@ -944,20 +928,18 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (!this.isBillFormValid()) {
-      this.errorMessage = 'Fill in bill total, reference, date, and margin.';
+      this.errorMessage = 'Fill in bill total, reference, and date.';
       return;
     }
     const total = Number(this.billTotalControl.value ?? 0);
     const ref = this.billRefControl.value.trim();
     const date = this.billDateControl.value ?? new Date();
-    const marginPercent = Number(this.marginControl.value ?? 10);
     this.errorMessage = '';
     this.orderService
       .captureVendorBill(this.selectedOrder.name, {
         vendor_bill_total: total,
         vendor_bill_ref: ref,
-        vendor_bill_date: this.formatDate(date),
-        margin_percent: marginPercent
+        vendor_bill_date: this.formatDate(date)
       })
       .pipe(finalize(() => this.loadOrders()))
       .subscribe({
@@ -1037,8 +1019,19 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.billTotalControl.setValue(updated.billTotal);
       this.billRefControl.setValue(updated.billRef);
       this.billDateControl.setValue(updated.billDate ?? new Date());
-      this.marginControl.setValue(Number(updated.raw.aas_margin_percent ?? 10));
     }
+  }
+
+  private selectRequestedOrder(): void {
+    if (!this.requestedOrderId) {
+      return;
+    }
+    const match = this.orders.find(order => order.name === this.requestedOrderId);
+    if (!match) {
+      return;
+    }
+    this.selectOrder(match);
+    this.requestedOrderId = null;
   }
 
   private toUiOrder(order: OrderSummary): UiOrder {
@@ -1062,6 +1055,21 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       billRef,
       billDate,
       raw: order
+    };
+  }
+
+  private toUiOrderLine(row: any): UiOrderLine {
+    const qty = Number(row?.qty ?? 0);
+    const rate = Number(row?.rate ?? 0);
+    const amount = Number(row?.amount ?? qty * rate);
+    const margin = Number(row?.aas_margin_percent ?? 0);
+    return {
+      item_code: String(row?.item_code ?? '').trim(),
+      item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
+      qty: Number.isFinite(qty) ? qty : 0,
+      rate: Number.isFinite(rate) ? rate : 0,
+      amount: Number.isFinite(amount) ? amount : 0,
+      aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0
     };
   }
 

@@ -49,7 +49,7 @@ public class VendorPdfService {
             VendorInvoiceTemplateParser templateParser,
             OrderFlowStateMachine orderFlowStateMachine,
             ObjectMapper objectMapper,
-            @Value("${app.order.margin.default-percent:10}") double defaultMarginPercent) {
+            @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
         this.ocrService = ocrService;
@@ -148,9 +148,9 @@ public class VendorPdfService {
         }
 
         List<Map<String, Object>> baseItems = resolveItems(parsedItems);
-        double marginPercent = resolveMarginPercent(orderData.get("aas_margin_percent"));
         List<Map<String, Object>> sourceOrderItems = withVendorRate(baseItems);
-        List<Map<String, Object>> sellItems = withSellMargin(baseItems, marginPercent);
+        List<Map<String, Object>> sellItems = withSellMargin(baseItems);
+        double marginPercent = calculateDerivedMarginPercent(sourceOrderItems);
 
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
         String purchaseOrderId = extractDocName(purchaseOrder);
@@ -447,6 +447,7 @@ public class VendorPdfService {
             row.put("item_name", itemName);
             row.put("qty", item.qty());
             row.put("rate", item.rate());
+            row.put("aas_margin_percent", resolveItemMarginPercent(itemCode));
             double amount = item.amount();
             if (amount <= 0 && item.qty() > 0) {
                 amount = item.rate() * item.qty();
@@ -515,17 +516,19 @@ public class VendorPdfService {
             Map<String, Object> copy = new HashMap<>(row);
             Object rate = row.get("rate");
             copy.put("aas_vendor_rate", rate);
+            copy.put("aas_margin_percent", resolveMarginPercent(row.get("aas_margin_percent")));
             enriched.add(copy);
         }
         return enriched;
     }
 
-    private List<Map<String, Object>> withSellMargin(List<Map<String, Object>> baseItems, double marginPercent) {
+    private List<Map<String, Object>> withSellMargin(List<Map<String, Object>> baseItems) {
         List<Map<String, Object>> enriched = new ArrayList<>();
         for (Map<String, Object> row : baseItems) {
             Map<String, Object> copy = new HashMap<>(row);
             double vendorRate = asDouble(row.get("rate"));
             double qty = asDouble(row.get("qty"));
+            double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
             double sellRate = round(vendorRate * (1 + marginPercent / 100.0));
             copy.put("rate", sellRate);
             copy.put("amount", round(sellRate * qty));
@@ -534,6 +537,46 @@ public class VendorPdfService {
             enriched.add(copy);
         }
         return enriched;
+    }
+
+    private double calculateDerivedMarginPercent(List<Map<String, Object>> items) {
+        double vendorTotal = 0.0;
+        double sellTotal = 0.0;
+        for (Map<String, Object> row : items) {
+            double qty = asDouble(row.get("qty"));
+            if (qty <= 0) {
+                qty = 1.0;
+            }
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            if (vendorRate <= 0) {
+                vendorRate = asDouble(row.get("rate"));
+            }
+            double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
+            vendorTotal += vendorRate * qty;
+            sellTotal += vendorRate * (1 + marginPercent / 100.0) * qty;
+        }
+        vendorTotal = round(vendorTotal);
+        sellTotal = round(sellTotal);
+        if (vendorTotal <= 0) {
+            return defaultMarginPercent;
+        }
+        return round(((sellTotal - vendorTotal) / vendorTotal) * 100.0);
+    }
+
+    private double resolveItemMarginPercent(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return defaultMarginPercent;
+        }
+        try {
+            Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
+            double margin = asDouble(item.get("aas_margin_percent"));
+            if (margin > 0) {
+                return margin;
+            }
+        } catch (Exception ignored) {
+            // Fall back to default margin if item master lookup fails.
+        }
+        return defaultMarginPercent;
     }
 
     private String findItemCodeByName(String itemName) {
@@ -685,7 +728,7 @@ public class VendorPdfService {
 
     private double resolveMarginPercent(Object value) {
         double margin = asDouble(value);
-        if (margin == 0.0 && value == null) {
+        if (value == null || value.toString().trim().isEmpty() || margin == 0.0) {
             margin = defaultMarginPercent;
         }
         if (margin < 0) {

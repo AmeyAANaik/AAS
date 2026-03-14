@@ -9,6 +9,7 @@ import { ItemFormValue, ItemView } from '../item.model';
   styleUrl: './item-form.component.scss'
 })
 export class ItemFormComponent implements OnChanges {
+  private readonly defaultMarginPercent = 7;
   @Input() item: ItemView | null = null;
   @Input() categories: Category[] = [];
   @Input() isSaving = false;
@@ -22,7 +23,7 @@ export class ItemFormComponent implements OnChanges {
     category: ['', [Validators.required]],
     measureUnit: ['', [Validators.required, Validators.maxLength(64)]],
     packagingUnit: [''],
-    marginPercent: [10, [Validators.required, Validators.min(0), Validators.max(100)]]
+    marginPercent: [this.defaultMarginPercent, [Validators.required, Validators.min(0), Validators.max(100)]]
   });
 
   constructor(private fb: FormBuilder) {}
@@ -35,7 +36,7 @@ export class ItemFormComponent implements OnChanges {
         category: this.item.category,
         measureUnit: this.item.measureUnit,
         packagingUnit: this.item.packagingUnit,
-        marginPercent: this.item.marginPercent ?? 10
+        marginPercent: this.resolveMarginPercent(this.item.marginPercent)
       });
       this.form.get('itemCode')?.disable({ emitEvent: false });
       this.form.get('itemName')?.disable({ emitEvent: false });
@@ -49,7 +50,7 @@ export class ItemFormComponent implements OnChanges {
       category: '',
       measureUnit: 'Nos',
       packagingUnit: '',
-      marginPercent: 10
+      marginPercent: this.defaultMarginPercent
     });
   }
 
@@ -69,8 +70,15 @@ export class ItemFormComponent implements OnChanges {
       category: '',
       measureUnit: 'Nos',
       packagingUnit: '',
-      marginPercent: 10
+      marginPercent: this.defaultMarginPercent
     });
     this.reset.emit();
+  }
+
+  private resolveMarginPercent(value: number | null): number {
+    if (value === null || value === undefined || value <= 0) {
+      return this.defaultMarginPercent;
+    }
+    return value;
   }
 }

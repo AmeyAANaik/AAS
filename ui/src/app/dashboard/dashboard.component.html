@@ -33,6 +33,74 @@
       </mat-card>
     </div>
 
+    <mat-card class="card vendor-ops-card" *ngIf="!vm.loading && vm.snapshot">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Vendor Operations</div>
+          <div class="card-subtitle">Follow pending vendor orders, bill capture, and payable movement.</div>
+        </div>
+        <button mat-flat-button color="primary" routerLink="/vendor-ops">Open Vendor Operations</button>
+      </div>
+      <mat-card-content class="vendor-ops-summary">
+        <div class="metric">
+          <div>
+            <p class="metric-label">Vendors with pending orders</p>
+            <p class="metric-value">{{ vm.snapshot.vendorOperations.vendorsWithPendingOrders }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Pending orders</p>
+            <p class="metric-value">{{ vm.snapshot.vendorOperations.totalPendingOrders }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Awaiting PDF</p>
+            <p class="metric-value">{{ vm.snapshot.vendorOperations.awaitingPdf }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Awaiting bill capture</p>
+            <p class="metric-value">{{ vm.snapshot.vendorOperations.awaitingBillCapture }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Pending bill amount</p>
+            <p class="metric-value">{{ vm.snapshot.vendorOperations.totalPendingBillAmount | number: '1.0-2' }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="card vendor-ops-card" *ngIf="!vm.loading && vm.snapshot">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Branch Operations</div>
+          <div class="card-subtitle">Track branch order backlog, invoice exposure, and collections.</div>
+        </div>
+        <button mat-flat-button color="primary" routerLink="/branch-ops">Open Branch Operations</button>
+      </div>
+      <mat-card-content class="vendor-ops-summary">
+        <div class="metric">
+          <div>
+            <p class="metric-label">Branches with pending orders</p>
+            <p class="metric-value">{{ vm.snapshot.branchOperations.branchesWithPendingOrders }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Pending orders</p>
+            <p class="metric-value">{{ vm.snapshot.branchOperations.totalPendingOrders }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Awaiting vendor assignment</p>
+            <p class="metric-value">{{ vm.snapshot.branchOperations.awaitingVendorAssignment }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Awaiting vendor response</p>
+            <p class="metric-value">{{ vm.snapshot.branchOperations.awaitingVendorResponse }}</p>
+          </div>
+          <div>
+            <p class="metric-label">Open receivable amount</p>
+            <p class="metric-value">{{ vm.snapshot.branchOperations.openReceivableAmount | number: '1.0-2' }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <div class="dashboard-grid" *ngIf="!vm.loading && vm.snapshot">
       <mat-card class="card">
         <div class="card-header">

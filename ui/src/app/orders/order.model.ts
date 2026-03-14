@@ -72,7 +72,6 @@ export interface VendorBillPayload {
   vendor_bill_total: number;
   vendor_bill_ref?: string;
   vendor_bill_date?: string;
-  margin_percent?: number;
 }
 
 export interface SellPreview {
@@ -81,6 +80,13 @@ export interface SellPreview {
   marginPercent: number;
   sellAmount: number;
   marginAmount: number;
+}
+
+export interface OrderItemPayload {
+  item_code: string;
+  qty: number;
+  rate: number;
+  aas_margin_percent: number;
 }
 
 export interface OrderOption {

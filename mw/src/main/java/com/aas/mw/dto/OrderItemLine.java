@@ -1,6 +1,7 @@
 package com.aas.mw.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Positive;
 
 public class OrderItemLine {
@@ -12,6 +13,9 @@ public class OrderItemLine {
     private double qty;
 
     private double rate;
+
+    @PositiveOrZero
+    private double aas_margin_percent;
 
     public String getItem_code() {
         return item_code;
@@ -36,5 +40,12 @@ public class OrderItemLine {
     public void setRate(double rate) {
         this.rate = rate;
     }
-}
 
+    public double getAas_margin_percent() {
+        return aas_margin_percent;
+    }
+
+    public void setAas_margin_percent(double aas_margin_percent) {
+        this.aas_margin_percent = aas_margin_percent;
+    }
+}

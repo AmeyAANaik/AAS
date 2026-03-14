@@ -3,6 +3,7 @@ export type InvoiceStatus = 'Paid' | 'Unpaid' | 'Overdue' | 'Draft' | string;
 export interface InvoiceSummary {
   name?: string;
   customer?: string;
+  company?: string;
   posting_date?: string;
   grand_total?: number;
   outstanding_amount?: number;
@@ -12,6 +13,7 @@ export interface InvoiceSummary {
 export interface InvoiceView {
   id: string;
   customer: string;
+  company: string;
   date: string;
   totalLabel: string;
   status: InvoiceStatus;
@@ -64,12 +66,14 @@ export interface PaymentPayload {
 export interface OptionItem {
   id: string;
   name: string;
+  company?: string;
 }
 
 export interface InvoiceOption {
   id: string;
   name: string;
   customer: string;
+  company: string;
   outstanding: number;
 }
 

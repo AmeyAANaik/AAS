@@ -47,6 +47,15 @@
   letter-spacing: 0.08em;
 }
 
+.logo-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
 .brand-title {
   font-weight: 600;
   font-size: 15px;
@@ -101,11 +110,41 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  text-decoration: none;
 }
 
 .header-chip.danger {
   border-color: rgba(198, 76, 52, 0.4);
   color: #c64c34;
+}
+
+.branch-chip {
+  max-width: 260px;
+}
+
+.chip-avatar,
+.chip-image {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chip-avatar {
+  background: rgba(16, 24, 40, 0.08);
+}
+
+.chip-image {
+  object-fit: cover;
+  background: #fff;
+}
+
+.branch-chip small {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .shell-body {

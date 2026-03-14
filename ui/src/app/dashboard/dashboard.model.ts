@@ -59,11 +59,31 @@ export type SalesSummary = {
   dateRangeLabel: string;
 };
 
+export type VendorOperationsSnapshot = {
+  totalVendors: number;
+  vendorsWithPendingOrders: number;
+  totalPendingOrders: number;
+  awaitingPdf: number;
+  awaitingBillCapture: number;
+  totalPendingBillAmount: number;
+};
+
+export type BranchOperationsSnapshot = {
+  totalBranches: number;
+  branchesWithPendingOrders: number;
+  totalPendingOrders: number;
+  awaitingVendorAssignment: number;
+  awaitingVendorResponse: number;
+  openReceivableAmount: number;
+};
+
 export type DashboardSnapshot = {
   orderStatus: OrderStatusRow[];
   billsByBranch: BillingRow[];
   billsByVendor: BillingRow[];
   stockSnapshot: StockSnapshot;
   salesSummary: SalesSummary;
+  vendorOperations: VendorOperationsSnapshot;
+  branchOperations: BranchOperationsSnapshot;
   periodLabel: string;
 };

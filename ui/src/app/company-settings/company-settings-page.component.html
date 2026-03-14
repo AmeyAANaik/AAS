@@ -1,0 +1,58 @@
+<section class="company-settings-page">
+  <app-page-header title="Company Settings" subtitle="Edit ERPNext-backed company details used across the app shell and order flow."></app-page-header>
+
+  <mat-card class="settings-card">
+    <div class="state" *ngIf="isLoading">Loading company details...</div>
+    <div class="state error" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div class="state success" *ngIf="message">{{ message }}</div>
+
+    <div class="identity" *ngIf="!isLoading">
+      <img *ngIf="companyLogoUrl" class="identity-logo" [src]="companyLogoUrl" alt="Company logo" />
+      <div *ngIf="!companyLogoUrl" class="identity-logo fallback">{{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}</div>
+      <div>
+        <div class="identity-title">{{ form.get('name')?.value || 'Company' }}</div>
+        <div class="identity-subtitle">{{ branchName || 'No branch linked' }}<span *ngIf="branchLocation"> · {{ branchLocation }}</span></div>
+      </div>
+    </div>
+
+    <form [formGroup]="form" class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Company Name</mat-label>
+        <input matInput formControlName="name" readonly />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Abbreviation</mat-label>
+        <input matInput formControlName="abbr" />
+        <mat-error *ngIf="form.get('abbr')?.hasError('required')">Abbreviation is required.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Default Currency</mat-label>
+        <input matInput formControlName="default_currency" />
+        <mat-error *ngIf="form.get('default_currency')?.hasError('required')">Currency is required.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Country</mat-label>
+        <input matInput formControlName="country" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Default Letter Head</mat-label>
+        <input matInput formControlName="default_letter_head" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Tax ID</mat-label>
+        <input matInput formControlName="tax_id" />
+      </mat-form-field>
+    </form>
+
+    <div class="actions">
+      <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
+        {{ isSaving ? 'Saving...' : 'Save Company Details' }}
+      </button>
+    </div>
+  </mat-card>
+</section>

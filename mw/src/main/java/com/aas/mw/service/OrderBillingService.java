@@ -24,7 +24,7 @@ public class OrderBillingService {
     public OrderBillingService(
             ErpNextClient erpNextClient,
             OrderFlowStateMachine orderFlowStateMachine,
-            @Value("${app.order.margin.default-percent:10}") double defaultMarginPercent) {
+            @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.defaultMarginPercent = defaultMarginPercent;
@@ -59,7 +59,7 @@ public class OrderBillingService {
         if (billDate.isBlank()) {
             billDate = LocalDate.now().toString();
         }
-        double marginPercent = resolveMarginPercent(fields.get("margin_percent"), orderData.get("aas_margin_percent"));
+        double marginPercent = deriveOrderMarginPercent(orderData);
 
         ensureBillItem();
         Map<String, Object> purchaseInvoice = createPurchaseInvoice(
@@ -87,8 +87,9 @@ public class OrderBillingService {
         if (vendorBillTotal <= 0) {
             throw new IllegalStateException("Vendor bill must be captured before calculating sell preview.");
         }
-        double marginPercent = resolveMarginPercent(null, orderData.get("aas_margin_percent"));
-        double sellAmount = round(vendorBillTotal * (1 + marginPercent / 100.0));
+        List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, deriveOrderMarginPercent(orderData));
+        double sellAmount = sumAmount(sellItems);
+        double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellAmount);
         return Map.of(
                 "orderId", orderId,
                 "vendorBillTotal", vendorBillTotal,
@@ -109,9 +110,9 @@ public class OrderBillingService {
         if (vendorBillTotal <= 0) {
             throw new IllegalStateException("Vendor bill total is required before creating sell order.");
         }
-        double marginPercent = resolveMarginPercent(null, orderData.get("aas_margin_percent"));
-        List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, marginPercent);
+        List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, deriveOrderMarginPercent(orderData));
         double sellTotal = sumAmount(sellItems);
+        double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellTotal);
         Map<String, Object> salesOrder = createSalesOrder(orderId, customer, company, sellItems, orderData, marginPercent);
         Map<String, Object> salesInvoice = createSalesInvoice(orderId, customer, company, sellItems, orderData, marginPercent);
 
@@ -271,9 +272,10 @@ public class OrderBillingService {
     private List<Map<String, Object>> buildSellItems(
             Map<String, Object> sourceOrder,
             double vendorBillTotal,
-            double marginPercent) {
+            double fallbackMarginPercent) {
         Object rawItems = sourceOrder.get("items");
         if (!(rawItems instanceof List<?> items) || items.isEmpty()) {
+            double marginPercent = resolveMarginPercent(null, fallbackMarginPercent);
             double sellAmount = round(vendorBillTotal * (1 + marginPercent / 100.0));
             ensureBillItem();
             return List.of(new HashMap<>(Map.of(
@@ -297,6 +299,7 @@ public class OrderBillingService {
             if (vendorRate <= 0) {
                 vendorRate = asDouble(row.get("rate"));
             }
+            double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"), fallbackMarginPercent);
             double sellRate = round(vendorRate * (1 + marginPercent / 100.0));
             Map<String, Object> item = new HashMap<>();
             item.put("item_code", asText(row.get("item_code")));
@@ -308,9 +311,47 @@ public class OrderBillingService {
             out.add(item);
         }
         if (out.isEmpty()) {
-            return buildSellItems(Map.of(), vendorBillTotal, marginPercent);
+            return buildSellItems(Map.of(), vendorBillTotal, fallbackMarginPercent);
         }
         return out;
+    }
+
+    private double deriveOrderMarginPercent(Map<String, Object> orderData) {
+        Object rawItems = orderData == null ? null : orderData.get("items");
+        if (!(rawItems instanceof List<?> items) || items.isEmpty()) {
+            return resolveMarginPercent(null, orderData == null ? null : orderData.get("aas_margin_percent"));
+        }
+        double vendorTotal = 0.0;
+        double sellTotal = 0.0;
+        for (Object itemObj : items) {
+            if (!(itemObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            double qty = asDouble(row.get("qty"));
+            if (qty <= 0) {
+                qty = 1.0;
+            }
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            if (vendorRate <= 0) {
+                vendorRate = asDouble(row.get("rate"));
+            }
+            double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"), orderData.get("aas_margin_percent"));
+            vendorTotal += vendorRate * qty;
+            sellTotal += vendorRate * (1 + marginPercent / 100.0) * qty;
+        }
+        vendorTotal = round(vendorTotal);
+        sellTotal = round(sellTotal);
+        if (vendorTotal <= 0) {
+            return resolveMarginPercent(null, orderData.get("aas_margin_percent"));
+        }
+        return deriveSummaryMarginPercent(vendorTotal, sellTotal);
+    }
+
+    private double deriveSummaryMarginPercent(double vendorBillTotal, double sellTotal) {
+        if (vendorBillTotal <= 0) {
+            return defaultMarginPercent;
+        }
+        return round(((sellTotal - vendorBillTotal) / vendorBillTotal) * 100.0);
     }
 
     private void ensureBillItem() {
@@ -371,7 +412,7 @@ public class OrderBillingService {
     private double resolveMarginPercent(Object requestValue, Object existingValue) {
         Object source = requestValue == null ? existingValue : requestValue;
         double margin = asDouble(source);
-        if (source == null) {
+        if (source == null || source.toString().trim().isEmpty() || margin == 0.0) {
             margin = defaultMarginPercent;
         }
         if (margin < 0) {

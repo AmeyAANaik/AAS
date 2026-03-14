@@ -4,7 +4,7 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
   let currentStatus = 'DRAFT';
   let currentVendor = '';
   let vendorBillTotal = 0;
-  let marginPercent = 10;
+  const marginPercent = 7;
 
   const buildOrders = () => [
     {
@@ -62,14 +62,13 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ orderId: 'SO-0001', purchaseOrder: { name: 'PO-0001' }, marginPercent: 10 })
+      body: JSON.stringify({ orderId: 'SO-0001', purchaseOrder: { name: 'PO-0001' }, marginPercent: 7 })
     });
   });
 
   await page.route('**/api/orders/SO-0001/vendor-bill', async route => {
-    const payload = route.request().postDataJSON() as { fields?: { vendor_bill_total?: number; margin_percent?: number } };
+    const payload = route.request().postDataJSON() as { fields?: { vendor_bill_total?: number } };
     vendorBillTotal = Number(payload?.fields?.vendor_bill_total ?? 0);
-    marginPercent = Number(payload?.fields?.margin_percent ?? 10);
     currentStatus = 'VENDOR_BILL_CAPTURED';
     await route.fulfill({
       status: 200,
@@ -141,12 +140,11 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
   await page.locator('input[formcontrolname="vendorBillTotal"]').fill('100');
   await page.locator('input[formcontrolname="vendorBillRef"]').fill('VB-001');
   await page.locator('input[formcontrolname="vendorBillDate"]').fill('2026-02-19');
-  await page.locator('input[formcontrolname="marginPercent"]').fill('10');
   await page.getByRole('button', { name: 'Capture vendor bill' }).click();
   await expect(page.getByText('Vendor bill captured.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Calculate preview' }).click();
-  await expect(page.getByText('Sell amount: 110.00')).toBeVisible();
+  await expect(page.getByText('Sell amount: 107.00')).toBeVisible();
 
   await page.getByRole('button', { name: 'Create sell order' }).click();
   await expect(page.getByText('SELL_ORDER_CREATED').first()).toBeVisible();

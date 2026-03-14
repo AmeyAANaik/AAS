@@ -42,7 +42,7 @@ describe('InvoiceCreateComponent', () => {
 
     fixture = TestBed.createComponent(InvoiceCreateComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Shop A' }];
+    component.customers = [{ id: 'SHOP-1', name: 'Shop A', company: 'aas' }];
     component.items = [{ id: 'ITEM-1', name: 'Item A', code: 'ITM-1' }];
     component.orders = [{ id: 'ORD-1', name: 'ORD-1' }];
     fixture.detectChanges();
@@ -54,12 +54,21 @@ describe('InvoiceCreateComponent', () => {
 
   it('submits manual invoice payload', () => {
     component.setMode('manual');
+    component.onManualCustomerChange();
     component.manualForm.patchValue({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'aas'
+    });
+    component.manualItems.at(0).patchValue({
       itemCode: 'ITM-1',
       qty: 2,
       rate: 12
+    });
+    component.addManualItem();
+    component.manualItems.at(1).patchValue({
+      itemCode: 'ITM-1',
+      qty: 1,
+      rate: 5
     });
 
     component.submit();
@@ -67,7 +76,10 @@ describe('InvoiceCreateComponent', () => {
     expect(billsService.createInvoice).toHaveBeenCalledWith({
       customer: 'SHOP-1',
       company: 'aas',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 12 }],
+      items: [
+        { item_code: 'ITM-1', qty: 2, rate: 12 },
+        { item_code: 'ITM-1', qty: 1, rate: 5 }
+      ],
       apply_gst: true
     });
   });

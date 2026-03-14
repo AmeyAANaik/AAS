@@ -10,6 +10,7 @@ import { ItemVendorPricingService } from '../item-vendor-pricing.service';
   styleUrl: './item-vendor-pricing.component.scss'
 })
 export class ItemVendorPricingComponent implements OnChanges {
+  private readonly defaultMarginPercent = 7;
   @Input() items: ItemView[] = [];
   @Input() vendors: Vendor[] = [];
   @Input() pricing: ItemVendorPricingEntry[] = [];
@@ -19,7 +20,7 @@ export class ItemVendorPricingComponent implements OnChanges {
     itemId: ['', [Validators.required]],
     vendorId: ['', [Validators.required]],
     originalRate: [null, [Validators.required, Validators.min(0)]],
-    marginPercent: [0, [Validators.required, Validators.min(0)]]
+    marginPercent: [this.defaultMarginPercent, [Validators.required, Validators.min(0)]]
   });
 
   finalRate = 0;
@@ -59,7 +60,7 @@ export class ItemVendorPricingComponent implements OnChanges {
   }
 
   clear(): void {
-    this.form.reset({ itemId: '', vendorId: '', originalRate: null, marginPercent: 0 });
+    this.form.reset({ itemId: '', vendorId: '', originalRate: null, marginPercent: this.defaultMarginPercent });
     this.finalRate = 0;
   }
 

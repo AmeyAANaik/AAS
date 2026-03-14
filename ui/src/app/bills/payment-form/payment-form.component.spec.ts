@@ -35,7 +35,8 @@ describe('PaymentFormComponent', () => {
 
     fixture = TestBed.createComponent(PaymentFormComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Shop A' }];
+    component.customers = [{ id: 'SHOP-1', name: 'Shop A', company: 'aas' }];
+    component.invoices = [{ id: 'ACC-SINV-0001', name: 'INV', customer: 'SHOP-1', company: 'aas', outstanding: 250 }];
     fixture.detectChanges();
   });
 
@@ -44,14 +45,9 @@ describe('PaymentFormComponent', () => {
   });
 
   it('submits payment payload', () => {
-    component.form.patchValue({
-      invoiceId: 'ACC-SINV-0001',
-      customer: 'SHOP-1',
-      company: 'aas',
-      amount: 250,
-      referenceNo: 'REF-1',
-      referenceDate: '2024-01-20'
-    });
+    component.form.patchValue({ invoiceId: 'ACC-SINV-0001' });
+    component.onInvoiceChange();
+    component.form.patchValue({ amount: 250, referenceNo: 'REF-1', referenceDate: '2024-01-20' });
 
     component.submit();
 
