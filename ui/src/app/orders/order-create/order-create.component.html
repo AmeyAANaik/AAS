@@ -72,21 +72,31 @@
       <div class="image-step">
         <div class="image-controls">
           <label class="file-label">
-            <input type="file" accept="image/*" (change)="onImageSelected($event)" />
-            <span class="file-button">Choose image</span>
-            <span class="file-name">{{ imageFile?.name || 'No image selected' }}</span>
+            <input type="file" accept="image/*" multiple (change)="onImageSelected($event)" />
+            <span class="file-button">Choose images</span>
+            <span class="file-name">
+              {{ imageFiles.length ? imageFiles.length + ' image' + (imageFiles.length === 1 ? '' : 's') + ' selected' : 'No images selected' }}
+            </span>
           </label>
           <div class="image-actions">
             <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
-              Clear
+              Clear all
             </button>
           </div>
           <p class="hint">
-            Attach a branch order image.
+            Attach one or more branch order images.
           </p>
+          <div class="image-list" *ngIf="imageFiles.length">
+            <div class="image-list-row" *ngFor="let image of imageFiles; let i = index">
+              <span>{{ image.name }}</span>
+              <button mat-button type="button" color="warn" (click)="removeImage(i)">Remove</button>
+            </div>
+          </div>
         </div>
-        <div class="image-preview" *ngIf="imagePreviewUrl">
-          <img [src]="imagePreviewUrl" alt="Order image preview" />
+        <div class="image-preview-grid" *ngIf="imagePreviewUrls.length">
+          <div class="image-preview" *ngFor="let previewUrl of imagePreviewUrls; let i = index">
+            <img [src]="previewUrl" [alt]="'Order image preview ' + (i + 1)" />
+          </div>
         </div>
       </div>
     </section>
@@ -116,8 +126,8 @@
           <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
         </div>
         <div>
-          <p class="label">Image</p>
-          <p class="value">{{ imageFile?.name || 'No image attached' }}</p>
+          <p class="label">Images</p>
+          <p class="value">{{ imageFiles.length ? imageFiles.length + ' attached' : 'No image attached' }}</p>
         </div>
       </div>
       <div class="step-actions">

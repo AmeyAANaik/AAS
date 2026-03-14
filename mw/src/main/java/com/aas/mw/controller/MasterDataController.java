@@ -7,8 +7,10 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,6 +85,11 @@ public class MasterDataController {
             @PathVariable String id,
             @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.updateCategory(id, request));
+    }
+
+    @DeleteMapping("/categories/{id}")
+    public ResponseEntity<Map<String, Object>> deleteCategory(@PathVariable String id) {
+        throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "Deleting categories is not allowed.");
     }
 
     @GetMapping("/shops")

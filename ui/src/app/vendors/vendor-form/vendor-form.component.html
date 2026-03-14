@@ -127,6 +127,11 @@
           </div>
 
           <div class="status" *ngIf="sampleFile">Selected sample: {{ sampleFile.name }}</div>
+          <div class="template-actions" *ngIf="samplePdfUrl">
+            <span class="status">Saved sample: {{ samplePdfName }}</span>
+            <button mat-button type="button" color="primary" (click)="openSamplePdf()">Open sample</button>
+            <button mat-stroked-button type="button" color="primary" (click)="downloadSamplePdf()">Download sample</button>
+          </div>
 
           <div class="validation-panel" *ngIf="templateValidation as validation">
             <div class="validation-summary" [class.ready]="validation.activationReady">

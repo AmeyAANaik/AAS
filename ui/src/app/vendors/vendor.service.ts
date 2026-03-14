@@ -43,6 +43,13 @@ export class VendorService {
     );
   }
 
+  downloadInvoiceTemplateSample(id: string): Observable<Blob> {
+    return this.http.get(`/api/vendors/${encodeURIComponent(id)}/invoice-template/sample`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

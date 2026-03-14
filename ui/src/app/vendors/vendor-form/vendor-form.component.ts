@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { InvoiceTemplateModel } from '../../shared/invoice-template-model.service';
+import { VendorService } from '../vendor.service';
 
 @Component({
   selector: 'app-vendor-form',
@@ -34,7 +35,7 @@ export class VendorFormComponent implements OnChanges {
   });
   sampleFile: File | null = null;
 
-  constructor(private fb: FormBuilder) {}
+  constructor(private fb: FormBuilder, private vendorService: VendorService) {}
 
   ngOnChanges(): void {
     if (this.vendor) {
@@ -150,6 +151,50 @@ export class VendorFormComponent implements OnChanges {
       return 'Save the vendor first, then upload a sample invoice to validate the parser before activation.';
     }
     return 'Upload a sample invoice PDF to validate the template and confirm required item columns are extracted.';
+  }
+
+  get samplePdfUrl(): string {
+    const raw = (this.vendor?.raw ?? {}) as Record<string, unknown>;
+    return String(raw['invoice_template_sample_pdf'] ?? '').trim();
+  }
+
+  get samplePdfName(): string {
+    const url = this.samplePdfUrl;
+    if (!url) {
+      return 'invoice_template.pdf';
+    }
+    const clean = url.split('?')[0];
+    const parts = clean.split('/');
+    return parts[parts.length - 1] || 'invoice_template.pdf';
+  }
+
+  openSamplePdf(): void {
+    if (!this.vendor?.id) {
+      return;
+    }
+    this.vendorService.downloadInvoiceTemplateSample(this.vendor.id).subscribe({
+      next: blob => {
+        const objectUrl = window.URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank', 'noopener,noreferrer');
+        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    });
+  }
+
+  downloadSamplePdf(): void {
+    if (!this.vendor?.id) {
+      return;
+    }
+    this.vendorService.downloadInvoiceTemplateSample(this.vendor.id).subscribe({
+      next: blob => {
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = this.samplePdfName;
+        link.click();
+        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    });
   }
 
   get itemFields() {

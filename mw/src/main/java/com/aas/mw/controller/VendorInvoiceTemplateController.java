@@ -1,5 +1,6 @@
 package com.aas.mw.controller;
 
+import com.aas.mw.dto.DownloadedFile;
 import com.aas.mw.dto.UploadedFileInfo;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.service.ErpNextFileService;
@@ -22,8 +23,10 @@ import java.util.Set;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -135,6 +138,26 @@ public class VendorInvoiceTemplateController {
                 "detectedItems", detectedItems));
         response.put("validation", validation.asMap());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/invoice-template/sample")
+    public ResponseEntity<byte[]> downloadSamplePdf(@PathVariable String id) {
+        Map<String, Object> supplier = unwrapResource(erpNextClient.getResource(SUPPLIER, id));
+        String fileUrl = asText(supplier.get("aas_invoice_template_sample_pdf"));
+        if (fileUrl.isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+        DownloadedFile file = fileService.downloadFile(fileUrl);
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(file.contentType());
+        } catch (Exception ex) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .contentType(mediaType)
+                .body(file.bytes());
     }
 
     @DeleteMapping("/{id}/invoice-template")

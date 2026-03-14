@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
@@ -24,6 +25,11 @@ export class AppShellComponent implements OnDestroy {
   branchLocation = '';
   branchAvatarText = 'BR';
   branchLogoUrl = '';
+  userName = 'User';
+  userRole = '';
+  userEmail = '';
+  userAvatarText = 'U';
+  isUserMenuOpen = false;
   private readonly routeMap: Record<string, ShellRouteMeta> = {
     '/admin/dashboard': { breadcrumbs: ['Home', 'Dashboard'] },
     '/vendor-ops': { breadcrumbs: ['Home', 'Vendor Operations'] },
@@ -43,7 +49,8 @@ export class AppShellComponent implements OnDestroy {
   constructor(
     private router: Router,
     private tokenStore: AuthTokenService,
-    private companyContextService: CompanyContextService
+    private companyContextService: CompanyContextService,
+    private http: HttpClient
   ) {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -51,8 +58,9 @@ export class AppShellComponent implements OnDestroy {
         const url = this.normalizeUrl((event as NavigationEnd).urlAfterRedirects);
         const meta = this.metaForUrl(url);
         this.breadcrumbs = meta.breadcrumbs.join(' / ');
-      });
+    });
     this.loadCompanyContext();
+    this.loadUserProfile();
   }
 
   private metaForUrl(url: string): ShellRouteMeta {
@@ -72,6 +80,14 @@ export class AppShellComponent implements OnDestroy {
   logout(): void {
     this.tokenStore.setToken(null);
     this.router.navigateByUrl('/login');
+  }
+
+  toggleUserMenu(): void {
+    this.isUserMenuOpen = !this.isUserMenuOpen;
+  }
+
+  closeUserMenu(): void {
+    this.isUserMenuOpen = false;
   }
 
   ngOnDestroy(): void {
@@ -102,6 +118,39 @@ export class AppShellComponent implements OnDestroy {
         this.branchLocation = '';
       }
     });
+  }
+
+  private loadUserProfile(): void {
+    const token = this.tokenStore.getToken();
+    if (!token) {
+      return;
+    }
+    this.http.get<Record<string, unknown>>('/api/me', {
+      headers: new HttpHeaders({ Authorization: `Bearer ${token}` })
+    }).subscribe({
+      next: profile => {
+        this.userName = String(profile['full_name'] ?? profile['name'] ?? profile['email'] ?? 'User').trim() || 'User';
+        this.userEmail = String(profile['email'] ?? '').trim();
+        this.userRole = this.formatRole(String(profile['role'] ?? this.tokenStore.getRole() ?? '').trim());
+        this.userAvatarText = this.initialsFor(this.userName, 'U');
+      },
+      error: () => {
+        const role = this.formatRole(String(this.tokenStore.getRole() ?? '').trim());
+        this.userRole = role;
+        this.userAvatarText = this.initialsFor(this.userName, 'U');
+      }
+    });
+  }
+
+  private formatRole(role: string): string {
+    if (!role) {
+      return '';
+    }
+    return role
+      .split(/[_\s]+/)
+      .filter(Boolean)
+      .map(part => part[0]?.toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
   }
 
   private initialsFor(value: string, fallback: string): string {

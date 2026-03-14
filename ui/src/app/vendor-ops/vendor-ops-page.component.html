@@ -87,35 +87,6 @@
 
     <mat-card class="detail-card">
       <div class="subsection">
-        <div class="subsection-title">Billing & Exceptions</div>
-        <div class="exception-grid">
-          <div class="exception-card"><div class="label">Bills Captured</div><div class="value">{{ selectedVendor.billing.billsCaptured }}</div></div>
-          <div class="exception-card"><div class="label">Unpaid Purchase Invoices</div><div class="value">{{ selectedVendor.billing.unpaidPurchaseInvoices }}</div></div>
-          <div class="exception-card"><div class="label">Mismatch Count</div><div class="value">{{ selectedVendor.exceptions.mismatchCount }}</div></div>
-          <div class="exception-card"><div class="label">Parse Failures</div><div class="value">{{ selectedVendor.exceptions.parseFailureCount }}</div></div>
-          <div class="exception-card"><div class="label">Awaiting PDF Too Long</div><div class="value">{{ selectedVendor.exceptions.awaitingPdfTooLong }}</div></div>
-          <div class="exception-card"><div class="label">Template Status</div><div class="value">{{ selectedVendor.template.status }}</div></div>
-        </div>
-      </div>
-
-      <div class="subsection" *ngIf="selectedVendorAnalytics">
-        <div class="subsection-title">Performance</div>
-        <div class="analytics-grid">
-          <div class="analytics-card"><div class="label">Avg assignment to PDF (hrs)</div><div class="value">{{ selectedVendorAnalytics.turnaround.avgAssignmentToPdfHours | number:'1.0-2' }}</div></div>
-          <div class="analytics-card"><div class="label">Avg PDF to bill (hrs)</div><div class="value">{{ selectedVendorAnalytics.turnaround.avgPdfToBillHours | number:'1.0-2' }}</div></div>
-          <div class="analytics-card"><div class="label">Parse Success %</div><div class="value">{{ selectedVendorAnalytics.turnaround.parseSuccessRate | number:'1.0-2' }}</div></div>
-          <div class="analytics-card"><div class="label">Bill Capture %</div><div class="value">{{ selectedVendorAnalytics.turnaround.billCaptureRate | number:'1.0-2' }}</div></div>
-        </div>
-
-        <div class="summary-lists">
-          <div><div class="list-title">Orders by Status</div><div class="list-row" *ngFor="let row of selectedVendorAnalytics.ordersByStatus"><span>{{ row.status }}</span><strong>{{ row.count }}</strong></div></div>
-          <div><div class="list-title">Billed Amount by Branch</div><div class="list-row" *ngFor="let row of selectedVendorAnalytics.billedAmountByBranch"><span>{{ row.branch }}</span><strong>{{ row.total | number:'1.0-2' }}</strong></div></div>
-          <div><div class="list-title">Top Items by Qty</div><div class="list-row" *ngFor="let row of selectedVendorAnalytics.topItemsByQty"><span>{{ row.item }}</span><strong>{{ row.qty | number:'1.0-2' }}</strong></div></div>
-          <div><div class="list-title">Top Items by Value</div><div class="list-row" *ngFor="let row of selectedVendorAnalytics.topItemsByValue"><span>{{ row.item }}</span><strong>{{ row.value | number:'1.0-2' }}</strong></div></div>
-        </div>
-      </div>
-
-      <div class="subsection">
         <div class="subsection-title">Ledger</div>
         <div class="table-wrapper" *ngIf="ledger.length; else emptyLedger">
           <table mat-table [dataSource]="ledger" class="pro-table mat-elevation-z1">

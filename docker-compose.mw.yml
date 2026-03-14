@@ -6,6 +6,7 @@ services:
       - "8083:8083"
     environment:
       ERPNEXT_BASE_URL: http://host.docker.internal:8080
+      ERPNEXT_PUBLIC_BASE_URL: http://localhost:8080
       OCR_TESSERACT_DATAPATH: /usr/share/tesseract-ocr/5/tessdata
       APP_DEFAULTS_ENABLED: "true"
       APP_DEFAULTS_VENDOR_EMAIL: vendor@example.com

@@ -33,7 +33,7 @@ public class MasterDataService {
     private final OcrService ocrService;
     private final VendorInvoiceTemplateParser templateParser;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
-    private final String erpBaseUrl;
+    private final String erpPublicBaseUrl;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public MasterDataService(
@@ -43,14 +43,14 @@ public class MasterDataService {
             OcrService ocrService,
             VendorInvoiceTemplateParser templateParser,
             InvoiceTemplateModelService invoiceTemplateModelService,
-            @Value("${erpnext.base-url}") String erpBaseUrl) {
+            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl) {
         this.erpNextClient = erpNextClient;
         this.vendorFieldRegistry = vendorFieldRegistry;
         this.objectMapper = objectMapper;
         this.ocrService = ocrService;
         this.templateParser = templateParser;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
-        this.erpBaseUrl = erpBaseUrl;
+        this.erpPublicBaseUrl = erpPublicBaseUrl;
     }
 
     public List<Map<String, Object>> listItems() {
@@ -106,6 +106,7 @@ public class MasterDataService {
         params.put("fields", mapper.erpListFieldsJson());
         return erpNextClient.listResources("Supplier", params).stream()
                 .map(mapper::withApiAliases)
+                .map(this::resolveVendorTemplateFileUrl)
                 .toList();
     }
 
@@ -536,12 +537,23 @@ public class MasterDataService {
     }
 
     private String resolveFileUrl(String filePath) {
-        String base = erpBaseUrl.endsWith("/") ? erpBaseUrl.substring(0, erpBaseUrl.length() - 1) : erpBaseUrl;
+        String base = erpPublicBaseUrl.endsWith("/") ? erpPublicBaseUrl.substring(0, erpPublicBaseUrl.length() - 1) : erpPublicBaseUrl;
         if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
             return filePath;
         }
         String path = filePath.startsWith("/") ? filePath : "/" + filePath;
         return base + path;
+    }
+
+    private Map<String, Object> resolveVendorTemplateFileUrl(Map<String, Object> vendor) {
+        if (vendor == null) {
+            return null;
+        }
+        String samplePdf = asText(vendor.get("invoice_template_sample_pdf"));
+        if (!samplePdf.isBlank()) {
+            vendor.put("invoice_template_sample_pdf", resolveFileUrl(samplePdf));
+        }
+        return vendor;
     }
 
     private boolean hasText(String value) {

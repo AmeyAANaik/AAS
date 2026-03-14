@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { BranchOpsAnalytics, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
+import { BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
 import { BranchOpsService } from './branch-ops.service';
 
 @Component({
@@ -27,7 +27,6 @@ export class BranchOpsPageComponent implements OnInit {
   branches: BranchOpsSummaryRow[] = [];
   selectedBranch: BranchOpsDetail | null = null;
   selectedBranchOrders: BranchOpsOrderRow[] = [];
-  selectedBranchAnalytics: BranchOpsAnalytics | null = null;
   ledger: BranchOpsLedgerEntry[] = [];
   isLoadingSummary = false;
   isLoadingDetail = false;
@@ -48,7 +47,6 @@ export class BranchOpsPageComponent implements OnInit {
       } else {
         this.selectedBranch = null;
         this.selectedBranchOrders = [];
-        this.selectedBranchAnalytics = null;
         this.ledger = [];
       }
     });
@@ -109,14 +107,6 @@ export class BranchOpsPageComponent implements OnInit {
           this.errorMessage = 'Unable to load branch orders.';
         }
       });
-    this.branchOpsService.getBranchAnalytics(branchId).subscribe({
-      next: analytics => {
-        this.selectedBranchAnalytics = analytics;
-      },
-      error: () => {
-        this.selectedBranchAnalytics = null;
-      }
-    });
     this.branchOpsService.getBranchLedger(branchId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];

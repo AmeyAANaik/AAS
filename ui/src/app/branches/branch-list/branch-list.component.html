@@ -1,24 +1,19 @@
 <div class="branch-page">
   <app-page-header title="Branches" subtitle="Manage branch master data (shops).">
-    <button mat-stroked-button color="primary" (click)="loadBranches()" [disabled]="isLoading">Refresh</button>
+    <button mat-flat-button color="primary" (click)="clearSelection()">Create branch</button>
   </app-page-header>
 
-  <app-branch-form
-    [branch]="selectedBranch"
-    [isSaving]="isSaving"
-    [statusMessage]="statusMessage"
-    (save)="saveBranch($event)"
-    (reset)="clearSelection()">
-  </app-branch-form>
+  <div class="content-grid">
+    <mat-card class="list-card">
+      <mat-card-content>
+        <div class="toolbar">
+          <mat-form-field appearance="outline">
+            <mat-label>Search branch</mat-label>
+            <input matInput placeholder="Search by name or location" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" (click)="loadBranches()" [disabled]="isLoading">Refresh</button>
+        </div>
 
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Branch list</div>
-        <div class="section-subtitle">Maintain branch locations and WhatsApp mapping details.</div>
-      </div>
-    </div>
-    <mat-card-content>
       <div class="feedback loading" *ngIf="isLoading">Loading branches...</div>
       <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
 
@@ -64,6 +59,17 @@
           hint="Create a new branch to get started.">
         </app-empty-state>
       </ng-template>
-    </mat-card-content>
-  </mat-card>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="form-card">
+      <app-branch-form
+        [branch]="selectedBranch"
+        [isSaving]="isSaving"
+        [statusMessage]="statusMessage"
+        (save)="saveBranch($event)"
+        (reset)="clearSelection()">
+      </app-branch-form>
+    </mat-card>
+  </div>
 </div>

@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { VendorOpsAnalytics, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
+import { VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
 import { VendorOpsService } from './vendor-ops.service';
 
 @Component({
@@ -27,7 +27,6 @@ export class VendorOpsPageComponent implements OnInit {
   vendors: VendorOpsSummaryRow[] = [];
   selectedVendor: VendorOpsDetail | null = null;
   selectedVendorOrders: VendorOpsOrderRow[] = [];
-  selectedVendorAnalytics: VendorOpsAnalytics | null = null;
   ledger: VendorOpsLedgerEntry[] = [];
   isLoadingSummary = false;
   isLoadingDetail = false;
@@ -48,7 +47,6 @@ export class VendorOpsPageComponent implements OnInit {
       } else {
         this.selectedVendor = null;
         this.selectedVendorOrders = [];
-        this.selectedVendorAnalytics = null;
         this.ledger = [];
       }
     });
@@ -109,14 +107,6 @@ export class VendorOpsPageComponent implements OnInit {
           this.selectedVendorOrders = [];
         }
       });
-    this.vendorOpsService.getVendorAnalytics(vendorId).subscribe({
-      next: analytics => {
-        this.selectedVendorAnalytics = analytics;
-      },
-      error: () => {
-        this.selectedVendorAnalytics = null;
-      }
-    });
     this.vendorOpsService.getVendorLedger(vendorId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];

@@ -1,8 +1,8 @@
 import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output } from '@angular/core';
 import { Location } from '@angular/common';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Subscription } from 'rxjs';
-import { finalize, map, switchMap } from 'rxjs/operators';
+import { Subscription, from, of } from 'rxjs';
+import { concatMap, finalize, map, switchMap, toArray } from 'rxjs/operators';
 import { OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
 import { VendorService } from '../../vendors/vendor.service';
@@ -25,8 +25,8 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   shopsError = '';
   vendorsError = '';
   companiesError = '';
-  imageFile: File | null = null;
-  imagePreviewUrl = '';
+  imageFiles: File[] = [];
+  imagePreviewUrls: string[] = [];
   createdOrderId: string | null = null;
   companies: OrderOption[] = [];
   private subscriptions = new Subscription();
@@ -82,16 +82,17 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.isSubmitting = true;
     this.statusMessage = 'Creating order...';
     this.createdOrderId = null;
-    if (!this.imageFile) {
+    if (!this.imageFiles.length) {
       this.isSubmitting = false;
-      this.statusMessage = 'Upload a branch image before creating the order.';
+      this.statusMessage = 'Upload at least one branch image before creating the order.';
       return;
     }
     const details = this.detailsGroup.getRawValue();
     const vendorId = String(details.vendor ?? '').trim();
+    const [primaryImage, ...extraImages] = this.imageFiles;
     let createdOrderId = '';
     this.orderService
-      .createOrderFromBranchImage(this.imageFile, {
+      .createOrderFromBranchImage(primaryImage, {
         customer: String(details.customer ?? '').trim(),
         company: String(details.company ?? '').trim(),
         transaction_date: String(details.orderDate ?? ''),
@@ -107,6 +108,17 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           return { id, response };
         }),
         switchMap(({ id, response }) => {
+          if (!extraImages.length) {
+            return of({ id, response, uploadedExtras: 0 });
+          }
+          this.statusMessage = `Uploading ${extraImages.length} additional image${extraImages.length === 1 ? '' : 's'}...`;
+          return from(extraImages).pipe(
+            concatMap(file => this.orderService.uploadOrderImage(id, file)),
+            toArray(),
+            map(results => ({ id, response, uploadedExtras: results.length }))
+          );
+        }),
+        switchMap(({ id, response }) => {
           this.statusMessage = 'Assigning vendor...';
           return this.orderService.assignVendor(id, vendorId).pipe(
             map(assignResponse => ({ id, response, assignResponse }))
@@ -119,7 +131,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           const id = result?.id ?? '';
           if (id) {
             this.createdOrderId = id;
-            this.statusMessage = `Order created and vendor assigned: ${id}`;
+            this.statusMessage = `Order created with ${this.imageFiles.length} image${this.imageFiles.length === 1 ? '' : 's'} and vendor assigned: ${id}`;
             this.created.emit({
               id,
               customer: String(details.customer ?? '').trim(),
@@ -149,7 +161,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
-    this.revokePreviewUrl();
+    this.revokePreviewUrls();
   }
 
   get canSubmit(): boolean {
@@ -157,7 +169,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get imageSelected(): boolean {
-    return Boolean(this.imageFile);
+    return this.imageFiles.length > 0;
   }
 
   private setTodayDefaults(): void {
@@ -174,8 +186,8 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       deliveryDate: this.formatDate(new Date())
     });
     this.imageGroup.reset({ imageName: '' });
-    this.imageFile = null;
-    this.revokePreviewUrl();
+    this.imageFiles = [];
+    this.revokePreviewUrls();
     if (clearCreated) {
       this.statusMessage = '';
       this.createdOrderId = null;
@@ -283,12 +295,26 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   onImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) {
+    const files = input?.files ? Array.from(input.files) : [];
+    if (!files.length) {
       this.clearImage();
       return;
     }
-    this.setImage(file);
+    const existingKeys = new Set(
+      this.imageFiles.map(file => `${file.name}:${file.size}:${file.lastModified}`)
+    );
+    const appended = files.filter(file => {
+      const key = `${file.name}:${file.size}:${file.lastModified}`;
+      if (existingKeys.has(key)) {
+        return false;
+      }
+      existingKeys.add(key);
+      return true;
+    });
+    this.setImages([...this.imageFiles, ...appended]);
+    if (input) {
+      input.value = '';
+    }
   }
 
   private isDisabled(value: unknown): boolean {
@@ -332,27 +358,39 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     `;
     const blob = new Blob([svg.trim()], { type: 'image/svg+xml' });
     const file = new File([blob], `order-${timestamp}.svg`, { type: 'image/svg+xml' });
-    this.setImage(file);
+    this.setImages([file]);
   }
 
   clearImage(): void {
-    this.imageFile = null;
+    this.imageFiles = [];
     this.imageGroup.patchValue({ imageName: '' });
-    this.revokePreviewUrl();
+    this.revokePreviewUrls();
   }
 
-  private setImage(file: File): void {
-    this.imageFile = file;
-    this.imageGroup.patchValue({ imageName: file.name });
-    this.revokePreviewUrl();
-    this.imagePreviewUrl = URL.createObjectURL(file);
-  }
-
-  private revokePreviewUrl(): void {
-    if (this.imagePreviewUrl) {
-      URL.revokeObjectURL(this.imagePreviewUrl);
-      this.imagePreviewUrl = '';
+  removeImage(index: number): void {
+    if (index < 0 || index >= this.imageFiles.length) {
+      return;
     }
+    this.imageFiles = this.imageFiles.filter((_, i) => i !== index);
+    this.syncImageState();
+  }
+
+  private setImages(files: File[]): void {
+    this.imageFiles = files;
+    this.syncImageState();
+  }
+
+  private syncImageState(): void {
+    this.imageGroup.patchValue({
+      imageName: this.imageFiles.map(file => file.name).join(', ')
+    });
+    this.revokePreviewUrls();
+    this.imagePreviewUrls = this.imageFiles.map(file => URL.createObjectURL(file));
+  }
+
+  private revokePreviewUrls(): void {
+    this.imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    this.imagePreviewUrls = [];
   }
 
   private extractOrderId(response: unknown): string {

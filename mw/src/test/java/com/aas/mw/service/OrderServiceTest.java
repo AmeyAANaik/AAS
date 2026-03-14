@@ -28,7 +28,12 @@ class OrderServiceTest {
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
         ErpNextFileService fileService = mock(ErpNextFileService.class);
-        orderService = new OrderService(erpNextClient, fileService, new OrderFlowStateMachine(), 7.0);
+        orderService = new OrderService(
+                erpNextClient,
+                fileService,
+                new OrderFlowStateMachine(),
+                "http://localhost:8080",
+                7.0);
     }
 
     @Test

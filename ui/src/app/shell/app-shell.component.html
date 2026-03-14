@@ -1,7 +1,40 @@
 <div class="shell">
   <header class="shell-header">
-    <div class="header-left">
-      <div class="brand">
+    <div class="header-right">
+      <div class="user-menu-shell">
+        <button class="header-chip user-chip" type="button" (click)="toggleUserMenu()" title="User menu">
+          <span class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</span>
+          <span class="user-copy">
+            <strong>{{ userName }}</strong>
+            <small>{{ userRole || 'Signed in' }}</small>
+          </span>
+          <span class="material-icons" aria-hidden="true">expand_more</span>
+        </button>
+        <div class="user-menu-panel" *ngIf="isUserMenuOpen">
+          <div class="user-panel-head">
+            <div class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</div>
+            <div class="user-panel-copy">
+              <strong>{{ userName }}</strong>
+              <span *ngIf="userEmail">{{ userEmail }}</span>
+              <span *ngIf="userRole">{{ userRole }}</span>
+            </div>
+          </div>
+          <a class="user-menu-link" routerLink="/company-settings" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">business</span>
+            Company Settings
+          </a>
+          <button class="user-menu-link danger" type="button" (click)="closeUserMenu(); logout()">
+            <span class="material-icons" aria-hidden="true">logout</span>
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell-body">
+    <aside class="shell-sidebar">
+      <div class="sidebar-brand">
         <img *ngIf="companyLogoUrl" class="logo-image" [src]="companyLogoUrl" [alt]="companyName + ' logo'" />
         <div *ngIf="!companyLogoUrl" class="logo" aria-hidden="true">{{ companyAvatarText }}</div>
         <div>
@@ -9,27 +42,7 @@
           <div class="brand-sub">{{ companySubline }}</div>
         </div>
       </div>
-    </div>
-    <div class="header-center">
-      <div class="search-shell" title="Global search (coming soon)">
-        <span class="material-icons search-icon" aria-hidden="true">search</span>
-        <input class="global-search" type="search" placeholder="Search (coming soon)" disabled />
-      </div>
-    </div>
-    <div class="header-right">
-      <a class="header-chip" routerLink="/company-settings" title="Company Settings">
-        <span class="material-icons" aria-hidden="true">business</span>
-        Company
-      </a>
-      <button class="header-chip danger" type="button" (click)="logout()" title="Logout">
-        <span class="material-icons" aria-hidden="true">logout</span>
-        Logout
-      </button>
-    </div>
-  </header>
 
-  <div class="shell-body">
-    <aside class="shell-sidebar">
       <nav class="sidebar-group">
         <div class="sidebar-title">Home</div>
         <a routerLink="/admin/dashboard" routerLinkActive="active">

@@ -582,6 +582,13 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           return;
         }
         const data = (res as any)?.data ?? res;
+        this.selectedOrder = {
+          ...this.selectedOrder,
+          raw: {
+            ...this.selectedOrder?.raw,
+            ...data
+          }
+        };
         const items = Array.isArray(data?.items) ? data.items : [];
         this.orderLines = items.map((row: any) => this.toUiOrderLine(row)).filter((row: UiOrderLine) => row.item_code);
       },
@@ -1064,6 +1071,63 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     };
   }
 
+  get branchImageUrl(): string {
+    return String(this.selectedOrder?.raw?.aas_branch_image ?? '').trim();
+  }
+
+  get vendorPdfUrl(): string {
+    return String(this.selectedOrder?.raw?.aas_vendor_pdf ?? '').trim();
+  }
+
+  get branchImageName(): string {
+    return this.attachmentName(this.branchImageUrl, 'Branch image');
+  }
+
+  get vendorPdfName(): string {
+    return this.attachmentName(this.vendorPdfUrl, 'Vendor PDF');
+  }
+
+  openAttachment(url: string): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    const loader = url === this.branchImageUrl
+      ? this.orderService.downloadBranchImage(this.selectedOrder.name)
+      : this.orderService.downloadVendorPdfFile(this.selectedOrder.name);
+    loader.subscribe({
+      next: blob => {
+        const objectUrl = window.URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank', 'noopener,noreferrer');
+        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+      },
+      error: err => {
+        this.errorMessage = this.formatError(err, 'Unable to open file');
+      }
+    });
+  }
+
+  downloadAttachment(url: string, fileName: string): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    const loader = url === this.branchImageUrl
+      ? this.orderService.downloadBranchImage(this.selectedOrder.name)
+      : this.orderService.downloadVendorPdfFile(this.selectedOrder.name);
+    loader.subscribe({
+      next: blob => {
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        link.click();
+        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+      },
+      error: err => {
+        this.errorMessage = this.formatError(err, 'Unable to download file');
+      }
+    });
+  }
+
   private resolveCurrency(order: OrderSummary): string {
     const currency = String(order.currency ?? '').trim();
     if (currency) {
@@ -1075,6 +1139,16 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     // Fall back to the expected ERPNext default in this project.
     return 'INR';
+  }
+
+  private attachmentName(url: string, fallback: string): string {
+    const value = String(url ?? '').trim();
+    if (!value) {
+      return fallback;
+    }
+    const clean = value.split('?')[0];
+    const parts = clean.split('/');
+    return parts[parts.length - 1] || fallback;
   }
 
   private normalizeStatus(order: OrderSummary): UiOrderStatus {

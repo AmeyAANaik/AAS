@@ -172,11 +172,34 @@
   flex-wrap: wrap;
 }
 
+.image-list {
+  display: grid;
+  gap: 8px;
+}
+
+.image-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
 .image-preview {
   border-radius: 16px;
   border: 1px solid var(--border);
   padding: 12px;
   background: var(--surface);
+}
+
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
 }
 
 .image-preview img {

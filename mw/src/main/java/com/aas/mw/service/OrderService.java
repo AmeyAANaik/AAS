@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.dto.DownloadedFile;
 import com.aas.mw.dto.OrderItemLine;
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
@@ -21,16 +22,19 @@ public class OrderService {
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final String erpPublicBaseUrl;
     private final double defaultMarginPercent;
 
     public OrderService(
             ErpNextClient erpNextClient,
             ErpNextFileService erpNextFileService,
             OrderFlowStateMachine orderFlowStateMachine,
+            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.erpPublicBaseUrl = erpPublicBaseUrl;
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
@@ -152,7 +156,7 @@ public class OrderService {
     }
 
     public Map<String, Object> getOrder(String id) {
-        return erpNextClient.getResource(DOCTYPE, id);
+        return withResolvedFileUrls(erpNextClient.getResource(DOCTYPE, id));
     }
 
     public Map<String, Object> updateOrder(String id, OrderRequest request) {
@@ -275,8 +279,16 @@ public class OrderService {
         return Map.of(
                 "orderId", orderId,
                 "fileName", info.fileName(),
-                "fileUrl", info.fileUrl(),
+                "fileUrl", resolveFileUrl(info.fileUrl()),
                 "fileId", info.fileId());
+    }
+
+    public DownloadedFile downloadBranchImage(String orderId) {
+        return downloadOrderAttachment(orderId, "aas_branch_image");
+    }
+
+    public DownloadedFile downloadVendorPdf(String orderId) {
+        return downloadOrderAttachment(orderId, "aas_vendor_pdf");
     }
 
     public Map<String, Object> deleteOrder(String orderId) {
@@ -325,7 +337,7 @@ public class OrderService {
                 "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"currency\",\"price_list_currency\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
-                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
+                        + "\"aas_branch_image\",\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
         // Sort by last modification so newly created orders show up reliably on the first page.
         params.put("order_by", "modified desc");
         if (!filters.isEmpty()) {
@@ -343,7 +355,53 @@ public class OrderService {
         }
         List<Map<String, Object>> orders = erpNextClient.listResources(DOCTYPE, params);
         addOrderCostMetrics(orders);
+        orders.forEach(this::resolveOrderFileUrls);
         return orders;
+    }
+
+    private Map<String, Object> withResolvedFileUrls(Map<String, Object> order) {
+        if (order == null) {
+            return null;
+        }
+        resolveOrderFileUrls(order);
+        return order;
+    }
+
+    private void resolveOrderFileUrls(Map<String, Object> order) {
+        if (order == null) {
+            return;
+        }
+        putResolvedFileUrl(order, "aas_branch_image");
+        putResolvedFileUrl(order, "aas_vendor_pdf");
+    }
+
+    private void putResolvedFileUrl(Map<String, Object> order, String field) {
+        String value = asText(order.get(field));
+        if (!value.isBlank()) {
+            order.put(field, resolveFileUrl(value));
+        }
+    }
+
+    private String resolveFileUrl(String filePath) {
+        String value = asText(filePath);
+        if (value.isBlank()) {
+            return value;
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        String base = erpPublicBaseUrl.endsWith("/") ? erpPublicBaseUrl.substring(0, erpPublicBaseUrl.length() - 1) : erpPublicBaseUrl;
+        String path = value.startsWith("/") ? value : "/" + value;
+        return base + path;
+    }
+
+    private DownloadedFile downloadOrderAttachment(String orderId, String field) {
+        Map<String, Object> order = unwrap(erpNextClient.getResource(DOCTYPE, orderId));
+        String fileUrl = asText(order.get(field));
+        if (fileUrl.isBlank()) {
+            throw new IllegalArgumentException("No file is available for this order.");
+        }
+        return erpNextFileService.downloadFile(fileUrl);
     }
 
     private void addOrderCostMetrics(List<Map<String, Object>> orders) {

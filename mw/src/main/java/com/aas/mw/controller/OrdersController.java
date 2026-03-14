@@ -2,6 +2,7 @@ package com.aas.mw.controller;
 
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.OrderItemsRequest;
+import com.aas.mw.dto.DownloadedFile;
 import com.aas.mw.dto.FieldsRequest;
 import com.aas.mw.dto.VendorBillRequest;
 import com.aas.mw.service.OrderBillingService;
@@ -63,6 +64,16 @@ public class OrdersController {
     @GetMapping("/{id}")
     public ResponseEntity<Map<String, Object>> getOrder(@PathVariable String id) {
         return ResponseEntity.ok(orderService.getOrder(id));
+    }
+
+    @GetMapping("/{id}/branch-image")
+    public ResponseEntity<byte[]> downloadBranchImage(@PathVariable String id) {
+        return fileResponse(orderService.downloadBranchImage(id));
+    }
+
+    @GetMapping("/{id}/vendor-pdf")
+    public ResponseEntity<byte[]> downloadVendorPdf(@PathVariable String id) {
+        return fileResponse(orderService.downloadVendorPdf(id));
     }
 
     @PutMapping("/{id}")
@@ -267,5 +278,18 @@ public class OrdersController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteOrder(@PathVariable String id) {
         return ResponseEntity.ok(orderService.deleteOrder(id));
+    }
+
+    private ResponseEntity<byte[]> fileResponse(DownloadedFile file) {
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(file.contentType());
+        } catch (Exception ex) {
+            mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.fileName() + "\"")
+                .contentType(mediaType)
+                .body(file.bytes());
     }
 }

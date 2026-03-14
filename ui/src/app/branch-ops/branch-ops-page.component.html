@@ -87,34 +87,6 @@
 
     <mat-card class="detail-card">
       <div class="subsection">
-        <div class="subsection-title">Billing & Exceptions</div>
-        <div class="exception-grid">
-          <div class="exception-card"><div class="label">Invoices Raised</div><div class="value">{{ selectedBranch.billing.invoicesRaised }}</div></div>
-          <div class="exception-card"><div class="label">Open Invoices</div><div class="value">{{ selectedBranch.billing.openInvoices }}</div></div>
-          <div class="exception-card"><div class="label">Payments Received</div><div class="value">{{ selectedBranch.billing.paymentsReceived }}</div></div>
-          <div class="exception-card"><div class="label">Unassigned Orders</div><div class="value">{{ selectedBranch.exceptions.unassignedOrders }}</div></div>
-          <div class="exception-card"><div class="label">Awaiting Vendor PDF</div><div class="value">{{ selectedBranch.exceptions.awaitingVendorPdf }}</div></div>
-          <div class="exception-card"><div class="label">Overdue Invoices</div><div class="value">{{ selectedBranch.exceptions.overdueInvoices }}</div></div>
-        </div>
-      </div>
-
-      <div class="subsection" *ngIf="selectedBranchAnalytics">
-        <div class="subsection-title">Performance</div>
-        <div class="analytics-grid">
-          <div class="analytics-card"><div class="label">Avg order to invoice (hrs)</div><div class="value">{{ selectedBranchAnalytics.turnaround.avgOrderToInvoiceHours | number:'1.0-2' }}</div></div>
-          <div class="analytics-card"><div class="label">Collection %</div><div class="value">{{ selectedBranchAnalytics.turnaround.paymentCollectionRate | number:'1.0-2' }}</div></div>
-          <div class="analytics-card"><div class="label">Avg invoice to payment (hrs)</div><div class="value">{{ selectedBranchAnalytics.turnaround.avgInvoiceToPaymentHours | number:'1.0-2' }}</div></div>
-        </div>
-
-        <div class="summary-lists">
-          <div><div class="list-title">Orders by Status</div><div class="list-row" *ngFor="let row of selectedBranchAnalytics.ordersByStatus"><span>{{ row.status }}</span><strong>{{ row.count }}</strong></div></div>
-          <div><div class="list-title">Billed Amount by Vendor</div><div class="list-row" *ngFor="let row of selectedBranchAnalytics.billedAmountByVendor"><span>{{ row.vendor }}</span><strong>{{ row.total | number:'1.0-2' }}</strong></div></div>
-          <div><div class="list-title">Top Items by Qty</div><div class="list-row" *ngFor="let row of selectedBranchAnalytics.topItemsByQty"><span>{{ row.item }}</span><strong>{{ row.qty | number:'1.0-2' }}</strong></div></div>
-          <div><div class="list-title">Top Items by Value</div><div class="list-row" *ngFor="let row of selectedBranchAnalytics.topItemsByValue"><span>{{ row.item }}</span><strong>{{ row.value | number:'1.0-2' }}</strong></div></div>
-        </div>
-      </div>
-
-      <div class="subsection">
         <div class="subsection-title">Ledger</div>
         <div class="table-wrapper" *ngIf="ledger.length; else emptyLedger">
           <table mat-table [dataSource]="ledger" class="pro-table mat-elevation-z1">

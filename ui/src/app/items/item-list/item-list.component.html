@@ -1,25 +1,11 @@
 <div class="item-page">
   <app-page-header title="Items" subtitle="Manage item master data with category, unit, and margin details.">
-    <button mat-stroked-button color="primary" (click)="loadItemsPage(pageIndex + 1)" [disabled]="isLoadingItems">
-      Refresh
-    </button>
+    <button mat-flat-button color="primary">Create item</button>
   </app-page-header>
 
-  <app-item-form
-    [categories]="categories"
-    [isSaving]="isSaving"
-    [statusMessage]="statusMessage"
-    (save)="saveItem($event)">
-  </app-item-form>
-
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Item list</div>
-        <div class="section-subtitle">Review item master with category, unit, packaging, and margin details.</div>
-      </div>
-    </div>
-    <mat-card-content>
+  <div class="content-grid">
+    <mat-card class="list-card">
+      <mat-card-content>
       <div class="feedback loading" *ngIf="isLoadingItems">Loading items...</div>
       <div class="feedback error" *ngIf="!isLoadingItems && statusMessage">{{ statusMessage }}</div>
 
@@ -30,16 +16,21 @@
             Showing {{ items.length }} on this page · Sorted by {{ sortActive }} · Use search to narrow the list.
           </div>
         </div>
-        <mat-form-field class="search-field" appearance="outline">
-          <mat-icon matPrefix>search</mat-icon>
-          <mat-label>Search items</mat-label>
-          <input
-            matInput
-            type="text"
-            [value]="searchTerm"
-            (input)="applyFilter($any($event.target).value)"
-            placeholder="Name or code" />
-        </mat-form-field>
+        <div class="toolbar-actions">
+          <mat-form-field class="search-field" appearance="outline">
+            <mat-icon matPrefix>search</mat-icon>
+            <mat-label>Search items</mat-label>
+            <input
+              matInput
+              type="text"
+              [value]="searchTerm"
+              (input)="applyFilter($any($event.target).value)"
+              placeholder="Name or code" />
+          </mat-form-field>
+          <button mat-stroked-button color="primary" (click)="loadItemsPage(pageIndex + 1)" [disabled]="isLoadingItems">
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div class="table-wrapper" *ngIf="!isLoadingItems && dataSource.data.length; else emptyState">
@@ -116,6 +107,16 @@
           hint="Create your first item to build the catalog.">
         </app-empty-state>
       </ng-template>
-    </mat-card-content>
-  </mat-card>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="form-card">
+      <app-item-form
+        [categories]="categories"
+        [isSaving]="isSaving"
+        [statusMessage]="statusMessage"
+        (save)="saveItem($event)">
+      </app-item-form>
+    </mat-card>
+  </div>
 </div>

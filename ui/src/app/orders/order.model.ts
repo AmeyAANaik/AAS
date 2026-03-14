@@ -9,6 +9,7 @@ export interface OrderSummary {
   currency?: string;
   price_list_currency?: string;
   aas_vendor?: string;
+  aas_branch_image?: string;
   aas_vendor_pdf?: string;
   aas_status?: string;
   status?: string;

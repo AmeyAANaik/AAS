@@ -102,6 +102,20 @@ export class OrderService {
     });
   }
 
+  downloadBranchImage(orderId: string): Observable<Blob> {
+    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/branch-image`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadVendorPdfFile(orderId: string): Observable<Blob> {
+    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/vendor-pdf`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   captureVendorBill(orderId: string, payload: VendorBillPayload): Observable<Record<string, unknown>> {
     return this.http.post<Record<string, unknown>>(
       `/api/orders/${orderId}/vendor-bill`,

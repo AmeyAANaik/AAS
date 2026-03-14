@@ -2,9 +2,11 @@
 <div class="order-page">
   <!-- Header -->
   <div class="order-header">
-    <h1>Sales Order Processing</h1>
+    <div class="header-row">
+      <h1>Sales Order Processing</h1>
+      <button mat-raised-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
+    </div>
     <p class="subtitle">Track your order from vendor assignment to creation</p>
-        <button mat-raised-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
   </div>
 
   <!-- Orders Table/List -->
@@ -273,6 +275,13 @@
             <span class="step-info" *ngIf="selectedOrder.status !== 'DRAFT'">✓ Completed</span>
           </div>
           <div class="step-body" *ngIf="selectedOrder.status === 'DRAFT'">
+            <div class="stage-link" *ngIf="branchImageUrl">
+              <span class="stage-link-label">Branch image from order creation</span>
+              <div class="stage-link-actions">
+                <button mat-button type="button" color="primary" (click)="openAttachment(branchImageUrl)">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadAttachment(branchImageUrl, branchImageName)">Download</button>
+              </div>
+            </div>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Select Vendor</mat-label>
               <mat-select [formControl]="vendorControl" [disabled]="isVendorsLoading || !!vendorsError">
@@ -286,6 +295,11 @@
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'DRAFT'">
             <p><strong>Assigned Vendor:</strong> {{ selectedOrder.vendor }}</p>
+            <p *ngIf="branchImageUrl">
+              <strong>Branch image:</strong>
+              <button mat-button type="button" color="primary" (click)="openAttachment(branchImageUrl)">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadAttachment(branchImageUrl, branchImageName)">Download</button>
+            </p>
           </div>
         </div>
 
@@ -296,6 +310,13 @@
             <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">✓ Completed</span>
           </div>
           <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_ASSIGNED'">
+            <div class="stage-link" *ngIf="vendorPdfUrl">
+              <span class="stage-link-label">Vendor PDF already uploaded</span>
+              <div class="stage-link-actions">
+                <button mat-button type="button" color="primary" (click)="openAttachment(vendorPdfUrl)">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadAttachment(vendorPdfUrl, vendorPdfName)">Download</button>
+              </div>
+            </div>
             <div class="upload-section">
               <div class="file-upload" [class.has-file]="selectedFile">
                 <input #fileInput type="file" accept=".pdf" (change)="onFileSelected($event)" hidden />
@@ -329,6 +350,11 @@
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">
             <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
+            <p *ngIf="vendorPdfUrl">
+              <strong>Vendor PDF:</strong>
+              <button mat-button type="button" color="primary" (click)="openAttachment(vendorPdfUrl)">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadAttachment(vendorPdfUrl, vendorPdfName)">Download</button>
+            </p>
             <p *ngIf="pdfData?.items"><strong>Items Extracted:</strong> {{ pdfData?.items?.length ?? 0 }}</p>
             <p *ngIf="pdfData?.template?.key"><strong>Template used:</strong> {{ pdfData?.template?.key }}</p>
           </div>
