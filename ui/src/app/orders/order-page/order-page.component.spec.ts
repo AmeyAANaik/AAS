@@ -127,6 +127,16 @@ describe('OrderPageComponent', () => {
     expect(orderService.assignVendor).toHaveBeenCalledWith(order.name, 'VENDOR-1');
   });
 
+  it('allows delete for vendor-pdf-received orders even when a purchase order is linked', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      raw: { ...component.orders[0].raw, aas_po: 'PO-1' }
+    };
+
+    expect(component.canDeleteOrder(order)).toBeTrue();
+  });
+
   it('captures vendor bill without header margin', () => {
     const order = {
       ...component.orders[0],

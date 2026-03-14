@@ -667,11 +667,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   canDeleteOrder(order: UiOrder): boolean {
     const status = (order?.status ?? 'DRAFT') as UiOrderStatus;
-    const hasPo = Boolean(String(order?.raw?.aas_po ?? '').trim());
-    if (hasPo) {
-      // ERPNext blocks deleting/cancelling Sales Orders linked to a Purchase Order.
-      return false;
-    }
     return status === 'DRAFT' || status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
   }
 
@@ -681,11 +676,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     if (!this.canDeleteOrder(order)) {
-      const hasPo = Boolean(String(order?.raw?.aas_po ?? '').trim());
-      const message = hasPo
-        ? 'This order has a linked Purchase Order and cannot be deleted here. Cancel/delete the Purchase Order in ERPNext first.'
-        : 'This order cannot be deleted in its current status.';
-      this.snackBar.open(message, 'Dismiss', { duration: 4500 });
+      this.snackBar.open('This order cannot be deleted in its current status.', 'Dismiss', { duration: 4500 });
       return;
     }
     const dialogRef = this.dialog.open<
@@ -694,7 +685,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       boolean
     >(OrderDeleteConfirmDialogComponent, {
       width: '420px',
-      data: { orderId }
+      data: { orderId, purchaseOrderId: String(order?.raw?.aas_po ?? '').trim() || undefined }
     });
 
     this.subscriptions.add(

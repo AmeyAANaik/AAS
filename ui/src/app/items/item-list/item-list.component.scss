@@ -103,6 +103,10 @@ mat-paginator {
   background: #f2f6f7;
 }
 
+.actions-cell {
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .table-toolbar {
     flex-direction: column;

@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class MasterDataService {
+    private static final String SYSTEM_BRANCH_IMAGE_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
 
     private final ErpNextClient erpNextClient;
     private final VendorFieldRegistry vendorFieldRegistry;
@@ -57,7 +58,7 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
-        params.put("filters", "[[\"Item\",\"disabled\",\"=\",0]]");
+        params.put("filters", activeItemFiltersJson());
         params.put("limit_page_length", 1000);
         return erpNextClient.listResources("Item", params);
     }
@@ -75,7 +76,7 @@ public class MasterDataService {
         params.put("limit_start", (safePage - 1) * safeSize);
         params.put("limit_page_length", safeSize);
         params.put("order_by", orderBy);
-        params.put("filters", "[[\"Item\",\"disabled\",\"=\",0]]");
+        params.put("filters", activeItemFiltersJson());
 
         String trimmed = search == null ? "" : search.trim();
         if (!trimmed.isEmpty()) {
@@ -302,6 +303,21 @@ public class MasterDataService {
         return erpNextClient.updateResource("Item", id, new HashMap<>(request.getFields()));
     }
 
+    public Map<String, Object> deleteItem(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Item id is required.");
+        }
+        if (SYSTEM_BRANCH_IMAGE_ITEM.equals(id)) {
+            throw new IllegalStateException("System branch image item cannot be deleted.");
+        }
+        Map<String, Object> item = unwrapResource(erpNextClient.getResource("Item", id));
+        if (item.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found.");
+        }
+        erpNextClient.updateResource("Item", id, Map.of("disabled", 1));
+        return Map.of("itemId", id, "deleted", true, "softDeleted", true);
+    }
+
     private String resolveItemOrderBy(String sort, String dir) {
         if (sort == null || sort.isBlank()) {
             return "item_name " + dir;
@@ -324,6 +340,10 @@ public class MasterDataService {
         String pattern = "%" + escaped + "%";
         return "[[\"Item\",\"item_code\",\"like\",\"" + pattern + "\"],"
                 + "[\"Item\",\"item_name\",\"like\",\"" + pattern + "\"]]";
+    }
+
+    private String activeItemFiltersJson() {
+        return "[[\"Item\",\"disabled\",\"=\",0],[\"Item\",\"item_code\",\"!=\",\"" + SYSTEM_BRANCH_IMAGE_ITEM + "\"]]";
     }
 
     private String escapeJson(String value) {

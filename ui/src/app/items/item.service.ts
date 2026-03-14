@@ -29,6 +29,10 @@ export class ItemService {
     return this.http.post('/api/items', { fields }, { headers: this.authHeaders() });
   }
 
+  deleteItem(id: string): Observable<unknown> {
+    return this.http.delete(`/api/items/${encodeURIComponent(id)}`, { headers: this.authHeaders() });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

@@ -26,7 +26,7 @@ public class BranchOpsService {
     private static final String SALES_ORDER = "Sales Order";
     private static final String SALES_INVOICE = "Sales Invoice";
     private static final String PAYMENT_ENTRY = "Payment Entry";
-    private static final String PLACEHOLDER_ITEM = "AAS-BRANCH-IMAGE";
+    private static final String PLACEHOLDER_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
     private static final Set<String> OPEN_STATUSES = Set.of("DRAFT", "VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED", "SELL_ORDER_CREATED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 

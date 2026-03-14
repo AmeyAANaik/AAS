@@ -3,6 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 export interface OrderDeleteConfirmDialogData {
   orderId: string;
+  purchaseOrderId?: string;
 }
 
 @Component({
@@ -10,7 +11,10 @@ export interface OrderDeleteConfirmDialogData {
   template: `
     <h2 mat-dialog-title>Delete order</h2>
     <mat-dialog-content>
-      Are you sure you want to delete order {{ data.orderId }}?
+      <p>Are you sure you want to delete order {{ data.orderId }}?</p>
+      <p *ngIf="data.purchaseOrderId">
+        The linked draft Purchase Order {{ data.purchaseOrderId }} will also be deleted automatically.
+      </p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" (click)="close(false)">Cancel</button>
@@ -28,4 +32,3 @@ export class OrderDeleteConfirmDialogComponent {
     this.dialogRef.close(result);
   }
 }
-

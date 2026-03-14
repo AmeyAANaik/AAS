@@ -27,7 +27,7 @@ public class VendorOpsService {
     private static final String PURCHASE_INVOICE = "Purchase Invoice";
     private static final String SUPPLIER = "Supplier";
     private static final String PAYMENT_ENTRY = "Payment Entry";
-    private static final String PLACEHOLDER_ITEM = "AAS-BRANCH-IMAGE";
+    private static final String PLACEHOLDER_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
     private static final Set<String> PENDING_STATUSES = Set.of("VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 

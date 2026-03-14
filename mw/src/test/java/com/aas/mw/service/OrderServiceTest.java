@@ -11,9 +11,11 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -105,5 +107,39 @@ class OrderServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
         assertEquals(15.0, items.get(0).get("aas_margin_percent"));
+    }
+
+    @Test
+    void deleteOrderAlsoDeletesLinkedDraftPurchaseOrder() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_po", "PO-1"));
+        when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
+                "docstatus", 0));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.deleteResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of());
+        when(erpNextClient.deleteResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals("PO-1", response.get("purchaseOrderId"));
+        assertEquals(true, response.get("purchaseOrderDeleted"));
+        verify(erpNextClient).deleteResource(eq("Purchase Order"), eq("PO-1"));
+        verify(erpNextClient).deleteResource(eq("Sales Order"), eq("SO-1"));
+    }
+
+    @Test
+    void deleteOrderRejectsWhenLinkedPurchaseInvoiceExists() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_po", "PO-1"));
+        when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
+                "docstatus", 0));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of(
+                Map.of("name", "PINV-1", "docstatus", 0)));
+
+        assertThrows(IllegalStateException.class, () -> orderService.deleteOrder("SO-1"));
+        verify(erpNextClient, never()).deleteResource(eq("Purchase Order"), anyString());
+        verify(erpNextClient, never()).deleteResource(eq("Sales Order"), anyString());
     }
 }

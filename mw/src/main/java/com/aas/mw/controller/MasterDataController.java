@@ -140,4 +140,9 @@ public class MasterDataController {
             @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.updateItem(id, request));
     }
+
+    @DeleteMapping("/items/{id}")
+    public ResponseEntity<Map<String, Object>> deleteItem(@PathVariable String id) {
+        return ResponseEntity.ok(masterDataService.deleteItem(id));
+    }
 }

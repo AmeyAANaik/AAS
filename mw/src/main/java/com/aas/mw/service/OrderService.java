@@ -17,6 +17,7 @@ public class OrderService {
 
     private static final String DOCTYPE = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
+    private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
     private final OrderFlowStateMachine orderFlowStateMachine;
@@ -35,6 +36,7 @@ public class OrderService {
 
     public Map<String, Object> createOrder(OrderRequest request) {
         Map<String, Object> fields = request.getFields();
+        ensureSalesOrderPricingDefaults(fields, asText(fields.get("company")));
         applySalesOrderDefaults(fields);
         return erpNextClient.createResource(DOCTYPE, fields);
     }
@@ -59,6 +61,7 @@ public class OrderService {
         payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
         payload.put("aas_status", "DRAFT");
         payload.put("aas_margin_percent", defaultMarginPercent);
+        payload.put("items", List.of(applyItemMarginDefaults(buildBranchImageItem(warehouse))));
         Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
         String orderId = extractDocName(order);
         if (orderId != null && !orderId.isBlank()) {
@@ -89,6 +92,12 @@ public class OrderService {
             if (!currency.isBlank()) {
                 payload.put("price_list_currency", currency);
             }
+        }
+        if (!payload.containsKey("currency") && !currency.isBlank()) {
+            payload.put("currency", currency);
+        }
+        if (!payload.containsKey("conversion_rate")) {
+            payload.put("conversion_rate", 1);
         }
         if (!payload.containsKey("plc_conversion_rate")) {
             payload.put("plc_conversion_rate", 1);
@@ -203,6 +212,46 @@ public class OrderService {
         return response;
     }
 
+    private Map<String, Object> buildBranchImageItem(String warehouse) {
+        ensureBranchImageItem();
+        Map<String, Object> item = new HashMap<>();
+        item.put("item_code", BRANCH_IMAGE_ITEM_CODE);
+        item.put("qty", 1);
+        item.put("rate", 0);
+        item.put("price_list_rate", 0);
+        item.put("amount", 0);
+        if (warehouse != null && !warehouse.isBlank()) {
+            item.put("warehouse", warehouse);
+        }
+        return item;
+    }
+
+    private void ensureBranchImageItem() {
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource("Item", BRANCH_IMAGE_ITEM_CODE));
+            Object disabled = item.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            }
+        } catch (Exception ex) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", BRANCH_IMAGE_ITEM_CODE);
+            payload.put("item_name", "System Branch Image");
+            payload.put("item_group", "All Item Groups");
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 0);
+            payload.put("is_sales_item", 1);
+            payload.put("is_purchase_item", 0);
+            payload.put("disabled", 0);
+            payload.put("description", "Internal system item used for branch image order creation.");
+            erpNextClient.createResource("Item", payload);
+        }
+    }
+
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
         if (fields.containsKey("aas_status")) {
             String targetStatus = String.valueOf(fields.get("aas_status"));
@@ -235,23 +284,22 @@ public class OrderService {
             throw new IllegalArgumentException("Order id is required.");
         }
         Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
         String status = readField(order, "aas_status");
         orderFlowStateMachine.ensureCanDeleteOrder(status);
-        String purchaseOrderId = readField(order, "aas_po").trim();
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        boolean deletedPurchaseOrder = false;
 
-        // ERPNext will block deleting/cancelling Sales Orders that are linked to a Purchase Order.
-        // In our flow, `aas_po` is set once the vendor PDF is processed; after that, treat the order as non-deletable here.
         if (!purchaseOrderId.isBlank()) {
-            throw new IllegalStateException(
-                    "Order cannot be deleted because it is linked with Purchase Order "
-                            + purchaseOrderId
-                            + ". Cancel/delete the Purchase Order (and any linked Purchase Receipt/Invoice) in ERPNext first.");
+            deletedPurchaseOrder = deleteLinkedDraftPurchaseOrder(orderId, purchaseOrderId);
         }
 
+        clearInboundSalesOrderLinks(orderId);
         erpNextClient.deleteResource(DOCTYPE, orderId);
         return Map.of(
                 "orderId", orderId,
-                "purchaseOrderId", purchaseOrderId);
+                "purchaseOrderId", purchaseOrderId,
+                "purchaseOrderDeleted", deletedPurchaseOrder);
     }
 
     private String resolveDate(String value) {
@@ -586,6 +634,67 @@ public class OrderService {
             return itemMargin;
         }
         return defaultMarginPercent;
+    }
+
+    private boolean deleteLinkedDraftPurchaseOrder(String orderId, String purchaseOrderId) {
+        Map<String, Object> purchaseOrder = unwrap(erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId));
+        int purchaseOrderDocstatus = (int) Math.round(asDouble(purchaseOrder.get("docstatus")));
+        if (purchaseOrderDocstatus != 0) {
+            throw new IllegalStateException(
+                    "Order cannot be deleted because linked Purchase Order "
+                            + purchaseOrderId
+                            + " is submitted/cancelled. Cancel it in ERPNext first.");
+        }
+
+        List<Map<String, Object>> linkedPurchaseInvoices = listLinkedPurchaseInvoices(orderId);
+        if (!linkedPurchaseInvoices.isEmpty()) {
+            String invoiceIds = linkedPurchaseInvoices.stream()
+                    .map(row -> asText(row.get("name")))
+                    .filter(name -> !name.isBlank())
+                    .reduce((left, right) -> left + ", " + right)
+                    .orElse("");
+            throw new IllegalStateException(
+                    "Order cannot be deleted because linked Purchase Invoice exists"
+                            + (invoiceIds.isBlank() ? "." : ": " + invoiceIds + "."));
+        }
+
+        // ERPNext blocks deleting the Purchase Order while the Sales Order still links to it.
+        erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_po", ""));
+        erpNextClient.deleteResource(PURCHASE_ORDER, purchaseOrderId);
+        return true;
+    }
+
+    private List<Map<String, Object>> listLinkedPurchaseInvoices(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"docstatus\"]");
+        params.put("filters", "[[\"Purchase Invoice\",\"aas_source_sales_order\",\"=\",\"" + escape(orderId) + "\"]]");
+        return erpNextClient.listResources("Purchase Invoice", params);
+    }
+
+    private void clearInboundSalesOrderLinks(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"aas_so_branch\",\"aas_si_branch\"]");
+        params.put(
+                "or_filters",
+                "[[\"Sales Order\",\"aas_so_branch\",\"=\",\"" + escape(orderId) + "\"],"
+                        + "[\"Sales Order\",\"aas_si_branch\",\"=\",\"" + escape(orderId) + "\"]]");
+        List<Map<String, Object>> linkedOrders = erpNextClient.listResources(DOCTYPE, params);
+        for (Map<String, Object> linkedOrder : linkedOrders) {
+            String linkedOrderId = asText(linkedOrder.get("name"));
+            if (linkedOrderId.isBlank() || linkedOrderId.equals(orderId)) {
+                continue;
+            }
+            Map<String, Object> payload = new HashMap<>();
+            if (orderId.equals(asText(linkedOrder.get("aas_so_branch")))) {
+                payload.put("aas_so_branch", "");
+            }
+            if (orderId.equals(asText(linkedOrder.get("aas_si_branch")))) {
+                payload.put("aas_si_branch", "");
+            }
+            if (!payload.isEmpty()) {
+                erpNextClient.updateResource(DOCTYPE, linkedOrderId, payload);
+            }
+        }
     }
 
     private double resolveItemMarginPercent(String itemCode) {

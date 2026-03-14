@@ -113,19 +113,19 @@ public class OrderBillingService {
         List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, deriveOrderMarginPercent(orderData));
         double sellTotal = sumAmount(sellItems);
         double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellTotal);
-        Map<String, Object> salesOrder = createSalesOrder(orderId, customer, company, sellItems, orderData, marginPercent);
         Map<String, Object> salesInvoice = createSalesInvoice(orderId, customer, company, sellItems, orderData, marginPercent);
 
         Map<String, Object> update = new HashMap<>();
-        update.put("aas_so_branch", extractDocName(salesOrder));
+        update.put("aas_so_branch", "");
         update.put("aas_si_branch", extractDocName(salesInvoice));
         update.put("aas_sell_order_total", sellTotal);
         update.put("aas_status", "SELL_ORDER_CREATED");
+        update.put("items", sellItems);
+        update.put("aas_margin_percent", marginPercent);
         erpNextClient.updateResource(SALES_ORDER, orderId, update);
 
         return Map.of(
                 "orderId", orderId,
-                "salesOrder", salesOrder,
                 "salesInvoice", salesInvoice,
                 "sellTotal", sellTotal,
                 "marginPercent", marginPercent);
@@ -155,42 +155,6 @@ public class OrderBillingService {
                 "amount", vendorBillTotal)));
         payload.put("aas_source_sales_order", sourceOrderId);
         return erpNextClient.createResource(PURCHASE_INVOICE, payload);
-    }
-
-    private Map<String, Object> createSalesOrder(
-            String sourceOrderId,
-            String customer,
-            String company,
-            List<Map<String, Object>> items,
-            Map<String, Object> sourceOrder,
-            double marginPercent) {
-        String companyCurrency = resolveCompanyCurrency(company);
-        String warehouse = resolveDefaultWarehouse(company);
-        if (warehouse != null && !warehouse.isBlank()) {
-            for (Map<String, Object> item : items) {
-                if (item == null) {
-                    continue;
-                }
-                item.putIfAbsent("warehouse", warehouse);
-            }
-        }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("customer", customer);
-        payload.put("company", company);
-        payload.put("transaction_date", resolveDate(sourceOrder.get("transaction_date")));
-        payload.put("delivery_date", resolveDate(sourceOrder.get("delivery_date")));
-        payload.put("currency", companyCurrency);
-        payload.put("conversion_rate", 1.0);
-        payload.put("selling_price_list", "Standard Selling");
-        payload.put("price_list_currency", companyCurrency);
-        payload.put("plc_conversion_rate", 1.0);
-        payload.put("items", items);
-        payload.put("aas_margin_percent", marginPercent);
-        payload.put("aas_source_sales_order", sourceOrderId);
-        if (warehouse != null && !warehouse.isBlank()) {
-            payload.put("set_warehouse", warehouse);
-        }
-        return erpNextClient.createResource(SALES_ORDER, payload);
     }
 
     private Map<String, Object> createSalesInvoice(

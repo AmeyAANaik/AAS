@@ -15,12 +15,13 @@ import { ItemService } from '../item.service';
   styleUrl: './item-list.component.scss'
 })
 export class ItemListComponent implements OnInit {
-  displayedColumns: string[] = ['code', 'name', 'category', 'uom', 'packaging', 'margin'];
+  displayedColumns: string[] = ['code', 'name', 'category', 'uom', 'packaging', 'margin', 'actions'];
   dataSource = new MatTableDataSource<ItemView>([]);
   items: ItemView[] = [];
   categories: Category[] = [];
   isLoadingItems = false;
   isSaving = false;
+  isDeleting = false;
   statusMessage = '';
   searchTerm = '';
   totalItems = 0;
@@ -113,6 +114,30 @@ export class ItemListComponent implements OnInit {
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to save item');
+        }
+      });
+  }
+
+  deleteItem(item: ItemView): void {
+    const itemId = item.id?.trim();
+    if (!itemId || this.isDeleting) {
+      return;
+    }
+    const confirmed = window.confirm(`Soft delete item "${item.name}" (${item.code})? It will be hidden from the UI.`);
+    if (!confirmed) {
+      return;
+    }
+    this.isDeleting = true;
+    this.itemService
+      .deleteItem(itemId)
+      .pipe(finalize(() => (this.isDeleting = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Item deleted.';
+          this.loadItemsPage(this.pageIndex + 1);
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to delete item');
         }
       });
   }
