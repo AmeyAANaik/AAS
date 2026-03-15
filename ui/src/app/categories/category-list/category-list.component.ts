@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { finalize } from 'rxjs/operators';
 import { Category, CategoryFormValue, CategoryView } from '../category.model';
 import { CategoryService } from '../category.service';
+import { MasterDataToastService } from '../../shared/master-data-toast.service';
 
 @Component({
   selector: 'app-category-list',
@@ -18,7 +19,10 @@ export class CategoryListComponent implements OnInit {
   isDeleting = false;
   statusMessage = '';
 
-  constructor(private categoryService: CategoryService) {}
+  constructor(
+    private categoryService: CategoryService,
+    private toastService: MasterDataToastService
+  ) {}
 
   ngOnInit(): void {
     this.loadCategories();
@@ -69,12 +73,14 @@ export class CategoryListComponent implements OnInit {
     request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
       next: () => {
         this.statusMessage = this.selectedCategory ? 'Category updated.' : 'Category saved.';
+        this.toastService.success(this.statusMessage);
         this.selectedCategory = null;
         this.isFormOpen = false;
         this.loadCategories();
       },
       error: err => {
         this.statusMessage = this.formatError(err, 'Unable to save category');
+        this.toastService.error(this.statusMessage);
       }
     });
   }

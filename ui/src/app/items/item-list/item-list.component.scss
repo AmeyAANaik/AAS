@@ -46,6 +46,15 @@
   flex-wrap: wrap;
 }
 
+.refresh-action {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 999px;
+}
+
 .table-toolbar {
   display: flex;
   align-items: center;
@@ -80,6 +89,19 @@
 
 .actions-cell {
   white-space: nowrap;
+}
+
+.item-primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-icon-button {
+  min-height: 40px;
+  width: 40px;
+  padding: 0;
+  border-radius: 999px;
 }
 
 @media (max-width: 900px) {

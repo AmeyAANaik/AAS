@@ -9,6 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
@@ -31,6 +32,7 @@ import { ItemsRoutingModule } from './items-routing.module';
     MatIconModule,
     MatInputModule,
     MatSelectModule,
+    MatSnackBarModule,
     MatTableModule,
     PageHeaderComponent,
     EmptyStateComponent,

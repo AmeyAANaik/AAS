@@ -22,8 +22,8 @@
 }
 
 .toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto;
+  display: flex;
+  justify-content: space-between;
   gap: 12px;
   align-items: center;
   margin: 12px 0 8px;
@@ -31,13 +31,18 @@
 
 .toolbar mat-form-field,
 .toolbar .mat-mdc-form-field {
-  width: 100%;
+  flex: 1 1 auto;
+  max-width: 360px;
   margin-bottom: 0;
 }
 
-.toolbar button {
-  align-self: center;
-  height: 48px;
+.refresh-action {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 999px;
 }
 
 .table-wrapper {
@@ -127,5 +132,9 @@ table {
 @media (max-width: 900px) {
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    justify-content: space-between;
   }
 }

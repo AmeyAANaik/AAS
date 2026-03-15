@@ -49,6 +49,13 @@
   gap: 16px;
 }
 
+.vendor-ops-summary .metric > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
 .card {
   padding: 12px;
 }
@@ -58,6 +65,20 @@
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 12px;
+}
+
+.dashboard-view-action {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.metric-action {
+  justify-content: center;
 }
 
 .card-title {
@@ -147,5 +168,9 @@
 @media (max-width: 720px) {
   .dashboard {
     gap: 16px;
+  }
+
+  .card-header {
+    flex-direction: column;
   }
 }

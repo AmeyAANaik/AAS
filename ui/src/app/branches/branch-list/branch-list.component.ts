@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { finalize } from 'rxjs/operators';
 import { Branch, BranchFormValue, BranchView } from '../branch.model';
 import { BranchService } from '../branch.service';
+import { MasterDataToastService } from '../../shared/master-data-toast.service';
 
 @Component({
   selector: 'app-branch-list',
@@ -17,7 +18,10 @@ export class BranchListComponent implements OnInit {
   isSaving = false;
   statusMessage = '';
 
-  constructor(private branchService: BranchService) {}
+  constructor(
+    private branchService: BranchService,
+    private toastService: MasterDataToastService
+  ) {}
 
   ngOnInit(): void {
     this.loadBranches();
@@ -70,12 +74,14 @@ export class BranchListComponent implements OnInit {
         .subscribe({
           next: () => {
             this.statusMessage = 'Branch details updated.';
+            this.toastService.success(this.statusMessage);
             this.selectedBranch = null;
             this.isFormOpen = false;
             this.loadBranches();
           },
           error: err => {
             this.statusMessage = this.formatError(err, 'Unable to update branch');
+            this.toastService.error(this.statusMessage);
           }
         });
       return;
@@ -92,12 +98,14 @@ export class BranchListComponent implements OnInit {
       .subscribe({
         next: () => {
           this.statusMessage = 'Branch saved.';
+          this.toastService.success(this.statusMessage);
           this.selectedBranch = null;
           this.isFormOpen = false;
           this.loadBranches();
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to save branch');
+          this.toastService.error(this.statusMessage);
         }
       });
   }

@@ -11,7 +11,9 @@
             <mat-label>Search branch</mat-label>
             <input matInput placeholder="Search by name or location" />
           </mat-form-field>
-          <button mat-stroked-button color="primary" (click)="loadBranches()" [disabled]="isLoading">Refresh</button>
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadBranches()" [disabled]="isLoading" aria-label="Refresh branches">
+            <mat-icon>refresh</mat-icon>
+          </button>
         </div>
 
       <div class="feedback loading" *ngIf="isLoading">Loading branches...</div>

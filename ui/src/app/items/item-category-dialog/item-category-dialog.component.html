@@ -11,8 +11,9 @@
       </mat-select>
     </mat-form-field>
 
-    <button mat-stroked-button color="primary" type="button" (click)="startCreate()" [disabled]="!selectedCategory">
-      Add item
+    <button mat-stroked-button color="primary" class="item-dialog-action" type="button" (click)="startCreate()" [disabled]="!selectedCategory">
+      <mat-icon>add</mat-icon>
+      <span>Add item</span>
     </button>
   </div>
 
@@ -46,10 +47,10 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let item" class="item-actions">
-              <button mat-icon-button color="primary" type="button" (click)="editItem(item)" aria-label="Edit item">
+              <button mat-icon-button color="primary" class="item-icon-button" type="button" (click)="editItem(item)" aria-label="Edit item">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button color="warn" type="button" (click)="deleteItem(item)" [disabled]="isDeleting" aria-label="Delete item">
+              <button mat-icon-button color="warn" class="item-icon-button" type="button" (click)="deleteItem(item)" [disabled]="isDeleting" aria-label="Delete item">
                 <mat-icon>delete</mat-icon>
               </button>
             </td>

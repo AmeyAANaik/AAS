@@ -11,7 +11,9 @@
             <mat-label>Search vendor</mat-label>
             <input matInput [formControl]="searchControl" placeholder="Search by name" />
           </mat-form-field>
-          <button mat-stroked-button color="primary" (click)="loadVendors()" [disabled]="isLoading">Refresh</button>
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadVendors()" [disabled]="isLoading" aria-label="Refresh vendors">
+            <mat-icon>refresh</mat-icon>
+          </button>
         </div>
 
         <div class="feedback loading" *ngIf="isLoading">Loading vendors...</div>

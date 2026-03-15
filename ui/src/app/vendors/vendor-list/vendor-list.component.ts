@@ -7,6 +7,7 @@ import { CategoryService } from '../../categories/category.service';
 import { Vendor, VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
 import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
+import { MasterDataToastService } from '../../shared/master-data-toast.service';
 
 @Component({
   selector: 'app-vendor-list',
@@ -31,7 +32,8 @@ export class VendorListComponent implements OnInit {
   constructor(
     private vendorService: VendorService,
     private categoryService: CategoryService,
-    private invoiceTemplateModelService: InvoiceTemplateModelService
+    private invoiceTemplateModelService: InvoiceTemplateModelService,
+    private toastService: MasterDataToastService
   ) {}
 
   ngOnInit(): void {
@@ -110,12 +112,14 @@ export class VendorListComponent implements OnInit {
     request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
       next: () => {
         this.statusMessage = this.mode === 'edit' ? 'Vendor updated.' : 'Vendor saved.';
+        this.toastService.success(this.statusMessage);
         // Keep the status message visible after closing the form.
         this.clearSelectionInternal(false);
         this.loadVendors();
       },
       error: err => {
         this.statusMessage = this.formatError(err, 'Unable to save vendor');
+        this.toastService.error(this.statusMessage);
       }
     });
   }

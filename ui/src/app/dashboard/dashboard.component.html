@@ -39,7 +39,6 @@
           <div class="card-title">Vendor Operations</div>
           <div class="card-subtitle">Follow pending vendor orders, bill capture, and payable movement.</div>
         </div>
-        <button mat-flat-button color="primary" routerLink="/vendor-ops">Open Vendor Operations</button>
       </div>
       <mat-card-content class="vendor-ops-summary">
         <div class="metric">
@@ -63,6 +62,12 @@
             <p class="metric-label">Pending bill amount</p>
             <p class="metric-value">{{ vm.snapshot.vendorOperations.totalPendingBillAmount | number: '1.0-2' }}</p>
           </div>
+          <div class="metric metric-action">
+            <p class="metric-label">Action</p>
+            <button mat-icon-button color="primary" class="dashboard-view-action" routerLink="/vendor-ops" aria-label="View vendor operations">
+              <mat-icon>visibility</mat-icon>
+            </button>
+          </div>
         </div>
       </mat-card-content>
     </mat-card>
@@ -73,7 +78,6 @@
           <div class="card-title">Branch Operations</div>
           <div class="card-subtitle">Track branch order backlog, invoice exposure, and collections.</div>
         </div>
-        <button mat-flat-button color="primary" routerLink="/branch-ops">Open Branch Operations</button>
       </div>
       <mat-card-content class="vendor-ops-summary">
         <div class="metric">
@@ -96,6 +100,12 @@
           <div>
             <p class="metric-label">Open receivable amount</p>
             <p class="metric-value">{{ vm.snapshot.branchOperations.openReceivableAmount | number: '1.0-2' }}</p>
+          </div>
+          <div class="metric metric-action">
+            <p class="metric-label">Action</p>
+            <button mat-icon-button color="primary" class="dashboard-view-action" routerLink="/branch-ops" aria-label="View branch operations">
+              <mat-icon>visibility</mat-icon>
+            </button>
           </div>
         </div>
       </mat-card-content>

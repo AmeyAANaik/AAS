@@ -11,7 +11,9 @@
             <mat-label>Search category</mat-label>
             <input matInput placeholder="Search by category name" />
           </mat-form-field>
-          <button mat-stroked-button color="primary" (click)="loadCategories()" [disabled]="isLoading">Refresh</button>
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadCategories()" [disabled]="isLoading" aria-label="Refresh categories">
+            <mat-icon>refresh</mat-icon>
+          </button>
         </div>
 
       <div class="feedback loading" *ngIf="isLoading">Loading categories...</div>

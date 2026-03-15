@@ -1,6 +1,9 @@
 <div class="item-page">
   <app-page-header title="Items" subtitle="Manage items category by category.">
-    <button mat-flat-button color="primary" (click)="openCreate()">Create item</button>
+    <button mat-flat-button color="primary" class="item-primary-action" (click)="openCreate()">
+      <mat-icon>add</mat-icon>
+      <span>Create item</span>
+    </button>
   </app-page-header>
 
   <mat-card class="list-card">
@@ -24,8 +27,8 @@
               (input)="applyFilter($any($event.target).value)"
               placeholder="Category name" />
           </mat-form-field>
-          <button mat-stroked-button color="primary" (click)="loadPageData()" [disabled]="isLoadingItems">
-            Refresh
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadPageData()" [disabled]="isLoadingItems" aria-label="Refresh items">
+            <mat-icon>refresh</mat-icon>
           </button>
         </div>
       </div>
@@ -45,7 +48,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let row" class="actions-cell">
-              <button mat-icon-button color="primary" type="button" (click)="openCategoryDialog(row.name)" aria-label="Manage category items">
+              <button mat-icon-button color="primary" class="item-icon-button" type="button" (click)="openCategoryDialog(row.name)" aria-label="Manage category items">
                 <mat-icon>edit</mat-icon>
               </button>
             </td>

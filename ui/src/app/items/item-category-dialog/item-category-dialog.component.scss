@@ -16,6 +16,13 @@
   min-width: 280px;
 }
 
+.item-dialog-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
 .dialog-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.95fr);
@@ -58,6 +65,13 @@
 
 .item-actions {
   white-space: nowrap;
+}
+
+.item-icon-button {
+  min-height: 40px;
+  width: 40px;
+  padding: 0;
+  border-radius: 999px;
 }
 
 @media (max-width: 960px) {

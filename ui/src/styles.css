@@ -211,6 +211,37 @@ mat-card-title,
   display: block;
 }
 
+.master-data-snackbar .mdc-snackbar__surface {
+  border-radius: 14px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22) !important;
+}
+
+.master-data-snackbar-success .mdc-snackbar__surface {
+  background: #2c7a4b !important;
+  color: #f6fff8 !important;
+}
+
+.master-data-snackbar-success .mdc-snackbar__label {
+  color: #f6fff8 !important;
+}
+
+.master-data-snackbar-success .mat-mdc-snack-bar-action {
+  color: #f6fff8 !important;
+}
+
+.master-data-snackbar-error .mdc-snackbar__surface {
+  background: #b3472f !important;
+  color: #fff7f4 !important;
+}
+
+.master-data-snackbar-error .mdc-snackbar__label {
+  color: #fff7f4 !important;
+}
+
+.master-data-snackbar-error .mat-mdc-snack-bar-action {
+  color: #fff7f4 !important;
+}
+
 mat-card-content,
 .mat-mdc-card-content {
   display: block;
