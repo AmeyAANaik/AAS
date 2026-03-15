@@ -1,6 +1,6 @@
 <div class="branch-page">
   <app-page-header title="Branches" subtitle="Manage branch master data (shops).">
-    <button mat-flat-button color="primary" (click)="clearSelection()">Create branch</button>
+    <button mat-flat-button color="primary" (click)="openCreate()">Create branch</button>
   </app-page-header>
 
   <div class="content-grid">
@@ -62,7 +62,7 @@
       </mat-card-content>
     </mat-card>
 
-    <mat-card class="form-card">
+    <mat-card class="form-card" *ngIf="isFormOpen">
       <app-branch-form
         [branch]="selectedBranch"
         [isSaving]="isSaving"

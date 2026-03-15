@@ -19,6 +19,7 @@ export class ItemListComponent implements OnInit {
   dataSource = new MatTableDataSource<ItemView>([]);
   items: ItemView[] = [];
   categories: Category[] = [];
+  isFormOpen = false;
   isLoadingItems = false;
   isSaving = false;
   isDeleting = false;
@@ -110,6 +111,7 @@ export class ItemListComponent implements OnInit {
             packagingUnit: formValue.packagingUnit
           });
           this.statusMessage = 'Item saved.';
+          this.isFormOpen = false;
           this.loadItemsPage(this.pageIndex + 1);
         },
         error: err => {
@@ -148,6 +150,16 @@ export class ItemListComponent implements OnInit {
       this.paginator.firstPage();
     }
     this.loadItemsPage(1);
+  }
+
+  openCreate(): void {
+    this.isFormOpen = true;
+    this.statusMessage = '';
+  }
+
+  closeForm(): void {
+    this.isFormOpen = false;
+    this.statusMessage = '';
   }
 
   private toViewModel(item: Item & { packagingUnit?: string }): ItemView {

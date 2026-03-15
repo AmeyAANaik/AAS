@@ -1,6 +1,6 @@
 <div class="item-page">
   <app-page-header title="Items" subtitle="Manage item master data with category, unit, and margin details.">
-    <button mat-flat-button color="primary">Create item</button>
+    <button mat-flat-button color="primary" (click)="openCreate()">Create item</button>
   </app-page-header>
 
   <div class="content-grid">
@@ -110,12 +110,13 @@
       </mat-card-content>
     </mat-card>
 
-    <mat-card class="form-card">
+    <mat-card class="form-card" *ngIf="isFormOpen">
       <app-item-form
         [categories]="categories"
         [isSaving]="isSaving"
         [statusMessage]="statusMessage"
-        (save)="saveItem($event)">
+        (save)="saveItem($event)"
+        (reset)="closeForm()">
       </app-item-form>
     </mat-card>
   </div>

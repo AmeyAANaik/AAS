@@ -12,6 +12,7 @@ export class BranchListComponent implements OnInit {
   displayedColumns: string[] = ['name', 'location', 'whatsapp', 'creditDays', 'actions'];
   branches: BranchView[] = [];
   selectedBranch: BranchView | null = null;
+  isFormOpen = false;
   isLoading = false;
   isSaving = false;
   statusMessage = '';
@@ -39,11 +40,19 @@ export class BranchListComponent implements OnInit {
 
   selectBranch(branch: BranchView): void {
     this.selectedBranch = branch;
+    this.isFormOpen = true;
+    this.statusMessage = '';
+  }
+
+  openCreate(): void {
+    this.selectedBranch = null;
+    this.isFormOpen = true;
     this.statusMessage = '';
   }
 
   clearSelection(): void {
     this.selectedBranch = null;
+    this.isFormOpen = false;
     this.statusMessage = '';
   }
 
@@ -62,6 +71,7 @@ export class BranchListComponent implements OnInit {
           next: () => {
             this.statusMessage = 'Branch details updated.';
             this.selectedBranch = null;
+            this.isFormOpen = false;
             this.loadBranches();
           },
           error: err => {
@@ -83,6 +93,7 @@ export class BranchListComponent implements OnInit {
         next: () => {
           this.statusMessage = 'Branch saved.';
           this.selectedBranch = null;
+          this.isFormOpen = false;
           this.loadBranches();
         },
         error: err => {

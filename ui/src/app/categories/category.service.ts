@@ -22,6 +22,10 @@ export class CategoryService {
     return this.http.put(`/api/categories/${id}`, { fields }, { headers: this.authHeaders() });
   }
 
+  deleteCategory(id: string): Observable<unknown> {
+    return this.http.delete(`/api/categories/${id}`, { headers: this.authHeaders() });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

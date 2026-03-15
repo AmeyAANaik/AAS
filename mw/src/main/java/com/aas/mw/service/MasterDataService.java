@@ -288,6 +288,34 @@ public class MasterDataService {
         return erpNextClient.updateResource("Item Group", id, new HashMap<>(request.getFields()));
     }
 
+    public Map<String, Object> deleteCategory(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Category id is required.");
+        }
+        if ("All Item Groups".equals(id)) {
+            throw new IllegalStateException("Root category cannot be deleted.");
+        }
+        Map<String, Object> category = unwrapResource(erpNextClient.getResource("Item Group", id));
+        if (category.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found.");
+        }
+
+        long childGroupCount = erpNextClient.getCount("Item Group", Map.of(
+                "filters", "[[\"Item Group\",\"parent_item_group\",\"=\",\"" + escapeJson(id) + "\"]]"));
+        if (childGroupCount > 0) {
+            throw new IllegalStateException("Category cannot be deleted because it has child categories.");
+        }
+
+        long linkedItemCount = erpNextClient.getCount("Item", Map.of(
+                "filters", "[[\"Item\",\"item_group\",\"=\",\"" + escapeJson(id) + "\"]]"));
+        if (linkedItemCount > 0) {
+            throw new IllegalStateException("Category cannot be deleted because it is linked to items.");
+        }
+
+        erpNextClient.deleteResource("Item Group", id);
+        return Map.of("categoryId", id, "deleted", true);
+    }
+
     public Map<String, Object> createItem(FieldsRequest request) {
         Map<String, Object> payload = new HashMap<>(request.getFields());
         payload.putIfAbsent("item_group", "All Item Groups");

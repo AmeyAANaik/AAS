@@ -83,6 +83,14 @@ table {
   background: rgba(29, 111, 122, 0.04);
 }
 
+.actions-cell {
+  white-space: nowrap;
+}
+
+.table-action + .table-action {
+  margin-left: 8px;
+}
+
 @media (max-width: 900px) {
   .content-grid {
     grid-template-columns: 1fr;

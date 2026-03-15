@@ -89,7 +89,7 @@ public class MasterDataController {
 
     @DeleteMapping("/categories/{id}")
     public ResponseEntity<Map<String, Object>> deleteCategory(@PathVariable String id) {
-        throw new ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "Deleting categories is not allowed.");
+        return ResponseEntity.ok(masterDataService.deleteCategory(id));
     }
 
     @GetMapping("/shops")
