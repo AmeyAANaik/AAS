@@ -1,12 +1,11 @@
-import { AfterViewInit, Component, OnInit, ViewChild } from '@angular/core';
-import { MatPaginator, PageEvent } from '@angular/material/paginator';
-import { MatSort } from '@angular/material/sort';
-import { MatTableDataSource } from '@angular/material/table';
-import { finalize } from 'rxjs/operators';
+import { Component, OnInit } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
+import { VendorService } from '../../vendors/vendor.service';
+import { ItemCategoryDialogComponent } from '../item-category-dialog/item-category-dialog.component';
 import { ItemMetadataService } from '../item-metadata.service';
-import { Item, ItemFormValue, ItemPage, ItemView } from '../item.model';
+import { Item, ItemCategorySummaryView, ItemView } from '../item.model';
 import { ItemService } from '../item.service';
 
 @Component({
@@ -15,74 +14,43 @@ import { ItemService } from '../item.service';
   styleUrl: './item-list.component.scss'
 })
 export class ItemListComponent implements OnInit {
-  displayedColumns: string[] = ['code', 'name', 'category', 'uom', 'packaging', 'margin', 'actions'];
-  dataSource = new MatTableDataSource<ItemView>([]);
+  displayedColumns: string[] = ['category', 'count', 'actions'];
   items: ItemView[] = [];
+  categoryRows: ItemCategorySummaryView[] = [];
   categories: Category[] = [];
-  isFormOpen = false;
+  vendors: Array<Record<string, unknown>> = [];
   isLoadingItems = false;
-  isSaving = false;
-  isDeleting = false;
   statusMessage = '';
   searchTerm = '';
-  totalItems = 0;
-  pageSize = 20;
-  pageIndex = 0;
-  pageSizeOptions = [20, 50, 100];
-  sortActive = 'name';
-  sortDirection: 'asc' | 'desc' = 'asc';
-
-  @ViewChild(MatSort) sort?: MatSort;
-  @ViewChild(MatPaginator) paginator?: MatPaginator;
 
   constructor(
-    private itemService: ItemService,
-    private categoryService: CategoryService,
-    private metadataService: ItemMetadataService
+    private readonly itemService: ItemService,
+    private readonly categoryService: CategoryService,
+    private readonly vendorService: VendorService,
+    private readonly metadataService: ItemMetadataService,
+    private readonly dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
-    this.loadStaticReferenceData();
-    this.loadItemsPage(1);
+    this.loadPageData();
   }
 
-  ngAfterViewInit(): void {
-    if (this.sort) {
-      this.dataSource.sort = this.sort;
-      this.dataSource.sortData = data => data;
-      this.dataSource.sort.active = 'name';
-      this.dataSource.sort.direction = 'asc';
-    }
-  }
-
-  loadStaticReferenceData(): void {
-    this.categoryService
-      .listCategories()
-      .toPromise()
-      .then(categories => {
+  loadPageData(): void {
+    this.isLoadingItems = true;
+    Promise.all([
+      this.categoryService.listCategories().toPromise(),
+      this.itemService.listItems().toPromise(),
+      this.vendorService.listVendors().toPromise()
+    ])
+      .then(([categories, items, vendors]) => {
         this.categories = (categories ?? []).map(category => ({
           ...category,
           name: category.name ?? category.item_group_name ?? ''
         }));
-      })
-      .catch(err => {
-        this.statusMessage = this.formatError(err, 'Unable to load item data');
-      });
-  }
-
-  loadItemsPage(page: number): void {
-    this.isLoadingItems = true;
-    this.itemService
-      .listItemsPaged(page, this.pageSize, this.searchTerm, this.sortActive, this.sortDirection)
-      .toPromise()
-      .then((response?: ItemPage) => {
-        const payload = response ?? { items: [], total: 0, page, size: this.pageSize };
-        const mergedItems = this.metadataService.mergeMetadata((payload.items ?? []) as Item[]);
-        const rows = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
-        this.dataSource.data = rows;
-        this.items = rows;
-        this.totalItems = Number(payload.total ?? 0);
-        this.pageIndex = Math.max((payload.page ?? page) - 1, 0);
+        this.vendors = (vendors ?? []) as Array<Record<string, unknown>>;
+        const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
+        this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
+        this.refreshCategoryRows();
       })
       .catch(err => {
         this.statusMessage = this.formatError(err, 'Unable to load item data');
@@ -92,74 +60,32 @@ export class ItemListComponent implements OnInit {
       });
   }
 
-  saveItem(formValue: ItemFormValue): void {
-    this.isSaving = true;
-    const payload = {
-      item_code: formValue.itemCode.trim(),
-      item_name: formValue.itemName.trim(),
-      item_group: formValue.category || 'All Item Groups',
-      stock_uom: formValue.measureUnit || 'Nos',
-      aas_packaging_unit: formValue.packagingUnit || '',
-      aas_margin_percent: formValue.marginPercent ?? 0
-    };
-    this.itemService
-      .createItem(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.metadataService.saveMetadata(payload.item_code, {
-            packagingUnit: formValue.packagingUnit
-          });
-          this.statusMessage = 'Item saved.';
-          this.isFormOpen = false;
-          this.loadItemsPage(this.pageIndex + 1);
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save item');
-        }
-      });
-  }
-
-  deleteItem(item: ItemView): void {
-    const itemId = item.id?.trim();
-    if (!itemId || this.isDeleting) {
-      return;
-    }
-    const confirmed = window.confirm(`Soft delete item "${item.name}" (${item.code})? It will be hidden from the UI.`);
-    if (!confirmed) {
-      return;
-    }
-    this.isDeleting = true;
-    this.itemService
-      .deleteItem(itemId)
-      .pipe(finalize(() => (this.isDeleting = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Item deleted.';
-          this.loadItemsPage(this.pageIndex + 1);
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to delete item');
-        }
-      });
-  }
-
   applyFilter(value: string): void {
     this.searchTerm = value.trim();
-    if (this.paginator) {
-      this.paginator.firstPage();
-    }
-    this.loadItemsPage(1);
+    this.refreshCategoryRows();
   }
 
   openCreate(): void {
-    this.isFormOpen = true;
-    this.statusMessage = '';
+    this.openCategoryDialog(this.firstCreatableCategory);
   }
 
-  closeForm(): void {
-    this.isFormOpen = false;
-    this.statusMessage = '';
+  openCategoryDialog(categoryName = ''): void {
+    const dialogRef = this.dialog.open(ItemCategoryDialogComponent, {
+      width: '1100px',
+      maxWidth: '95vw',
+      data: {
+        categories: this.categories,
+        vendors: this.vendors.map(vendor => ({ ...vendor })),
+        items: this.items.map(item => ({ ...item })),
+        initialCategory: categoryName
+      }
+    });
+    dialogRef.afterClosed().subscribe(didChange => {
+      if (didChange) {
+        this.statusMessage = 'Items updated.';
+        this.loadPageData();
+      }
+    });
   }
 
   private toViewModel(item: Item & { packagingUnit?: string }): ItemView {
@@ -169,12 +95,54 @@ export class ItemListComponent implements OnInit {
       code: code || String(item.name ?? ''),
       name: String(item.item_name ?? item.name ?? '').trim(),
       category: String(item.item_group ?? ''),
+      vendorId: String(item.aas_vendor ?? '').trim(),
+      vendorHsnCode: String(item.aas_vendor_hsn_code ?? '').trim(),
       measureUnit: String(item.stock_uom ?? ''),
       packagingUnit: item.aas_packaging_unit ?? item.packagingUnit ?? '',
-      marginPercent:
-        typeof item.aas_margin_percent === 'number' ? item.aas_margin_percent : null,
+      marginPercent: typeof item.aas_margin_percent === 'number' ? item.aas_margin_percent : null,
       raw: item
     };
+  }
+
+  private refreshCategoryRows(): void {
+    const counts = new Map<string, number>();
+    for (const item of this.items) {
+      const key = item.category || 'Uncategorized';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const categoryNames = new Set<string>();
+    for (const category of this.categories) {
+      const name = String(category.name ?? category.item_group_name ?? '').trim();
+      if (name) {
+        categoryNames.add(name);
+      }
+    }
+    for (const item of this.items) {
+      if (item.category) {
+        categoryNames.add(item.category);
+      }
+    }
+
+    const search = this.searchTerm.trim().toLowerCase();
+    this.categoryRows = [...categoryNames]
+      .map(name => ({
+        id: name,
+        name,
+        itemCount: counts.get(name) ?? 0
+      }))
+      .filter(row => !search || row.name.toLowerCase().includes(search))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private get firstCreatableCategory(): string {
+    const activeVendorCategories = new Set(
+      this.vendors
+        .filter(vendor => !this.asFlag(vendor['disabled']))
+        .map(vendor => String(vendor['category'] ?? '').trim())
+        .filter(Boolean)
+    );
+    return this.categoryRows.find(row => activeVendorCategories.has(row.name))?.name ?? this.categoryRows[0]?.name ?? '';
   }
 
   private formatError(err: unknown, fallback: string): string {
@@ -187,18 +155,14 @@ export class ItemListComponent implements OnInit {
     return fallback;
   }
 
-  onPageChange(event: PageEvent): void {
-    this.pageIndex = event.pageIndex;
-    this.pageSize = event.pageSize;
-    this.loadItemsPage(this.pageIndex + 1);
-  }
-
-  onSortChange(sort: { active: string; direction: string }): void {
-    this.sortActive = sort.active || 'name';
-    this.sortDirection = sort.direction === 'desc' ? 'desc' : 'asc';
-    if (this.paginator) {
-      this.paginator.firstPage();
+  private asFlag(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
     }
-    this.loadItemsPage(1);
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
   }
 }

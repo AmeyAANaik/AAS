@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Category } from '../../categories/category.model';
 import { VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { InvoiceTemplateModel } from '../../shared/invoice-template-model.service';
 import { VendorService } from '../vendor.service';
@@ -11,6 +12,7 @@ import { VendorService } from '../vendor.service';
 })
 export class VendorFormComponent implements OnChanges {
   @Input() vendor: VendorView | null = null;
+  @Input() categories: Category[] = [];
   @Input() mode: 'create' | 'edit' = 'create';
   @Input() isSaving = false;
   @Input() statusMessage = '';
@@ -24,6 +26,8 @@ export class VendorFormComponent implements OnChanges {
 
   form: FormGroup = this.fb.group({
     supplierName: ['', [Validators.required, Validators.maxLength(140)]],
+    vendorCode: ['', [Validators.required, Validators.maxLength(140)]],
+    category: ['', [Validators.required]],
     address: [''],
     phone: [''],
     gst: [''],
@@ -42,6 +46,8 @@ export class VendorFormComponent implements OnChanges {
       const raw = this.vendor.raw as Record<string, unknown>;
       this.form.patchValue({
         supplierName: this.vendor.name,
+        vendorCode: String(raw['vendor_code'] ?? ''),
+        category: String(raw['category'] ?? ''),
         address: String(raw['address'] ?? ''),
         phone: String(raw['phone'] ?? ''),
         gst: String(raw['gst'] ?? ''),
@@ -58,6 +64,8 @@ export class VendorFormComponent implements OnChanges {
     this.form.enable({ emitEvent: false });
     this.form.reset({
       supplierName: '',
+      vendorCode: '',
+      category: '',
       address: '',
       phone: '',
       gst: '',
@@ -118,6 +126,8 @@ export class VendorFormComponent implements OnChanges {
   clear(): void {
     this.form.reset({
       supplierName: '',
+      vendorCode: '',
+      category: '',
       address: '',
       phone: '',
       gst: '',

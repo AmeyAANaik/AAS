@@ -2,6 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
+import { Category } from '../../categories/category.model';
+import { CategoryService } from '../../categories/category.service';
 import { Vendor, VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
 import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
@@ -12,8 +14,9 @@ import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/
   styleUrl: './vendor-list.component.scss'
 })
 export class VendorListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'priority', 'template', 'status', 'actions'];
+  displayedColumns: string[] = ['name', 'category', 'priority', 'template', 'status', 'actions'];
   vendors: VendorView[] = [];
+  categories: Category[] = [];
   selectedVendor: VendorView | null = null;
   mode: 'create' | 'edit' = 'create';
   isFormOpen = false;
@@ -27,6 +30,7 @@ export class VendorListComponent implements OnInit {
 
   constructor(
     private vendorService: VendorService,
+    private categoryService: CategoryService,
     private invoiceTemplateModelService: InvoiceTemplateModelService
   ) {}
 
@@ -34,6 +38,14 @@ export class VendorListComponent implements OnInit {
     this.invoiceTemplateModelService.getModel().subscribe({
       next: model => {
         this.invoiceTemplateModel = model;
+      }
+    });
+    this.categoryService.listCategories().subscribe({
+      next: categories => {
+        this.categories = (categories ?? []).map(category => ({
+          ...category,
+          name: category.name ?? category.item_group_name ?? ''
+        }));
       }
     });
     this.loadVendors();
@@ -141,6 +153,8 @@ export class VendorListComponent implements OnInit {
     return {
       id: String(vendor.name ?? name),
       name: name || String(vendor.name ?? ''),
+      vendorCode: String(vendor['vendor_code'] ?? '').trim(),
+      category: String(vendor['category'] ?? '').trim(),
       priority,
       status: disabled ? 'Inactive' : 'Active',
       templateKey: '',
@@ -152,6 +166,8 @@ export class VendorListComponent implements OnInit {
   private toPayload(formValue: VendorFormValue): Record<string, unknown> {
     return {
       supplier_name: formValue.supplierName.trim(),
+      vendor_code: formValue.vendorCode.trim(),
+      category: formValue.category?.trim() || '',
       address: formValue.address?.trim() || '',
       phone: formValue.phone?.trim() || '',
       gst: formValue.gst?.trim() || '',
@@ -219,7 +235,10 @@ export class VendorListComponent implements OnInit {
     if (!term) {
       return this.vendors;
     }
-    return this.vendors.filter(vendor => vendor.name.toLowerCase().includes(term));
+    return this.vendors.filter(vendor =>
+      vendor.name.toLowerCase().includes(term)
+        || vendor.vendorCode.toLowerCase().includes(term)
+        || vendor.category.toLowerCase().includes(term));
   }
 
   get statusIsError(): boolean {

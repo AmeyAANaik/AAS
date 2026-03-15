@@ -10,6 +10,12 @@
             <input matInput formControlName="categoryName" />
             <mat-error *ngIf="form.get('categoryName')?.hasError('required')">Category name is required.</mat-error>
           </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Category code</mat-label>
+            <input matInput formControlName="categoryCode" />
+            <mat-error *ngIf="form.get('categoryCode')?.hasError('required')">Category code is required.</mat-error>
+          </mat-form-field>
         </div>
       </div>
 

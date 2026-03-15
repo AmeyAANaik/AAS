@@ -52,6 +52,20 @@ export class BranchOpsService {
     });
   }
 
+  downloadAllBranchLedgers(): Observable<Blob> {
+    return this.http.get('/api/branch-ops/ledger/export', {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadBranchLedger(branchId: string): Observable<Blob> {
+    return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();

@@ -1,0 +1,98 @@
+<h2 mat-dialog-title>Manage items</h2>
+
+<mat-dialog-content class="dialog-content">
+  <div class="dialog-toolbar">
+    <mat-form-field appearance="outline" class="category-select">
+      <mat-label>Category</mat-label>
+      <mat-select [value]="selectedCategory" (valueChange)="onCategoryChange($event)">
+        <mat-option *ngFor="let category of sortedCategories" [value]="category.name">
+          {{ category.name }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button color="primary" type="button" (click)="startCreate()" [disabled]="!selectedCategory">
+      Add item
+    </button>
+  </div>
+
+  <div class="feedback error" *ngIf="statusMessage">{{ statusMessage }}</div>
+
+  <div class="dialog-grid">
+    <div class="items-pane">
+      <div class="pane-title">Items in {{ selectedCategory || 'category' }}</div>
+      <div class="items-table-wrapper" *ngIf="visibleItems.length; else emptyState">
+        <table mat-table [dataSource]="visibleItems" class="mat-elevation-z1 popup-table">
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Name</th>
+            <td mat-cell *matCellDef="let item">{{ item.name }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="unit">
+            <th mat-header-cell *matHeaderCellDef>Unit</th>
+            <td mat-cell *matCellDef="let item">{{ item.measureUnit || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="packaging">
+            <th mat-header-cell *matHeaderCellDef>Packaging</th>
+            <td mat-cell *matCellDef="let item">{{ item.packagingUnit || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="margin">
+            <th mat-header-cell *matHeaderCellDef>Margin</th>
+            <td mat-cell *matCellDef="let item">{{ item.marginPercent === null ? '—' : (item.marginPercent + '%') }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let item" class="item-actions">
+              <button mat-icon-button color="primary" type="button" (click)="editItem(item)" aria-label="Edit item">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" type="button" (click)="deleteItem(item)" [disabled]="isDeleting" aria-label="Delete item">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['name', 'unit', 'packaging', 'margin', 'actions']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['name', 'unit', 'packaging', 'margin', 'actions']"></tr>
+        </table>
+      </div>
+
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="inventory"
+          title="No items in this category"
+          message="Create the first item for this category."
+          hint="Use the form on the right to add an item.">
+        </app-empty-state>
+      </ng-template>
+    </div>
+
+    <div class="form-pane">
+      <div class="pane-title">
+        {{ selectedItem ? ('Edit ' + selectedItem.name) : ('Add item to ' + (selectedCategory || 'category')) }}
+      </div>
+      <app-item-form
+        *ngIf="selectedCategory"
+        [item]="selectedItem"
+        [categories]="sortedCategories"
+        [initialCategory]="selectedCategory"
+        [lockCategory]="true"
+        [resolvedVendorName]="resolvedVendorName"
+        [resolvedVendorCode]="(selectedItemVendor ?? resolvedVendor)?.code || ''"
+        [categoryCode]="categoryCode"
+        [formVersion]="formVersion"
+        [isSaving]="isSaving"
+        [statusMessage]="statusMessage"
+        (save)="saveItem($event)"
+        (reset)="startCreate()">
+      </app-item-form>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="close()">Close</button>
+</mat-dialog-actions>

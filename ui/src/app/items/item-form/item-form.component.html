@@ -6,9 +6,14 @@
         <div class="form-section">
           <div class="section-title">Identity</div>
           <mat-form-field appearance="outline">
-            <mat-label>Item code</mat-label>
-            <input matInput formControlName="itemCode" placeholder="HSN or internal code" />
-            <mat-error *ngIf="form.get('itemCode')?.hasError('required')">Item code is required.</mat-error>
+            <mat-label>Vendor HSN code</mat-label>
+            <input matInput formControlName="vendorHsnCode" placeholder="HSN code from vendor" [readonly]="!!item" />
+            <mat-error *ngIf="form.get('vendorHsnCode')?.hasError('required')">Vendor HSN code is required.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Resolved vendor</mat-label>
+            <input matInput [value]="resolvedVendorName || 'Top vendor will resolve from category'" readonly />
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -20,7 +25,7 @@
 
         <div class="form-section">
           <div class="section-title">Classification</div>
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" *ngIf="!lockCategory">
             <mat-label>Category</mat-label>
             <mat-select formControlName="category">
               <mat-option value="">Select category</mat-option>
@@ -29,9 +34,16 @@
             <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
           </mat-form-field>
 
+          <mat-form-field appearance="outline" *ngIf="lockCategory">
+            <mat-label>Category</mat-label>
+            <input matInput formControlName="category" [readonly]="true" />
+          </mat-form-field>
+
           <mat-form-field appearance="outline">
             <mat-label>Measure unit</mat-label>
-            <input matInput formControlName="measureUnit" placeholder="Nos, KG, LTR" />
+            <mat-select formControlName="measureUnit">
+              <mat-option *ngFor="let unit of measureUnits" [value]="unit">{{ unit }}</mat-option>
+            </mat-select>
             <mat-error *ngIf="form.get('measureUnit')?.hasError('required')">Measure unit is required.</mat-error>
           </mat-form-field>
 

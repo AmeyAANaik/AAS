@@ -9,7 +9,7 @@ import { CategoryService } from '../category.service';
   styleUrl: './category-list.component.scss'
 })
 export class CategoryListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'actions'];
+  displayedColumns: string[] = ['name', 'code', 'actions'];
   categories: CategoryView[] = [];
   selectedCategory: CategoryView | null = null;
   isFormOpen = false;
@@ -59,7 +59,10 @@ export class CategoryListComponent implements OnInit {
 
   saveCategory(formValue: CategoryFormValue): void {
     this.isSaving = true;
-    const payload = { item_group_name: formValue.categoryName.trim() };
+    const payload = {
+      item_group_name: formValue.categoryName.trim(),
+      aas_category_code: formValue.categoryCode.trim()
+    };
     const request$ = this.selectedCategory
       ? this.categoryService.updateCategory(this.selectedCategory.id, payload)
       : this.categoryService.createCategory(payload);
@@ -108,6 +111,7 @@ export class CategoryListComponent implements OnInit {
     return {
       id: String(category.name ?? name),
       name: name || String(category.name ?? ''),
+      code: String(category.aas_category_code ?? '').trim(),
       raw: category
     };
   }

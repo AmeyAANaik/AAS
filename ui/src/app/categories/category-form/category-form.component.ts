@@ -15,20 +15,21 @@ export class CategoryFormComponent implements OnChanges {
   @Output() reset = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
-    categoryName: ['', [Validators.required, Validators.maxLength(140)]]
+    categoryName: ['', [Validators.required, Validators.maxLength(140)]],
+    categoryCode: ['', [Validators.required, Validators.maxLength(140)]]
   });
 
   constructor(private fb: FormBuilder) {}
 
   ngOnChanges(): void {
     if (this.category) {
-      this.form.patchValue({ categoryName: this.category.name });
+      this.form.patchValue({ categoryName: this.category.name, categoryCode: this.category.code });
       this.form.enable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.reset({ categoryName: '' });
+    this.form.reset({ categoryName: '', categoryCode: '' });
   }
 
   submit(): void {
@@ -41,7 +42,7 @@ export class CategoryFormComponent implements OnChanges {
 
   clear(): void {
     this.form.enable({ emitEvent: false });
-    this.form.reset({ categoryName: '' });
+    this.form.reset({ categoryName: '', categoryCode: '' });
     this.reset.emit();
   }
 }

@@ -30,6 +30,7 @@ class VendorPdfServiceTest {
     private VendorInvoiceTemplateCatalog templateCatalog;
     private VendorInvoiceTemplateParser templateParser;
     private OrderFlowStateMachine orderFlowStateMachine;
+    private CatalogRoutingService catalogRoutingService;
     private VendorPdfService service;
 
     @BeforeEach
@@ -42,6 +43,7 @@ class VendorPdfServiceTest {
         templateCatalog = new VendorInvoiceTemplateCatalog();
         templateParser = mock(VendorInvoiceTemplateParser.class);
         orderFlowStateMachine = new OrderFlowStateMachine();
+        catalogRoutingService = mock(CatalogRoutingService.class);
         service = new VendorPdfService(
                 erpNextClient,
                 fileService,
@@ -51,6 +53,7 @@ class VendorPdfServiceTest {
                 templateCatalog,
                 templateParser,
                 orderFlowStateMachine,
+                catalogRoutingService,
                 new ObjectMapper(),
                 7.0);
     }
@@ -62,14 +65,16 @@ class VendorPdfServiceTest {
                 .thenReturn(Map.of(
                         "customer", "Shop A",
                         "company", "AAS",
+                        "aas_category", "Grocery",
                         "aas_vendor", "Vendor A",
                         "aas_status", "VENDOR_ASSIGNED"));
+        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
         when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
         when(fileService.uploadOrderPdf(eq("SO-0001"), eq(pdf), any()))
                 .thenReturn(new UploadedFileInfo("vendor_order.pdf", "/files/vendor_order.pdf", "FILE-0001"));
         when(ocrService.extractTextFromPdf(any())).thenReturn("Tomatoes 2 45 90");
-        when(parser.parseItems(any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90)));
-        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(parser.parseItems(any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000")));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
@@ -96,12 +101,14 @@ class VendorPdfServiceTest {
                 .thenReturn(Map.of(
                         "customer", "Shop A",
                         "company", "AAS",
+                        "aas_category", "Grocery",
                         "aas_vendor", "Vendor A",
                         "aas_status", "VENDOR_ASSIGNED"));
+        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
         when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.of("table_v1"));
         when(ocrService.extractTextFromPdf(any())).thenReturn("Tomatoes 2 45 90");
-        when(templateParser.parseItems(any(), any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90)));
-        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(templateParser.parseItems(any(), any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000")));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
@@ -118,15 +125,17 @@ class VendorPdfServiceTest {
                 .thenReturn(Map.of(
                         "customer", "Shop A",
                         "company", "AAS",
+                        "aas_category", "Grocery",
                         "aas_vendor", "Vendor A",
                         "aas_status", "VENDOR_ASSIGNED",
                         "aas_margin_percent", 0.0));
+        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
         when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
         when(fileService.uploadOrderPdf(eq("SO-0001"), eq(pdf), any()))
                 .thenReturn(new UploadedFileInfo("vendor_order.pdf", "/files/vendor_order.pdf", "FILE-0001"));
         when(ocrService.extractTextFromPdf(any())).thenReturn("Tomatoes 2 45 90");
-        when(parser.parseItems(any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90)));
-        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(parser.parseItems(any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000")));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
@@ -142,6 +151,7 @@ class VendorPdfServiceTest {
                 .thenReturn(Map.of(
                         "customer", "Shop A",
                         "company", "AAS",
+                        "aas_category", "Grocery",
                         "aas_vendor", "Vendor A",
                         "aas_status", "DRAFT"));
 

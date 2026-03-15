@@ -3,8 +3,10 @@ export type VendorStatus = 'Active' | 'Inactive';
 export interface Vendor {
   name?: string;
   supplier_name?: string;
+  vendor_code?: string;
   disabled?: number | boolean;
   aas_priority?: number;
+  category?: string;
   address?: string;
   phone?: string;
   gst?: string;
@@ -17,6 +19,8 @@ export interface Vendor {
 
 export interface VendorFormValue {
   supplierName: string;
+  vendorCode: string;
+  category?: string;
   address?: string;
   phone?: string;
   gst?: string;
@@ -47,6 +51,8 @@ export interface VendorTemplateValidation {
 export interface VendorView {
   id: string;
   name: string;
+  vendorCode: string;
+  category: string;
   priority: number | null;
   status: VendorStatus;
   templateKey: string;

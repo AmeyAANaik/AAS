@@ -11,6 +11,7 @@ import { BranchOpsService } from './branch-ops.service';
   styleUrl: './branch-ops-page.component.scss'
 })
 export class BranchOpsPageComponent implements OnInit {
+  private readonly settledThreshold = 0.01;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly summaryColumns = ['branch', 'pendingOrders', 'awaitingVendorAssignment', 'awaitingVendorResponse', 'inProgress', 'openReceivableAmount', 'lastActivity', 'location', 'ledgerBalance', 'actions'];
   readonly orderColumns = ['orderId', 'vendor', 'status', 'orderDate', 'parsedItems', 'vendorBillTotal', 'sellOrderTotal', 'invoiceId', 'actions'];
@@ -73,6 +74,28 @@ export class BranchOpsPageComponent implements OnInit {
     this.router.navigate(['/orders'], { queryParams: { orderId } });
   }
 
+  downloadAllLedgers(): void {
+    this.branchOpsService.downloadAllBranchLedgers().subscribe({
+      next: blob => this.saveBlob(blob, 'branch-ledger-all.csv'),
+      error: () => {
+        this.errorMessage = 'Unable to download all branch ledgers.';
+      }
+    });
+  }
+
+  downloadLedger(): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    if (!branchId) {
+      return;
+    }
+    this.branchOpsService.downloadBranchLedger(branchId).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}.csv`),
+      error: () => {
+        this.errorMessage = 'Unable to download branch ledger.';
+      }
+    });
+  }
+
   get filteredBranches(): BranchOpsSummaryRow[] {
     const term = this.searchControl.value.trim().toLowerCase();
     if (!term) {
@@ -82,6 +105,49 @@ export class BranchOpsPageComponent implements OnInit {
       branch.branchName.toLowerCase().includes(term) ||
       branch.branchId.toLowerCase().includes(term)
     );
+  }
+
+  get selectedBranchSettlementState(): 'settled' | 'open' | 'overdue' {
+    const detail = this.selectedBranch;
+    if (!detail) {
+      return 'open';
+    }
+    if ((detail.exceptions?.overdueInvoices ?? 0) > 0) {
+      return 'overdue';
+    }
+    const balance = Math.abs(detail.billing?.ledgerBalance ?? 0);
+    if (balance <= this.settledThreshold && (detail.billing?.openInvoices ?? 0) === 0) {
+      return 'settled';
+    }
+    return 'open';
+  }
+
+  get selectedBranchSettlementLabel(): string {
+    return this.toSettlementLabel(this.selectedBranchSettlementState);
+  }
+
+  branchSummaryState(branch: BranchOpsSummaryRow): 'settled' | 'open' | 'overdue' {
+    const balance = Math.abs(branch.ledgerBalance ?? 0);
+    const receivable = Math.abs(branch.openReceivableAmount ?? 0);
+    if (balance <= this.settledThreshold && receivable <= this.settledThreshold) {
+      return 'settled';
+    }
+    return 'open';
+  }
+
+  branchSummaryLabel(branch: BranchOpsSummaryRow): string {
+    return this.toSettlementLabel(this.branchSummaryState(branch));
+  }
+
+  isSelectedBranch(branchId: string): boolean {
+    return this.selectedBranch?.branch?.branchId === branchId;
+  }
+
+  balanceState(balance: number, state: 'settled' | 'open' | 'overdue'): 'settled' | 'open' | 'overdue' {
+    if (state === 'overdue') {
+      return 'overdue';
+    }
+    return Math.abs(balance ?? 0) <= this.settledThreshold ? 'settled' : state;
   }
 
   private loadBranch(branchId: string): void {
@@ -115,5 +181,28 @@ export class BranchOpsPageComponent implements OnInit {
         this.ledger = [];
       }
     });
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  private toFileSegment(value: string): string {
+    return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '_') || 'unknown';
+  }
+
+  private toSettlementLabel(state: 'settled' | 'open' | 'overdue'): string {
+    if (state === 'settled') {
+      return 'Settled';
+    }
+    if (state === 'overdue') {
+      return 'Overdue';
+    }
+    return 'Open';
   }
 }

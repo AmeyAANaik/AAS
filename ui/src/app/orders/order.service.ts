@@ -49,7 +49,7 @@ export class OrderService {
 
   createOrderFromBranchImage(
     file: File,
-    payload: { customer?: string; company: string; transaction_date?: string; delivery_date?: string }
+    payload: { customer?: string; company: string; category: string; transaction_date?: string; delivery_date?: string }
   ): Observable<Record<string, unknown>> {
     const formData = new FormData();
     formData.append('file', file, file.name);
@@ -58,6 +58,9 @@ export class OrderService {
     }
     if (payload.company) {
       formData.append('company', payload.company);
+    }
+    if (payload.category) {
+      formData.append('category', payload.category);
     }
     if (payload.transaction_date) {
       formData.append('transaction_date', payload.transaction_date);
@@ -102,8 +105,8 @@ export class OrderService {
     });
   }
 
-  downloadBranchImage(orderId: string): Observable<Blob> {
-    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/branch-image`, {
+  downloadBranchImagesZip(orderId: string): Observable<Blob> {
+    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/branch-images/download`, {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

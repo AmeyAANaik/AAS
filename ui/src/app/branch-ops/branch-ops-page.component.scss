@@ -39,6 +39,11 @@
   padding: 20px;
 }
 
+.active-detail-card {
+  border: 1px solid rgba(156, 106, 44, 0.32);
+  box-shadow: inset 4px 0 0 #d7a259;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
@@ -53,11 +58,61 @@
   margin-bottom: 16px;
 }
 
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .card-title,
 .subsection-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: #4b3415;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settlement-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.settlement-badge[data-state='settled'] {
+  background: rgba(41, 130, 74, 0.12);
+  border-color: rgba(41, 130, 74, 0.3);
+  color: #2c7a4b;
+}
+
+.settlement-badge[data-state='open'] {
+  background: rgba(215, 162, 89, 0.18);
+  border-color: rgba(215, 162, 89, 0.4);
+  color: #9c6a2c;
+}
+
+.settlement-badge[data-state='overdue'] {
+  background: rgba(198, 76, 52, 0.18);
+  border-color: rgba(198, 76, 52, 0.35);
+  color: #b3472f;
+}
+
+.subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .card-subtitle {
@@ -69,8 +124,63 @@
   margin-top: 24px;
 }
 
+.subsection-action {
+  flex: 0 0 auto;
+}
+
+.entity-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  background: #cbd5e1;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
+}
+
+.status-dot[data-state='settled'] {
+  background: #2c7a4b;
+  box-shadow: 0 0 0 3px rgba(44, 122, 75, 0.14);
+}
+
+.status-dot[data-state='open'] {
+  background: #d7a259;
+  box-shadow: 0 0 0 3px rgba(215, 162, 89, 0.18);
+}
+
+.status-dot[data-state='overdue'] {
+  background: #b3472f;
+  box-shadow: 0 0 0 3px rgba(179, 71, 47, 0.16);
+}
+
+.balance-indicator[data-state='settled'] {
+  color: #2c7a4b;
+}
+
+.balance-indicator[data-state='open'] {
+  color: #9c6a2c;
+}
+
+.balance-indicator[data-state='overdue'] {
+  color: #b3472f;
+}
+
 .table-wrapper {
   overflow-x: auto;
+}
+
+.active-summary-row {
+  position: relative;
+  background: rgba(215, 162, 89, 0.08);
+}
+
+.active-summary-row td:first-child {
+  border-left: 4px solid #d7a259;
 }
 
 .state.error {
@@ -105,5 +215,18 @@
 
   .card-header {
     flex-direction: column;
+  }
+
+  .card-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .subsection-header {
+    align-items: flex-start;
+  }
+
+  .detail-title-row {
+    align-items: flex-start;
   }
 }

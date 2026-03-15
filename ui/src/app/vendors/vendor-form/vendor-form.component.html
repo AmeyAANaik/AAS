@@ -9,6 +9,23 @@
           <mat-error *ngIf="form.get('supplierName')?.hasError('required')">Vendor name is required.</mat-error>
         </mat-form-field>
 
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor code</mat-label>
+          <input matInput formControlName="vendorCode" />
+          <mat-error *ngIf="form.get('vendorCode')?.hasError('required')">Vendor code is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category">
+            <mat-option value="">Select category</mat-option>
+            <mat-option *ngFor="let category of categories" [value]="category.name ?? category.item_group_name">
+              {{ category.name ?? category.item_group_name }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
+        </mat-form-field>
+
         <mat-form-field appearance="outline" class="full">
           <mat-label>Address</mat-label>
           <textarea matInput formControlName="address" rows="2"></textarea>

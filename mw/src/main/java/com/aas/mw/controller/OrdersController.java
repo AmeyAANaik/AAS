@@ -66,9 +66,9 @@ public class OrdersController {
         return ResponseEntity.ok(orderService.getOrder(id));
     }
 
-    @GetMapping("/{id}/branch-image")
-    public ResponseEntity<byte[]> downloadBranchImage(@PathVariable String id) {
-        return fileResponse(orderService.downloadBranchImage(id));
+    @GetMapping("/{id}/branch-images/download")
+    public ResponseEntity<byte[]> downloadBranchImages(@PathVariable String id) {
+        return fileResponse(orderService.downloadBranchImagesZip(id));
     }
 
     @GetMapping("/{id}/vendor-pdf")
@@ -190,6 +190,7 @@ public class OrdersController {
             @RequestPart("file") MultipartFile file,
             @RequestParam(required = false) String customer,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false, name = "transaction_date") String transactionDate,
             @RequestParam(required = false, name = "delivery_date") String deliveryDate,
             HttpServletRequest request) {
@@ -211,9 +212,14 @@ public class OrdersController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Company is required."));
         }
+        if (category == null || category.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Category is required."));
+        }
         return ResponseEntity.ok(orderService.createOrderWithImage(
                 customer,
                 company,
+                category,
                 transactionDate,
                 deliveryDate,
                 file,

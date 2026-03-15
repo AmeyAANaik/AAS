@@ -7,13 +7,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
-import { OrderItemPayload, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
+import { OrderBranchImage, OrderItemPayload, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
 import { MatTableDataSource } from '@angular/material/table';
 import { OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue } from './order-advanced-filters-dialog.component';
 import { OrderDeleteConfirmDialogComponent, OrderDeleteConfirmDialogData } from './order-delete-confirm-dialog.component';
+import { OrderBranchImageGalleryDialogComponent } from './order-branch-image-gallery-dialog.component';
 
 type UiOrderStatus =
   | 'DRAFT'
@@ -26,6 +27,7 @@ type UiOrderStatus =
 
 interface UiOrder {
   name: string;
+  displayId: string;
   status: UiOrderStatus;
   branch: string;
   vendor: string;
@@ -171,7 +173,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         return String(order.branch ?? '');
       }
       if (property === 'id') {
-        return String(order.name ?? '');
+        return String(order.displayId ?? order.name ?? '');
       }
       return '';
     };
@@ -194,6 +196,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscriptions.add(
       this.route.queryParamMap.subscribe(params => {
         this.requestedOrderId = String(params.get('orderId') ?? '').trim() || null;
+        const requestedQuery = String(params.get('q') ?? '').trim();
+        if (requestedQuery && requestedQuery !== this.searchControl.value) {
+          this.searchControl.setValue(requestedQuery);
+        }
         this.selectRequestedOrder();
       })
     );
@@ -529,6 +535,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     const date = String(order.raw.transaction_date ?? '');
     return (
+      String(order.displayId ?? '').toLowerCase().includes(q) ||
       String(order.name ?? '').toLowerCase().includes(q) ||
       String(order.branch ?? '').toLowerCase().includes(q) ||
       String(order.vendor ?? '').toLowerCase().includes(q) ||
@@ -1034,6 +1041,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private toUiOrder(order: OrderSummary): UiOrder {
     const name = String(order.name ?? '').trim();
+    const displayId = String(order.title ?? '').trim() || name;
     const branch = String(order.customer ?? '').trim() || 'Unknown';
     const vendor = String(order.aas_vendor ?? '').trim();
     const status = this.normalizeStatus(order);
@@ -1045,6 +1053,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
     return {
       name,
+      displayId,
       branch,
       vendor,
       status,
@@ -1071,30 +1080,42 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     };
   }
 
-  get branchImageUrl(): string {
-    return String(this.selectedOrder?.raw?.aas_branch_image ?? '').trim();
+  get branchImages(): OrderBranchImage[] {
+    const images = this.selectedOrder?.raw?.branch_images;
+    return Array.isArray(images) ? images : [];
   }
 
   get vendorPdfUrl(): string {
     return String(this.selectedOrder?.raw?.aas_vendor_pdf ?? '').trim();
   }
 
-  get branchImageName(): string {
-    return this.attachmentName(this.branchImageUrl, 'Branch image');
+  get hasBranchImages(): boolean {
+    return this.branchImages.length > 0;
   }
 
   get vendorPdfName(): string {
     return this.attachmentName(this.vendorPdfUrl, 'Vendor PDF');
   }
 
-  openAttachment(url: string): void {
-    if (!this.selectedOrder) {
+  openBranchImages(): void {
+    if (!this.selectedOrder || !this.branchImages.length) {
       return;
     }
-    const loader = url === this.branchImageUrl
-      ? this.orderService.downloadBranchImage(this.selectedOrder.name)
-      : this.orderService.downloadVendorPdfFile(this.selectedOrder.name);
-    loader.subscribe({
+    this.dialog.open(OrderBranchImageGalleryDialogComponent, {
+      width: '960px',
+      maxWidth: '96vw',
+      data: {
+        orderId: this.selectedOrder.displayId,
+        images: this.branchImages
+      }
+    });
+  }
+
+  openVendorPdf(): void {
+    if (!this.selectedOrder || !this.vendorPdfUrl) {
+      return;
+    }
+    this.orderService.downloadVendorPdfFile(this.selectedOrder.name).subscribe({
       next: blob => {
         const objectUrl = window.URL.createObjectURL(blob);
         window.open(objectUrl, '_blank', 'noopener,noreferrer');
@@ -1106,26 +1127,41 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  downloadAttachment(url: string, fileName: string): void {
-    if (!this.selectedOrder) {
+  downloadBranchImages(): void {
+    if (!this.selectedOrder || !this.branchImages.length) {
       return;
     }
-    const loader = url === this.branchImageUrl
-      ? this.orderService.downloadBranchImage(this.selectedOrder.name)
-      : this.orderService.downloadVendorPdfFile(this.selectedOrder.name);
-    loader.subscribe({
+    this.orderService.downloadBranchImagesZip(this.selectedOrder.name).subscribe({
       next: blob => {
-        const objectUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = fileName;
-        link.click();
-        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+        this.saveBlob(blob, `${this.selectedOrder?.name ?? 'order'}-branch-images.zip`);
+      },
+      error: err => {
+        this.errorMessage = this.formatError(err, 'Unable to download branch images');
+      }
+    });
+  }
+
+  downloadVendorPdf(): void {
+    if (!this.selectedOrder || !this.vendorPdfUrl) {
+      return;
+    }
+    this.orderService.downloadVendorPdfFile(this.selectedOrder.name).subscribe({
+      next: blob => {
+        this.saveBlob(blob, this.vendorPdfName);
       },
       error: err => {
         this.errorMessage = this.formatError(err, 'Unable to download file');
       }
     });
+  }
+
+  private saveBlob(blob: Blob, fileName: string): void {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    link.click();
+    window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
   }
 
   private resolveCurrency(order: OrderSummary): string {

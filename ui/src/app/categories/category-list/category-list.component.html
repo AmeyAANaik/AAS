@@ -24,6 +24,11 @@
             <td mat-cell *matCellDef="let category">{{ category.name }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="code">
+            <th mat-header-cell *matHeaderCellDef>Category code</th>
+            <td mat-cell *matCellDef="let category">{{ category.code || '—' }}</td>
+          </ng-container>
+
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let category" class="actions-cell">

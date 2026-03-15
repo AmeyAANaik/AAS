@@ -29,10 +29,17 @@ import { OrderCreateComponent } from './order-create/order-create.component';
 import { OrderPageComponent } from './order-page/order-page.component';
 import { OrderAdvancedFiltersDialogComponent } from './order-page/order-advanced-filters-dialog.component';
 import { OrderDeleteConfirmDialogComponent } from './order-page/order-delete-confirm-dialog.component';
+import { OrderBranchImageGalleryDialogComponent } from './order-page/order-branch-image-gallery-dialog.component';
 import { OrdersRoutingModule } from './orders-routing.module';
 
 @NgModule({
-  declarations: [OrderPageComponent, OrderCreateComponent, OrderAdvancedFiltersDialogComponent, OrderDeleteConfirmDialogComponent],
+  declarations: [
+    OrderPageComponent,
+    OrderCreateComponent,
+    OrderAdvancedFiltersDialogComponent,
+    OrderDeleteConfirmDialogComponent,
+    OrderBranchImageGalleryDialogComponent
+  ],
   imports: [
     CommonModule,
     FormsModule,

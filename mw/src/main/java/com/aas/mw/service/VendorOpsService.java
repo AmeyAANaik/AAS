@@ -267,6 +267,66 @@ public class VendorOpsService {
                 "entries", entries);
     }
 
+    public List<Map<String, Object>> getAllVendorLedgerEntries() {
+        Map<String, String> vendorNames = fetchVendors().stream()
+                .collect(Collectors.toMap(
+                        vendor -> asText(vendor.get("name")),
+                        this::preferredVendorName,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        List<Map<String, Object>> entries = new ArrayList<>();
+
+        for (Map<String, Object> invoice : fetchPurchaseInvoices(null)) {
+            if (asInt(invoice.get("docstatus")) == 2) {
+                continue;
+            }
+            String vendorId = asText(invoice.get("supplier"));
+            double credit = round(asDouble(invoice.get("grand_total")));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(invoice.get("posting_date")));
+            row.put("vendorId", vendorId);
+            row.put("vendorName", vendorNames.getOrDefault(vendorId, vendorId));
+            row.put("voucherType", "Purchase Invoice");
+            row.put("voucherNo", asText(invoice.get("name")));
+            row.put("reference", asText(invoice.get("bill_no")));
+            row.put("debit", 0.0);
+            row.put("credit", credit);
+            row.put("netChange", credit);
+            entries.add(row);
+        }
+
+        for (Map<String, Object> payment : fetchSupplierPayments(null)) {
+            if (asInt(payment.get("docstatus")) == 2) {
+                continue;
+            }
+            String vendorId = asText(payment.get("party"));
+            double debit = round(resolvePaymentAmount(payment));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(payment.get("posting_date")));
+            row.put("vendorId", vendorId);
+            row.put("vendorName", vendorNames.getOrDefault(vendorId, vendorId));
+            row.put("voucherType", "Payment Entry");
+            row.put("voucherNo", asText(payment.get("name")));
+            row.put("reference", asText(payment.get("reference_no")));
+            row.put("debit", debit);
+            row.put("credit", 0.0);
+            row.put("netChange", round(-debit));
+            entries.add(row);
+        }
+
+        entries.sort(Comparator
+                .comparing((Map<String, Object> row) -> asText(row.get("date")))
+                .thenComparing(row -> asText(row.get("vendorName")))
+                .thenComparing(row -> asText(row.get("voucherType")))
+                .thenComparing(row -> asText(row.get("voucherNo"))));
+        double running = 0.0;
+        for (Map<String, Object> entry : entries) {
+            running = round(running + asDouble(entry.get("netChange")));
+            entry.put("runningBalance", running);
+        }
+        return entries;
+    }
+
     private Map<String, Object> buildVendorSummary(
             Map<String, Object> vendor,
             List<Map<String, Object>> orders,

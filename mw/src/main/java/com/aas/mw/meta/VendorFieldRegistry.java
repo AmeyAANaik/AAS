@@ -25,12 +25,21 @@ public class VendorFieldRegistry {
         List<VendorFieldSpec> defaults = new ArrayList<>();
         // Keep UI-facing keys stable (e.g., "gst", "phone") while storing to ERP with "aas_*" fieldnames.
         defaults.add(new VendorFieldSpec(
+                "vendor_code",
+                "aas_vendor_code",
+                "Vendor Code",
+                "Data",
+                null,
+                "supplier_name",
+                true,
+                true));
+        defaults.add(new VendorFieldSpec(
                 "branch_name",
                 "aas_branch_name",
                 "Branch Name",
                 "Data",
                 null,
-                "supplier_name",
+                "aas_vendor_code",
                 true,
                 false));
         defaults.add(new VendorFieldSpec(
@@ -87,6 +96,15 @@ public class VendorFieldRegistry {
                 "aas_food_license_no",
                 true,
                 false));
+        defaults.add(new VendorFieldSpec(
+                "category",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "aas_priority",
+                true,
+                false));
 
         // Vendor invoice parsing template (used by MW OCR flow). Stored on Supplier so it can be updated at runtime.
         defaults.add(new VendorFieldSpec(
@@ -95,7 +113,7 @@ public class VendorFieldRegistry {
                 "Invoice Template Enabled",
                 "Check",
                 null,
-                "aas_priority",
+                "aas_category",
                 true,
                 false));
         defaults.add(new VendorFieldSpec(

@@ -5,11 +5,17 @@ import com.aas.mw.dto.DownloadedFile;
 import com.aas.mw.dto.OrderItemLine;
 import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
-import feign.FeignException;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,9 +25,11 @@ public class OrderService {
     private static final String DOCTYPE = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
     private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg");
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final CatalogRoutingService catalogRoutingService;
     private final String erpPublicBaseUrl;
     private final double defaultMarginPercent;
 
@@ -29,29 +37,36 @@ public class OrderService {
             ErpNextClient erpNextClient,
             ErpNextFileService erpNextFileService,
             OrderFlowStateMachine orderFlowStateMachine,
+            CatalogRoutingService catalogRoutingService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.catalogRoutingService = catalogRoutingService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
         Map<String, Object> fields = request.getFields();
+        applyCategoryVendorDefaults(fields);
         ensureSalesOrderPricingDefaults(fields, asText(fields.get("company")));
         applySalesOrderDefaults(fields);
+        applyOrderDisplayTitle(fields);
         return erpNextClient.createResource(DOCTYPE, fields);
     }
 
     public Map<String, Object> createOrderWithImage(
             String customer,
             String company,
+            String category,
             String transactionDate,
             String deliveryDate,
             org.springframework.web.multipart.MultipartFile file,
             String sessionCookie) {
+        CatalogRoutingService.VendorCategoryResolution vendorResolution =
+                catalogRoutingService.resolveTopVendorForCategory(asText(category));
         Map<String, Object> payload = new HashMap<>();
         String warehouse = resolveDefaultWarehouse(asText(company));
         if (!warehouse.isBlank()) {
@@ -59,20 +74,20 @@ public class OrderService {
         }
         payload.put("customer", customer);
         payload.put("company", company);
+        payload.put("aas_category", vendorResolution.categoryId());
+        payload.put("aas_vendor", vendorResolution.vendorId());
         // ERPNext often requires a selling price list + currency fields on Sales Order.
         ensureSalesOrderPricingDefaults(payload, asText(company));
         payload.put("transaction_date", resolveDate(transactionDate));
         payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
-        payload.put("aas_status", "DRAFT");
+        payload.put("aas_status", "VENDOR_ASSIGNED");
         payload.put("aas_margin_percent", defaultMarginPercent);
         payload.put("items", List.of(applyItemMarginDefaults(buildBranchImageItem(warehouse))));
+        applyOrderDisplayTitle(payload);
         Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
         String orderId = extractDocName(order);
         if (orderId != null && !orderId.isBlank()) {
-            UploadedFileInfo info = erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
-            if (info.fileUrl() != null) {
-                erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_branch_image", info.fileUrl()));
-            }
+            erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
         }
         return order;
     }
@@ -155,8 +170,65 @@ public class OrderService {
         return null;
     }
 
+    private void applyOrderDisplayTitle(Map<String, Object> fields) {
+        if (fields == null) {
+            return;
+        }
+        String title = buildOrderBusinessKey(
+                asText(fields.get("customer")),
+                asText(fields.get("aas_category")),
+                asText(fields.get("transaction_date")));
+        if (!title.isBlank()) {
+            fields.put("title", title);
+        }
+    }
+
+    private String buildOrderBusinessKey(String branchName, String categoryName, String date) {
+        String branch = normalizeNameSegment(branchName);
+        String category = normalizeNameSegment(categoryName);
+        String normalizedDate = normalizeDateSegment(date);
+        if (branch.isBlank() || category.isBlank() || normalizedDate.isBlank()) {
+            return "";
+        }
+        return branch + "_" + category + "_" + normalizedDate;
+    }
+
+    private String normalizeNameSegment(String value) {
+        String text = asText(value);
+        if (text.isBlank()) {
+            return "";
+        }
+        String normalized = text
+                .replaceAll("[^A-Za-z0-9]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_+|_+$", "");
+        return normalized;
+    }
+
+    private String normalizeDateSegment(String value) {
+        String text = asText(value);
+        if (text.isBlank()) {
+            return "";
+        }
+        return text.replaceAll("[^0-9]+", "");
+    }
+
     public Map<String, Object> getOrder(String id) {
         return withResolvedFileUrls(erpNextClient.getResource(DOCTYPE, id));
+    }
+
+    private void applyCategoryVendorDefaults(Map<String, Object> fields) {
+        if (fields == null) {
+            return;
+        }
+        String category = asText(fields.get("aas_category"));
+        if (category.isBlank() || !asText(fields.get("aas_vendor")).isBlank()) {
+            return;
+        }
+        CatalogRoutingService.VendorCategoryResolution resolution = catalogRoutingService.resolveTopVendorForCategory(category);
+        fields.put("aas_category", resolution.categoryId());
+        fields.put("aas_vendor", resolution.vendorId());
+        fields.putIfAbsent("aas_status", "VENDOR_ASSIGNED");
     }
 
     public Map<String, Object> updateOrder(String id, OrderRequest request) {
@@ -269,13 +341,6 @@ public class OrderService {
 
     public Map<String, Object> attachOrderImage(String orderId, org.springframework.web.multipart.MultipartFile file, String sessionCookie) {
         UploadedFileInfo info = erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
-        Map<String, Object> update = new HashMap<>();
-        if (info.fileUrl() != null) {
-            update.put("aas_branch_image", info.fileUrl());
-        }
-        if (!update.isEmpty()) {
-            erpNextClient.updateResource(DOCTYPE, orderId, update);
-        }
         return Map.of(
                 "orderId", orderId,
                 "fileName", info.fileName(),
@@ -283,8 +348,32 @@ public class OrderService {
                 "fileId", info.fileId());
     }
 
-    public DownloadedFile downloadBranchImage(String orderId) {
-        return downloadOrderAttachment(orderId, "aas_branch_image");
+    public DownloadedFile downloadBranchImagesZip(String orderId) {
+        List<Map<String, Object>> branchImages = listBranchImageAttachments(orderId);
+        if (branchImages.isEmpty()) {
+            throw new IllegalArgumentException("No branch images are available for this order.");
+        }
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (ZipOutputStream zip = new ZipOutputStream(out)) {
+                int index = 1;
+                for (Map<String, Object> image : branchImages) {
+                    String fileUrl = asText(image.get("file_url"));
+                    if (fileUrl.isBlank()) {
+                        continue;
+                    }
+                    DownloadedFile file = erpNextFileService.downloadFile(fileUrl);
+                    String fileName = ensureUniqueZipEntryName(index, asText(image.get("file_name")), file.fileName());
+                    zip.putNextEntry(new ZipEntry(fileName));
+                    zip.write(file.bytes());
+                    zip.closeEntry();
+                    index++;
+                }
+            }
+            return new DownloadedFile(orderId + "-branch-images.zip", "application/zip", out.toByteArray());
+        } catch (IOException ex) {
+            throw new IllegalStateException("Unable to create branch image ZIP.", ex);
+        }
     }
 
     public DownloadedFile downloadVendorPdf(String orderId) {
@@ -334,10 +423,10 @@ public class OrderService {
     public List<Map<String, Object>> listOrders(Map<String, String> filters) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
-                "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
+                "[\"name\",\"title\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_category\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"currency\",\"price_list_currency\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
-                        + "\"aas_branch_image\",\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
+                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
         // Sort by last modification so newly created orders show up reliably on the first page.
         params.put("order_by", "modified desc");
         if (!filters.isEmpty()) {
@@ -364,6 +453,10 @@ public class OrderService {
             return null;
         }
         resolveOrderFileUrls(order);
+        Map<String, Object> data = unwrap(order);
+        if (data != order) {
+            resolveOrderFileUrls(data);
+        }
         return order;
     }
 
@@ -371,8 +464,12 @@ public class OrderService {
         if (order == null) {
             return;
         }
-        putResolvedFileUrl(order, "aas_branch_image");
+        order.remove("aas_branch_image");
         putResolvedFileUrl(order, "aas_vendor_pdf");
+        String orderId = asText(order.get("name"));
+        if (!orderId.isBlank()) {
+            order.put("branch_images", listBranchImageAttachments(orderId));
+        }
     }
 
     private void putResolvedFileUrl(Map<String, Object> order, String field) {
@@ -402,6 +499,64 @@ public class OrderService {
             throw new IllegalArgumentException("No file is available for this order.");
         }
         return erpNextFileService.downloadFile(fileUrl);
+    }
+
+    private List<Map<String, Object>> listBranchImageAttachments(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return List.of();
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"file_name\",\"file_url\",\"creation\"]");
+        params.put(
+                "filters",
+                "[[\"File\",\"attached_to_doctype\",\"=\",\"Sales Order\"],[\"File\",\"attached_to_name\",\"=\",\""
+                        + escape(orderId)
+                        + "\"]]");
+        params.put("order_by", "creation asc");
+        return erpNextClient.listResources("File", params).stream()
+                .filter(this::isBranchImageFile)
+                .sorted(Comparator.comparing(row -> asText(row.get("creation"))))
+                .map(this::toBranchImagePayload)
+                .toList();
+    }
+
+    private boolean isBranchImageFile(Map<String, Object> row) {
+        String value = firstText(row == null ? null : row.get("file_name"), row == null ? null : row.get("file_url"))
+                .toLowerCase(Locale.ROOT);
+        if (value.isBlank()) {
+            return false;
+        }
+        return IMAGE_EXTENSIONS.stream().anyMatch(value::endsWith);
+    }
+
+    private Map<String, Object> toBranchImagePayload(Map<String, Object> row) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("id", asText(row.get("name")));
+        payload.put("file_name", asText(row.get("file_name")));
+        payload.put("file_url", resolveFileUrl(asText(row.get("file_url"))));
+        return payload;
+    }
+
+    private String ensureUniqueZipEntryName(int index, String preferredName, String fallbackName) {
+        String name = !preferredName.isBlank() ? preferredName : fallbackName;
+        if (name == null || name.isBlank()) {
+            name = "branch-image-" + index + ".bin";
+        }
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0 || dot == name.length() - 1) {
+            return index + "-" + name;
+        }
+        return index + "-" + name.substring(0, dot) + name.substring(dot);
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = asText(value);
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
     }
 
     private void addOrderCostMetrics(List<Map<String, Object>> orders) {

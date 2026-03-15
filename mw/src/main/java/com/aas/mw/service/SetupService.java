@@ -16,6 +16,7 @@ public class SetupService {
     private final ErpNextClient erpNextClient;
     private final CustomFieldProvisioner customFieldProvisioner;
     private final VendorFieldRegistry vendorFieldRegistry;
+    private final CatalogRoutingService catalogRoutingService;
     private final boolean defaultsEnabled;
     private final String vendorRole;
     private final String shopRole;
@@ -37,6 +38,7 @@ public class SetupService {
             ErpNextClient erpNextClient,
             CustomFieldProvisioner customFieldProvisioner,
             VendorFieldRegistry vendorFieldRegistry,
+            CatalogRoutingService catalogRoutingService,
             @Value("${app.defaults.enabled:true}") boolean defaultsEnabled,
             @Value("${app.role.vendor:Supplier}") String vendorRole,
             @Value("${app.role.shop:Customer}") String shopRole,
@@ -56,6 +58,7 @@ public class SetupService {
         this.erpNextClient = erpNextClient;
         this.customFieldProvisioner = customFieldProvisioner;
         this.vendorFieldRegistry = vendorFieldRegistry;
+        this.catalogRoutingService = catalogRoutingService;
         this.defaultsEnabled = defaultsEnabled;
         this.vendorRole = vendorRole;
         this.shopRole = shopRole;
@@ -96,20 +99,13 @@ public class SetupService {
                 "Float",
                 null,
                 "aas_status");
-        boolean branchImageField = ensureCustomField(
-                "Sales Order",
-                "aas_branch_image",
-                "Branch Image",
-                "Attach",
-                null,
-                "aas_margin_percent");
         boolean vendorPdfField = ensureCustomField(
                 "Sales Order",
                 "aas_vendor_pdf",
                 "Vendor PDF",
                 "Attach",
                 null,
-                "aas_branch_image");
+                "aas_margin_percent");
         boolean purchaseOrderField = ensureCustomField(
                 "Sales Order",
                 "aas_po",
@@ -215,6 +211,20 @@ public class SetupService {
                 "Link",
                 "Print Format",
                 "default_currency");
+        boolean salesOrderCategoryField = ensureCustomField(
+                "Sales Order",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "customer");
+        boolean categoryCodeField = ensureCustomField(
+                "Item Group",
+                "aas_category_code",
+                "Category Code",
+                "Data",
+                null,
+                "item_group_name");
         boolean marginField = ensureCustomField(
                 "Item",
                 "aas_margin_percent",
@@ -236,6 +246,20 @@ public class SetupService {
                 "Data",
                 null,
                 "stock_uom");
+        boolean itemVendorField = ensureCustomField(
+                "Item",
+                "aas_vendor",
+                "Vendor",
+                "Link",
+                "Supplier",
+                "item_group");
+        boolean itemVendorHsnField = ensureCustomField(
+                "Item",
+                "aas_vendor_hsn_code",
+                "Vendor HSN Code",
+                "Data",
+                null,
+                "aas_vendor");
         boolean soItemMarginField = ensureCustomField(
                 "Sales Order Item",
                 "aas_margin_percent",
@@ -259,7 +283,6 @@ public class SetupService {
         result.put("packagingUnitFieldCreated", packagingUnitField);
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
-        result.put("branchImageFieldCreated", branchImageField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
         result.put("branchSalesOrderFieldCreated", branchSalesOrderField);
@@ -276,8 +299,13 @@ public class SetupService {
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
+        result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
+        result.put("categoryCodeFieldCreated", categoryCodeField);
         result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
+        result.put("itemVendorFieldCreated", itemVendorField);
+        result.put("itemVendorHsnFieldCreated", itemVendorHsnField);
+        result.put("categoryCodesBackfilled", backfillCategoryCodes());
         MarginBackfillResult salesOrderBackfill = backfillSalesOrdersAndItems();
         result.put("salesOrdersMarginBackfilled", salesOrderBackfill.documentCount());
         result.put("salesOrderItemsMarginBackfilled", salesOrderBackfill.itemCount());
@@ -379,6 +407,49 @@ public class SetupService {
         return updated;
     }
 
+    private int backfillCategoryCodes() {
+        int updated = 0;
+        int start = 0;
+        final int pageSize = 500;
+        while (true) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"item_group_name\",\"parent_item_group\",\"aas_category_code\"]");
+            params.put("limit_page_length", pageSize);
+            params.put("limit_start", start);
+            List<Map<String, Object>> rows = erpNextClient.listResources("Item Group", params);
+            if (rows == null || rows.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : rows) {
+                if (row == null) {
+                    continue;
+                }
+                String name = asText(row.get("name"));
+                String existing = asText(row.get("aas_category_code"));
+                String parent = asText(row.get("parent_item_group"));
+                if (name.isBlank() || !existing.isBlank() || parent.isBlank() || "All Item Groups".equals(name)) {
+                    continue;
+                }
+                String source = firstText(row.get("item_group_name"), row.get("name"));
+                String generated = catalogRoutingService.normalizeCodeSegment(source);
+                if (generated.isBlank()) {
+                    continue;
+                }
+                try {
+                    erpNextClient.updateResource("Item Group", name, Map.of("aas_category_code", generated));
+                    updated++;
+                } catch (Exception ignored) {
+                    // Best-effort backfill: skip problematic rows and continue with the rest.
+                }
+            }
+            if (rows.size() < pageSize) {
+                break;
+            }
+            start += pageSize;
+        }
+        return updated;
+    }
+
     private boolean shouldBackfillMargin(Object value) {
         if (value == null) {
             return true;
@@ -397,6 +468,16 @@ public class SetupService {
 
     private String asText(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = asText(value);
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
     }
 
     @SuppressWarnings("unchecked")

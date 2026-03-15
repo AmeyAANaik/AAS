@@ -199,6 +199,66 @@ public class BranchOpsService {
                 "entries", entries);
     }
 
+    public List<Map<String, Object>> getAllBranchLedgerEntries() {
+        Map<String, String> branchNames = fetchBranches().stream()
+                .collect(Collectors.toMap(
+                        branch -> asText(branch.get("name")),
+                        this::preferredBranchName,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        List<Map<String, Object>> entries = new ArrayList<>();
+
+        for (Map<String, Object> invoice : fetchSalesInvoices(null)) {
+            if (asInt(invoice.get("docstatus")) == 2) {
+                continue;
+            }
+            String branchId = asText(invoice.get("customer"));
+            double debit = round(asDouble(invoice.get("grand_total")));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(invoice.get("posting_date")));
+            row.put("branchId", branchId);
+            row.put("branchName", branchNames.getOrDefault(branchId, branchId));
+            row.put("voucherType", "Sales Invoice");
+            row.put("voucherNo", asText(invoice.get("name")));
+            row.put("reference", branchId);
+            row.put("debit", debit);
+            row.put("credit", 0.0);
+            row.put("netChange", debit);
+            entries.add(row);
+        }
+
+        for (Map<String, Object> payment : fetchCustomerPayments(null)) {
+            if (asInt(payment.get("docstatus")) == 2) {
+                continue;
+            }
+            String branchId = asText(payment.get("party"));
+            double credit = round(resolvePaymentAmount(payment));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(payment.get("posting_date")));
+            row.put("branchId", branchId);
+            row.put("branchName", branchNames.getOrDefault(branchId, branchId));
+            row.put("voucherType", "Payment Entry");
+            row.put("voucherNo", asText(payment.get("name")));
+            row.put("reference", asText(payment.get("reference_no")));
+            row.put("debit", 0.0);
+            row.put("credit", credit);
+            row.put("netChange", round(-credit));
+            entries.add(row);
+        }
+
+        entries.sort(Comparator
+                .comparing((Map<String, Object> row) -> asText(row.get("date")))
+                .thenComparing(row -> asText(row.get("branchName")))
+                .thenComparing(row -> asText(row.get("voucherType")))
+                .thenComparing(row -> asText(row.get("voucherNo"))));
+        double running = 0.0;
+        for (Map<String, Object> entry : entries) {
+            running = round(running + asDouble(entry.get("netChange")));
+            entry.put("runningBalance", running);
+        }
+        return entries;
+    }
+
     private Map<String, Object> buildBranchSummary(
             Map<String, Object> branch,
             List<Map<String, Object>> orders,

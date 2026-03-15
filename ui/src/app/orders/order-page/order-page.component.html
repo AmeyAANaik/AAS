@@ -152,7 +152,7 @@
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Order ID</th>
             <td mat-cell *matCellDef="let order">
-              <div class="cell-title">{{ order.name }}</div>
+              <div class="cell-title">{{ order.displayId }}</div>
             </td>
           </ng-container>
 
@@ -237,7 +237,7 @@
         <div class="order-info-section">
           <div class="order-id">
             <label>ORDER</label>
-            <h4>{{ selectedOrder.name }}</h4>
+            <h4>{{ selectedOrder.displayId }}</h4>
           </div>
           <div class="order-status">
             <label>STATUS</label>
@@ -275,11 +275,11 @@
             <span class="step-info" *ngIf="selectedOrder.status !== 'DRAFT'">✓ Completed</span>
           </div>
           <div class="step-body" *ngIf="selectedOrder.status === 'DRAFT'">
-            <div class="stage-link" *ngIf="branchImageUrl">
-              <span class="stage-link-label">Branch image from order creation</span>
+            <div class="stage-link" *ngIf="hasBranchImages">
+              <span class="stage-link-label">Branch images from order creation ({{ branchImages.length }})</span>
               <div class="stage-link-actions">
-                <button mat-button type="button" color="primary" (click)="openAttachment(branchImageUrl)">Open</button>
-                <button mat-stroked-button type="button" color="primary" (click)="downloadAttachment(branchImageUrl, branchImageName)">Download</button>
+                <button mat-button type="button" color="primary" (click)="openBranchImages()">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadBranchImages()">Download</button>
               </div>
             </div>
             <mat-form-field appearance="outline" class="full-width">
@@ -295,10 +295,10 @@
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'DRAFT'">
             <p><strong>Assigned Vendor:</strong> {{ selectedOrder.vendor }}</p>
-            <p *ngIf="branchImageUrl">
-              <strong>Branch image:</strong>
-              <button mat-button type="button" color="primary" (click)="openAttachment(branchImageUrl)">Open</button>
-              <button mat-button type="button" color="primary" (click)="downloadAttachment(branchImageUrl, branchImageName)">Download</button>
+            <p *ngIf="hasBranchImages">
+              <strong>Branch images:</strong>
+              <button mat-button type="button" color="primary" (click)="openBranchImages()">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadBranchImages()">Download</button>
             </p>
           </div>
         </div>
@@ -313,8 +313,8 @@
             <div class="stage-link" *ngIf="vendorPdfUrl">
               <span class="stage-link-label">Vendor PDF already uploaded</span>
               <div class="stage-link-actions">
-                <button mat-button type="button" color="primary" (click)="openAttachment(vendorPdfUrl)">Open</button>
-                <button mat-stroked-button type="button" color="primary" (click)="downloadAttachment(vendorPdfUrl, vendorPdfName)">Download</button>
+                <button mat-button type="button" color="primary" (click)="openVendorPdf()">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadVendorPdf()">Download</button>
               </div>
             </div>
             <div class="upload-section">
@@ -352,8 +352,8 @@
             <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
             <p *ngIf="vendorPdfUrl">
               <strong>Vendor PDF:</strong>
-              <button mat-button type="button" color="primary" (click)="openAttachment(vendorPdfUrl)">Open</button>
-              <button mat-button type="button" color="primary" (click)="downloadAttachment(vendorPdfUrl, vendorPdfName)">Download</button>
+              <button mat-button type="button" color="primary" (click)="openVendorPdf()">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadVendorPdf()">Download</button>
             </p>
             <p *ngIf="pdfData?.items"><strong>Items Extracted:</strong> {{ pdfData?.items?.length ?? 0 }}</p>
             <p *ngIf="pdfData?.template?.key"><strong>Template used:</strong> {{ pdfData?.template?.key }}</p>

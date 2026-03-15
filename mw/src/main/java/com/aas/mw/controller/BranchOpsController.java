@@ -1,8 +1,11 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.service.BranchOpsService;
+import com.aas.mw.util.CsvUtil;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +26,15 @@ public class BranchOpsController {
     @GetMapping("/summary")
     public ResponseEntity<Map<String, Object>> summary() {
         return ResponseEntity.ok(branchOpsService.getSummary());
+    }
+
+    @GetMapping("/ledger/export")
+    public ResponseEntity<String> exportAllBranchLedgers() {
+        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchLedgerEntries());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-all.csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
     }
 
     @GetMapping("/{branchId}")
@@ -48,5 +60,24 @@ public class BranchOpsController {
     @GetMapping("/{branchId}/ledger")
     public ResponseEntity<Map<String, Object>> branchLedger(@PathVariable String branchId) {
         return ResponseEntity.ok(branchOpsService.getBranchLedger(branchId));
+    }
+
+    @GetMapping("/{branchId}/ledger/export")
+    public ResponseEntity<String> exportBranchLedger(@PathVariable String branchId) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
+        String csv = CsvUtil.toCsv(entries);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-" + sanitizeFileName(branchId) + ".csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    private String sanitizeFileName(String value) {
+        if (value == null || value.isBlank()) {
+            return "unknown";
+        }
+        return value.replaceAll("[^A-Za-z0-9._-]+", "_");
     }
 }

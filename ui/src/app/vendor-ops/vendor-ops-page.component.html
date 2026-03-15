@@ -16,16 +16,21 @@
         <div class="card-title">All Vendors</div>
         <div class="card-subtitle">Follow up on vendors with the highest pending workload first.</div>
       </div>
-      <mat-form-field appearance="outline">
-        <mat-label>Search vendor</mat-label>
-        <input matInput [formControl]="searchControl" placeholder="Search by vendor name" />
-      </mat-form-field>
+      <div class="card-actions">
+        <button mat-icon-button type="button" color="primary" class="subsection-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !vendors.length" aria-label="Download all vendor ledgers">
+          <mat-icon>download</mat-icon>
+        </button>
+        <mat-form-field appearance="outline">
+          <mat-label>Search vendor</mat-label>
+          <input matInput [formControl]="searchControl" placeholder="Search by vendor name" />
+        </mat-form-field>
+      </div>
     </div>
     <div class="state error" *ngIf="errorMessage">{{ errorMessage }}</div>
     <div class="state" *ngIf="isLoadingSummary">Loading vendor operations...</div>
     <div class="table-wrapper" *ngIf="!isLoadingSummary && filteredVendors.length; else emptySummary">
       <table mat-table [dataSource]="filteredVendors" class="pro-table mat-elevation-z1">
-        <ng-container matColumnDef="vendor"><th mat-header-cell *matHeaderCellDef>Vendor</th><td mat-cell *matCellDef="let row">{{ row.vendorName }}</td></ng-container>
+        <ng-container matColumnDef="vendor"><th mat-header-cell *matHeaderCellDef>Vendor</th><td mat-cell *matCellDef="let row"><div class="entity-cell"><span class="status-dot" [attr.data-state]="vendorSummaryState(row)"></span><span>{{ row.vendorName }}</span></div></td></ng-container>
         <ng-container matColumnDef="pendingOrders"><th mat-header-cell *matHeaderCellDef>Pending</th><td mat-cell *matCellDef="let row">{{ row.pendingOrders }}</td></ng-container>
         <ng-container matColumnDef="awaitingPdf"><th mat-header-cell *matHeaderCellDef>Awaiting PDF</th><td mat-cell *matCellDef="let row">{{ row.awaitingPdf }}</td></ng-container>
         <ng-container matColumnDef="awaitingBillCapture"><th mat-header-cell *matHeaderCellDef>Awaiting Bill</th><td mat-cell *matCellDef="let row">{{ row.awaitingBillCapture }}</td></ng-container>
@@ -33,10 +38,10 @@
         <ng-container matColumnDef="pendingBillAmount"><th mat-header-cell *matHeaderCellDef>Pending Bill</th><td mat-cell *matCellDef="let row">{{ row.pendingBillAmount | number:'1.0-2' }}</td></ng-container>
         <ng-container matColumnDef="lastActivity"><th mat-header-cell *matHeaderCellDef>Last Activity</th><td mat-cell *matCellDef="let row">{{ row.lastActivity || '—' }}</td></ng-container>
         <ng-container matColumnDef="templateStatus"><th mat-header-cell *matHeaderCellDef>Template</th><td mat-cell *matCellDef="let row"><app-status-pill [label]="row.templateStatus"></app-status-pill></td></ng-container>
-        <ng-container matColumnDef="ledgerBalance"><th mat-header-cell *matHeaderCellDef>Ledger Balance</th><td mat-cell *matCellDef="let row">{{ row.ledgerBalance | number:'1.0-2' }}</td></ng-container>
+        <ng-container matColumnDef="ledgerBalance"><th mat-header-cell *matHeaderCellDef>Ledger Balance</th><td mat-cell *matCellDef="let row"><span class="balance-indicator" [attr.data-state]="balanceState(row.ledgerBalance, vendorSummaryState(row))">{{ row.ledgerBalance | number:'1.0-2' }}</span></td></ng-container>
         <ng-container matColumnDef="actions"><th mat-header-cell *matHeaderCellDef>Action</th><td mat-cell *matCellDef="let row"><button mat-stroked-button color="primary" (click)="viewVendor(row.vendorId)">View</button></td></ng-container>
         <tr mat-header-row *matHeaderRowDef="summaryColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: summaryColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: summaryColumns" [class.active-summary-row]="isSelectedVendor(row.vendorId)"></tr>
       </table>
     </div>
     <ng-template #emptySummary>
@@ -45,10 +50,13 @@
   </mat-card>
 
   <section class="detail-grid" *ngIf="selectedVendor">
-    <mat-card class="detail-card">
+    <mat-card class="detail-card active-detail-card">
       <div class="card-header">
         <div>
-          <div class="card-title">{{ selectedVendor.vendor.vendorName }}</div>
+          <div class="detail-title-row">
+            <div class="card-title">{{ selectedVendor.vendor.vendorName }}</div>
+            <span class="settlement-badge" [attr.data-state]="selectedVendorSettlementState">{{ selectedVendorSettlementLabel }}</span>
+          </div>
           <div class="card-subtitle">Operational drill-down across pending orders and billing follow-up.</div>
         </div>
       </div>
@@ -58,7 +66,7 @@
         <div class="mini-kpi"><div class="label">Awaiting PDF</div><div class="value">{{ selectedVendor.kpis.awaitingPdf }}</div></div>
         <div class="mini-kpi"><div class="label">Awaiting Bill</div><div class="value">{{ selectedVendor.kpis.awaitingBillCapture }}</div></div>
         <div class="mini-kpi"><div class="label">Vendor Bill Total</div><div class="value">{{ selectedVendor.kpis.totalVendorBillAmount | number:'1.0-2' }}</div></div>
-        <div class="mini-kpi"><div class="label">Outstanding Balance</div><div class="value">{{ selectedVendor.kpis.outstandingBalance | number:'1.0-2' }}</div></div>
+        <div class="mini-kpi"><div class="label">Outstanding Balance</div><div class="value balance-indicator" [attr.data-state]="selectedVendorSettlementState">{{ selectedVendor.kpis.outstandingBalance | number:'1.0-2' }}</div></div>
         <div class="mini-kpi"><div class="label">Parse Success %</div><div class="value">{{ selectedVendor.kpis.parseSuccessRate | number:'1.0-2' }}</div></div>
       </div>
 
@@ -87,7 +95,12 @@
 
     <mat-card class="detail-card">
       <div class="subsection">
-        <div class="subsection-title">Ledger</div>
+        <div class="subsection-header">
+          <div class="subsection-title">Ledger</div>
+          <button mat-icon-button type="button" color="primary" class="subsection-action" (click)="downloadLedger()" [disabled]="!ledger.length" aria-label="Download vendor ledger">
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
         <div class="table-wrapper" *ngIf="ledger.length; else emptyLedger">
           <table mat-table [dataSource]="ledger" class="pro-table mat-elevation-z1">
             <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let row">{{ row.date }}</td></ng-container>

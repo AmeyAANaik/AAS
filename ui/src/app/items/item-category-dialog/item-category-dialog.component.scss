@@ -1,0 +1,76 @@
+.dialog-content {
+  width: min(1080px, 90vw);
+  max-width: 100%;
+  padding-top: 8px;
+}
+
+.dialog-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.category-select {
+  min-width: 280px;
+}
+
+.dialog-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.95fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.pane-title {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.items-table-wrapper {
+  max-height: 460px;
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.popup-table {
+  width: 100%;
+}
+
+.popup-table .mat-mdc-header-cell {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.popup-table .mat-mdc-header-row {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.item-actions {
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .dialog-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .category-select {
+    min-width: 0;
+  }
+
+  .dialog-grid {
+    grid-template-columns: 1fr;
+  }
+}

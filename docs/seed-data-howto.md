@@ -63,6 +63,15 @@ PASSWORD=admin \
 bash ./scripts/test-ocr-flow.sh
 ```
 
+Direct API create-order smoke test now uses `aas_category` instead of `aas_vendor`:
+
+```bash
+cd /Users/roshninaik/Projects/AAS
+BASE_URL=http://localhost:8083 \
+TOKEN=<jwt> \
+bash ./scripts/test-create-order.sh
+```
+
 ## Verify In UI
 
 Open:

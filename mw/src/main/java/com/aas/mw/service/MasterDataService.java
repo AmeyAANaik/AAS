@@ -33,6 +33,7 @@ public class MasterDataService {
     private final OcrService ocrService;
     private final VendorInvoiceTemplateParser templateParser;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
+    private final CatalogRoutingService catalogRoutingService;
     private final String erpPublicBaseUrl;
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -43,6 +44,7 @@ public class MasterDataService {
             OcrService ocrService,
             VendorInvoiceTemplateParser templateParser,
             InvoiceTemplateModelService invoiceTemplateModelService,
+            CatalogRoutingService catalogRoutingService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl) {
         this.erpNextClient = erpNextClient;
         this.vendorFieldRegistry = vendorFieldRegistry;
@@ -50,6 +52,7 @@ public class MasterDataService {
         this.ocrService = ocrService;
         this.templateParser = templateParser;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
+        this.catalogRoutingService = catalogRoutingService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
     }
 
@@ -57,7 +60,7 @@ public class MasterDataService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
+                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\"]");
         params.put("filters", activeItemFiltersJson());
         params.put("limit_page_length", 1000);
         return erpNextClient.listResources("Item", params);
@@ -72,7 +75,7 @@ public class MasterDataService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\"]");
+                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\"]");
         params.put("limit_start", (safePage - 1) * safeSize);
         params.put("limit_page_length", safeSize);
         params.put("order_by", orderBy);
@@ -111,7 +114,10 @@ public class MasterDataService {
     }
 
     public List<Map<String, Object>> listCategories() {
-        return erpNextClient.listResources("Item Group", null);
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_group_name\",\"parent_item_group\",\"aas_category_code\"]");
+        params.put("limit_page_length", 1000);
+        return erpNextClient.listResources("Item Group", params);
     }
 
     public List<Map<String, Object>> listShops() {
@@ -223,6 +229,8 @@ public class MasterDataService {
         Map<String, Object> payload = new HashMap<>();
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
+        normalizeVendorCodePayload(payload);
+        validateVendorCategoryPayload(payload);
         applyTemplateFlags(payload);
         payload.putIfAbsent("supplier_type", "Company");
         payload.putIfAbsent("supplier_group", "All Supplier Groups");
@@ -235,6 +243,8 @@ public class MasterDataService {
         Map<String, Object> payload = new HashMap<>();
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
+        normalizeVendorCodePayload(payload);
+        validateVendorCategoryPayload(payload);
         applyTemplateFlags(payload);
         return erpNextClient.updateResource("Supplier", id, payload);
     }
@@ -281,11 +291,20 @@ public class MasterDataService {
     public Map<String, Object> createCategory(FieldsRequest request) {
         Map<String, Object> payload = new HashMap<>(request.getFields());
         payload.putIfAbsent("parent_item_group", "All Item Groups");
+        String categoryCode = catalogRoutingService.normalizeCodeSegment(asText(payload.get("aas_category_code")));
+        if (categoryCode.isBlank()) {
+            throw new IllegalArgumentException("Category code is required.");
+        }
+        payload.put("aas_category_code", categoryCode);
         return erpNextClient.createResource("Item Group", payload);
     }
 
     public Map<String, Object> updateCategory(String id, FieldsRequest request) {
-        return erpNextClient.updateResource("Item Group", id, new HashMap<>(request.getFields()));
+        Map<String, Object> payload = new HashMap<>(request.getFields());
+        if (payload.containsKey("aas_category_code")) {
+            payload.put("aas_category_code", catalogRoutingService.normalizeCodeSegment(asText(payload.get("aas_category_code"))));
+        }
+        return erpNextClient.updateResource("Item Group", id, payload);
     }
 
     public Map<String, Object> deleteCategory(String id) {
@@ -318,7 +337,20 @@ public class MasterDataService {
 
     public Map<String, Object> createItem(FieldsRequest request) {
         Map<String, Object> payload = new HashMap<>(request.getFields());
-        payload.putIfAbsent("item_group", "All Item Groups");
+        String categoryId = asText(payload.get("item_group"));
+        if (categoryId.isBlank()) {
+            throw new IllegalArgumentException("Category is required.");
+        }
+        String vendorHsnCode = firstText(payload.get("aas_vendor_hsn_code"), payload.get("vendor_hsn_code"));
+        CatalogRoutingService.VendorCategoryResolution resolution = catalogRoutingService.resolveTopVendorForCategory(categoryId);
+        payload.put("item_group", resolution.categoryId());
+        payload.put("item_code", catalogRoutingService.buildItemCode(
+                resolution.vendorCode(),
+                resolution.categoryCode(),
+                vendorHsnCode));
+        payload.put("aas_vendor", resolution.vendorId());
+        payload.put("aas_vendor_hsn_code", catalogRoutingService.normalizeCodeSegment(vendorHsnCode));
+        payload.remove("vendor_hsn_code");
         payload.putIfAbsent("stock_uom", "Nos");
         payload.putIfAbsent("is_stock_item", 1);
         return erpNextClient.createResource("Item", payload);
@@ -329,7 +361,16 @@ public class MasterDataService {
     }
 
     public Map<String, Object> updateItem(String id, FieldsRequest request) {
-        return erpNextClient.updateResource("Item", id, new HashMap<>(request.getFields()));
+        Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
+        Map<String, Object> payload = new HashMap<>();
+        copyIfPresent(fields, payload, "item_name");
+        copyIfPresent(fields, payload, "stock_uom");
+        copyIfPresent(fields, payload, "aas_packaging_unit");
+        copyIfPresent(fields, payload, "aas_margin_percent");
+        if (payload.isEmpty()) {
+            return unwrapResource(erpNextClient.getResource("Item", id));
+        }
+        return erpNextClient.updateResource("Item", id, payload);
     }
 
     public Map<String, Object> deleteItem(String id) {
@@ -395,6 +436,27 @@ public class MasterDataService {
         return "";
     }
 
+    private void normalizeVendorCodePayload(Map<String, Object> payload) {
+        if (payload == null) {
+            return;
+        }
+        if (payload.containsKey("aas_vendor_code")) {
+            payload.put("aas_vendor_code", catalogRoutingService.normalizeCodeSegment(asText(payload.get("aas_vendor_code"))));
+        }
+    }
+
+    private void validateVendorCategoryPayload(Map<String, Object> payload) {
+        if (payload == null) {
+            return;
+        }
+        if (payload.containsKey("aas_vendor_code") && asText(payload.get("aas_vendor_code")).isBlank()) {
+            throw new IllegalArgumentException("Vendor code is required.");
+        }
+        if (payload.containsKey("aas_category") && asText(payload.get("aas_category")).isBlank()) {
+            throw new IllegalArgumentException("Category is required.");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> unwrapResource(Map<String, Object> response) {
         if (response == null) {
@@ -417,24 +479,39 @@ public class MasterDataService {
         if (fields == null || fields.isEmpty()) {
             return;
         }
-        boolean disabled = asFlag(fields.get("disabled"));
+        Map<String, Object> supplier = vendorId == null || vendorId.isBlank()
+                ? Map.of()
+                : unwrapResource(erpNextClient.getResource("Supplier", vendorId));
+        boolean disabled = fields.containsKey("disabled")
+                ? asFlag(fields.get("disabled"))
+                : asFlag(supplier.get("disabled"));
         if (disabled) {
             return;
         }
-        String templateJson = asText(fields.get("invoice_template_json"));
+        String templateJson = firstText(
+                fields.get("invoice_template_json"),
+                fields.get("aas_invoice_template_json"),
+                supplier.get("aas_invoice_template_json"),
+                supplier.get("invoice_template_json"));
         if (templateJson.isBlank()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Active vendors require invoice template JSON to be present.");
+        }
+        boolean isCreate = vendorId == null || vendorId.isBlank();
+        boolean activatingVendor = !isCreate && asFlag(supplier.get("disabled"));
+        String currentTemplateJson = firstText(
+                supplier.get("aas_invoice_template_json"),
+                supplier.get("invoice_template_json"));
+        boolean templateChanged = isCreate || !templateJson.equals(currentTemplateJson);
+        if (!templateChanged && !activatingVendor) {
+            return;
         }
         if (!hasTemplateParser(templateJson)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Vendor invoice template JSON must include a parser with itemLineRegex.");
         }
-        Map<String, Object> supplier = vendorId == null || vendorId.isBlank()
-                ? Map.of()
-                : unwrapResource(erpNextClient.getResource("Supplier", vendorId));
         if (!hasTemplateSample(supplier)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,

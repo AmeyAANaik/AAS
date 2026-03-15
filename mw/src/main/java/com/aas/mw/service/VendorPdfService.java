@@ -36,6 +36,7 @@ public class VendorPdfService {
     private final VendorInvoiceTemplateCatalog templateCatalog;
     private final VendorInvoiceTemplateParser templateParser;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final CatalogRoutingService catalogRoutingService;
     private final ObjectMapper objectMapper;
     private final double defaultMarginPercent;
 
@@ -48,6 +49,7 @@ public class VendorPdfService {
             VendorInvoiceTemplateCatalog templateCatalog,
             VendorInvoiceTemplateParser templateParser,
             OrderFlowStateMachine orderFlowStateMachine,
+            CatalogRoutingService catalogRoutingService,
             ObjectMapper objectMapper,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
@@ -58,6 +60,7 @@ public class VendorPdfService {
         this.templateCatalog = templateCatalog;
         this.templateParser = templateParser;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.catalogRoutingService = catalogRoutingService;
         this.objectMapper = objectMapper;
         this.defaultMarginPercent = defaultMarginPercent;
     }
@@ -77,14 +80,20 @@ public class VendorPdfService {
         String customer = asText(orderData.get("customer"));
         String company = asText(orderData.get("company"));
         String vendor = asText(orderData.get("aas_vendor"));
+        String category = asText(orderData.get("aas_category"));
         String currentStatus = asText(orderData.get("aas_status"));
         orderFlowStateMachine.ensureCanUploadVendorPdf(currentStatus);
         if (vendor.isBlank()) {
             throw new IllegalStateException("Vendor must be assigned before uploading vendor PDF.");
         }
+        if (category.isBlank()) {
+            throw new IllegalStateException("Order category is required before uploading vendor PDF.");
+        }
         if (customer.isBlank() || company.isBlank()) {
             throw new IllegalStateException("Order must include customer and company before processing vendor PDF.");
         }
+        CatalogRoutingService.VendorCategoryResolution vendorResolution =
+                catalogRoutingService.resolveVendorForCategory(vendor, category);
 
         String ocrText = ocrService.extractTextFromPdf(pdfBytes);
         if (ocrText == null || ocrText.isBlank()) {
@@ -147,7 +156,7 @@ public class VendorPdfService {
                             + "Ensure the invoice contains an item table with Qty/Rate/Amount columns, or upload a clearer PDF export.");
         }
 
-        List<Map<String, Object>> baseItems = resolveItems(parsedItems);
+        List<Map<String, Object>> baseItems = resolveItems(parsedItems, vendorResolution);
         List<Map<String, Object>> sourceOrderItems = withVendorRate(baseItems);
         List<Map<String, Object>> sellItems = withSellMargin(baseItems);
         double marginPercent = calculateDerivedMarginPercent(sourceOrderItems);
@@ -427,19 +436,24 @@ public class VendorPdfService {
         }
     }
 
-    private List<Map<String, Object>> resolveItems(List<ParsedItem> parsedItems) {
+    private List<Map<String, Object>> resolveItems(
+            List<ParsedItem> parsedItems,
+            CatalogRoutingService.VendorCategoryResolution vendorResolution) {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
-            String itemCode = findItemCodeByName(itemName);
-            if (itemCode == null) {
-                String normalized = normalizeNameForLookup(itemName);
-                if (!normalized.isBlank() && !normalized.equalsIgnoreCase(itemName)) {
-                    itemCode = findSingleItemCodeByLike(normalized);
-                }
-                if (itemCode == null) {
-                    itemCode = createItem(itemName);
-                }
+            String vendorHsnCode = catalogRoutingService.normalizeCodeSegment(item.hsn());
+            if (vendorHsnCode.isBlank()) {
+                throw new IllegalStateException(
+                        "Vendor HSN code is required for parsed item \"" + itemName
+                                + "\". Update the vendor template/parser so item_id or hsn is captured.");
+            }
+            String itemCode = catalogRoutingService.buildItemCode(
+                    vendorResolution.vendorCode(),
+                    vendorResolution.categoryCode(),
+                    vendorHsnCode);
+            if (!resourceExists(itemCode)) {
+                itemCode = createItem(itemName, vendorResolution, vendorHsnCode);
             }
             ensureItemEnabled(itemCode);
             Map<String, Object> row = new HashMap<>();
@@ -595,17 +609,34 @@ public class VendorPdfService {
         return name == null ? null : name.toString();
     }
 
-    private String createItem(String itemName) {
+    private String createItem(
+            String itemName,
+            CatalogRoutingService.VendorCategoryResolution vendorResolution,
+            String vendorHsnCode) {
         Map<String, Object> payload = new HashMap<>();
-        String code = normalizeItemCode(itemName);
+        String code = catalogRoutingService.buildItemCode(
+                vendorResolution.vendorCode(),
+                vendorResolution.categoryCode(),
+                vendorHsnCode);
         payload.put("item_code", code);
         payload.put("item_name", itemName);
-        payload.put("item_group", "All Item Groups");
+        payload.put("item_group", vendorResolution.categoryId());
         payload.put("stock_uom", "Nos");
         payload.put("is_stock_item", 1);
+        payload.put("aas_vendor", vendorResolution.vendorId());
+        payload.put("aas_vendor_hsn_code", vendorHsnCode);
         Map<String, Object> created = erpNextClient.createResource(ITEM, payload);
         Object name = created.get("name");
         return name == null ? code : name.toString();
+    }
+
+    private boolean resourceExists(String itemCode) {
+        try {
+            Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
+            return !item.isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private Map<String, Object> createPurchaseOrder(

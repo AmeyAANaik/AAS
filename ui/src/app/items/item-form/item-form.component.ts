@@ -10,15 +10,22 @@ import { ItemFormValue, ItemView } from '../item.model';
 })
 export class ItemFormComponent implements OnChanges {
   private readonly defaultMarginPercent = 7;
+  readonly measureUnits = ['Nos', 'KG', 'GMS', 'LTR', 'ML', 'PCS', 'BOX', 'PACK', 'BAG', 'DOZEN'];
   @Input() item: ItemView | null = null;
   @Input() categories: Category[] = [];
+  @Input() initialCategory = '';
+  @Input() lockCategory = false;
+  @Input() resolvedVendorName = '';
+  @Input() resolvedVendorCode = '';
+  @Input() categoryCode = '';
+  @Input() formVersion = 0;
   @Input() isSaving = false;
   @Input() statusMessage = '';
   @Output() save = new EventEmitter<ItemFormValue>();
   @Output() reset = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
-    itemCode: ['', [Validators.required, Validators.maxLength(140)]],
+    vendorHsnCode: ['', [Validators.required, Validators.maxLength(140)]],
     itemName: ['', [Validators.required, Validators.maxLength(140)]],
     category: ['', [Validators.required]],
     measureUnit: ['', [Validators.required, Validators.maxLength(64)]],
@@ -31,27 +38,17 @@ export class ItemFormComponent implements OnChanges {
   ngOnChanges(): void {
     if (this.item) {
       this.form.patchValue({
-        itemCode: this.item.code,
+        vendorHsnCode: this.item.vendorHsnCode,
         itemName: this.item.name,
         category: this.item.category,
         measureUnit: this.item.measureUnit,
         packagingUnit: this.item.packagingUnit,
         marginPercent: this.resolveMarginPercent(this.item.marginPercent)
       });
-      this.form.get('itemCode')?.disable({ emitEvent: false });
-      this.form.get('itemName')?.disable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
-    this.form.enable({ emitEvent: false });
-    this.form.reset({
-      itemCode: '',
-      itemName: '',
-      category: '',
-      measureUnit: 'Nos',
-      packagingUnit: '',
-      marginPercent: this.defaultMarginPercent
-    });
+    this.resetFormState();
   }
 
   submit(): void {
@@ -63,16 +60,21 @@ export class ItemFormComponent implements OnChanges {
   }
 
   clear(): void {
-    this.form.enable({ emitEvent: false });
+    this.resetFormState();
+    this.reset.emit();
+  }
+
+  private resetFormState(): void {
     this.form.reset({
-      itemCode: '',
+      vendorHsnCode: '',
       itemName: '',
-      category: '',
+      category: this.initialCategory || '',
       measureUnit: 'Nos',
       packagingUnit: '',
       marginPercent: this.defaultMarginPercent
     });
-    this.reset.emit();
+    this.form.markAsUntouched();
+    this.form.markAsPristine();
   }
 
   private resolveMarginPercent(value: number | null): number {
@@ -81,4 +83,5 @@ export class ItemFormComponent implements OnChanges {
     }
     return value;
   }
+
 }

@@ -1,15 +1,23 @@
+export interface OrderBranchImage {
+  id: string;
+  file_name: string;
+  file_url: string;
+}
+
 export type OrderStatus = 'Accepted' | 'Preparing' | 'Ready' | 'Delivered' | 'Pending' | 'Unknown' | string;
 
 export interface OrderSummary {
   name?: string;
+  title?: string;
   customer?: string;
   company?: string;
+  aas_category?: string;
   transaction_date?: string;
   delivery_date?: string;
   currency?: string;
   price_list_currency?: string;
   aas_vendor?: string;
-  aas_branch_image?: string;
+  branch_images?: OrderBranchImage[];
   aas_vendor_pdf?: string;
   aas_status?: string;
   status?: string;
@@ -58,6 +66,7 @@ export interface OrderCreateLine {
 export interface OrderCreatePayload {
   customer: string;
   company: string;
+  aas_category?: string;
   transaction_date: string;
   delivery_date: string;
   items: OrderCreateLine[];

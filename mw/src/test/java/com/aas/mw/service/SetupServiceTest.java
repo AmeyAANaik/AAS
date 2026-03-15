@@ -25,6 +25,7 @@ class SetupServiceTest {
         erpNextClient = mock(ErpNextClient.class);
         CustomFieldProvisioner customFieldProvisioner = mock(CustomFieldProvisioner.class);
         VendorFieldRegistry vendorFieldRegistry = new VendorFieldRegistry(new VendorFieldsProperties());
+        CatalogRoutingService catalogRoutingService = new CatalogRoutingService(erpNextClient);
         when(customFieldProvisioner.ensure(
                 eq("Supplier"), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
@@ -77,6 +78,7 @@ class SetupServiceTest {
                 erpNextClient,
                 customFieldProvisioner,
                 vendorFieldRegistry,
+                catalogRoutingService,
                 false,
                 "Supplier",
                 "Customer",

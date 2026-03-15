@@ -52,6 +52,20 @@ export class VendorOpsService {
     });
   }
 
+  downloadAllVendorLedgers(): Observable<Blob> {
+    return this.http.get('/api/vendor-ops/ledger/export', {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadVendorLedger(vendorId: string): Observable<Blob> {
+    return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
