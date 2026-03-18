@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
@@ -8,6 +7,7 @@ import { Vendor, VendorFormValue, VendorTemplateValidation, VendorView } from '.
 import { VendorService } from '../vendor.service';
 import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { formatUiError } from '../../shared/error-message.util';
 
 @Component({
   selector: 'app-vendor-list',
@@ -135,6 +135,17 @@ export class VendorListComponent implements OnInit {
       .pipe(finalize(() => (this.isValidatingTemplate = false)))
       .subscribe({
         next: response => {
+          if (this.selectedVendor) {
+            this.selectedVendor = {
+              ...this.selectedVendor,
+              status: response.validation.activationReady ? 'Active' : this.selectedVendor.status,
+              raw: {
+                ...this.selectedVendor.raw,
+                invoice_template_json: payload.templateJson,
+                invoice_template_sample_pdf: response.file?.fileUrl ?? this.selectedVendor.raw.invoice_template_sample_pdf
+              }
+            };
+          }
           this.templateValidation = response.validation;
           this.statusMessage = response.validation.activationReady
             ? 'Template validation passed. Vendor can be activated.'
@@ -194,6 +205,7 @@ export class VendorListComponent implements OnInit {
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: () => {
+          this.templateValidation = null;
           this.statusMessage = 'Template cleared.';
           this.loadVendors();
         },
@@ -254,24 +266,7 @@ export class VendorListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof HttpErrorResponse) {
-      const payload: any = err.error;
-      const message = typeof payload === 'string' ? payload : payload?.error || payload?.message;
-      if (typeof message === 'string' && message.trim()) {
-        return message.trim();
-      }
-      if (typeof err.message === 'string' && err.message.trim()) {
-        return err.message.trim();
-      }
-      return fallback;
-    }
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 
   private asFlag(value: unknown): boolean {

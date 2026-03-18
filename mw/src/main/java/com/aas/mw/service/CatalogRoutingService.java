@@ -73,7 +73,11 @@ public class CatalogRoutingService {
         }
 
         String vendorCategory = asText(vendor.get("aas_category"));
-        if (!vendorCategory.isBlank() && !vendorCategory.equals(normalizedCategoryId)) {
+        if (vendorCategory.isBlank()) {
+            throw new IllegalStateException("Vendor \"" + firstText(vendor.get("supplier_name"), vendor.get("name"))
+                    + "\" does not have a category configured.");
+        }
+        if (!vendorCategory.equals(normalizedCategoryId)) {
             throw new IllegalStateException("Vendor \"" + firstText(vendor.get("supplier_name"), vendor.get("name"))
                     + "\" does not belong to category \"" + normalizedCategoryId + "\".");
         }

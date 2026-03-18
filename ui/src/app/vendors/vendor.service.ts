@@ -30,24 +30,21 @@ export class VendorService {
     return this.http.delete(`/api/vendors/${encodeURIComponent(id)}/invoice-template`, { headers: this.authHeaders() });
   }
 
-  uploadInvoiceTemplateSample(id: string, file: File, templateJson: string): Observable<{ validation: VendorTemplateValidation }> {
+  uploadInvoiceTemplateSample(
+    id: string,
+    file: File,
+    templateJson: string
+  ): Observable<{ validation: VendorTemplateValidation; file?: { fileUrl?: string } }> {
     const formData = new FormData();
     formData.append('file', file);
     if (templateJson.trim()) {
       formData.append('templateJson', templateJson.trim());
     }
-    return this.http.post<{ validation: VendorTemplateValidation }>(
+    return this.http.post<{ validation: VendorTemplateValidation; file?: { fileUrl?: string } }>(
       `/api/vendors/${encodeURIComponent(id)}/invoice-template/sample`,
       formData,
       { headers: this.authHeaders() }
     );
-  }
-
-  downloadInvoiceTemplateSample(id: string): Observable<Blob> {
-    return this.http.get(`/api/vendors/${encodeURIComponent(id)}/invoice-template/sample`, {
-      headers: this.authHeaders(),
-      responseType: 'blob'
-    });
   }
 
   private authHeaders(): HttpHeaders {

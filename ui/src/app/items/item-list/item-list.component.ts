@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
+import { formatUiError } from '../../shared/error-message.util';
 import { VendorService } from '../../vendors/vendor.service';
 import { ItemCategoryDialogComponent } from '../item-category-dialog/item-category-dialog.component';
 import { ItemMetadataService } from '../item-metadata.service';
@@ -146,13 +147,7 @@ export class ItemListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 
   private asFlag(value: unknown): boolean {

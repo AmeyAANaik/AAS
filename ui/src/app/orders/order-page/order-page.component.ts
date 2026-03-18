@@ -15,6 +15,7 @@ import { MatTableDataSource } from '@angular/material/table';
 import { OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue } from './order-advanced-filters-dialog.component';
 import { OrderDeleteConfirmDialogComponent, OrderDeleteConfirmDialogData } from './order-delete-confirm-dialog.component';
 import { OrderBranchImageGalleryDialogComponent } from './order-branch-image-gallery-dialog.component';
+import { formatUiError } from '../../shared/error-message.util';
 
 type UiOrderStatus =
   | 'DRAFT'
@@ -24,6 +25,8 @@ type UiOrderStatus =
   | 'SELL_ORDER_CREATED'
   | 'INVOICED'
   | (string & {});
+
+const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
 
 interface UiOrder {
   name: string;
@@ -48,7 +51,7 @@ interface PdfParseResult {
   fileName?: string;
   fileUrl?: string;
   items?: unknown[];
-  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number; aas_margin_percent?: number }>;
+  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number; aas_margin_percent?: number; aas_vendor_rate?: number; aas_mrp?: number }>;
   template?: { configured?: boolean; used?: boolean; key?: string };
   vendorBillTotal?: number;
   vendorBillRef?: string;
@@ -64,6 +67,9 @@ interface UiOrderLine {
   rate: number;
   amount: number;
   aas_margin_percent: number;
+  aas_vendor_rate?: number | null;
+  aas_mrp?: number | null;
+  mrpApplied: boolean;
 }
 
 @Component({
@@ -597,7 +603,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         };
         const items = Array.isArray(data?.items) ? data.items : [];
-        this.orderLines = items.map((row: any) => this.toUiOrderLine(row)).filter((row: UiOrderLine) => row.item_code);
+        this.orderLines = items
+          .map((row: any) => this.toUiOrderLine(row))
+          .filter((row: UiOrderLine) => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
       },
       error: () => {
         // Non-blocking: user can still proceed with upload/capture steps.
@@ -680,8 +688,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   canDeleteOrder(order: UiOrder): boolean {
-    const status = (order?.status ?? 'DRAFT') as UiOrderStatus;
-    return status === 'DRAFT' || status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
+    return !!String(order?.name ?? '').trim();
   }
 
   confirmDeleteOrder(order: UiOrder): void {
@@ -719,7 +726,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         this.orders = this.orders.filter(o => o.name !== orderId);
         this.dataSource.data = this.orders;
         this.updateTableFilter();
-        this.snackBar.open(`Order ${orderId} deleted.`, 'Dismiss', { duration: 3000 });
+        this.snackBar.open(`Order ${orderId} archived.`, 'Dismiss', { duration: 3000 });
       },
       error: err => {
         this.errorMessage = this.formatError(err, `Unable to delete order ${orderId}`);
@@ -773,7 +780,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.pdfData = parsed;
           const lines = parsed?.orderItems ?? [];
           if (Array.isArray(lines) && lines.length) {
-            this.orderLines = lines.map(line => this.toUiOrderLine(line)).filter(row => row.item_code);
+            this.orderLines = lines
+              .map(line => this.toUiOrderLine(line))
+              .filter(row => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
           }
           this.updateBillMismatchError();
 
@@ -821,6 +830,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     line.rate = Number.isFinite(rate) ? rate : 0;
     line.aas_margin_percent = Number.isFinite(margin) && margin >= 0 ? margin : 0;
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
+    line.aas_vendor_rate = line.rate;
+    line.mrpApplied = this.isMrpCapApplied(line);
     this.updateBillMismatchError();
   }
 
@@ -881,11 +892,17 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.errorMessage = 'Margin must be a non-negative number for every item.';
       return;
     }
+    const invalidMrp = this.orderLines.find(line => this.hasMrpViolation(line));
+    if (invalidMrp) {
+      this.errorMessage = `Vendor rate exceeds MRP for ${invalidMrp.item_name || invalidMrp.item_code}.`;
+      return;
+    }
     const payload: OrderItemPayload[] = this.orderLines.map(line => ({
       item_code: line.item_code,
       qty: Number(line.qty ?? 0),
       rate: Number(line.rate ?? 0),
-      aas_margin_percent: Number(line.aas_margin_percent ?? 0)
+      aas_margin_percent: Number(line.aas_margin_percent ?? 0),
+      aas_mrp: Number(line.aas_mrp ?? 0) || undefined
     }));
     this.isItemsSaving = true;
     this.errorMessage = '';
@@ -896,7 +913,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         next: res => {
           const items = (res as any)?.items ?? [];
           if (Array.isArray(items) && items.length) {
-            this.orderLines = items.map((row: any) => this.toUiOrderLine(row)).filter((row: UiOrderLine) => row.item_code);
+            this.orderLines = items
+              .map((row: any) => this.toUiOrderLine(row))
+              .filter((row: UiOrderLine) => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
           }
           this.updateBillMismatchError();
           this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
@@ -1070,14 +1089,38 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const rate = Number(row?.rate ?? 0);
     const amount = Number(row?.amount ?? qty * rate);
     const margin = Number(row?.aas_margin_percent ?? 0);
-    return {
+    const vendorRate = Number(row?.aas_vendor_rate ?? rate);
+    const mrp = Number(row?.aas_mrp ?? 0);
+    const line: UiOrderLine = {
       item_code: String(row?.item_code ?? '').trim(),
       item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
       qty: Number.isFinite(qty) ? qty : 0,
       rate: Number.isFinite(rate) ? rate : 0,
       amount: Number.isFinite(amount) ? amount : 0,
-      aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0
+      aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0,
+      aas_vendor_rate: Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : null,
+      aas_mrp: Number.isFinite(mrp) && mrp > 0 ? mrp : null,
+      mrpApplied: false
     };
+    line.mrpApplied = this.isMrpCapApplied(line);
+    return line;
+  }
+
+  private isMrpCapApplied(line: UiOrderLine): boolean {
+    const mrp = Number(line.aas_mrp ?? 0);
+    const vendorRate = Number(line.aas_vendor_rate ?? line.rate ?? 0);
+    const margin = Number(line.aas_margin_percent ?? 0);
+    if (!Number.isFinite(mrp) || mrp <= 0 || !Number.isFinite(vendorRate) || vendorRate <= 0) {
+      return false;
+    }
+    const requestedSellRate = Math.round(vendorRate * (1 + Math.max(margin, 0) / 100) * 100) / 100;
+    return requestedSellRate >= mrp && vendorRate < mrp && margin > 0;
+  }
+
+  private hasMrpViolation(line: UiOrderLine): boolean {
+    const mrp = Number(line.aas_mrp ?? 0);
+    const vendorRate = Number(line.aas_vendor_rate ?? line.rate ?? 0);
+    return Number.isFinite(mrp) && mrp > 0 && Number.isFinite(vendorRate) && vendorRate > mrp;
   }
 
   get branchImages(): OrderBranchImage[] {
@@ -1234,16 +1277,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    const message = (err as { error?: { message?: string } } | null)?.error?.message;
-    if (typeof message === 'string' && message.trim()) {
-      return message;
-    }
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

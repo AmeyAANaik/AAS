@@ -120,10 +120,12 @@
               (change)="onSampleFileSelected($event)" />
             <button
               mat-stroked-button
+              class="sample-upload-button"
+              [class.upload-ready]="hasUploadedSample"
               type="button"
-              (click)="sampleInput.click()"
+              (click)="triggerSampleUpload()"
               [disabled]="mode !== 'edit' || isValidatingTemplate">
-              {{ sampleFile ? 'Change sample PDF' : 'Choose sample PDF' }}
+              Upload sample PDF
             </button>
             <button
               mat-flat-button
@@ -135,19 +137,17 @@
             </button>
             <button
               mat-stroked-button
-              type="button"
               color="warn"
+              class="secondary-action"
+              type="button"
               (click)="clearInvoiceTemplate()"
               [disabled]="mode !== 'edit'">
               Clear template
             </button>
           </div>
 
-          <div class="status" *ngIf="sampleFile">Selected sample: {{ sampleFile.name }}</div>
-          <div class="template-actions" *ngIf="samplePdfUrl">
-            <span class="status">Saved sample: {{ samplePdfName }}</span>
-            <button mat-button type="button" color="primary" (click)="openSamplePdf()">Open sample</button>
-            <button mat-stroked-button type="button" color="primary" (click)="downloadSamplePdf()">Download sample</button>
+          <div class="status upload-status" [class.ready]="hasUploadedSample" *ngIf="sampleFile || samplePdfUrl">
+            {{ sampleFile ? 'Sample PDF selected: ' + sampleFile.name : 'Sample PDF uploaded and available for validation.' }}
           </div>
 
           <div class="validation-panel" *ngIf="templateValidation as validation">
@@ -187,6 +187,9 @@
             <div class="status" *ngIf="validation.finalBillAmount">
               Final bill amount: {{ validation.finalBillAmount }}
             </div>
+            <div class="status" *ngIf="validation.finalBillMatch">
+              Summary match: {{ validation.finalBillMatch }}
+            </div>
 
             <div class="preview-table" *ngIf="validation.previewItems.length">
               <table>
@@ -224,7 +227,7 @@
         <button mat-raised-button color="primary" type="submit" [disabled]="isSaving || form.invalid">
           {{ mode === 'edit' ? 'Update vendor' : 'Save vendor' }}
         </button>
-        <button mat-stroked-button type="button" (click)="clear()">Cancel</button>
+        <button mat-stroked-button class="secondary-action" type="button" (click)="clear()">Cancel</button>
       </div>
       <div class="feedback form-status" *ngIf="statusMessage">{{ statusMessage }}</div>
     </form>

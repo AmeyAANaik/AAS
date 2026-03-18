@@ -11,6 +11,13 @@
       <div class="feedback loading" *ngIf="isLoadingItems">Loading items...</div>
       <div class="feedback error" *ngIf="!isLoadingItems && statusMessage">{{ statusMessage }}</div>
 
+      <div class="section-header" *ngIf="!isLoadingItems">
+        <div>
+          <div class="section-title">Category inventory view</div>
+          <div class="section-subtitle">Open a category to manage items, pricing, and linked vendor configurations.</div>
+        </div>
+      </div>
+
       <div class="table-toolbar" *ngIf="!isLoadingItems">
         <div class="table-meta">
           <div class="meta-title">{{ categoryRows.length }} categories</div>

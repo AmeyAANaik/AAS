@@ -32,6 +32,7 @@ public class InvoiceTemplateModelProperties {
         fields.add(new TemplateField("item_id", "Item No / HSN", true, List.of("item_no", "item_code", "hsn", "hsn_code", "id")));
         fields.add(new TemplateField("qty", "Quantity", true, List.of("quantity")));
         fields.add(new TemplateField("rate", "Rate", true, List.of("unit_rate", "rate_after_tax")));
+        fields.add(new TemplateField("mrp", "MRP", false, List.of("mrp", "retail_price", "max_retail_price")));
         fields.add(new TemplateField("gst", "GST / Tax %", true, List.of("tax", "tax_percent", "gst_percent")));
         fields.add(new TemplateField("total", "Line Total", true, List.of("amount", "line_total", "value_after_tax", "total_value_after_tax")));
         return fields;

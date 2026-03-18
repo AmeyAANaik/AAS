@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class BranchOpsService {
 
+    private static final int ERP_PAGE_SIZE = 500;
     private static final String CUSTOMER = "Customer";
     private static final String SALES_ORDER = "Sales Order";
     private static final String SALES_INVOICE = "Sales Invoice";
@@ -40,7 +41,7 @@ public class BranchOpsService {
         List<Map<String, Object>> branches = fetchBranches();
         List<Map<String, Object>> orders = fetchOrderRows(null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(null);
-        List<Map<String, Object>> payments = fetchCustomerPayments(null);
+        List<Map<String, Object>> payments = fetchCustomerPayments(null, invoices);
 
         List<Map<String, Object>> rows = branches.stream()
                 .map(branch -> buildBranchSummary(branch, orders, invoices, payments))
@@ -67,7 +68,7 @@ public class BranchOpsService {
         }
         List<Map<String, Object>> orderRows = getBranchOrders(branchId, null, null, null, null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> payments = fetchCustomerPayments(branchId);
+        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
 
         Map<String, Object> branchInfo = new LinkedHashMap<>();
         branchInfo.put("branchId", asText(branch.get("name")));
@@ -170,7 +171,7 @@ public class BranchOpsService {
                 .map(row -> unwrap(erpNextClient.getResource(SALES_ORDER, asText(row.get("orderId")))))
                 .toList();
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> payments = fetchCustomerPayments(branchId);
+        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
 
         Map<String, Object> turnaround = new LinkedHashMap<>();
         turnaround.put("avgOrderToInvoiceHours", averageHoursBetweenOrderAndInvoice(fullOrders));
@@ -191,7 +192,8 @@ public class BranchOpsService {
         if (branch.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
         }
-        List<Map<String, Object>> entries = buildLedgerEntries(fetchSalesInvoices(branchId), fetchCustomerPayments(branchId));
+        List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
+        List<Map<String, Object>> entries = buildLedgerEntries(invoices, fetchCustomerPayments(branchId, invoices));
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
@@ -207,8 +209,9 @@ public class BranchOpsService {
                         (left, right) -> left,
                         LinkedHashMap::new));
         List<Map<String, Object>> entries = new ArrayList<>();
+        List<Map<String, Object>> invoices = fetchSalesInvoices(null);
 
-        for (Map<String, Object> invoice : fetchSalesInvoices(null)) {
+        for (Map<String, Object> invoice : invoices) {
             if (asInt(invoice.get("docstatus")) == 2) {
                 continue;
             }
@@ -227,7 +230,7 @@ public class BranchOpsService {
             entries.add(row);
         }
 
-        for (Map<String, Object> payment : fetchCustomerPayments(null)) {
+        for (Map<String, Object> payment : fetchCustomerPayments(null, invoices)) {
             if (asInt(payment.get("docstatus")) == 2) {
                 continue;
             }
@@ -291,7 +294,7 @@ public class BranchOpsService {
     private List<Map<String, Object>> buildLedgerEntries(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
         List<Map<String, Object>> entries = new ArrayList<>();
         for (Map<String, Object> invoice : invoices) {
-            if (asInt(invoice.get("docstatus")) == 2) {
+            if (!isSubmitted(invoice)) {
                 continue;
             }
             double debit = round(asDouble(invoice.get("grand_total")));
@@ -306,7 +309,7 @@ public class BranchOpsService {
             entries.add(row);
         }
         for (Map<String, Object> payment : payments) {
-            if (asInt(payment.get("docstatus")) == 2) {
+            if (!isSubmitted(payment)) {
                 continue;
             }
             double credit = round(resolvePaymentAmount(payment));
@@ -335,40 +338,106 @@ public class BranchOpsService {
     private List<Map<String, Object>> fetchBranches() {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"customer_name\",\"aas_branch_location\",\"aas_credit_days\",\"modified\"]");
-        return erpNextClient.listResources(CUSTOMER, params);
+        return listResourcesPaged(CUSTOMER, params);
     }
 
     private List<Map<String, Object>> fetchOrderRows(String branchId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"aas_vendor_pdf\",\"aas_vendor_bill_total\",\"aas_sell_order_total\",\"aas_po\",\"aas_si_branch\",\"modified\"]");
+        params.put("fields", "[\"name\",\"customer\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"aas_vendor_pdf\",\"aas_vendor_bill_total\",\"aas_sell_order_total\",\"aas_po\",\"aas_si_branch\",\"aas_is_deleted\",\"modified\"]");
         params.put("order_by", "modified desc");
         if (hasText(branchId)) {
             params.put("filters", "[[\"Sales Order\",\"customer\",\"=\",\"" + escapeJson(branchId) + "\"]]");
         }
-        return erpNextClient.listResources(SALES_ORDER, params);
+        return listResourcesPaged(SALES_ORDER, params).stream()
+                .filter(row -> !asFlag(row.get("aas_is_deleted")) && !"DELETED".equalsIgnoreCase(asText(row.get("aas_status"))))
+                .toList();
     }
 
     private List<Map<String, Object>> fetchSalesInvoices(String branchId) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\"]");
         params.put("order_by", "posting_date asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("docstatus", "=", "1"));
         if (hasText(branchId)) {
-            params.put("filters", "[[\"Sales Invoice\",\"customer\",\"=\",\"" + escapeJson(branchId) + "\"]]");
+            filters.add(List.of("customer", "=", branchId));
         }
-        return erpNextClient.listResources(SALES_INVOICE, params);
+        params.put("filters", toJson(filters));
+        return listResourcesPaged(SALES_INVOICE, params);
     }
 
-    private List<Map<String, Object>> fetchCustomerPayments(String branchId) {
+    private List<Map<String, Object>> fetchCustomerPayments(String branchId, List<Map<String, Object>> invoices) {
+        if (invoices == null || invoices.isEmpty()) {
+            return List.of();
+        }
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"party\",\"party_type\",\"posting_date\",\"paid_amount\",\"received_amount\",\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\"]");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("party_type", "=", "Customer"));
+        filters.add(List.of("docstatus", "=", "1"));
         if (hasText(branchId)) {
             filters.add(List.of("party", "=", branchId));
         }
         params.put("filters", toJson(filters));
         params.put("order_by", "posting_date asc");
-        return erpNextClient.listResources(PAYMENT_ENTRY, params);
+        List<Map<String, Object>> payments = listResourcesPaged(PAYMENT_ENTRY, params);
+        return filterPaymentsLinkedToInvoices(payments, invoices);
+    }
+
+    private List<Map<String, Object>> filterPaymentsLinkedToInvoices(
+            List<Map<String, Object>> payments,
+            List<Map<String, Object>> invoices) {
+        if (payments.isEmpty() || invoices.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> invoiceCustomers = invoices.stream()
+                .collect(Collectors.toMap(
+                        invoice -> asText(invoice.get("name")),
+                        invoice -> asText(invoice.get("customer")),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        List<Map<String, Object>> validPayments = new ArrayList<>();
+        for (Map<String, Object> payment : payments) {
+            String paymentName = asText(payment.get("name"));
+            String party = asText(payment.get("party"));
+            if (!hasText(paymentName) || !hasText(party)) {
+                continue;
+            }
+            Map<String, Object> paymentDoc = unwrap(erpNextClient.getResource(PAYMENT_ENTRY, paymentName));
+            List<Map<String, Object>> references = childItems(paymentDoc.get("references"));
+            boolean linkedToBranchInvoice = references.stream().anyMatch(reference -> {
+                if (!SALES_INVOICE.equals(asText(reference.get("reference_doctype")))) {
+                    return false;
+                }
+                String invoiceId = asText(reference.get("reference_name"));
+                String invoiceCustomer = invoiceCustomers.get(invoiceId);
+                return hasText(invoiceCustomer) && invoiceCustomer.equals(party);
+            });
+            if (linkedToBranchInvoice) {
+                validPayments.add(payment);
+            }
+        }
+        return validPayments;
+    }
+
+    private List<Map<String, Object>> listResourcesPaged(String doctype, Map<String, Object> params) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int start = 0;
+        while (true) {
+            Map<String, Object> pageParams = new HashMap<>(params);
+            pageParams.put("limit_start", start);
+            pageParams.put("limit_page_length", ERP_PAGE_SIZE);
+            List<Map<String, Object>> page = erpNextClient.listResources(doctype, pageParams);
+            if (page.isEmpty()) {
+                break;
+            }
+            rows.addAll(page);
+            if (page.size() < ERP_PAGE_SIZE) {
+                break;
+            }
+            start += ERP_PAGE_SIZE;
+        }
+        return rows;
     }
 
     private List<Map<String, Object>> aggregateCount(List<Map<String, Object>> rows, String sourceKey, String targetKey) {
@@ -513,6 +582,10 @@ public class BranchOpsService {
         double received = asDouble(payment.get("received_amount"));
         double paid = asDouble(payment.get("paid_amount"));
         return received > 0 ? received : paid;
+    }
+
+    private boolean isSubmitted(Map<String, Object> doc) {
+        return asInt(doc.get("docstatus")) == 1;
     }
 
     private double getLedgerBalance(List<Map<String, Object>> entries) {

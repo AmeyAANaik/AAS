@@ -130,10 +130,27 @@
       <div class="section-heading">
         <div>
           <p class="label">Select items</p>
-          <p class="muted">Choose one or more items from the selected category. Images can be uploaded later from Manage order.</p>
+          <p class="muted">See all vendors for the selected category, then choose one or more items from that same category. Images can be uploaded later from Manage order.</p>
         </div>
       </div>
       <div class="items-step" *ngIf="detailsGroup.get('category')?.value; else chooseCategoryFirst">
+        <div class="vendor-summary-panel">
+          <div class="vendor-summary-header">
+            <div>
+              <p class="label">Vendors in this category</p>
+              <p class="muted">All active vendors mapped to the selected category are shown here.</p>
+            </div>
+            <span class="vendor-summary-count">{{ categoryVendors.length }} vendors</span>
+          </div>
+          <p class="hint" *ngIf="isVendorsLoading">Loading vendors for this category...</p>
+          <p class="hint" *ngIf="vendorsError">{{ vendorsError }}</p>
+          <p class="hint" *ngIf="!isVendorsLoading && !vendorsError && !categoryVendors.length">
+            No vendors are currently mapped to this category.
+          </p>
+          <div class="vendor-chip-list" *ngIf="categoryVendors.length">
+            <span class="vendor-chip" *ngFor="let vendor of categoryVendors">{{ vendor.name }}</span>
+          </div>
+        </div>
         <p class="hint" *ngIf="isItemsLoading">Loading items for this category...</p>
         <p class="hint" *ngIf="itemsError">{{ itemsError }}</p>
         <p class="hint" *ngIf="!isItemsLoading && !itemsError && !categoryItems.length">
@@ -177,43 +194,28 @@
                     {{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span>
                   </p>
                 </div>
-                <div class="item-trail">
-                  <span class="margin-pill" *ngIf="item.marginPercent !== null">{{ item.marginPercent }}% margin</span>
-                  <mat-form-field appearance="outline" class="qty-field">
-                    <mat-label>Qty</mat-label>
-                    <input
-                      matInput
-                      type="number"
-                      min="1"
-                      [value]="item.qty"
-                      [disabled]="!item.selected"
-                      (input)="updateItemQty(item.id, $any($event.target).value)" />
-                  </mat-form-field>
-                </div>
+                <span class="selection-state" [class.active]="item.selected">
+                  {{ item.selected ? 'Selected' : 'Tap to add' }}
+                </span>
               </div>
             </div>
           </div>
 
           <aside class="checkout-panel">
             <p class="checkout-title">Order checkout</p>
-            <p class="checkout-copy">Review the selected items before you raise the order.</p>
+            <p class="checkout-copy">Review the selected items, create the order, and continue in Manage Order.</p>
             <div class="checkout-metrics">
               <div>
                 <p class="label">Selected items</p>
                 <p class="checkout-value">{{ selectedItemsCount }}</p>
-              </div>
-              <div>
-                <p class="label">Total qty</p>
-                <p class="checkout-value">{{ totalSelectedQty }}</p>
               </div>
             </div>
             <div class="checkout-items scroll-shell" *ngIf="selectedOrderItems.length; else noSelectedItems">
               <div class="checkout-item" *ngFor="let item of selectedOrderItems">
                 <div>
                   <p class="checkout-item-name">{{ item.name }}</p>
-                  <p class="checkout-item-meta">{{ item.code }}</p>
+                  <p class="checkout-item-meta">{{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span></p>
                 </div>
-                <span class="checkout-item-qty">x{{ item.qty }}</span>
               </div>
             </div>
           </aside>
@@ -264,7 +266,7 @@
             {{
               createMode === 'images'
                 ? (imageFiles.length ? imageFiles.length + ' attached' : 'No image attached')
-                : (selectedItemsCount ? selectedItemsCount + ' items / ' + totalSelectedQty + ' qty' : 'No items selected')
+                : (selectedItemsCount ? selectedItemsCount + ' items selected' : 'No items selected')
             }}
           </p>
         </div>
@@ -274,7 +276,7 @@
         <button mat-button (click)="clear()" [disabled]="isSubmitting">Clear</button>
       </div>
       <p class="muted" *ngIf="createdOrderId">
-        Order {{ createdOrderId }} created. Use the Manage order section to upload the vendor bill PDF and capture the bill to apply margin.
+        Order {{ createdOrderId }} created. Continue in Manage Order to upload images later or complete the rest of the order workflow.
       </p>
       <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
     </section>

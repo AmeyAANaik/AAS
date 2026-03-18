@@ -7,6 +7,8 @@ import { AuthTokenService } from '../shared/auth-token.service';
 import { CompanyContextService } from '../shared/company-context.service';
 
 type ShellRouteMeta = { breadcrumbs: string[] };
+type ShellNavLink = { label: string; icon: string; route: string };
+type ShellNavSection = { title: string; links: ShellNavLink[] };
 
 @Component({
   selector: 'app-shell',
@@ -30,6 +32,45 @@ export class AppShellComponent implements OnDestroy {
   userEmail = '';
   userAvatarText = 'U';
   isUserMenuOpen = false;
+  isNavOpen = false;
+  readonly navSections: ShellNavSection[] = [
+    {
+      title: 'Home',
+      links: [{ label: 'Dashboard', icon: 'dashboard', route: '/admin/dashboard' }]
+    },
+    {
+      title: 'Procure',
+      links: [{ label: 'Orders', icon: 'receipt_long', route: '/orders' }]
+    },
+    {
+      title: 'Inventory',
+      links: [{ label: 'Stock', icon: 'inventory_2', route: '/stock' }]
+    },
+    {
+      title: 'Finance',
+      links: [{ label: 'Bills / Invoices', icon: 'account_balance_wallet', route: '/bills' }]
+    },
+    {
+      title: 'Master Data',
+      links: [
+        { label: 'Vendors', icon: 'local_shipping', route: '/vendors' },
+        { label: 'Branches', icon: 'hub', route: '/branches' },
+        { label: 'Categories', icon: 'category', route: '/categories' },
+        { label: 'Items', icon: 'inventory', route: '/items' }
+      ]
+    },
+    {
+      title: 'Reports',
+      links: [{ label: 'Reports', icon: 'query_stats', route: '/reports' }]
+    },
+    {
+      title: 'Operations',
+      links: [
+        { label: 'Vendor Operations', icon: 'local_shipping', route: '/vendor-ops' },
+        { label: 'Branch Operations', icon: 'storefront', route: '/branch-ops' }
+      ]
+    }
+  ];
   private readonly routeMap: Record<string, ShellRouteMeta> = {
     '/admin/dashboard': { breadcrumbs: ['Home', 'Dashboard'] },
     '/vendor-ops': { breadcrumbs: ['Home', 'Vendor Operations'] },
@@ -58,6 +99,8 @@ export class AppShellComponent implements OnDestroy {
         const url = this.normalizeUrl((event as NavigationEnd).urlAfterRedirects);
         const meta = this.metaForUrl(url);
         this.breadcrumbs = meta.breadcrumbs.join(' / ');
+        this.isNavOpen = false;
+        this.closeUserMenu();
     });
     this.loadCompanyContext();
     this.loadUserProfile();
@@ -88,6 +131,14 @@ export class AppShellComponent implements OnDestroy {
 
   closeUserMenu(): void {
     this.isUserMenuOpen = false;
+  }
+
+  toggleNav(): void {
+    this.isNavOpen = !this.isNavOpen;
+  }
+
+  closeNav(): void {
+    this.isNavOpen = false;
   }
 
   ngOnDestroy(): void {

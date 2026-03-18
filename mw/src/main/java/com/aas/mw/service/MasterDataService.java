@@ -7,10 +7,6 @@ import com.aas.mw.meta.VendorFieldMapper;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -34,8 +30,8 @@ public class MasterDataService {
     private final VendorInvoiceTemplateParser templateParser;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
     private final CatalogRoutingService catalogRoutingService;
+    private final ErpNextFileService erpNextFileService;
     private final String erpPublicBaseUrl;
-    private final HttpClient httpClient = HttpClient.newHttpClient();
 
     public MasterDataService(
             ErpNextClient erpNextClient,
@@ -45,6 +41,7 @@ public class MasterDataService {
             VendorInvoiceTemplateParser templateParser,
             InvoiceTemplateModelService invoiceTemplateModelService,
             CatalogRoutingService catalogRoutingService,
+            ErpNextFileService erpNextFileService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl) {
         this.erpNextClient = erpNextClient;
         this.vendorFieldRegistry = vendorFieldRegistry;
@@ -53,6 +50,7 @@ public class MasterDataService {
         this.templateParser = templateParser;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
         this.catalogRoutingService = catalogRoutingService;
+        this.erpNextFileService = erpNextFileService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
     }
 
@@ -230,7 +228,7 @@ public class MasterDataService {
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
         normalizeVendorCodePayload(payload);
-        validateVendorCategoryPayload(payload);
+        validateVendorConfiguration(null, payload);
         applyTemplateFlags(payload);
         payload.putIfAbsent("supplier_type", "Company");
         payload.putIfAbsent("supplier_group", "All Supplier Groups");
@@ -244,7 +242,7 @@ public class MasterDataService {
         payload.putAll(filterVendorBaseFields(request.getFields()));
         payload.putAll(mapper.toErpPayload(request.getFields()));
         normalizeVendorCodePayload(payload);
-        validateVendorCategoryPayload(payload);
+        validateVendorConfiguration(id, payload);
         applyTemplateFlags(payload);
         return erpNextClient.updateResource("Supplier", id, payload);
     }
@@ -445,14 +443,22 @@ public class MasterDataService {
         }
     }
 
-    private void validateVendorCategoryPayload(Map<String, Object> payload) {
-        if (payload == null) {
-            return;
-        }
-        if (payload.containsKey("aas_vendor_code") && asText(payload.get("aas_vendor_code")).isBlank()) {
+    private void validateVendorConfiguration(String vendorId, Map<String, Object> payload) {
+        Map<String, Object> existing = vendorId == null || vendorId.isBlank()
+                ? Map.of()
+                : unwrapResource(erpNextClient.getResource("Supplier", vendorId));
+
+        String vendorCode = payload != null && payload.containsKey("aas_vendor_code")
+                ? asText(payload.get("aas_vendor_code"))
+                : asText(existing.get("aas_vendor_code"));
+        if (vendorCode.isBlank()) {
             throw new IllegalArgumentException("Vendor code is required.");
         }
-        if (payload.containsKey("aas_category") && asText(payload.get("aas_category")).isBlank()) {
+
+        String category = payload != null && payload.containsKey("aas_category")
+                ? asText(payload.get("aas_category"))
+                : asText(existing.get("aas_category"));
+        if (category.isBlank()) {
             throw new IllegalArgumentException("Category is required.");
         }
     }
@@ -581,12 +587,7 @@ public class MasterDataService {
             if (version <= 0 || itemLineRegex.isBlank()) {
                 return false;
             }
-            HttpRequest request = HttpRequest.newBuilder(URI.create(resolveFileUrl(samplePdf))).GET().build();
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                return false;
-            }
-            String ocrText = ocrService.extractTextFromPdf(response.body());
+            String ocrText = ocrService.extractTextFromPdf(erpNextFileService.downloadFile(samplePdf).bytes());
             List<ParsedItem> items = templateParser.parseItems(
                     ocrText,
                     new VendorInvoiceTemplate(
@@ -666,45 +667,16 @@ public class MasterDataService {
     }
 
     private String extractFinalAmount(String ocrText, VendorInvoiceTemplate template) {
-        if (ocrText == null || ocrText.isBlank() || template == null || !hasText(template.finalAmountRegex())) {
+        if (ocrText == null || ocrText.isBlank() || template == null) {
             return "";
         }
-        try {
-            var matcher = java.util.regex.Pattern.compile(template.finalAmountRegex(), java.util.regex.Pattern.MULTILINE).matcher(ocrText);
-            String lastPositive = "";
-            while (matcher.find()) {
-            for (String group : List.of("finalBillAmount", "final_bill_amount", "amount", "total", "grandTotal", "grand_total", "invoiceTotal", "invoice_total")) {
-                    try {
-                        String value = asText(matcher.group(group));
-                        if (!value.isBlank() && parseAmount(value) > 0) {
-                            lastPositive = value;
-                        }
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-                String whole = asText(matcher.group());
-                if (!whole.isBlank() && parseAmount(whole) > 0) {
-                    lastPositive = whole;
-                }
-            }
-            return lastPositive;
-        } catch (Exception ex) {
-            return "";
-        }
+        InvoiceSummaryExtractor.Extraction extraction =
+                InvoiceSummaryExtractor.extractFinalAmount(ocrText, template.finalAmountRegex());
+        return extraction.amount();
     }
 
     private double parseAmount(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return 0.0;
-        }
-        String text = raw.replace(",", "").trim();
-        text = text.replace('O', '0').replace('o', '0');
-        text = text.replaceAll("(?i)inr|rs\\.?", "").trim();
-        try {
-            return Double.parseDouble(text);
-        } catch (NumberFormatException ex) {
-            return 0.0;
-        }
+        return InvoiceSummaryExtractor.parseAmount(raw);
     }
 
     private boolean asFlag(Object value) {

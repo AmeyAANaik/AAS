@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 import { of } from 'rxjs';
 import { CategoryService } from '../../categories/category.service';
 import { ItemService } from '../../items/item.service';
+import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderCreateComponent } from './order-create.component';
 
@@ -22,6 +23,7 @@ describe('OrderCreateComponent', () => {
   let orderService: jasmine.SpyObj<OrderService>;
   let categoryService: jasmine.SpyObj<CategoryService>;
   let itemService: jasmine.SpyObj<ItemService>;
+  let vendorService: jasmine.SpyObj<VendorService>;
   let location: jasmine.SpyObj<Location>;
   let router: jasmine.SpyObj<Router>;
 
@@ -43,7 +45,17 @@ describe('OrderCreateComponent', () => {
     categoryService.listCategories.and.returnValue(of([{ name: 'Grocery', item_group_name: 'Grocery' }]));
 
     itemService = jasmine.createSpyObj('ItemService', ['listItems']);
-    itemService.listItems.and.returnValue(of([]));
+    itemService.listItems.and.returnValue(of([
+      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos' },
+      { name: 'ITEM-2', item_code: 'ITEM-2', item_name: 'Soap', item_group: 'Cleaning', stock_uom: 'Nos' }
+    ]));
+
+    vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
+    vendorService.listVendors.and.returnValue(of([
+      { name: 'SUP-1', supplier_name: 'Fresh Harvest', category: 'Grocery', disabled: 0 },
+      { name: 'SUP-2', supplier_name: 'Daily Staples', category: 'Grocery', disabled: 0 },
+      { name: 'SUP-3', supplier_name: 'CleanCo', category: 'Cleaning', disabled: 0 }
+    ]));
 
     location = jasmine.createSpyObj('Location', ['back']);
     router = jasmine.createSpyObj('Router', ['navigate']);
@@ -66,6 +78,7 @@ describe('OrderCreateComponent', () => {
         { provide: OrderService, useValue: orderService },
         { provide: CategoryService, useValue: categoryService },
         { provide: ItemService, useValue: itemService },
+        { provide: VendorService, useValue: vendorService },
         { provide: Location, useValue: location },
         { provide: Router, useValue: router }
       ]
@@ -88,7 +101,15 @@ describe('OrderCreateComponent', () => {
   it('loads categories and companies', () => {
     expect(categoryService.listCategories).toHaveBeenCalled();
     expect(orderService.listCompanies).toHaveBeenCalled();
+    expect(vendorService.listVendors).toHaveBeenCalled();
     expect(component.categories).toEqual([{ id: 'Grocery', name: 'Grocery' }]);
     expect(component.companies).toEqual([{ id: 'AAS', name: 'AAS' }]);
+  });
+
+  it('shows all vendors and items for the selected category', () => {
+    component.detailsGroup.patchValue({ category: 'Grocery' });
+
+    expect(component.categoryVendors.map(vendor => vendor.name)).toEqual(['Daily Staples', 'Fresh Harvest']);
+    expect(component.categoryItems.map(item => item.name)).toEqual(['Rice']);
   });
 });

@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../../shared/error-message.util';
 import { BillsService } from '../bills.service';
 import { InvoiceOption, OptionItem, PaymentPayload } from '../bills.model';
 
@@ -136,12 +137,6 @@ export class PaymentFormComponent {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

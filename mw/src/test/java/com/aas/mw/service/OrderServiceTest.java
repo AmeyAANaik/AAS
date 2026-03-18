@@ -22,18 +22,20 @@ import static org.mockito.Mockito.when;
 class OrderServiceTest {
 
     private ErpNextClient erpNextClient;
+    private CatalogRoutingService catalogRoutingService;
     private OrderService orderService;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
         ErpNextFileService fileService = mock(ErpNextFileService.class);
-        CatalogRoutingService catalogRoutingService = mock(CatalogRoutingService.class);
+        catalogRoutingService = mock(CatalogRoutingService.class);
         orderService = new OrderService(
                 erpNextClient,
                 fileService,
                 new OrderFlowStateMachine(),
                 catalogRoutingService,
+                new OrderPricingService(),
                 "http://localhost:8080",
                 7.0);
     }
@@ -65,6 +67,7 @@ class OrderServiceTest {
         when(erpNextClient.listResources(eq("Warehouse"), anyMap()))
                 .thenReturn(java.util.List.of(Map.of("name", "Finished Goods - A", "company", "AAS", "is_group", 0, "disabled", 0)));
         when(erpNextClient.getResource(eq("Item"), eq("AAS-BRANCH-IMAGE"))).thenReturn(Map.of("aas_margin_percent", 11.0));
+        when(erpNextClient.getCount(eq("Sales Order"), anyMap())).thenReturn(0L);
         when(erpNextClient.createResource(eq("Sales Order"), anyMap())).thenReturn(Map.of("name", "SO-1"));
 
         com.aas.mw.dto.OrderRequest request = new com.aas.mw.dto.OrderRequest();
@@ -86,10 +89,41 @@ class OrderServiceTest {
     }
 
     @Test
+    void createOrderAddsCounterToBusinessTitle() {
+        when(erpNextClient.getCount(eq("Sales Order"), anyMap())).thenReturn(2L);
+        when(erpNextClient.createResource(eq("Sales Order"), anyMap())).thenReturn(Map.of("name", "SO-3"));
+        when(catalogRoutingService.resolveTopVendorForCategory(eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution(
+                        "SANSHRAY FOODS",
+                        "SANSHRAY FOODS",
+                        "SANSHRAY_FOODS",
+                        "Grocery",
+                        "Grocery",
+                        "GROCERY"));
+
+        com.aas.mw.dto.OrderRequest request = new com.aas.mw.dto.OrderRequest();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("customer", "Shop A");
+        fields.put("company", "AAS");
+        fields.put("aas_category", "Grocery");
+        fields.put("transaction_date", "2026-03-15");
+        fields.put("delivery_date", "2026-03-15");
+        fields.put("items", java.util.List.of(new HashMap<>(Map.of("item_code", "ITEM-1", "qty", 1, "rate", 10, "amount", 10))));
+        request.setFields(fields);
+
+        orderService.createOrder(request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Sales Order"), payloadCaptor.capture());
+        assertEquals("Shop_A_Grocery_20260315_3", payloadCaptor.getValue().get("title"));
+    }
+
+    @Test
     void updateOrderItemsPersistsItemWiseMargin() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",
-                "items", List.of(Map.of("name", "SO-ITEM-1", "item_code", "ITEM-1", "aas_vendor_rate", 40.0)),
+                "items", List.of(Map.of("name", "SO-ITEM-1", "item_code", "ITEM-1", "aas_vendor_rate", 40.0, "aas_mrp", 55.0)),
                 "aas_po", "PO-1"));
         when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
                 "items", List.of(Map.of("name", "PO-ITEM-1", "item_code", "ITEM-1", "aas_vendor_rate", 40.0))));
@@ -100,7 +134,9 @@ class OrderServiceTest {
                         "qty", 2.0,
                         "rate", 50.0,
                         "amount", 100.0,
-                        "aas_margin_percent", 15.0))));
+                        "aas_margin_percent", 10.0,
+                        "aas_vendor_rate", 50.0,
+                        "aas_mrp", 55.0))));
         when(erpNextClient.updateResource(eq("Purchase Order"), eq("PO-1"), anyMap())).thenReturn(Map.of("name", "PO-1"));
 
         OrderItemLine line = new OrderItemLine();
@@ -113,7 +149,27 @@ class OrderServiceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
-        assertEquals(15.0, items.get(0).get("aas_margin_percent"));
+        assertEquals(10.0, items.get(0).get("aas_margin_percent"));
+        assertEquals(55.0, items.get(0).get("aas_mrp"));
+    }
+
+    @Test
+    void updateOrderItemsRejectsWhenVendorRateExceedsMrp() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "items", List.of(Map.of("name", "SO-ITEM-1", "item_code", "ITEM-1", "aas_vendor_rate", 40.0, "aas_mrp", 45.0)),
+                "aas_po", ""));
+
+        OrderItemLine line = new OrderItemLine();
+        line.setItem_code("ITEM-1");
+        line.setQty(1);
+        line.setRate(50);
+        line.setAas_margin_percent(10);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> orderService.updateOrderItems("SO-1", List.of(line)));
+
+        assertEquals("Vendor rate exceeds MRP for ITEM-1. Vendor rate=50.0, MRP=45.0.", ex.getMessage());
+        verify(erpNextClient, never()).updateResource(eq("Sales Order"), eq("SO-1"), anyMap());
     }
 
     @Test
@@ -124,29 +180,86 @@ class OrderServiceTest {
         when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
                 "docstatus", 0));
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of());
         when(erpNextClient.deleteResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of());
-        when(erpNextClient.deleteResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of());
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
 
         Map<String, Object> response = orderService.deleteOrder("SO-1");
 
         assertEquals("PO-1", response.get("purchaseOrderId"));
         assertEquals(true, response.get("purchaseOrderDeleted"));
+        assertEquals(true, response.get("softDeleted"));
         verify(erpNextClient).deleteResource(eq("Purchase Order"), eq("PO-1"));
-        verify(erpNextClient).deleteResource(eq("Sales Order"), eq("SO-1"));
+        verify(erpNextClient, never()).deleteResource(eq("Sales Order"), eq("SO-1"));
     }
 
     @Test
-    void deleteOrderRejectsWhenLinkedPurchaseInvoiceExists() {
+    void deleteOrderAlsoDeletesLinkedDraftBranchSalesInvoice() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_si_branch", "SINV-1"));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of(
+                Map.of("name", "SINV-1", "docstatus", 0)));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.deleteResource(eq("Sales Invoice"), eq("SINV-1"))).thenReturn(Map.of());
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(true, response.get("salesInvoiceDeleted"));
+        assertEquals(List.of("SINV-1"), response.get("deletedSalesInvoices"));
+        verify(erpNextClient).deleteResource(eq("Sales Invoice"), eq("SINV-1"));
+        verify(erpNextClient, never()).deleteResource(eq("Sales Order"), eq("SO-1"));
+    }
+
+    @Test
+    void deleteOrderSoftDeletesWhenLinkedBranchSalesInvoiceIsSubmitted() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_si_branch", "SINV-1"));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of(
+                Map.of("name", "SINV-1", "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(List.of("SINV-1"), response.get("retainedSalesInvoices"));
+        assertEquals(true, response.get("softDeleted"));
+        verify(erpNextClient, never()).deleteResource(eq("Sales Invoice"), anyString());
+        verify(erpNextClient, never()).deleteResource(eq("Sales Order"), anyString());
+    }
+
+    @Test
+    void deleteOrderSoftDeletesWhenLinkedPurchaseInvoiceExists() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",
                 "aas_po", "PO-1"));
         when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
                 "docstatus", 0));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of());
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of(
-                Map.of("name", "PINV-1", "docstatus", 0)));
+                Map.of("name", "PINV-1", "docstatus", 1)));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
 
-        assertThrows(IllegalStateException.class, () -> orderService.deleteOrder("SO-1"));
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(List.of("PINV-1"), response.get("retainedPurchaseInvoices"));
+        assertEquals(false, response.get("purchaseOrderDeleted"));
         verify(erpNextClient, never()).deleteResource(eq("Purchase Order"), anyString());
         verify(erpNextClient, never()).deleteResource(eq("Sales Order"), anyString());
+    }
+
+    @Test
+    void listOrdersExcludesSoftDeletedOrders() {
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap())).thenReturn(List.of(
+                new HashMap<>(Map.of("name", "SO-1", "aas_status", "VENDOR_ASSIGNED", "aas_is_deleted", 0)),
+                new HashMap<>(Map.of("name", "SO-2", "aas_status", "DELETED", "aas_is_deleted", 1))));
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of("items", List.of()));
+
+        List<Map<String, Object>> orders = orderService.listOrders(Map.of());
+
+        assertEquals(1, orders.size());
+        assertEquals("SO-1", orders.get(0).get("name"));
     }
 }

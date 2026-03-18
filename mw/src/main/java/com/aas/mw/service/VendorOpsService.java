@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus;
 @Service
 public class VendorOpsService {
 
+    private static final int ERP_PAGE_SIZE = 500;
     private static final String SALES_ORDER = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
     private static final String PURCHASE_INVOICE = "Purchase Invoice";
@@ -41,7 +42,7 @@ public class VendorOpsService {
         List<Map<String, Object>> vendors = fetchVendors();
         List<Map<String, Object>> orders = fetchOrderRows(null);
         List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(null);
-        List<Map<String, Object>> payments = fetchSupplierPayments(null);
+        List<Map<String, Object>> payments = fetchSupplierPayments(null, purchaseInvoices);
 
         List<Map<String, Object>> vendorRows = vendors.stream()
                 .map(vendor -> buildVendorSummary(vendor, orders, purchaseInvoices, payments))
@@ -87,7 +88,7 @@ public class VendorOpsService {
 
         List<Map<String, Object>> orderRows = getVendorOrders(vendorId, null, null, null, null);
         List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(vendorId);
-        List<Map<String, Object>> payments = fetchSupplierPayments(vendorId);
+        List<Map<String, Object>> payments = fetchSupplierPayments(vendorId, purchaseInvoices);
         List<Map<String, Object>> ledgerEntries = buildLedgerEntries(purchaseInvoices, payments);
 
         double parseSuccessRate = calculateParseSuccessRate(orderRows);
@@ -258,7 +259,8 @@ public class VendorOpsService {
         if (vendor.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found.");
         }
-        List<Map<String, Object>> entries = buildLedgerEntries(fetchPurchaseInvoices(vendorId), fetchSupplierPayments(vendorId));
+        List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(vendorId);
+        List<Map<String, Object>> entries = buildLedgerEntries(purchaseInvoices, fetchSupplierPayments(vendorId, purchaseInvoices));
         double balance = entries.isEmpty() ? 0.0 : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
         return Map.of(
                 "vendorId", vendorId,
@@ -275,8 +277,9 @@ public class VendorOpsService {
                         (left, right) -> left,
                         LinkedHashMap::new));
         List<Map<String, Object>> entries = new ArrayList<>();
+        List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(null);
 
-        for (Map<String, Object> invoice : fetchPurchaseInvoices(null)) {
+        for (Map<String, Object> invoice : purchaseInvoices) {
             if (asInt(invoice.get("docstatus")) == 2) {
                 continue;
             }
@@ -295,7 +298,7 @@ public class VendorOpsService {
             entries.add(row);
         }
 
-        for (Map<String, Object> payment : fetchSupplierPayments(null)) {
+        for (Map<String, Object> payment : fetchSupplierPayments(null, purchaseInvoices)) {
             if (asInt(payment.get("docstatus")) == 2) {
                 continue;
             }
@@ -374,7 +377,7 @@ public class VendorOpsService {
         List<Map<String, Object>> entries = new ArrayList<>();
 
         for (Map<String, Object> invoice : purchaseInvoices) {
-            if (asInt(invoice.get("docstatus")) == 2) {
+            if (!isSubmitted(invoice)) {
                 continue;
             }
             double credit = round(asDouble(invoice.get("grand_total")));
@@ -390,7 +393,7 @@ public class VendorOpsService {
         }
 
         for (Map<String, Object> payment : payments) {
-            if (asInt(payment.get("docstatus")) == 2) {
+            if (!isSubmitted(payment)) {
                 continue;
             }
             double amount = round(resolvePaymentAmount(payment));
@@ -421,7 +424,7 @@ public class VendorOpsService {
     private List<Map<String, Object>> fetchVendors() {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"supplier_name\",\"disabled\",\"modified\",\"aas_invoice_template_json\",\"aas_invoice_template_sample_pdf\"]");
-        return erpNextClient.listResources(SUPPLIER, params);
+        return listResourcesPaged(SUPPLIER, params);
     }
 
     private List<Map<String, Object>> fetchOrderRows(String vendorId) {
@@ -430,12 +433,14 @@ public class VendorOpsService {
                 "fields",
                 "[\"name\",\"customer\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\","
                         + "\"aas_vendor_pdf\",\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\","
-                        + "\"aas_po\",\"aas_pi_vendor\",\"modified\",\"creation\"]");
+                        + "\"aas_po\",\"aas_pi_vendor\",\"aas_is_deleted\",\"modified\",\"creation\"]");
         params.put("order_by", "modified desc");
         if (hasText(vendorId)) {
             params.put("filters", "[[\"Sales Order\",\"aas_vendor\",\"=\",\"" + escapeJson(vendorId) + "\"]]");
         }
-        return erpNextClient.listResources(SALES_ORDER, params);
+        return listResourcesPaged(SALES_ORDER, params).stream()
+                .filter(row -> !asFlag(row.get("aas_is_deleted")) && !"DELETED".equalsIgnoreCase(asText(row.get("aas_status"))))
+                .toList();
     }
 
     private List<Map<String, Object>> fetchPurchaseInvoices(String vendorId) {
@@ -445,13 +450,19 @@ public class VendorOpsService {
                 "[\"name\",\"supplier\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"bill_no\","
                         + "\"aas_source_sales_order\",\"modified\",\"creation\",\"docstatus\"]");
         params.put("order_by", "posting_date asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("docstatus", "=", "1"));
         if (hasText(vendorId)) {
-            params.put("filters", "[[\"Purchase Invoice\",\"supplier\",\"=\",\"" + escapeJson(vendorId) + "\"]]");
+            filters.add(List.of("supplier", "=", vendorId));
         }
-        return erpNextClient.listResources(PURCHASE_INVOICE, params);
+        params.put("filters", toJson(filters));
+        return listResourcesPaged(PURCHASE_INVOICE, params);
     }
 
-    private List<Map<String, Object>> fetchSupplierPayments(String vendorId) {
+    private List<Map<String, Object>> fetchSupplierPayments(String vendorId, List<Map<String, Object>> purchaseInvoices) {
+        if (purchaseInvoices == null || purchaseInvoices.isEmpty()) {
+            return List.of();
+        }
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
@@ -459,12 +470,70 @@ public class VendorOpsService {
                         + "\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\"]");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("party_type", "=", "Supplier"));
+        filters.add(List.of("docstatus", "=", "1"));
         if (hasText(vendorId)) {
             filters.add(List.of("party", "=", vendorId));
         }
         params.put("filters", toJson(filters));
         params.put("order_by", "posting_date asc");
-        return erpNextClient.listResources(PAYMENT_ENTRY, params);
+        List<Map<String, Object>> payments = listResourcesPaged(PAYMENT_ENTRY, params);
+        return filterPaymentsLinkedToInvoices(payments, purchaseInvoices);
+    }
+
+    private List<Map<String, Object>> filterPaymentsLinkedToInvoices(
+            List<Map<String, Object>> payments,
+            List<Map<String, Object>> purchaseInvoices) {
+        if (payments.isEmpty() || purchaseInvoices.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> invoiceSuppliers = purchaseInvoices.stream()
+                .collect(Collectors.toMap(
+                        invoice -> asText(invoice.get("name")),
+                        invoice -> asText(invoice.get("supplier")),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        List<Map<String, Object>> validPayments = new ArrayList<>();
+        for (Map<String, Object> payment : payments) {
+            String paymentName = asText(payment.get("name"));
+            String party = asText(payment.get("party"));
+            if (!hasText(paymentName) || !hasText(party)) {
+                continue;
+            }
+            Map<String, Object> paymentDoc = unwrap(erpNextClient.getResource(PAYMENT_ENTRY, paymentName));
+            List<Map<String, Object>> references = childItems(paymentDoc.get("references"));
+            boolean linkedToVendorInvoice = references.stream().anyMatch(reference -> {
+                if (!PURCHASE_INVOICE.equals(asText(reference.get("reference_doctype")))) {
+                    return false;
+                }
+                String invoiceId = asText(reference.get("reference_name"));
+                String invoiceSupplier = invoiceSuppliers.get(invoiceId);
+                return hasText(invoiceSupplier) && invoiceSupplier.equals(party);
+            });
+            if (linkedToVendorInvoice) {
+                validPayments.add(payment);
+            }
+        }
+        return validPayments;
+    }
+
+    private List<Map<String, Object>> listResourcesPaged(String doctype, Map<String, Object> params) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int start = 0;
+        while (true) {
+            Map<String, Object> pageParams = new HashMap<>(params);
+            pageParams.put("limit_start", start);
+            pageParams.put("limit_page_length", ERP_PAGE_SIZE);
+            List<Map<String, Object>> page = erpNextClient.listResources(doctype, pageParams);
+            if (page.isEmpty()) {
+                break;
+            }
+            rows.addAll(page);
+            if (page.size() < ERP_PAGE_SIZE) {
+                break;
+            }
+            start += ERP_PAGE_SIZE;
+        }
+        return rows;
     }
 
     private Map<String, Object> loadDocIfPresent(
@@ -691,6 +760,10 @@ public class VendorOpsService {
         double paidAmount = asDouble(payment.get("paid_amount"));
         double receivedAmount = asDouble(payment.get("received_amount"));
         return paidAmount > 0 ? paidAmount : receivedAmount;
+    }
+
+    private boolean isSubmitted(Map<String, Object> doc) {
+        return asInt(doc.get("docstatus")) == 1;
     }
 
     private String toJson(List<List<String>> filters) {

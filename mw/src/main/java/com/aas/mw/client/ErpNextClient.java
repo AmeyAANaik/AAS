@@ -1,9 +1,11 @@
 package com.aas.mw.client;
 
+import feign.FeignException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,8 @@ import org.springframework.util.MultiValueMap;
 
 @Component
 public class ErpNextClient {
+
+    private static final List<String> OPTIONAL_QUERY_FIELDS = List.of("aas_is_deleted", "aas_deleted_at");
 
     private final ErpNextFeignClient feignClient;
 
@@ -49,7 +53,21 @@ public class ErpNextClient {
     }
 
     public List<Map<String, Object>> listResources(String doctype, Map<String, Object> params) {
-        Map<String, Object> body = feignClient.listResources(doctype, params == null ? Collections.emptyMap() : params);
+        Map<String, Object> safeParams = params == null ? Collections.emptyMap() : params;
+        Map<String, Object> body = null;
+        Map<String, Object> currentParams = safeParams;
+        while (true) {
+            try {
+                body = feignClient.listResources(doctype, currentParams);
+                break;
+            } catch (FeignException ex) {
+                Map<String, Object> fallbackParams = removeUnsupportedOptionalField(currentParams, ex);
+                if (fallbackParams == null || fallbackParams.equals(currentParams)) {
+                    throw ex;
+                }
+                currentParams = fallbackParams;
+            }
+        }
         if (body == null || !body.containsKey("data")) {
             return Collections.emptyList();
         }
@@ -60,6 +78,58 @@ public class ErpNextClient {
             return casted;
         }
         return Collections.emptyList();
+    }
+
+    private Map<String, Object> removeUnsupportedOptionalField(Map<String, Object> params, FeignException ex) {
+        String message = ex.contentUTF8();
+        if (message == null || message.isBlank()) {
+            message = ex.getMessage();
+        }
+        if (message == null || message.isBlank()) {
+            return null;
+        }
+        for (String field : OPTIONAL_QUERY_FIELDS) {
+            if (!message.contains("Field not permitted in query: " + field)) {
+                continue;
+            }
+            Map<String, Object> updated = new HashMap<>(params);
+            Object fields = updated.get("fields");
+            if (fields instanceof String fieldList) {
+                updated.put("fields", stripJsonStringToken(fieldList, field));
+            }
+            Object filters = updated.get("filters");
+            if (filters instanceof String filterList) {
+                updated.put("filters", stripFilterToken(filterList, field));
+            }
+            Object orFilters = updated.get("or_filters");
+            if (orFilters instanceof String filterList) {
+                updated.put("or_filters", stripFilterToken(filterList, field));
+            }
+            return updated;
+        }
+        return null;
+    }
+
+    private String stripJsonStringToken(String json, String token) {
+        if (json == null || json.isBlank()) {
+            return json;
+        }
+        String updated = json
+                .replace("\"" + token + "\",", "")
+                .replace(",\"" + token + "\"", "")
+                .replace("\"" + token + "\"", "");
+        updated = updated.replace("[,", "[").replace(",]", "]");
+        return updated;
+    }
+
+    private String stripFilterToken(String json, String token) {
+        if (json == null || json.isBlank()) {
+            return json;
+        }
+        String escaped = Pattern.quote(token);
+        String updated = json.replaceAll(",?\\[\\[[^\\]]*\"" + escaped + "\"[^\\]]*\\]\\]", "");
+        updated = updated.replace("[,", "[").replace(",]", "]");
+        return updated;
     }
 
     public Map<String, Object> createResource(String doctype, Map<String, Object> payload) {

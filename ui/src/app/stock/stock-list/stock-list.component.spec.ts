@@ -6,7 +6,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { StockThresholdFormComponent } from '../stock-threshold-form/stock-threshold-form.component';
 import { StockService } from '../stock.service';
 import { StockListComponent } from './stock-list.component';
@@ -34,12 +38,16 @@ describe('StockListComponent', () => {
       declarations: [StockListComponent, StockThresholdFormComponent],
       imports: [
         ReactiveFormsModule,
+        RouterTestingModule,
         MatButtonModule,
         MatCardModule,
         MatFormFieldModule,
         MatInputModule,
         MatTableModule,
-        NoopAnimationsModule
+        NoopAnimationsModule,
+        EmptyStateComponent,
+        PageHeaderComponent,
+        StatusPillComponent
       ],
       providers: [{ provide: StockService, useValue: stockService }]
     }).compileComponents();

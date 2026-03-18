@@ -6,6 +6,7 @@ export interface Item {
   stock_uom?: string;
   aas_packaging_unit?: string;
   aas_margin_percent?: number;
+  aas_vendor_rate?: number;
   aas_vendor?: string;
   aas_vendor_hsn_code?: string;
 }

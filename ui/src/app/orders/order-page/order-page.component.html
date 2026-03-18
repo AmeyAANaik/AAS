@@ -1,18 +1,19 @@
-<!-- Order Processing Page with Swiggy/Amazon style flow -->
 <div class="order-page">
-  <!-- Header -->
-  <div class="order-header">
-    <div class="header-row">
-      <h1>Order Workflow</h1>
-      <button mat-raised-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
-    </div>
-    <p class="subtitle">Track your order from vendor assignment to creation</p>
-  </div>
+  <app-page-header
+    title="Order Workflow"
+    subtitle="Track demand from branch image intake through vendor billing and sell-order creation.">
+    <button mat-stroked-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
+    <button mat-flat-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
+  </app-page-header>
 
-  <!-- Orders Table/List -->
   <mat-card class="orders-list-card" *ngIf="!selectedOrder">
-    <mat-card-header>
-      <div class="search-section search-row">
+    <mat-card-content>
+      <div class="list-intro">
+        <div class="intro-copy">
+          <div class="section-title">Order queue</div>
+          <div class="section-subtitle">Use search and filters to surface the next orders that need action.</div>
+        </div>
+        <div class="search-section search-row">
         <mat-form-field appearance="outline" class="search-field">
           <mat-label>Search orders, vendors, items</mat-label>
           <input matInput [formControl]="searchControl">
@@ -26,8 +27,7 @@
           </button>
         </mat-form-field>
       </div>
-    </mat-card-header>
-    <mat-card-content>
+      </div>
       <div class="applied-chips" *ngIf="selectedFilterChips.length">
         <mat-chip-set>
           <mat-chip
@@ -141,7 +141,6 @@
             <mat-icon>filter_list</mat-icon>
             Filters
           </button>
-          <button mat-stroked-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
         </div>
       </div>
 
@@ -395,6 +394,10 @@
                   <td mat-cell *matCellDef="let line">
                     <div class="cell-title">{{ line.item_name }}</div>
                     <div class="cell-muted">{{ line.item_code }}</div>
+                    <div class="cell-note warning" *ngIf="line.mrpApplied">MRP cap applied</div>
+                    <div class="cell-note error" *ngIf="!line.mrpApplied && line.aas_mrp && line.rate > line.aas_mrp">
+                      Vendor rate exceeds MRP
+                    </div>
                   </td>
                 </ng-container>
 
@@ -420,6 +423,14 @@
                   </td>
                 </ng-container>
 
+                <ng-container matColumnDef="mrp">
+                  <th mat-header-cell *matHeaderCellDef>MRP</th>
+                  <td mat-cell *matCellDef="let line">
+                    <span *ngIf="line.aas_mrp; else noMrp">{{ line.aas_mrp | number:'1.2-2' }}</span>
+                    <ng-template #noMrp>-</ng-template>
+                  </td>
+                </ng-container>
+
                 <ng-container matColumnDef="margin">
                   <th mat-header-cell *matHeaderCellDef>Margin %</th>
                   <td mat-cell *matCellDef="let line">
@@ -441,8 +452,8 @@
                   </td>
                 </ng-container>
 
-                <tr mat-header-row *matHeaderRowDef="['item','qty','rate','margin','amount','lineActions']"></tr>
-                <tr mat-row *matRowDef="let row; columns: ['item','qty','rate','margin','amount','lineActions']"></tr>
+                <tr mat-header-row *matHeaderRowDef="['item','qty','rate','mrp','margin','amount','lineActions']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['item','qty','rate','mrp','margin','amount','lineActions']"></tr>
               </table>
             </div>
 

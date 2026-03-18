@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 class OrderBillingServiceTest {
 
@@ -24,7 +25,7 @@ class OrderBillingServiceTest {
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        service = new OrderBillingService(erpNextClient, new OrderFlowStateMachine(), 7.0);
+        service = new OrderBillingService(erpNextClient, new OrderFlowStateMachine(), new OrderPricingService(), 7.0);
     }
 
     @Test
@@ -88,11 +89,29 @@ class OrderBillingServiceTest {
 
         assertEquals(115.0, response.get("sellTotal"));
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(erpNextClient).createResource(eq("Sales Order"), captor.capture());
+        verify(erpNextClient).createResource(eq("Sales Invoice"), captor.capture());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> items = (List<Map<String, Object>>) captor.getValue().get("items");
         assertEquals(55.0, items.get(0).get("rate"));
         assertEquals(60.0, items.get(1).get("rate"));
+    }
+
+    @Test
+    void capsSellRateToMrpWhenMarginWouldExceedIt() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_vendor_bill_total", 100.0,
+                "items", List.of(Map.of(
+                        "item_code", "ITEM-1",
+                        "item_name", "Item 1",
+                        "qty", 1,
+                        "aas_vendor_rate", 100.0,
+                        "aas_margin_percent", 20.0,
+                        "aas_mrp", 110.0))));
+
+        Map<String, Object> preview = service.getSellPreview("SO-1");
+
+        assertEquals(110.0, preview.get("sellAmount"));
+        assertEquals(10.0, preview.get("marginPercent"));
     }
 
     @Test

@@ -37,6 +37,7 @@ public class VendorPdfService {
     private final VendorInvoiceTemplateParser templateParser;
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final CatalogRoutingService catalogRoutingService;
+    private final OrderPricingService orderPricingService;
     private final ObjectMapper objectMapper;
     private final double defaultMarginPercent;
 
@@ -50,6 +51,7 @@ public class VendorPdfService {
             VendorInvoiceTemplateParser templateParser,
             OrderFlowStateMachine orderFlowStateMachine,
             CatalogRoutingService catalogRoutingService,
+            OrderPricingService orderPricingService,
             ObjectMapper objectMapper,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
@@ -61,6 +63,7 @@ public class VendorPdfService {
         this.templateParser = templateParser;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.catalogRoutingService = catalogRoutingService;
+        this.orderPricingService = orderPricingService;
         this.objectMapper = objectMapper;
         this.defaultMarginPercent = defaultMarginPercent;
     }
@@ -294,32 +297,12 @@ public class VendorPdfService {
     }
 
     private double extractAmountByRegex(String ocrText, String amountRegex) {
-        if (ocrText == null || ocrText.isBlank() || amountRegex == null || amountRegex.isBlank()) {
+        if (ocrText == null || ocrText.isBlank()) {
             return 0.0;
         }
-        try {
-            var matcher = Pattern.compile(amountRegex, Pattern.MULTILINE).matcher(ocrText);
-            double lastPositive = 0.0;
-            while (matcher.find()) {
-            for (String group : List.of("finalBillAmount", "final_bill_amount", "amount", "total", "grandTotal", "grand_total", "invoiceTotal", "invoice_total")) {
-                    try {
-                        String value = matcher.group(group);
-                        double parsed = parseNumber(value);
-                        if (parsed > 0) {
-                            lastPositive = parsed;
-                        }
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-                double parsed = parseNumber(matcher.group());
-                if (parsed > 0) {
-                    lastPositive = parsed;
-                }
-            }
-            return lastPositive;
-        } catch (Exception ex) {
-            return 0.0;
-        }
+        InvoiceSummaryExtractor.Extraction extraction =
+                InvoiceSummaryExtractor.extractFinalAmount(ocrText, amountRegex);
+        return InvoiceSummaryExtractor.parseAmount(extraction.amount());
     }
 
     private double parseNumber(String raw) {
@@ -442,7 +425,7 @@ public class VendorPdfService {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
-            String vendorHsnCode = catalogRoutingService.normalizeCodeSegment(item.hsn());
+            String vendorHsnCode = asText(catalogRoutingService.normalizeCodeSegment(item.hsn()));
             if (vendorHsnCode.isBlank()) {
                 throw new IllegalStateException(
                         "Vendor HSN code is required for parsed item \"" + itemName
@@ -462,6 +445,9 @@ public class VendorPdfService {
             row.put("qty", item.qty());
             row.put("rate", item.rate());
             row.put("aas_margin_percent", resolveItemMarginPercent(itemCode));
+            if (item.mrp() != null && item.mrp() > 0) {
+                row.put("aas_mrp", round(item.mrp()));
+            }
             double amount = item.amount();
             if (amount <= 0 && item.qty() > 0) {
                 amount = item.rate() * item.qty();
@@ -528,9 +514,15 @@ public class VendorPdfService {
         List<Map<String, Object>> enriched = new ArrayList<>();
         for (Map<String, Object> row : baseItems) {
             Map<String, Object> copy = new HashMap<>(row);
-            Object rate = row.get("rate");
-            copy.put("aas_vendor_rate", rate);
-            copy.put("aas_margin_percent", resolveMarginPercent(row.get("aas_margin_percent")));
+            double vendorRate = asDouble(row.get("rate"));
+            double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
+            OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
+                    vendorRate,
+                    marginPercent,
+                    asNullableDouble(row.get("aas_mrp")),
+                    asText(row.get("item_name")).isBlank() ? asText(row.get("item_code")) : asText(row.get("item_name")));
+            copy.put("aas_vendor_rate", vendorRate);
+            copy.put("aas_margin_percent", pricing.effectiveMarginPercent());
             enriched.add(copy);
         }
         return enriched;
@@ -543,11 +535,15 @@ public class VendorPdfService {
             double vendorRate = asDouble(row.get("rate"));
             double qty = asDouble(row.get("qty"));
             double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
-            double sellRate = round(vendorRate * (1 + marginPercent / 100.0));
-            copy.put("rate", sellRate);
-            copy.put("amount", round(sellRate * qty));
+            OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
+                    vendorRate,
+                    marginPercent,
+                    asNullableDouble(row.get("aas_mrp")),
+                    asText(row.get("item_name")).isBlank() ? asText(row.get("item_code")) : asText(row.get("item_name")));
+            copy.put("rate", pricing.sellRate());
+            copy.put("amount", round(pricing.sellRate() * qty));
             copy.put("aas_vendor_rate", vendorRate);
-            copy.put("aas_margin_percent", marginPercent);
+            copy.put("aas_margin_percent", pricing.effectiveMarginPercent());
             enriched.add(copy);
         }
         return enriched;
@@ -777,6 +773,11 @@ public class VendorPdfService {
         } catch (Exception ex) {
             return 0.0;
         }
+    }
+
+    private Double asNullableDouble(Object value) {
+        double parsed = asDouble(value);
+        return parsed > 0 ? parsed : null;
     }
 
     private double round(double value) {

@@ -33,6 +33,15 @@
       </mat-card>
     </div>
 
+    <mat-card class="overview-card" *ngIf="!vm.loading && vm.snapshot">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Operational overview</div>
+          <div class="card-subtitle">Use this page as the morning checkpoint before jumping into orders, billing, or exception queues.</div>
+        </div>
+      </div>
+    </mat-card>
+
     <mat-card class="card vendor-ops-card" *ngIf="!vm.loading && vm.snapshot">
       <div class="card-header">
         <div>

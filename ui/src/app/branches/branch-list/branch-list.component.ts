@@ -3,6 +3,7 @@ import { finalize } from 'rxjs/operators';
 import { Branch, BranchFormValue, BranchView } from '../branch.model';
 import { BranchService } from '../branch.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { formatUiError } from '../../shared/error-message.util';
 
 @Component({
   selector: 'app-branch-list',
@@ -124,12 +125,6 @@ export class BranchListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

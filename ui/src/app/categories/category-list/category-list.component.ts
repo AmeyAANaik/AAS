@@ -3,6 +3,7 @@ import { finalize } from 'rxjs/operators';
 import { Category, CategoryFormValue, CategoryView } from '../category.model';
 import { CategoryService } from '../category.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { formatUiError } from '../../shared/error-message.util';
 
 @Component({
   selector: 'app-category-list',
@@ -123,12 +124,6 @@ export class CategoryListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

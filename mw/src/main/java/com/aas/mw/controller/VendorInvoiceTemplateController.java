@@ -11,6 +11,7 @@ import com.aas.mw.service.VendorInvoiceTemplateCatalog;
 import com.aas.mw.service.VendorInvoiceTemplate;
 import com.aas.mw.service.VendorInvoiceTemplateParser;
 import com.aas.mw.service.VendorPdfParser;
+import com.aas.mw.service.InvoiceSummaryExtractor;
 import com.aas.mw.service.InvoiceTemplateModelService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
@@ -79,7 +80,7 @@ public class VendorInvoiceTemplateController {
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
-                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "error", "Session expired. Please log out and log in again.",
                             "errorCode", "ERP_SESSION_MISSING"));
         }
         if (id == null || id.isBlank()) {
@@ -121,6 +122,10 @@ public class VendorInvoiceTemplateController {
         TemplateValidation validation = validateTemplate(id, templateJson, ocrText, chosenKey);
 
         Map<String, Object> update = new HashMap<>();
+        if (templateJson != null && !templateJson.trim().isBlank()) {
+            update.put("aas_invoice_template_json", templateJson.trim());
+            update.put("aas_invoice_template_enabled", 1);
+        }
         if (info.fileUrl() != null) {
             update.put("aas_invoice_template_sample_pdf", info.fileUrl());
         }
@@ -168,7 +173,7 @@ public class VendorInvoiceTemplateController {
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
-                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "error", "Session expired. Please log out and log in again.",
                             "errorCode", "ERP_SESSION_MISSING"));
         }
         if (id == null || id.isBlank()) {
@@ -264,7 +269,8 @@ public class VendorInvoiceTemplateController {
                 missingColumns.add(column);
             }
         }
-        String finalBillAmount = extractFinalAmount(ocrText, template);
+        SummaryExtraction finalBill = extractFinalAmount(ocrText, template);
+        String finalBillAmount = finalBill.amount();
         List<String> requiredSummaryFields = invoiceTemplateModelService.requiredSummaryKeys();
         List<String> parsedSummaryFields = new ArrayList<>();
         if (!finalBillAmount.isBlank()) {
@@ -300,6 +306,7 @@ public class VendorInvoiceTemplateController {
                 parsedSummaryFields,
                 missingSummaryFields,
                 finalBillAmount,
+                finalBill.matchedText(),
                 activationReady,
                 diagnostics.lineCount(),
                 buildOcrPreview(ocrText),
@@ -359,36 +366,13 @@ public class VendorInvoiceTemplateController {
         return value == null ? "" : value.toString().trim();
     }
 
-    private String extractFinalAmount(String ocrText, VendorInvoiceTemplate template) {
+    private SummaryExtraction extractFinalAmount(String ocrText, VendorInvoiceTemplate template) {
         if (ocrText == null || ocrText.isBlank() || template == null) {
-            return "";
+            return new SummaryExtraction("", "");
         }
-        String regex = asText(template.finalAmountRegex());
-        if (regex.isBlank()) {
-            return "";
-        }
-        try {
-            var matcher = java.util.regex.Pattern.compile(regex, java.util.regex.Pattern.MULTILINE).matcher(ocrText);
-            String lastPositive = "";
-            while (matcher.find()) {
-            for (String group : List.of("finalBillAmount", "final_bill_amount", "amount", "total", "grandTotal", "grand_total", "invoiceTotal", "invoice_total")) {
-                    try {
-                        String value = asText(matcher.group(group));
-                        if (!value.isBlank() && parseAmount(value) > 0) {
-                            lastPositive = value;
-                        }
-                    } catch (IllegalArgumentException ignored) {
-                    }
-                }
-                String whole = asText(matcher.group());
-                if (!whole.isBlank() && parseAmount(whole) > 0) {
-                    lastPositive = whole;
-                }
-            }
-            return lastPositive;
-        } catch (Exception ex) {
-            return "";
-        }
+        InvoiceSummaryExtractor.Extraction extraction =
+                InvoiceSummaryExtractor.extractFinalAmount(ocrText, asText(template.finalAmountRegex()));
+        return new SummaryExtraction(extraction.amount(), extraction.matchedText());
     }
 
     private List<String> buildOcrPreview(String ocrText) {
@@ -416,17 +400,7 @@ public class VendorInvoiceTemplateController {
     }
 
     private double parseAmount(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return 0.0;
-        }
-        String text = raw.replace(",", "").trim();
-        text = text.replace('O', '0').replace('o', '0');
-        text = text.replaceAll("(?i)inr|rs\\.?", "").trim();
-        try {
-            return Double.parseDouble(text);
-        } catch (NumberFormatException ex) {
-            return 0.0;
-        }
+        return InvoiceSummaryExtractor.parseAmount(raw);
     }
 
     private record TemplateValidation(
@@ -441,6 +415,7 @@ public class VendorInvoiceTemplateController {
             List<String> parsedSummaryFields,
             List<String> missingSummaryFields,
             String finalBillAmount,
+            String finalBillMatch,
             boolean activationReady,
             int ocrLineCount,
             List<String> ocrPreview,
@@ -459,11 +434,15 @@ public class VendorInvoiceTemplateController {
             payload.put("parsedSummaryFields", parsedSummaryFields);
             payload.put("missingSummaryFields", missingSummaryFields);
             payload.put("finalBillAmount", finalBillAmount);
+            payload.put("finalBillMatch", finalBillMatch);
             payload.put("activationReady", activationReady);
             payload.put("ocrLineCount", ocrLineCount);
             payload.put("ocrPreview", ocrPreview);
             payload.put("previewItems", previewItems);
             return payload;
         }
+    }
+
+    private record SummaryExtraction(String amount, String matchedText) {
     }
 }

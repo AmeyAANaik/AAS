@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class VendorInvoiceTemplateParser {
 
+    private static final Pattern SERIALIZED_ITEM_LINE = Pattern.compile("^\\d+\\s+.+");
+
     public List<ParsedItem> parseItems(String ocrText, VendorInvoiceTemplate template) {
         if (ocrText == null || ocrText.isBlank() || template == null) {
             return List.of();
@@ -24,7 +26,6 @@ public class VendorInvoiceTemplateParser {
             return List.of();
         }
 
-        List<ParsedItem> items = new ArrayList<>();
         List<String> lines = new ArrayList<>();
         for (String rawLine : ocrText.replace('\f', '\n').split("\\r?\\n")) {
             String line = rawLine == null ? "" : rawLine.trim();
@@ -33,6 +34,12 @@ public class VendorInvoiceTemplateParser {
             }
         }
 
+        List<ParsedItem> numberedItems = parseNumberedRows(lines, linePattern);
+        if (!numberedItems.isEmpty()) {
+            return numberedItems;
+        }
+
+        List<ParsedItem> items = new ArrayList<>();
         // Some invoices (especially scanned PDFs) break a single item row across multiple OCR lines.
         // To keep the template format simple (single regex), try matching on short windows of adjacent lines.
         for (int i = 0; i < lines.size(); i++) {
@@ -58,6 +65,91 @@ public class VendorInvoiceTemplateParser {
         return items;
     }
 
+    private List<ParsedItem> parseNumberedRows(List<String> lines, Pattern linePattern) {
+        List<ParsedItem> items = new ArrayList<>();
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (!startsItemRow(line)) {
+                continue;
+            }
+
+            List<String> candidateLines = new ArrayList<>();
+            candidateLines.add(line);
+            int cursor = i + 1;
+            while (cursor < lines.size()) {
+                String next = lines.get(cursor);
+                if (startsItemRow(next) || isHardStopLine(next) || !looksLikeContinuation(next)) {
+                    break;
+                }
+                candidateLines.add(next);
+                cursor++;
+            }
+
+            ParsedItem item = null;
+            for (int size = candidateLines.size(); size >= 1; size--) {
+                String candidate = join(candidateLines, 0, size);
+                item = tryParseCandidate(candidate, linePattern);
+                if (item != null) {
+                    i += size - 1;
+                    items.add(item);
+                    break;
+                }
+            }
+        }
+        return items;
+    }
+
+    private boolean startsItemRow(String line) {
+        if (line == null || line.isBlank()) {
+            return false;
+        }
+        return SERIALIZED_ITEM_LINE.matcher(line).matches() && !isHardStopLine(line);
+    }
+
+    private boolean looksLikeContinuation(String line) {
+        if (line == null || line.isBlank()) {
+            return false;
+        }
+        String normalized = line.trim();
+        if (normalized.length() <= 1) {
+            return false;
+        }
+        if (normalized.matches("^[\\d,./%-]+$")) {
+            return false;
+        }
+        return containsLetters(normalized);
+    }
+
+    private boolean isHardStopLine(String line) {
+        if (line == null || line.isBlank()) {
+            return true;
+        }
+        String lowered = line.trim().toLowerCase();
+        return lowered.startsWith("invoice-cum")
+                || lowered.startsWith("sanshray foods")
+                || lowered.startsWith("gstin/uin")
+                || lowered.startsWith("buyer")
+                || lowered.startsWith("consignee")
+                || lowered.startsWith("delivery note")
+                || lowered.startsWith("mode/terms")
+                || lowered.startsWith("terms of delivery")
+                || lowered.startsWith("sl description")
+                || lowered.startsWith("no. rate")
+                || lowered.startsWith("transport ")
+                || lowered.startsWith("total ")
+                || lowered.startsWith("amount chargeable")
+                || lowered.startsWith("inr ")
+                || lowered.startsWith("taxable ")
+                || lowered.startsWith("cgst@")
+                || lowered.startsWith("sgst")
+                || lowered.startsWith("tax rate")
+                || lowered.startsWith("declaration")
+                || lowered.startsWith("company's")
+                || lowered.startsWith("receiver")
+                || lowered.startsWith("authorised")
+                || lowered.startsWith("sub total");
+    }
+
     private ParsedItem tryParseCandidate(String candidate, Pattern linePattern) {
         if (candidate == null || candidate.isBlank()) {
             return null;
@@ -75,6 +167,7 @@ public class VendorInvoiceTemplateParser {
             String amountText = firstGroup(matcher, "amount", "total", "total_value_after_tax", "totalValueAfterTax");
             String hsn = firstGroup(matcher, "hsn", "item_id", "itemId", "hsn_code", "hsnCode", "id");
             String gstText = firstGroup(matcher, "gst", "tax", "tax_percent", "taxPercent", "gst_percent", "gstPercent");
+            String mrpText = firstGroup(matcher, "mrp", "retail_price", "retailPrice", "max_retail_price", "maxRetailPrice");
             if (name.isBlank()) {
                 return null;
             }
@@ -94,6 +187,7 @@ public class VendorInvoiceTemplateParser {
             double rate = parseNumber(rateText);
             double amount = parseNumber(amountText);
             double gstPercent = parseNumber(gstText);
+            double mrp = parseNumber(mrpText);
             if (qty <= 0) {
                 qty = 1.0;
             }
@@ -118,7 +212,8 @@ public class VendorInvoiceTemplateParser {
                 return null;
             }
             Double gstPercentValue = gstPercent > 0 ? gstPercent : null;
-            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn, gstPercentValue);
+            Double mrpValue = mrp > 0 ? mrp : null;
+            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn, gstPercentValue, mrpValue);
         } catch (IllegalArgumentException ex) {
             return null;
         }
@@ -153,11 +248,11 @@ public class VendorInvoiceTemplateParser {
         String lowered = name.toLowerCase();
         // Reject common invoice metadata/header rows that may accidentally match numeric patterns.
         String[] blocked = {
-                "hsn", "sac", "qty", "rate", "amount", "tax", "total", "value", "invoice", "bill",
+                "hsn", "sac", "qty", "rate", "amount", "total", "value", "invoice", "bill",
                 "gst", "gstin", "pan", "fssai", "sr", "particular", "receiver", "seller", "buyer"
         };
         for (String word : blocked) {
-            if (lowered.contains(word)) {
+            if (lowered.matches(".*\\b" + Pattern.quote(word) + "\\b.*")) {
                 return true;
             }
         }

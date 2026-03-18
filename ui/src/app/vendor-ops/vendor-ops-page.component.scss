@@ -59,10 +59,13 @@
 }
 
 .card-actions {
-  display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-actions .mat-mdc-form-field,
+.card-actions mat-form-field {
+  min-width: 240px;
 }
 
 .card-title,
@@ -219,7 +222,7 @@
 
   .card-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: stretch;
   }
 
   .subsection-header {

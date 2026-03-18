@@ -62,6 +62,19 @@ table {
   width: 100%;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 0 4px;
+}
+
+.count {
+  color: rgba(16, 24, 40, 0.55);
+  font-weight: 600;
+  margin-left: 6px;
+}
+
 .pro-table th,
 .pro-table .mat-mdc-header-cell {
   font-size: 11px;

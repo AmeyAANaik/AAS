@@ -1,8 +1,8 @@
 import { Component, Inject, OnInit } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
+import { formatUiError } from '../../shared/error-message.util';
 import { ItemMetadataService } from '../item-metadata.service';
 import { ItemFormValue, ItemView } from '../item.model';
 import { ItemService } from '../item.service';
@@ -294,30 +294,7 @@ export class ItemCategoryDialogComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof HttpErrorResponse) {
-      const payload = err.error;
-      if (typeof payload === 'string' && payload.trim()) {
-        return payload;
-      }
-      if (payload && typeof payload === 'object') {
-        const message = String((payload as Record<string, unknown>)['message'] ?? '').trim();
-        if (message) {
-          return message;
-        }
-        const error = String((payload as Record<string, unknown>)['error'] ?? '').trim();
-        if (error) {
-          return error;
-        }
-      }
-      return err.message || fallback;
-    }
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 
   private bumpFormVersion(): void {

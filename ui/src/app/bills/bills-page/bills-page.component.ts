@@ -4,6 +4,7 @@ import { finalize } from 'rxjs/operators';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
+import { formatUiError } from '../../shared/error-message.util';
 import { BillsService } from '../bills.service';
 import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
 
@@ -241,12 +242,6 @@ export class BillsPageComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

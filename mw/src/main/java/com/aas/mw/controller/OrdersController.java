@@ -198,7 +198,7 @@ public class OrdersController {
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
-                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "error", "Session expired. Please log out and log in again.",
                             "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {
@@ -235,7 +235,7 @@ public class OrdersController {
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
-                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "error", "Session expired. Please log out and log in again.",
                             "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {
@@ -254,7 +254,7 @@ public class OrdersController {
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
-                            "error", "ERPNext session not found. Please log out and log in again (middleware restart clears ERP session cache).",
+                            "error", "Session expired. Please log out and log in again.",
                             "errorCode", "ERP_SESSION_MISSING"));
         }
         if (file == null || file.isEmpty()) {

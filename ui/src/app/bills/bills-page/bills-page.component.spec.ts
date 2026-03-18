@@ -2,16 +2,23 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTableModule } from '@angular/material/table';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
+import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { BillsService } from '../bills.service';
 import { InvoiceCreateComponent } from '../invoice-create/invoice-create.component';
 import { PaymentFormComponent } from '../payment-form/payment-form.component';
@@ -37,14 +44,21 @@ describe('BillsPageComponent', () => {
       declarations: [BillsPageComponent, InvoiceCreateComponent, PaymentFormComponent],
       imports: [
         ReactiveFormsModule,
+        RouterTestingModule,
         MatButtonModule,
         MatCardModule,
+        MatDividerModule,
         MatExpansionModule,
         MatFormFieldModule,
+        MatIconModule,
         MatInputModule,
         MatSelectModule,
+        MatSlideToggleModule,
         MatTableModule,
-        NoopAnimationsModule
+        NoopAnimationsModule,
+        EmptyStateComponent,
+        PageHeaderComponent,
+        StatusPillComponent
       ],
       providers: [
         { provide: BillsService, useValue: billsService },

@@ -61,6 +61,7 @@ export interface OrderCreateLine {
   item_code: string;
   qty: number;
   rate: number;
+  aas_gst_percent?: number;
 }
 
 export interface OrderCreatePayload {
@@ -69,7 +70,7 @@ export interface OrderCreatePayload {
   aas_category?: string;
   transaction_date: string;
   delivery_date: string;
-  items: OrderCreateLine[];
+  items?: OrderCreateLine[];
 }
 
 export interface OrderCreateResult {
@@ -97,6 +98,8 @@ export interface OrderItemPayload {
   qty: number;
   rate: number;
   aas_margin_percent: number;
+  aas_mrp?: number;
+  aas_gst_percent?: number;
 }
 
 export interface OrderOption {

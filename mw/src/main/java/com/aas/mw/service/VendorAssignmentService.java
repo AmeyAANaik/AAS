@@ -58,6 +58,12 @@ public class VendorAssignmentService {
         if (isDisabled(vendor.get("disabled"))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Inactive vendors cannot be assigned to orders.");
         }
+        String category = String.valueOf(vendor.getOrDefault("aas_category", "")).trim();
+        if (category.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Vendor category is required before assigning the vendor to orders.");
+        }
     }
 
     private boolean isDisabled(Object value) {

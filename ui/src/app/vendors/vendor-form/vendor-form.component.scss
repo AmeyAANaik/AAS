@@ -10,12 +10,10 @@
 }
 
 .form-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
+  justify-content: flex-end;
 }
 
 .form-grid .full {
@@ -33,11 +31,14 @@
 }
 
 .template-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
   margin-top: 8px;
+  justify-content: flex-start;
+}
+
+.sample-upload-button.upload-ready {
+  border-color: #1f8f52;
+  color: #1f8f52;
+  background: #edf9f1;
 }
 
 .template-columns,
@@ -161,4 +162,21 @@
 .status {
   font-size: 12px;
   color: var(--muted);
+}
+
+.upload-status.ready {
+  color: #17633b;
+  font-weight: 600;
+}
+
+.secondary-action {
+  min-width: 140px;
+  min-height: 40px;
+  border-radius: 10px;
+}
+
+@media (max-width: 720px) {
+  .form-actions {
+    justify-content: stretch;
+  }
 }

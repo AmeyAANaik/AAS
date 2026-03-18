@@ -540,7 +540,7 @@ public class VendorPdfParser {
             String key = buildDedupKey(name, hsn);
             MutableParsedItem current = merged.get(key);
             if (current == null) {
-                merged.put(key, new MutableParsedItem(name, hsn, item.qty(), item.rate(), item.amount(), item.gstPercent()));
+                merged.put(key, new MutableParsedItem(name, hsn, item.qty(), item.rate(), item.amount(), item.gstPercent(), item.mrp()));
             } else {
                 current.qty += item.qty();
                 current.rate = Math.max(current.rate, item.rate());
@@ -556,6 +556,11 @@ public class VendorPdfParser {
                 if (current.hsn.isBlank() && !hsn.isBlank()) {
                     current.hsn = hsn;
                 }
+                if (current.mrp == null && item.mrp() != null) {
+                    current.mrp = item.mrp();
+                } else if (current.mrp != null && item.mrp() != null) {
+                    current.mrp = Math.max(current.mrp, item.mrp());
+                }
             }
         }
         List<ParsedItem> result = new ArrayList<>(merged.size());
@@ -569,7 +574,7 @@ public class VendorPdfParser {
             if (qty > 0 && rate <= 0 && amount > 0) {
                 rate = amount / qty;
             }
-            result.add(new ParsedItem(item.name, qty, rate, amount, item.hsn.isBlank() ? null : item.hsn, item.gstPercent));
+            result.add(new ParsedItem(item.name, qty, rate, amount, item.hsn.isBlank() ? null : item.hsn, item.gstPercent, item.mrp));
         }
         return result;
     }
@@ -642,14 +647,16 @@ public class VendorPdfParser {
         private double rate;
         private double amount;
         private Double gstPercent;
+        private Double mrp;
 
-        private MutableParsedItem(String name, String hsn, double qty, double rate, double amount, Double gstPercent) {
+        private MutableParsedItem(String name, String hsn, double qty, double rate, double amount, Double gstPercent, Double mrp) {
             this.name = name == null ? "" : name;
             this.hsn = hsn == null ? "" : hsn;
             this.qty = qty;
             this.rate = rate;
             this.amount = amount;
             this.gstPercent = gstPercent;
+            this.mrp = mrp;
         }
     }
 

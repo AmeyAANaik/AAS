@@ -7,10 +7,14 @@ import { concatMap, finalize, map, switchMap, toArray } from 'rxjs/operators';
 import { OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
 import { CategoryService } from '../../categories/category.service';
+import { formatUiError } from '../../shared/error-message.util';
 import { ItemService } from '../../items/item.service';
 import { Item } from '../../items/item.model';
+import { VendorService } from '../../vendors/vendor.service';
+import { Vendor } from '../../vendors/vendor.model';
 
 type CreateMode = 'images' | 'items';
+const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
 
 interface CategoryOrderItemOption {
   id: string;
@@ -19,9 +23,16 @@ interface CategoryOrderItemOption {
   category: string;
   unit: string;
   packagingUnit: string;
-  marginPercent: number | null;
+  rate: number;
+  gstPercent: number;
   selected: boolean;
   qty: number;
+}
+
+interface CategoryVendorOption {
+  id: string;
+  name: string;
+  category: string;
 }
 
 @Component({
@@ -48,10 +59,14 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   categories: OrderOption[] = [];
   createMode: CreateMode = 'images';
   allItems: CategoryOrderItemOption[] = [];
+  allVendors: CategoryVendorOption[] = [];
   categoryItems: CategoryOrderItemOption[] = [];
+  categoryVendors: CategoryVendorOption[] = [];
   itemSearchTerm = '';
   isItemsLoading = false;
+  isVendorsLoading = false;
   itemsError = '';
+  vendorsError = '';
   private subscriptions = new Subscription();
 
   detailsGroup: FormGroup = this.fb.group({
@@ -76,6 +91,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     private orderService: OrderService,
     private categoryService: CategoryService,
     private itemService: ItemService,
+    private vendorService: VendorService,
     private location: Location,
     private router: Router
   ) {
@@ -89,8 +105,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     }
     this.loadCategories();
     this.loadItems();
+    this.loadVendors();
     const categorySub = this.detailsGroup.get('category')?.valueChanges.subscribe(value => {
-      this.updateCategoryItems(String(value ?? ''));
+      const categoryId = String(value ?? '');
+      this.updateCategoryItems(categoryId);
+      this.updateCategoryVendors(categoryId);
     });
     if (categorySub) {
       this.subscriptions.add(categorySub);
@@ -126,11 +145,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         aas_category: String(details.category ?? '').trim(),
         transaction_date: String(details.orderDate ?? ''),
         delivery_date: String(details.deliveryDate ?? ''),
-        items: this.selectedOrderItems.map(item => ({
-          item_code: item.code,
-          qty: item.qty,
+        items: [{
+          item_code: BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE,
+          qty: 1,
           rate: 0
-        }))
+        }]
       })
       .pipe(finalize(() => (this.isSubmitting = false)))
       .subscribe({
@@ -139,7 +158,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           const displayId = this.extractOrderDisplayId(response);
           if (id) {
             this.createdOrderId = id;
-            this.statusMessage = `Order created from ${this.selectedOrderItems.length} selected item${this.selectedOrderItems.length === 1 ? '' : 's'}: ${id}`;
+            this.statusMessage = `Order created. Continue in Manage Order to upload the vendor PDF and parse the item list: ${id}`;
             this.created.emit({
               id,
               customer: String(details.customer ?? '').trim(),
@@ -282,25 +301,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    const anyErr = err as { error?: unknown; message?: string } | null;
-    const payload = anyErr?.error;
-    if (payload && typeof payload === 'object') {
-      const message = (payload as { message?: unknown; error?: unknown }).message
-        ?? (payload as { message?: unknown; error?: unknown }).error;
-      if (typeof message === 'string' && message.trim()) {
-        return message.trim();
-      }
-    }
-    if (err instanceof Error && err.message.trim()) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    if (typeof anyErr?.message === 'string' && anyErr.message.trim()) {
-      return anyErr.message.trim();
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 
   private loadCompanies(): void {
@@ -366,6 +367,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           .filter(category => !category.disabled)
           .map(({ id, name }) => ({ id, name }));
           this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+          this.updateCategoryVendors(String(this.detailsGroup.get('category')?.value ?? ''));
         },
         error: err => {
           this.categoriesError = this.formatError(err, 'Unable to load categories');
@@ -392,11 +394,34 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.subscriptions.add(sub);
   }
 
+  private loadVendors(): void {
+    this.isVendorsLoading = true;
+    this.vendorsError = '';
+    const sub = this.vendorService
+      .listVendors()
+      .pipe(finalize(() => (this.isVendorsLoading = false)))
+      .subscribe({
+        next: vendors => {
+          this.allVendors = (vendors ?? [])
+            .map(vendor => this.mapVendorOption(vendor))
+            .filter(vendor => !!vendor.category)
+            .sort((left, right) => left.name.localeCompare(right.name));
+          this.updateCategoryVendors(String(this.detailsGroup.get('category')?.value ?? ''));
+        },
+        error: err => {
+          this.vendorsError = this.formatError(err, 'Unable to load vendors for this category.');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
   setCreateMode(mode: CreateMode): void {
     this.createMode = mode;
     this.statusMessage = '';
     if (mode === 'items') {
-      this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+      const categoryId = String(this.detailsGroup.get('category')?.value ?? '');
+      this.updateCategoryItems(categoryId);
+      this.updateCategoryVendors(categoryId);
     }
   }
 
@@ -407,24 +432,12 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.syncItemsToMasterList();
   }
 
-  updateItemQty(itemId: string, rawValue: string | number): void {
-    const qty = Math.max(1, Number(rawValue || 1));
-    this.categoryItems = this.categoryItems.map(item => item.id === itemId
-      ? { ...item, qty, selected: true }
-      : item);
-    this.syncItemsToMasterList();
-  }
-
   get selectedOrderItems(): CategoryOrderItemOption[] {
     return this.categoryItems.filter(item => item.selected);
   }
 
   get selectedItemsCount(): number {
     return this.selectedOrderItems.length;
-  }
-
-  get totalSelectedQty(): number {
-    return this.selectedOrderItems.reduce((sum, item) => sum + item.qty, 0);
   }
 
   get filteredCategoryItems(): CategoryOrderItemOption[] {
@@ -574,18 +587,36 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       category: String(item.item_group ?? '').trim(),
       unit: String(item.stock_uom ?? 'Nos').trim() || 'Nos',
       packagingUnit: String(item.aas_packaging_unit ?? '').trim(),
-      marginPercent: this.asNumber(item.aas_margin_percent),
+      rate: Math.max(0, this.asNumber(item.aas_vendor_rate) ?? 0),
+      gstPercent: 0,
       selected: false,
       qty: 1
     };
   }
 
+  private mapVendorOption(vendor: Vendor): CategoryVendorOption {
+    const name = String(vendor.supplier_name ?? vendor.name ?? '').trim();
+    return {
+      id: String(vendor.name ?? name).trim(),
+      name: name || String(vendor.name ?? '').trim(),
+      category: String(vendor.category ?? '').trim()
+    };
+  }
+
   private updateCategoryItems(categoryId: string): void {
-    const normalized = String(categoryId ?? '').trim().toLowerCase();
+    const normalized = this.normalizeCategory(categoryId);
     this.itemSearchTerm = '';
     this.categoryItems = this.allItems
-      .filter(item => normalized ? item.category.toLowerCase() === normalized : false)
+      .filter(item => normalized ? this.normalizeCategory(item.category) === normalized : false)
       .map(item => ({ ...item }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private updateCategoryVendors(categoryId: string): void {
+    const normalized = this.normalizeCategory(categoryId);
+    this.categoryVendors = this.allVendors
+      .filter(vendor => normalized ? this.normalizeCategory(vendor.category) === normalized : false)
+      .map(vendor => ({ ...vendor }))
       .sort((left, right) => left.name.localeCompare(right.name));
   }
 
@@ -605,6 +636,10 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     }
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  private normalizeCategory(value: unknown): string {
+    return String(value ?? '').trim().toLowerCase();
   }
 
 }

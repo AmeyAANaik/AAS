@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { Observable, catchError, map, of, startWith } from 'rxjs';
+import { formatUiError } from '../shared/error-message.util';
 import { DashboardService } from './dashboard.service';
 import { DashboardSnapshot } from './dashboard.model';
 
@@ -41,9 +42,6 @@ export class DashboardComponent {
   }
 
   private formatError(err: unknown): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    return String(err ?? 'Failed to load dashboard data');
+    return formatUiError(err, 'Failed to load dashboard data');
   }
 }

@@ -7,6 +7,8 @@ import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -24,12 +26,16 @@ public class OrderService {
 
     private static final String DOCTYPE = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
+    private static final String PURCHASE_INVOICE = "Purchase Invoice";
+    private static final String SALES_INVOICE = "Sales Invoice";
     private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg");
+    private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final CatalogRoutingService catalogRoutingService;
+    private final OrderPricingService orderPricingService;
     private final String erpPublicBaseUrl;
     private final double defaultMarginPercent;
 
@@ -38,12 +44,14 @@ public class OrderService {
             ErpNextFileService erpNextFileService,
             OrderFlowStateMachine orderFlowStateMachine,
             CatalogRoutingService catalogRoutingService,
+            OrderPricingService orderPricingService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.catalogRoutingService = catalogRoutingService;
+        this.orderPricingService = orderPricingService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
         this.defaultMarginPercent = defaultMarginPercent;
     }
@@ -190,7 +198,29 @@ public class OrderService {
         if (branch.isBlank() || category.isBlank() || normalizedDate.isBlank()) {
             return "";
         }
-        return branch + "_" + category + "_" + normalizedDate;
+        String prefix = branch + "_" + category + "_" + normalizedDate;
+        return prefix + "_" + resolveOrderBusinessKeyCounter(branchName, categoryName, date, prefix);
+    }
+
+    private int resolveOrderBusinessKeyCounter(String branchName, String categoryName, String date, String titlePrefix) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put(
+                    "filters",
+                    toJson(List.of(
+                            List.of("customer", "=", asText(branchName)),
+                            List.of("aas_category", "=", asText(categoryName)),
+                            List.of("transaction_date", "=", resolveDate(date)))));
+            long count = erpNextClient.getCount(DOCTYPE, params);
+            return (int) count + 1;
+        } catch (Exception ex) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"title\"]");
+            params.put("filters", "[[\"title\",\"like\",\"" + escape(titlePrefix) + "_%\"]]");
+            params.put("limit_page_length", 1000);
+            List<Map<String, Object>> rows = erpNextClient.listResources(DOCTYPE, params);
+            return rows.size() + 1;
+        }
     }
 
     private String normalizeNameSegment(String value) {
@@ -386,21 +416,43 @@ public class OrderService {
         }
         Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
         Map<String, Object> orderData = unwrap(order);
+        if (isSoftDeleted(orderData)) {
+            return Map.of(
+                    "orderId", orderId,
+                    "deleted", true,
+                    "softDeleted", true,
+                    "alreadyDeleted", true,
+                    "deletedPurchaseInvoices", List.of(),
+                    "retainedPurchaseInvoices", List.of(),
+                    "deletedSalesInvoices", List.of(),
+                    "retainedSalesInvoices", List.of(),
+                    "purchaseOrderDeleted", false,
+                    "salesInvoiceDeleted", false);
+        }
         String status = readField(order, "aas_status");
         orderFlowStateMachine.ensureCanDeleteOrder(status);
-        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
-        boolean deletedPurchaseOrder = false;
+        String purchaseOrderId = asText(orderData.get("aas_po"));
 
+        CascadeCleanupResult salesInvoiceCleanup = cleanupLinkedSalesInvoices(orderId, orderData);
+        CascadeCleanupResult purchaseInvoiceCleanup = cleanupLinkedPurchaseInvoices(orderId, orderData);
+        boolean deletedPurchaseOrder = false;
         if (!purchaseOrderId.isBlank()) {
-            deletedPurchaseOrder = deleteLinkedDraftPurchaseOrder(orderId, purchaseOrderId);
+            deletedPurchaseOrder = deleteLinkedDraftPurchaseOrder(orderId, purchaseOrderId, purchaseInvoiceCleanup.retainedDocIds());
         }
 
         clearInboundSalesOrderLinks(orderId);
-        erpNextClient.deleteResource(DOCTYPE, orderId);
+        softDeleteOrder(orderId, orderData);
         return Map.of(
                 "orderId", orderId,
+                "deleted", true,
+                "softDeleted", true,
+                "deletedSalesInvoices", salesInvoiceCleanup.deletedDocIds(),
+                "retainedSalesInvoices", salesInvoiceCleanup.retainedDocIds(),
+                "salesInvoiceDeleted", !salesInvoiceCleanup.deletedDocIds().isEmpty(),
                 "purchaseOrderId", purchaseOrderId,
-                "purchaseOrderDeleted", deletedPurchaseOrder);
+                "purchaseOrderDeleted", deletedPurchaseOrder,
+                "deletedPurchaseInvoices", purchaseInvoiceCleanup.deletedDocIds(),
+                "retainedPurchaseInvoices", purchaseInvoiceCleanup.retainedDocIds());
     }
 
     private String resolveDate(String value) {
@@ -426,7 +478,7 @@ public class OrderService {
                 "[\"name\",\"title\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_category\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"currency\",\"price_list_currency\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
-                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\"]");
+                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\",\"aas_is_deleted\",\"aas_deleted_at\"]");
         // Sort by last modification so newly created orders show up reliably on the first page.
         params.put("order_by", "modified desc");
         if (!filters.isEmpty()) {
@@ -443,6 +495,7 @@ public class OrderService {
             params.put("filters", toJson(filterList));
         }
         List<Map<String, Object>> orders = erpNextClient.listResources(DOCTYPE, params);
+        orders = orders.stream().filter(order -> !isSoftDeleted(order)).toList();
         addOrderCostMetrics(orders);
         orders.forEach(this::resolveOrderFileUrls);
         return orders;
@@ -616,6 +669,11 @@ public class OrderService {
         }
     }
 
+    private Double asNullableDouble(Object value) {
+        double parsed = asDouble(value);
+        return parsed > 0 ? parsed : null;
+    }
+
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
     }
@@ -732,15 +790,21 @@ public class OrderService {
                     break;
                 }
             }
+            Map<String, Object> existingRow = matchIdx >= 0 ? existing.get(matchIdx) : Map.of();
+            Double mrp = asNullableDouble(existingRow.get("aas_mrp"));
+            OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
+                    line.getRate(),
+                    resolveMarginPercent(line.getAas_margin_percent(), itemCode),
+                    mrp,
+                    itemCode);
             Map<String, Object> row = new HashMap<>();
             row.put("doctype", childDoctype);
             row.put("item_code", itemCode);
             row.put("qty", line.getQty());
             row.put("rate", line.getRate());
             row.put("amount", line.getQty() * line.getRate());
-            row.put("aas_margin_percent", resolveMarginPercent(line.getAas_margin_percent(), itemCode));
+            row.put("aas_margin_percent", pricing.effectiveMarginPercent());
             if (matchIdx >= 0) {
-                Map<String, Object> existingRow = existing.get(matchIdx);
                 Object name = existingRow.get("name");
                 if (name != null) {
                     row.put("name", name);
@@ -752,7 +816,10 @@ public class OrderService {
                 copyIfPresent(existingRow, row, "schedule_date");
                 copyIfPresent(existingRow, row, "expense_account");
                 copyIfPresent(existingRow, row, "cost_center");
-                copyIfPresent(existingRow, row, "aas_vendor_rate");
+                copyIfPresent(existingRow, row, "aas_mrp");
+            }
+            if ("Sales Order Item".equals(childDoctype)) {
+                row.put("aas_vendor_rate", line.getRate());
             }
             out.add(row);
         }
@@ -781,6 +848,9 @@ public class OrderService {
         for (Object obj : list) {
             if (obj instanceof Map<?, ?> map) {
                 Map<String, Object> row = (Map<String, Object>) map;
+                if (BRANCH_IMAGE_ITEM_CODE.equals(asText(row.get("item_code")))) {
+                    continue;
+                }
                 Map<String, Object> simple = new HashMap<>();
                 simple.put("item_code", row.get("item_code"));
                 simple.put("item_name", row.getOrDefault("item_name", row.get("item_code")));
@@ -788,6 +858,9 @@ public class OrderService {
                 simple.put("rate", row.get("rate"));
                 simple.put("amount", row.get("amount"));
                 simple.put("aas_margin_percent", row.get("aas_margin_percent"));
+                simple.put("aas_vendor_rate", row.get("aas_vendor_rate"));
+                simple.put("aas_mrp", row.get("aas_mrp"));
+                simple.put("aas_gst_percent", row.get("aas_gst_percent"));
                 out.add(simple);
             }
         }
@@ -849,26 +922,15 @@ public class OrderService {
         return defaultMarginPercent;
     }
 
-    private boolean deleteLinkedDraftPurchaseOrder(String orderId, String purchaseOrderId) {
+    private boolean deleteLinkedDraftPurchaseOrder(String orderId, String purchaseOrderId, List<String> retainedPurchaseInvoiceIds) {
         Map<String, Object> purchaseOrder = unwrap(erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId));
         int purchaseOrderDocstatus = (int) Math.round(asDouble(purchaseOrder.get("docstatus")));
         if (purchaseOrderDocstatus != 0) {
-            throw new IllegalStateException(
-                    "Order cannot be deleted because linked Purchase Order "
-                            + purchaseOrderId
-                            + " is submitted/cancelled. Cancel it in ERPNext first.");
+            return false;
         }
 
-        List<Map<String, Object>> linkedPurchaseInvoices = listLinkedPurchaseInvoices(orderId);
-        if (!linkedPurchaseInvoices.isEmpty()) {
-            String invoiceIds = linkedPurchaseInvoices.stream()
-                    .map(row -> asText(row.get("name")))
-                    .filter(name -> !name.isBlank())
-                    .reduce((left, right) -> left + ", " + right)
-                    .orElse("");
-            throw new IllegalStateException(
-                    "Order cannot be deleted because linked Purchase Invoice exists"
-                            + (invoiceIds.isBlank() ? "." : ": " + invoiceIds + "."));
+        if (retainedPurchaseInvoiceIds != null && !retainedPurchaseInvoiceIds.isEmpty()) {
+            return false;
         }
 
         // ERPNext blocks deleting the Purchase Order while the Sales Order still links to it.
@@ -877,11 +939,64 @@ public class OrderService {
         return true;
     }
 
+    private CascadeCleanupResult cleanupLinkedSalesInvoices(String orderId, Map<String, Object> orderData) {
+        List<String> deleted = new ArrayList<>();
+        List<String> retained = new ArrayList<>();
+        String linkedSalesInvoiceId = asText(orderData.get("aas_si_branch"));
+        for (Map<String, Object> row : listLinkedSalesInvoices(orderId)) {
+            String salesInvoiceId = asText(row.get("name"));
+            if (salesInvoiceId.isBlank()) {
+                continue;
+            }
+            int salesInvoiceDocstatus = (int) Math.round(asDouble(row.get("docstatus")));
+            if (salesInvoiceDocstatus == 0) {
+                if (salesInvoiceId.equals(linkedSalesInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_si_branch", ""));
+                }
+                erpNextClient.deleteResource(SALES_INVOICE, salesInvoiceId);
+                deleted.add(salesInvoiceId);
+                continue;
+            }
+            retained.add(salesInvoiceId);
+        }
+        return new CascadeCleanupResult(deleted, retained);
+    }
+
+    private CascadeCleanupResult cleanupLinkedPurchaseInvoices(String orderId, Map<String, Object> orderData) {
+        List<String> deleted = new ArrayList<>();
+        List<String> retained = new ArrayList<>();
+        String linkedPurchaseInvoiceId = asText(orderData.get("aas_pi_vendor"));
+        for (Map<String, Object> row : listLinkedPurchaseInvoices(orderId)) {
+            String purchaseInvoiceId = asText(row.get("name"));
+            if (purchaseInvoiceId.isBlank()) {
+                continue;
+            }
+            int purchaseInvoiceDocstatus = (int) Math.round(asDouble(row.get("docstatus")));
+            if (purchaseInvoiceDocstatus == 0) {
+                if (purchaseInvoiceId.equals(linkedPurchaseInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_pi_vendor", ""));
+                }
+                erpNextClient.deleteResource(PURCHASE_INVOICE, purchaseInvoiceId);
+                deleted.add(purchaseInvoiceId);
+                continue;
+            }
+            retained.add(purchaseInvoiceId);
+        }
+        return new CascadeCleanupResult(deleted, retained);
+    }
+
     private List<Map<String, Object>> listLinkedPurchaseInvoices(String orderId) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"docstatus\"]");
         params.put("filters", "[[\"Purchase Invoice\",\"aas_source_sales_order\",\"=\",\"" + escape(orderId) + "\"]]");
-        return erpNextClient.listResources("Purchase Invoice", params);
+        return erpNextClient.listResources(PURCHASE_INVOICE, params);
+    }
+
+    private List<Map<String, Object>> listLinkedSalesInvoices(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"docstatus\"]");
+        params.put("filters", "[[\"Sales Invoice\",\"aas_source_sales_order\",\"=\",\"" + escape(orderId) + "\"]]");
+        return erpNextClient.listResources(SALES_INVOICE, params);
     }
 
     private void clearInboundSalesOrderLinks(String orderId) {
@@ -922,5 +1037,38 @@ public class OrderService {
         } catch (Exception ex) {
             return 0.0;
         }
+    }
+
+    private void softDeleteOrder(String orderId, Map<String, Object> orderData) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_is_deleted", 1);
+        payload.put("aas_deleted_at", LocalDateTime.now().format(ERP_DATE_TIME));
+        payload.put("aas_po", "");
+        payload.put("aas_pi_vendor", "");
+        payload.put("aas_si_branch", "");
+        payload.put("aas_so_branch", "");
+        erpNextClient.updateResource(DOCTYPE, orderId, payload);
+    }
+
+    private boolean isSoftDeleted(Map<String, Object> order) {
+        return asFlag(order == null ? null : order.get("aas_is_deleted"))
+                || "DELETED".equalsIgnoreCase(asText(order == null ? null : order.get("aas_status")));
+    }
+
+    private boolean asFlag(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        String text = value.toString().trim().toLowerCase(Locale.ROOT);
+        return "1".equals(text) || "true".equals(text) || "yes".equals(text);
+    }
+
+    private record CascadeCleanupResult(List<String> deletedDocIds, List<String> retainedDocIds) {
     }
 }

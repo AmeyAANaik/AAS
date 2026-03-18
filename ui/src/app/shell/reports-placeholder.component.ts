@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../shared/error-message.util';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { ReportsService } from './reports.service';
@@ -117,12 +118,6 @@ export class ReportsPlaceholderComponent {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (typeof err === 'string') {
-      return err;
-    }
-    if (err instanceof Error) {
-      return err.message;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

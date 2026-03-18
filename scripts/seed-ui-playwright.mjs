@@ -68,11 +68,12 @@ const data = {
     { branchName: 'Airport Lounge Branch', location: 'JFK Airport, NY', whatsappGroupName: 'Airport Lounge Ops' }
   ],
   categories: [
-    { categoryName: 'Leafy Greens' },
-    { categoryName: 'Root Vegetables' },
-    { categoryName: 'Fruits' },
-    { categoryName: 'Grains & Pulses' },
-    { categoryName: 'Dairy & Eggs' }
+    { categoryName: 'Amras', categoryCode: 'AMRAS' },
+    { categoryName: 'Dairy', categoryCode: 'DAIRY' },
+    { categoryName: 'Grocery', categoryCode: 'GROCERY' },
+    { categoryName: 'Packaging', categoryCode: 'PACKAGING' },
+    { categoryName: 'Rabdi', categoryCode: 'RABDI' },
+    { categoryName: 'Vegetable', categoryCode: 'VEGETABLE' }
   ],
   items: [
     { itemCode: 'ITM-LETTUCE', itemName: 'Romaine Lettuce', category: 'Leafy Greens', measureUnit: 'Nos', packagingUnit: 'Crate' },
@@ -216,6 +217,7 @@ async function seedCategories(page) {
       continue;
     }
     await page.getByLabel('Category name').fill(category.categoryName);
+    await page.getByLabel('Category code').fill(category.categoryCode);
     await page.getByRole('button', { name: 'Save category' }).click();
     await waitForTableCell(page, category.categoryName);
   }

@@ -1,9 +1,8 @@
-import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Category } from '../../categories/category.model';
 import { VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
 import { InvoiceTemplateModel } from '../../shared/invoice-template-model.service';
-import { VendorService } from '../vendor.service';
 
 @Component({
   selector: 'app-vendor-form',
@@ -11,6 +10,7 @@ import { VendorService } from '../vendor.service';
   styleUrl: './vendor-form.component.scss'
 })
 export class VendorFormComponent implements OnChanges {
+  @ViewChild('sampleInput') sampleInput?: ElementRef<HTMLInputElement>;
   @Input() vendor: VendorView | null = null;
   @Input() categories: Category[] = [];
   @Input() mode: 'create' | 'edit' = 'create';
@@ -39,9 +39,9 @@ export class VendorFormComponent implements OnChanges {
   });
   sampleFile: File | null = null;
 
-  constructor(private fb: FormBuilder, private vendorService: VendorService) {}
+  constructor(private fb: FormBuilder) {}
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
     if (this.vendor) {
       const raw = this.vendor.raw as Record<string, unknown>;
       this.form.patchValue({
@@ -59,22 +59,27 @@ export class VendorFormComponent implements OnChanges {
       });
       this.form.enable({ emitEvent: false });
       this.form.markAsPristine();
-      return;
+    } else {
+      this.form.enable({ emitEvent: false });
+      this.form.reset({
+        supplierName: '',
+        vendorCode: '',
+        category: '',
+        address: '',
+        phone: '',
+        gst: '',
+        pan: '',
+        foodLicenseNo: '',
+        priority: null,
+        status: 'Inactive',
+        invoiceTemplateJson: ''
+      });
+      this.sampleFile = null;
     }
-    this.form.enable({ emitEvent: false });
-    this.form.reset({
-      supplierName: '',
-      vendorCode: '',
-      category: '',
-      address: '',
-      phone: '',
-      gst: '',
-      pan: '',
-      foodLicenseNo: '',
-      priority: null,
-      status: 'Inactive',
-      invoiceTemplateJson: ''
-    });
+
+    if (changes['templateValidation']?.currentValue?.activationReady) {
+      this.form.patchValue({ status: 'Active' }, { emitEvent: false });
+    }
   }
 
   submit(): void {
@@ -104,6 +109,8 @@ export class VendorFormComponent implements OnChanges {
   }
 
   clearInvoiceTemplate(): void {
+    this.sampleFile = null;
+    this.resetSampleInput();
     this.clearTemplate.emit();
   }
 
@@ -111,6 +118,15 @@ export class VendorFormComponent implements OnChanges {
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.item(0) ?? null;
     this.sampleFile = file;
+  }
+
+  triggerSampleUpload(): void {
+    const input = this.sampleInput?.nativeElement;
+    if (!input) {
+      return;
+    }
+    input.value = '';
+    input.click();
   }
 
   validateSample(): void {
@@ -137,6 +153,7 @@ export class VendorFormComponent implements OnChanges {
       status: 'Inactive',
       invoiceTemplateJson: ''
     });
+    this.resetSampleInput();
     this.reset.emit();
   }
 
@@ -168,43 +185,8 @@ export class VendorFormComponent implements OnChanges {
     return String(raw['invoice_template_sample_pdf'] ?? '').trim();
   }
 
-  get samplePdfName(): string {
-    const url = this.samplePdfUrl;
-    if (!url) {
-      return 'invoice_template.pdf';
-    }
-    const clean = url.split('?')[0];
-    const parts = clean.split('/');
-    return parts[parts.length - 1] || 'invoice_template.pdf';
-  }
-
-  openSamplePdf(): void {
-    if (!this.vendor?.id) {
-      return;
-    }
-    this.vendorService.downloadInvoiceTemplateSample(this.vendor.id).subscribe({
-      next: blob => {
-        const objectUrl = window.URL.createObjectURL(blob);
-        window.open(objectUrl, '_blank', 'noopener,noreferrer');
-        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
-      }
-    });
-  }
-
-  downloadSamplePdf(): void {
-    if (!this.vendor?.id) {
-      return;
-    }
-    this.vendorService.downloadInvoiceTemplateSample(this.vendor.id).subscribe({
-      next: blob => {
-        const objectUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = this.samplePdfName;
-        link.click();
-        window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
-      }
-    });
+  get hasUploadedSample(): boolean {
+    return !!this.sampleFile || !!this.samplePdfUrl;
   }
 
   get itemFields() {
@@ -213,5 +195,12 @@ export class VendorFormComponent implements OnChanges {
 
   get summaryFields() {
     return this.invoiceTemplateModel?.summaryFields ?? [];
+  }
+
+  private resetSampleInput(): void {
+    const input = this.sampleInput?.nativeElement;
+    if (input) {
+      input.value = '';
+    }
   }
 }

@@ -19,14 +19,17 @@ public class OrderBillingService {
 
     private final ErpNextClient erpNextClient;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final OrderPricingService orderPricingService;
     private final double defaultMarginPercent;
 
     public OrderBillingService(
             ErpNextClient erpNextClient,
             OrderFlowStateMachine orderFlowStateMachine,
+            OrderPricingService orderPricingService,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.orderPricingService = orderPricingService;
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
@@ -264,14 +267,21 @@ public class OrderBillingService {
                 vendorRate = asDouble(row.get("rate"));
             }
             double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"), fallbackMarginPercent);
-            double sellRate = round(vendorRate * (1 + marginPercent / 100.0));
+            OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
+                    vendorRate,
+                    marginPercent,
+                    asNullableDouble(row.get("aas_mrp")),
+                    asText(row.get("item_name")).isBlank() ? asText(row.get("item_code")) : asText(row.get("item_name")));
             Map<String, Object> item = new HashMap<>();
             item.put("item_code", asText(row.get("item_code")));
             item.put("qty", qty);
-            item.put("rate", sellRate);
-            item.put("amount", round(sellRate * qty));
+            item.put("rate", pricing.sellRate());
+            item.put("amount", round(pricing.sellRate() * qty));
             item.put("aas_vendor_rate", vendorRate);
-            item.put("aas_margin_percent", marginPercent);
+            item.put("aas_margin_percent", pricing.effectiveMarginPercent());
+            if (asNullableDouble(row.get("aas_mrp")) != null) {
+                item.put("aas_mrp", asNullableDouble(row.get("aas_mrp")));
+            }
             out.add(item);
         }
         if (out.isEmpty()) {
@@ -426,6 +436,11 @@ public class OrderBillingService {
         } catch (Exception ex) {
             return 0.0;
         }
+    }
+
+    private Double asNullableDouble(Object value) {
+        double parsed = asDouble(value);
+        return parsed > 0 ? parsed : null;
     }
 
     private double round(double value) {

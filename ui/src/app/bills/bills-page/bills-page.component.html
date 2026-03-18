@@ -1,5 +1,5 @@
 <div class="bills-page">
-  <app-page-header title="Billing & finance" subtitle="Track invoices, collections, and cash flow status.">
+  <app-page-header title="Billing & finance" subtitle="Track invoice throughput, outstanding collections, and branch billing windows in one place.">
     <button mat-stroked-button color="primary" routerLink="/orders">Orders</button>
     <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Refresh</button>
   </app-page-header>
@@ -67,7 +67,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">Invoice list</div>
-        <div class="section-subtitle">Latest invoices and current status.</div>
+        <div class="section-subtitle">Latest invoices, status, and downloadable PDFs for finance follow-up.</div>
       </div>
     </div>
     <mat-card-content>

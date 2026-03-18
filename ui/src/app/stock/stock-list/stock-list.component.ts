@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../../shared/error-message.util';
 import { StockService } from '../stock.service';
 import { StockItem, StockThresholdFormValue, StockView } from '../stock.model';
 
@@ -121,12 +122,6 @@ export class StockListComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

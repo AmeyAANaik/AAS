@@ -21,6 +21,16 @@
   color: var(--ink);
 }
 
+.alert-card {
+  background: linear-gradient(135deg, rgba(179, 71, 47, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.summary-hint {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;

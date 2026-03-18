@@ -1,6 +1,9 @@
 <div class="shell">
   <header class="shell-header">
     <div class="header-left">
+      <button class="nav-toggle" type="button" (click)="toggleNav()" aria-label="Toggle navigation menu">
+        <span class="material-icons" aria-hidden="true">{{ isNavOpen ? 'close' : 'menu' }}</span>
+      </button>
       <div class="header-brand">
         <img *ngIf="companyLogoUrl" class="header-logo-image" [src]="companyLogoUrl" [alt]="companyName + ' logo'" />
         <div *ngIf="!companyLogoUrl" class="header-logo" aria-hidden="true">{{ companyAvatarText }}</div>
@@ -43,82 +46,33 @@
   </header>
 
   <div class="shell-body">
-    <aside class="shell-sidebar">
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Home</div>
-        <a routerLink="/admin/dashboard" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">dashboard</span>
-          Dashboard
-        </a>
-      </nav>
+    <div class="shell-sidebar-backdrop" *ngIf="isNavOpen" (click)="closeNav()"></div>
+    <aside class="shell-sidebar" [class.shell-sidebar-open]="isNavOpen">
+      <div class="sidebar-head">
+        <div>
+          <div class="sidebar-kicker">Workspace</div>
+          <div class="sidebar-current">{{ breadcrumbs }}</div>
+        </div>
+      </div>
 
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Procure</div>
-        <a routerLink="/orders" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">receipt_long</span>
-          Orders
-        </a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Inventory</div>
-        <a routerLink="/stock" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">inventory_2</span>
-          Stock
-        </a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Finance</div>
-        <a routerLink="/bills" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">account_balance_wallet</span>
-          Bills / Invoices
-        </a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Master Data</div>
-        <a routerLink="/vendors" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">local_shipping</span>
-          Vendors
-        </a>
-        <a routerLink="/branches" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">hub</span>
-          Branches
-        </a>
-        <a routerLink="/categories" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">category</span>
-          Categories
-        </a>
-        <a routerLink="/items" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">inventory</span>
-          Items
-        </a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Reports</div>
-        <a routerLink="/reports" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">query_stats</span>
-          Reports
-        </a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Operations</div>
-        <a routerLink="/vendor-ops" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">local_shipping</span>
-          Vendor Operations
-        </a>
-        <a routerLink="/branch-ops" routerLinkActive="active">
-          <span class="material-icons nav-icon" aria-hidden="true">storefront</span>
-          Branch Operations
+      <nav class="sidebar-group" *ngFor="let section of navSections">
+        <div class="sidebar-title">{{ section.title }}</div>
+        <a
+          *ngFor="let link of section.links"
+          [routerLink]="link.route"
+          routerLinkActive="active"
+          (click)="closeNav()">
+          <span class="material-icons nav-icon" aria-hidden="true">{{ link.icon }}</span>
+          {{ link.label }}
         </a>
       </nav>
     </aside>
 
     <main class="shell-content">
-      <div class="breadcrumbs">{{ breadcrumbs }}</div>
+      <div class="breadcrumbs-shell">
+        <div class="breadcrumbs">{{ breadcrumbs }}</div>
+        <div class="breadcrumbs-note">Operational workspace</div>
+      </div>
       <div class="page-body">
         <router-outlet></router-outlet>
       </div>

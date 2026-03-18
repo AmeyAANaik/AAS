@@ -90,15 +90,29 @@ public class SetupService {
                 "aas_status",
                 "AAS Status",
                 "Select",
-                "DRAFT\nVENDOR_ASSIGNED\nVENDOR_PDF_RECEIVED\nVENDOR_BILL_CAPTURED\nSELL_ORDER_CREATED\nINVOICED\nAccepted\nPreparing\nReady\nDelivered",
+                "DRAFT\nVENDOR_ASSIGNED\nVENDOR_PDF_RECEIVED\nVENDOR_BILL_CAPTURED\nSELL_ORDER_CREATED\nINVOICED\nDELETED\nAccepted\nPreparing\nReady\nDelivered",
                 "aas_vendor");
+        boolean deletedFlagField = ensureCustomField(
+                "Sales Order",
+                "aas_is_deleted",
+                "AAS Deleted",
+                "Check",
+                null,
+                "aas_status");
+        boolean deletedAtField = ensureCustomField(
+                "Sales Order",
+                "aas_deleted_at",
+                "AAS Deleted At",
+                "Datetime",
+                null,
+                "aas_is_deleted");
         boolean salesOrderMarginField = ensureCustomField(
                 "Sales Order",
                 "aas_margin_percent",
                 "Margin %",
                 "Float",
                 null,
-                "aas_status");
+                "aas_deleted_at");
         boolean vendorPdfField = ensureCustomField(
                 "Sales Order",
                 "aas_vendor_pdf",
@@ -274,6 +288,20 @@ public class SetupService {
                 "Currency",
                 null,
                 "aas_margin_percent");
+        boolean soItemMrpField = ensureCustomField(
+                "Sales Order Item",
+                "aas_mrp",
+                "MRP",
+                "Currency",
+                null,
+                "aas_vendor_rate");
+        boolean soItemGstField = ensureCustomField(
+                "Sales Order Item",
+                "aas_gst_percent",
+                "GST %",
+                "Float",
+                null,
+                "aas_mrp");
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
@@ -283,6 +311,8 @@ public class SetupService {
         result.put("packagingUnitFieldCreated", packagingUnitField);
         result.put("soItemMarginFieldCreated", soItemMarginField);
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
+        result.put("soItemMrpFieldCreated", soItemMrpField);
+        result.put("soItemGstFieldCreated", soItemGstField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
         result.put("branchSalesOrderFieldCreated", branchSalesOrderField);

@@ -44,10 +44,7 @@ public class OrderFlowStateMachine {
     }
 
     public void ensureCanDeleteOrder(String currentStatus) {
-        String normalized = normalize(currentStatus);
-        if (!DRAFT.equals(normalized) && !VENDOR_ASSIGNED.equals(normalized) && !VENDOR_PDF_RECEIVED.equals(normalized)) {
-            throw new IllegalStateException("Order can only be deleted when status is DRAFT, VENDOR_ASSIGNED, or VENDOR_PDF_RECEIVED.");
-        }
+        normalize(currentStatus);
     }
 
     public void ensureTransitionAllowed(String from, String to) {
