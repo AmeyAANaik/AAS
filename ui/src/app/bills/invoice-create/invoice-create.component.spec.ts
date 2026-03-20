@@ -55,6 +55,7 @@ describe('InvoiceCreateComponent', () => {
   it('submits manual invoice payload', () => {
     component.setMode('manual');
     component.onManualCustomerChange();
+    component.roundingAdjustmentControl.setValue(-0.4);
     component.manualForm.patchValue({
       customer: 'SHOP-1',
       company: 'aas'
@@ -80,7 +81,8 @@ describe('InvoiceCreateComponent', () => {
         { item_code: 'ITM-1', qty: 2, rate: 12 },
         { item_code: 'ITM-1', qty: 1, rate: 5 }
       ],
-      apply_gst: true
+      apply_gst: true,
+      rounding_adjustment: -0.4
     });
   });
 
@@ -88,6 +90,7 @@ describe('InvoiceCreateComponent', () => {
     component.setMode('order');
     component.orderForm.patchValue({ orderId: 'ORD-1' });
     component.loadOrder();
+    component.roundingAdjustmentControl.setValue(0.4);
 
     component.submit();
 
@@ -96,7 +99,8 @@ describe('InvoiceCreateComponent', () => {
       customer: 'Shop A',
       company: 'aas',
       items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }],
-      apply_gst: true
+      apply_gst: true,
+      rounding_adjustment: 0.4
     });
   });
 });

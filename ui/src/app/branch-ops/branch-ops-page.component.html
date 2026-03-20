@@ -17,7 +17,7 @@
         <div class="card-subtitle">Start with branches carrying the largest open backlog or receivable exposure.</div>
       </div>
       <div class="card-actions">
-        <button mat-icon-button type="button" color="primary" class="subsection-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers">
+        <button mat-icon-button type="button" color="primary" class="download-all-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers">
           <mat-icon>download</mat-icon>
         </button>
         <mat-form-field appearance="outline">

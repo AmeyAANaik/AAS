@@ -34,6 +34,10 @@ export const routes: Routes = [
         loadChildren: () => import('./company-settings/company-settings.module').then(m => m.CompanySettingsModule),
         canMatch: [adminDashboardGuard]
       },
+      {
+        path: 'user-settings',
+        loadChildren: () => import('./user-settings/user-settings.module').then(m => m.UserSettingsModule)
+      },
       { path: 'orders', loadChildren: () => import('./orders/orders.module').then(m => m.OrdersModule) },
       { path: 'stock', loadChildren: () => import('./stock/stock.module').then(m => m.StockModule) },
       { path: 'bills', loadChildren: () => import('./bills/bills.module').then(m => m.BillsModule) },

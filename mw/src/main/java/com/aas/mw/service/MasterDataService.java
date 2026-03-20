@@ -584,6 +584,7 @@ public class MasterDataService {
             String itemLineRegex = asText(parser.get("itemLineRegex"));
             String billDateRegex = asText(parser.get("billDateRegex"));
             String finalAmountRegex = asText(parser.get("finalAmountRegex"));
+            String transportChargeRegex = asText(parser.get("transportChargeRegex"));
             if (version <= 0 || itemLineRegex.isBlank()) {
                 return false;
             }
@@ -594,7 +595,8 @@ public class MasterDataService {
                             version,
                             itemLineRegex,
                             billDateRegex.isBlank() ? null : billDateRegex,
-                            finalAmountRegex.isBlank() ? null : finalAmountRegex));
+                            finalAmountRegex.isBlank() ? null : finalAmountRegex,
+                            transportChargeRegex.isBlank() ? null : transportChargeRegex));
             if (items.isEmpty()) {
                 return false;
             }
@@ -632,7 +634,8 @@ public class MasterDataService {
                             version,
                             itemLineRegex,
                             billDateRegex.isBlank() ? null : billDateRegex,
-                            finalAmountRegex.isBlank() ? null : finalAmountRegex));
+                            finalAmountRegex.isBlank() ? null : finalAmountRegex,
+                            transportChargeRegex.isBlank() ? null : transportChargeRegex));
             if (!finalBillAmount.isBlank()) {
                 parsedSummaryFields.add("final_bill_amount");
             }

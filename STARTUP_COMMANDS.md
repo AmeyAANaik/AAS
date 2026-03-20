@@ -152,11 +152,57 @@ npx playwright test -c ui/playwright.config.ts --reporter=line
 
 Use Docker Compose for ERPNext changes and local runtime.
 
-### Start ERPNext
+### ERP module working directory
+
+If you are already inside `erpmodule/`, use these commands directly:
 
 ```bash
-cd erpmodule
+cd /Users/roshninaik/Projects/AAS/erpmodule
+pwd
+ls
+```
+
+Key files:
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+ls -1
+cat .env
+sed -n '1,240p' pwd.yml
+```
+
+### Start ERPNext (normal)
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml up -d
+```
+
+### Start ERPNext with rebuild
+
+Use this after ERP Dockerfile, ERP apps, or compose changes.
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml up -d --build
+```
+
+### Start only the ERP frontend first
+
+Useful when you only want to bring the full stack up in detached mode and then inspect service health.
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator create-site websocket queue-short queue-long scheduler backend frontend
+```
+
+### Re-run ERP site bootstrap/custom-field setup
+
+This is useful if the ERP site exists but you want to re-apply the `create-site` step logic.
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml run --rm create-site
 ```
 
 ### Configure ERPNext Setup Defaults (optional)
@@ -180,7 +226,7 @@ erp.setup.chart-of-accounts=Standard
 To apply these defaults, you must recreate the ERPNext volumes (data wipe):
 
 ```bash
-cd erpmodule
+cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down -v
 docker compose -f pwd.yml up -d
 ```
@@ -188,8 +234,26 @@ docker compose -f pwd.yml up -d
 ### Stop ERPNext
 
 ```bash
-cd erpmodule
+cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down
+```
+
+### Restart ERPNext
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml restart
+```
+
+### Wipe ERPNext and recreate from scratch
+
+This removes ERP volumes and recreates the site with the defaults from `mw/src/main/resources/application.properties`.
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d --build
+docker compose -f pwd.yml run --rm create-site
 ```
 
 ### Access ERPNext UI
@@ -201,15 +265,69 @@ docker compose -f pwd.yml down
 ### Check Status
 
 ```bash
-cd erpmodule
+cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml ps
 ```
 
 ### View Logs
 
 ```bash
-cd erpmodule
+cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml logs -f
+```
+
+### View logs for a specific ERP service
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml logs -f backend
+docker compose -f pwd.yml logs -f frontend
+docker compose -f pwd.yml logs -f create-site
+```
+
+### Verify ERPNext health quickly
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml ps
+curl -I http://localhost:8080
+```
+
+### Inspect ERP Docker services
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml config --services
+docker compose -f pwd.yml top
+docker compose -f pwd.yml images
+```
+
+### Open a shell inside ERP containers
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml exec backend bash
+docker compose -f pwd.yml exec frontend bash
+```
+
+### Run bench commands inside ERP backend
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml exec backend bench --site aas.core.local list-apps
+docker compose -f pwd.yml exec backend bench --site aas.core.local migrate
+docker compose -f pwd.yml exec backend bench --site aas.core.local clear-cache
+```
+
+### Common ERP admin commands from `erpmodule/`
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml exec backend bench --site aas.core.local console
+docker compose -f pwd.yml exec backend bench --site aas.core.local execute frappe.utils.print_format.download_pdf --kwargs "{'doctype':'Sales Invoice','name':'ACC-SINV-2026-00001'}"
+docker compose -f pwd.yml exec backend bench --site aas.core.local doctor
+docker compose -f pwd.yml exec backend bench --site aas.core.local enable-scheduler
+docker compose -f pwd.yml exec backend bench --site aas.core.local set-config developer_mode 1
 ```
 
 ## Multi-Company Setup

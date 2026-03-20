@@ -271,6 +271,8 @@ public class VendorInvoiceTemplateController {
         }
         SummaryExtraction finalBill = extractFinalAmount(ocrText, template);
         String finalBillAmount = finalBill.amount();
+        SummaryExtraction transportCharge = extractTransportCharge(ocrText, template);
+        String transportChargeAmount = transportCharge.amount();
         List<String> requiredSummaryFields = invoiceTemplateModelService.requiredSummaryKeys();
         List<String> parsedSummaryFields = new ArrayList<>();
         if (!finalBillAmount.isBlank()) {
@@ -307,6 +309,8 @@ public class VendorInvoiceTemplateController {
                 missingSummaryFields,
                 finalBillAmount,
                 finalBill.matchedText(),
+                transportChargeAmount,
+                transportCharge.matchedText(),
                 activationReady,
                 diagnostics.lineCount(),
                 buildOcrPreview(ocrText),
@@ -337,10 +341,11 @@ public class VendorInvoiceTemplateController {
             String itemLineRegex = String.valueOf(regexObj).trim();
             String billDateRegex = parserMap.get("billDateRegex") == null ? null : String.valueOf(parserMap.get("billDateRegex"));
             String finalAmountRegex = parserMap.get("finalAmountRegex") == null ? null : String.valueOf(parserMap.get("finalAmountRegex"));
+            String transportChargeRegex = parserMap.get("transportChargeRegex") == null ? null : String.valueOf(parserMap.get("transportChargeRegex"));
             if (version <= 0 || itemLineRegex.isBlank()) {
                 return Optional.empty();
             }
-            return Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex, finalAmountRegex));
+            return Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex, finalAmountRegex, transportChargeRegex));
         } catch (Exception ignored) {
             return Optional.empty();
         }
@@ -372,6 +377,15 @@ public class VendorInvoiceTemplateController {
         }
         InvoiceSummaryExtractor.Extraction extraction =
                 InvoiceSummaryExtractor.extractFinalAmount(ocrText, asText(template.finalAmountRegex()));
+        return new SummaryExtraction(extraction.amount(), extraction.matchedText());
+    }
+
+    private SummaryExtraction extractTransportCharge(String ocrText, VendorInvoiceTemplate template) {
+        if (ocrText == null || ocrText.isBlank() || template == null || !hasText(template.transportChargeRegex())) {
+            return new SummaryExtraction("", "");
+        }
+        InvoiceSummaryExtractor.Extraction extraction =
+                InvoiceSummaryExtractor.extractFinalAmount(ocrText, asText(template.transportChargeRegex()));
         return new SummaryExtraction(extraction.amount(), extraction.matchedText());
     }
 
@@ -416,6 +430,8 @@ public class VendorInvoiceTemplateController {
             List<String> missingSummaryFields,
             String finalBillAmount,
             String finalBillMatch,
+            String transportChargeAmount,
+            String transportChargeMatch,
             boolean activationReady,
             int ocrLineCount,
             List<String> ocrPreview,
@@ -435,6 +451,8 @@ public class VendorInvoiceTemplateController {
             payload.put("missingSummaryFields", missingSummaryFields);
             payload.put("finalBillAmount", finalBillAmount);
             payload.put("finalBillMatch", finalBillMatch);
+            payload.put("transportChargeAmount", transportChargeAmount);
+            payload.put("transportChargeMatch", transportChargeMatch);
             payload.put("activationReady", activationReady);
             payload.put("ocrLineCount", ocrLineCount);
             payload.put("ocrPreview", ocrPreview);

@@ -124,6 +124,18 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.updateCompanyProfile(id, request));
     }
 
+    @GetMapping("/users/{id}")
+    public ResponseEntity<Map<String, Object>> getUser(@PathVariable String id) {
+        return ResponseEntity.ok(userService.getUserProfileById(id));
+    }
+
+    @PutMapping("/users/{id}")
+    public ResponseEntity<Map<String, Object>> updateUser(
+            @PathVariable String id,
+            @Valid @RequestBody FieldsRequest request) {
+        return ResponseEntity.ok(userService.updateUserProfile(id, request));
+    }
+
     @PostMapping("/shops")
     public ResponseEntity<Map<String, Object>> createShop(@Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.createShop(request));

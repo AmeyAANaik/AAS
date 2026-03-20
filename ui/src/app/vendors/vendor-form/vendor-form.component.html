@@ -90,7 +90,7 @@
             </div>
           </div>
 
-          <mat-form-field appearance="outline" class="full template-json-field">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full template-json-field">
             <mat-label>Template JSON</mat-label>
             <textarea
               matInput
@@ -98,7 +98,7 @@
               formControlName="invoiceTemplateJson"
               placeholder='Paste vendor template JSON here'></textarea>
             <mat-hint>
-              Add the vendor invoice template JSON here. Active vendors must have this template.
+              Add the vendor invoice template JSON here. Use `transportChargeRegex` only for vendors whose invoices include a separate transport line.
             </mat-hint>
             <mat-error *ngIf="form.get('invoiceTemplateJson')?.hasError('json')">
               Invalid JSON. Fix formatting and try again.
@@ -110,6 +110,14 @@
               Active vendors require a validated sample invoice PDF.
             </mat-error>
           </mat-form-field>
+
+          <div class="template-example">
+            <div class="model-title">Example parser JSON</div>
+            <p class="muted">
+              If the invoice has no transport row, leave `transportChargeRegex` out.
+            </p>
+            <pre>{{ templateExample }}</pre>
+          </div>
 
           <div class="template-actions">
             <input
@@ -189,6 +197,12 @@
             </div>
             <div class="status" *ngIf="validation.finalBillMatch">
               Summary match: {{ validation.finalBillMatch }}
+            </div>
+            <div class="status" *ngIf="validation.transportChargeAmount">
+              Transport charge: {{ validation.transportChargeAmount }}
+            </div>
+            <div class="status" *ngIf="validation.transportChargeMatch">
+              Transport match: {{ validation.transportChargeMatch }}
             </div>
 
             <div class="preview-table" *ngIf="validation.previewItems.length">

@@ -37,7 +37,7 @@
     </div>
     <mat-card-content>
       <form [formGroup]="filtersForm" class="form-grid">
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>Branch</mat-label>
           <mat-select formControlName="customer">
             <mat-option value="">All branches</mat-option>
@@ -45,12 +45,12 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>From</mat-label>
           <input matInput type="date" formControlName="from" />
         </mat-form-field>
 
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>To</mat-label>
           <input matInput type="date" formControlName="to" />
         </mat-form-field>

@@ -15,7 +15,11 @@ import org.springframework.util.MultiValueMap;
 @Component
 public class ErpNextClient {
 
-    private static final List<String> OPTIONAL_QUERY_FIELDS = List.of("aas_is_deleted", "aas_deleted_at");
+    private static final List<String> OPTIONAL_QUERY_FIELDS = List.of(
+            "aas_is_deleted",
+            "aas_deleted_at",
+            "aas_transport_charge",
+            "aas_rounding_adjustment");
 
     private final ErpNextFeignClient feignClient;
 

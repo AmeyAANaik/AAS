@@ -90,6 +90,7 @@ class VendorPdfServiceTest {
         assertNotNull(response.get("purchaseOrder"));
         assertNotNull(response.get("sellPreview"));
         assertEquals(7.0, response.get("marginPercent"));
+        assertEquals(0.0, response.get("transportCharge"));
         assertEquals(java.util.Map.of("configured", false, "used", false, "key", ""), response.get("template"));
 
         ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
@@ -99,6 +100,88 @@ class VendorPdfServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) updateCaptor.getValue().get("items");
         assertEquals(7.0, updatedItems.get(0).get("aas_margin_percent"));
+    }
+
+    @Test
+    void storesGstPercentFromParsedVendorItems() {
+        MockMultipartFile pdf = validPdf();
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
+                .thenReturn(Map.of(
+                        "customer", "Shop A",
+                        "company", "AAS",
+                        "aas_category", "Grocery",
+                        "aas_vendor", "Vendor A",
+                        "aas_status", "VENDOR_ASSIGNED"));
+        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
+        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of("""
+                {
+                  "parser": {
+                    "version": 1,
+                    "itemLineRegex": "^(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?<gst>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$"
+                  }
+                }
+                """));
+        when(ocrService.extractTextFromPdf(any())).thenReturn("EVEREST KASHMIRI CHILLY POWDER 09109100 5 6 447.62 2685.72");
+        when(templateParser.parseItems(any(), any()))
+                .thenReturn(List.of(new ParsedItem("EVEREST KASHMIRI CHILLY POWDER", 6, 447.62, 2685.72, "09109100", 5.0, 530.0)));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orderItems = (List<Map<String, Object>>) response.get("orderItems");
+        assertEquals(5.0, orderItems.get(0).get("aas_gst_percent"));
+
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(erpNextClient, Mockito.atLeastOnce())
+                .updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) updateCaptor.getValue().get("items");
+        assertEquals(5.0, updatedItems.get(0).get("aas_gst_percent"));
+    }
+
+    @Test
+    void capturesTransportChargeFromVendorPdfText() {
+        MockMultipartFile pdf = validPdf();
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
+                .thenReturn(Map.of(
+                        "customer", "Shop A",
+                        "company", "AAS",
+                        "aas_category", "Grocery",
+                        "aas_vendor", "Vendor A",
+                        "aas_status", "VENDOR_ASSIGNED"));
+        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
+        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of("""
+                {
+                  "parser": {
+                    "version": 1,
+                    "itemLineRegex": "^(?<name>.+?)\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$",
+                    "transportChargeRegex": "(?im)^transport\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$"
+                  }
+                }
+                """));
+        when(fileService.uploadOrderPdf(eq("SO-0001"), eq(pdf), any()))
+                .thenReturn(new UploadedFileInfo("vendor_order.pdf", "/files/vendor_order.pdf", "FILE-0001"));
+        when(ocrService.extractTextFromPdf(any())).thenReturn("""
+                Tomatoes 2 45 90
+                Transport 50.00
+                Total 140.00
+                """);
+        when(parser.parseItems(any())).thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000")));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        assertEquals(50.0, response.get("transportCharge"));
+
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        Mockito.verify(erpNextClient, Mockito.atLeastOnce())
+                .updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        assertEquals(50.0, updateCaptor.getValue().get("aas_transport_charge"));
     }
 
     @Test

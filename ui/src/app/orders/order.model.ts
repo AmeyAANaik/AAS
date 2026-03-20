@@ -29,6 +29,8 @@ export interface OrderSummary {
   aas_vendor_bill_total?: number;
   aas_vendor_bill_ref?: string;
   aas_vendor_bill_date?: string;
+  aas_transport_charge?: number;
+  aas_rounding_adjustment?: number;
   aas_sell_order_total?: number;
   aas_so_branch?: string;
   aas_si_branch?: string;
@@ -83,6 +85,8 @@ export interface VendorBillPayload {
   vendor_bill_total: number;
   vendor_bill_ref?: string;
   vendor_bill_date?: string;
+  transport_charge?: number;
+  allow_mismatch?: boolean;
 }
 
 export interface SellPreview {
@@ -91,6 +95,10 @@ export interface SellPreview {
   marginPercent: number;
   sellAmount: number;
   marginAmount: number;
+}
+
+export interface CreateSellOrderPayload {
+  apply_transport_to_invoice?: boolean;
 }
 
 export interface OrderItemPayload {

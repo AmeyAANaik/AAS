@@ -17,7 +17,7 @@
         <div class="card-subtitle">Follow up on vendors with the highest pending workload first.</div>
       </div>
       <div class="card-actions">
-        <button mat-icon-button type="button" color="primary" class="subsection-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !vendors.length" aria-label="Download all vendor ledgers">
+        <button mat-icon-button type="button" color="primary" class="download-all-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !vendors.length" aria-label="Download all vendor ledgers">
           <mat-icon>download</mat-icon>
         </button>
         <mat-form-field appearance="outline">

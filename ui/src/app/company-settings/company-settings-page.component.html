@@ -7,52 +7,123 @@
     <div class="state success" *ngIf="message">{{ message }}</div>
 
     <div class="identity" *ngIf="!isLoading">
-      <img *ngIf="companyLogoUrl" class="identity-logo" [src]="companyLogoUrl" alt="Company logo" />
-      <div *ngIf="!companyLogoUrl" class="identity-logo fallback">{{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}</div>
-      <div>
-        <div class="identity-title">{{ form.get('name')?.value || 'Company' }}</div>
-        <div class="identity-subtitle">{{ branchName || 'No branch linked' }}<span *ngIf="branchLocation"> · {{ branchLocation }}</span></div>
+      <div class="identity-main">
+        <img *ngIf="companyLogoUrl" class="identity-logo" [src]="companyLogoUrl" alt="Company logo" />
+        <div *ngIf="!companyLogoUrl" class="identity-logo fallback">{{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}</div>
+        <div>
+          <div class="identity-kicker">Company profile</div>
+          <div class="identity-title">{{ form.get('name')?.value || 'Company' }}</div>
+          <div class="identity-subtitle">ERP-backed identity and document defaults</div>
+        </div>
+      </div>
+
+      <div class="identity-meta">
+        <div class="meta-chip">
+          <span class="meta-label">Abbr</span>
+          <strong>{{ form.get('abbr')?.value || 'Not set' }}</strong>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Currency</span>
+          <strong>{{ form.get('default_currency')?.value || 'Not set' }}</strong>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Country</span>
+          <strong>{{ form.get('country')?.value || 'Not set' }}</strong>
+        </div>
       </div>
     </div>
 
-    <form [formGroup]="form" class="form-grid">
-      <mat-form-field appearance="outline">
-        <mat-label>Company Name</mat-label>
-        <input matInput formControlName="name" readonly />
-      </mat-form-field>
+    <form [formGroup]="form" class="settings-form">
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Primary details</div>
+          <div class="section-subtitle">Core identity values used across the shell and ERP-backed records.</div>
+        </div>
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Company Name</div>
+              <div class="row-subtitle">Read-only ERP company name.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Company Name</mat-label>
+              <input matInput formControlName="name" readonly />
+            </mat-form-field>
+          </div>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Abbreviation</mat-label>
-        <input matInput formControlName="abbr" />
-        <mat-error *ngIf="form.get('abbr')?.hasError('required')">Abbreviation is required.</mat-error>
-      </mat-form-field>
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Abbreviation</div>
+              <div class="row-subtitle">Short identifier used across records.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Abbreviation</mat-label>
+              <input matInput formControlName="abbr" />
+              <mat-error *ngIf="form.get('abbr')?.hasError('required')">Abbreviation is required.</mat-error>
+            </mat-form-field>
+          </div>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Default Currency</mat-label>
-        <input matInput formControlName="default_currency" />
-        <mat-error *ngIf="form.get('default_currency')?.hasError('required')">Currency is required.</mat-error>
-      </mat-form-field>
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Default Currency</div>
+              <div class="row-subtitle">Primary currency used on generated documents.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Default Currency</mat-label>
+              <input matInput formControlName="default_currency" />
+              <mat-error *ngIf="form.get('default_currency')?.hasError('required')">Currency is required.</mat-error>
+            </mat-form-field>
+          </div>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Country</mat-label>
-        <input matInput formControlName="country" />
-      </mat-form-field>
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Country</div>
+              <div class="row-subtitle">Registered operating country.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Country</mat-label>
+              <input matInput formControlName="country" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Default Letter Head</mat-label>
-        <input matInput formControlName="default_letter_head" />
-      </mat-form-field>
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Document defaults</div>
+          <div class="section-subtitle">Billing and compliance fields used when documents are generated downstream.</div>
+        </div>
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Default Letter Head</div>
+              <div class="row-subtitle">Header used on invoices and related paperwork.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Default Letter Head</mat-label>
+              <input matInput formControlName="default_letter_head" />
+            </mat-form-field>
+          </div>
 
-      <mat-form-field appearance="outline">
-        <mat-label>Tax ID</mat-label>
-        <input matInput formControlName="tax_id" />
-      </mat-form-field>
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Tax ID</div>
+              <div class="row-subtitle">Compliance identifier printed on documents.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Tax ID</mat-label>
+              <input matInput formControlName="tax_id" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions settings-actions">
+        <div class="save-note">Changes are written back to the ERPNext company record.</div>
+        <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
+          {{ isSaving ? 'Saving...' : 'Save Company Details' }}
+        </button>
+      </div>
     </form>
-
-    <div class="actions">
-      <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
-        {{ isSaving ? 'Saving...' : 'Save Company Details' }}
-      </button>
-    </div>
   </mat-card>
 </section>

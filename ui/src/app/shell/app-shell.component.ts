@@ -78,6 +78,7 @@ export class AppShellComponent implements OnDestroy {
     '/orders': { breadcrumbs: ['Procure', 'Orders'] },
     '/stock': { breadcrumbs: ['Inventory', 'Stock'] },
     '/bills': { breadcrumbs: ['Finance', 'Bills / Invoices'] },
+    '/user-settings': { breadcrumbs: ['Home', 'User Details'] },
     '/vendors': { breadcrumbs: ['Master Data', 'Vendors'] },
     '/branches': { breadcrumbs: ['Master Data', 'Branches'] },
     '/company-settings': { breadcrumbs: ['Home', 'Company Settings'] },

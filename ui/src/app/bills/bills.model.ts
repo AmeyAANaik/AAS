@@ -38,6 +38,7 @@ export interface InvoiceCreatePayload {
   company: string;
   items: InvoiceCreateLine[];
   apply_gst?: boolean;
+  rounding_adjustment?: number;
 }
 
 export interface InvoiceCreateResult {
@@ -51,6 +52,7 @@ export interface OrderSnapshot {
   company?: string;
   items?: Array<{ item_code?: string; qty?: number; rate?: number }>;
   grand_total?: number;
+  aas_rounding_adjustment?: number;
   payment_schedule?: Array<{ due_date?: string; payment_amount?: number; outstanding?: number }>;
 }
 

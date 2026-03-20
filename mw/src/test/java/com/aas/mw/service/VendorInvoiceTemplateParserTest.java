@@ -17,6 +17,7 @@ class VendorInvoiceTemplateParserTest {
                 1,
                 "^(?<name>.+?)\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)\\s+(?<hsn>\\d{4,10})$",
                 null,
+                null,
                 null);
 
         String text = """
@@ -46,6 +47,7 @@ class VendorInvoiceTemplateParserTest {
                         + "(?<mrp>\\d+(?:\\.\\d+)?)\\s+\\d+(?:\\.\\d+)?\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+"
                         + "(?:KG|PCS|LTR|ML|TIN|GMS|PKT)\\s+(?<amount>\\d+(?:,\\d{3})*(?:\\.\\d+)?)"
                         + "(?:\\s+(?!\\d+\\s)[A-Z0-9/&().,'%-]+(?:\\s+[A-Z0-9/&().,'%-]+)*)?$",
+                null,
                 null,
                 null);
 

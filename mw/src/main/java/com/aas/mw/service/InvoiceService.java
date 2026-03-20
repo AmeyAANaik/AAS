@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import java.math.BigDecimal;
 import com.aas.mw.dto.InvoiceRequest;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -33,8 +34,14 @@ public class InvoiceService {
         if (payload.containsKey("applyGst")) {
             applyGst = readBoolean(payload.remove("applyGst"), applyGst);
         }
+        normalizeRounding(payload);
         if (applyGst) {
-            if (!gstTemplate.isBlank() && !payload.containsKey("taxes_and_charges")) {
+            applyItemTaxTemplates(payload);
+        }
+        if (applyGst) {
+            if (!gstTemplate.isBlank()
+                    && !payload.containsKey("taxes_and_charges")
+                    && !payload.containsKey("taxes")) {
                 payload.put("taxes_and_charges", gstTemplate);
             }
         } else {
@@ -59,6 +66,150 @@ public class InvoiceService {
         }
 
         return erpNextClient.createResource(DOCTYPE, payload);
+    }
+
+    private void normalizeRounding(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return;
+        }
+        double roundingAdjustment = asDouble(payload.remove("rounding_adjustment"));
+        if (Math.abs(roundingAdjustment) <= 0.0001) {
+            roundingAdjustment = asDouble(payload.get("aas_rounding_adjustment"));
+        }
+        if (Math.abs(roundingAdjustment) <= 0.0001) {
+            payload.remove("aas_rounding_adjustment");
+            return;
+        }
+        payload.put("aas_rounding_adjustment", roundingAdjustment);
+        payload.put("rounding_adjustment", roundingAdjustment);
+        payload.putIfAbsent("disable_rounded_total", 0);
+    }
+
+    private void applyItemTaxTemplates(Map<String, Object> payload) {
+        if (payload == null || payload.isEmpty()) {
+            return;
+        }
+        String company = asText(payload.get("company"));
+        if (company.isBlank()) {
+            return;
+        }
+        Object rawItems = payload.get("items");
+        if (!(rawItems instanceof List<?> rawList) || rawList.isEmpty()) {
+            return;
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) rawItems;
+        String gstAccountHead = ensureGstAccountHead(company);
+        if (gstAccountHead.isBlank()) {
+            return;
+        }
+        boolean applied = false;
+        for (Map<String, Object> item : items) {
+            if (item == null) {
+                continue;
+            }
+            double gstPercent = readGstPercent(item);
+            if (gstPercent <= 0) {
+                continue;
+            }
+            item.put("aas_gst_percent", gstPercent);
+            item.put("item_tax_template", ensureItemTaxTemplate(company, gstAccountHead, gstPercent));
+            applied = true;
+        }
+        if (applied) {
+            payload.remove("taxes_and_charges");
+            payload.remove("taxes");
+        }
+    }
+
+    private double readGstPercent(Map<String, Object> item) {
+        double gstPercent = asDouble(item.get("aas_gst_percent"));
+        if (gstPercent <= 0) {
+            gstPercent = asDouble(item.get("gst_percent"));
+        }
+        if (gstPercent <= 0) {
+            gstPercent = asDouble(item.get("gst"));
+        }
+        return gstPercent;
+    }
+
+    private String ensureGstAccountHead(String company) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\",\"account_type\",\"parent_account\",\"root_type\",\"report_type\"]");
+        params.put("filters", "[[\"company\",\"=\",\"" + escape(company) + "\"]]");
+        params.put("limit_page_length", 200);
+        List<Map<String, Object>> accounts = erpNextClient.listResources("Account", params);
+        if (accounts != null) {
+            for (Map<String, Object> account : accounts) {
+                if (account == null) {
+                    continue;
+                }
+                if (company.equals(asText(account.get("company")))
+                        && "Tax".equalsIgnoreCase(asText(account.get("account_type")))
+                        && "GST".equalsIgnoreCase(asText(account.get("account_name")))) {
+                    return asText(account.get("name"));
+                }
+            }
+            for (Map<String, Object> account : accounts) {
+                if (account == null) {
+                    continue;
+                }
+                if ("Duties and Taxes".equalsIgnoreCase(asText(account.get("account_name")))
+                        && company.equals(asText(account.get("company")))) {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("account_name", "GST");
+                    payload.put("company", company);
+                    payload.put("parent_account", asText(account.get("name")));
+                    payload.put("account_type", "Tax");
+                    payload.put("is_group", 0);
+                    if (!asText(account.get("root_type")).isBlank()) {
+                        payload.put("root_type", asText(account.get("root_type")));
+                    }
+                    if (!asText(account.get("report_type")).isBlank()) {
+                        payload.put("report_type", asText(account.get("report_type")));
+                    }
+                    return asText(unwrap(erpNextClient.createResource("Account", payload)).get("name"));
+                }
+            }
+        }
+        return "";
+    }
+
+    private String ensureItemTaxTemplate(String company, String gstAccountHead, double gstPercent) {
+        String title = buildGstTemplateTitle(gstPercent);
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"title\",\"company\"]");
+        params.put(
+                "filters",
+                "[[\"company\",\"=\",\"" + escape(company) + "\"],[\"title\",\"=\",\"" + escape(title) + "\"]]");
+        params.put("limit_page_length", 20);
+        List<Map<String, Object>> templates = erpNextClient.listResources("Item Tax Template", params);
+        if (templates != null) {
+            for (Map<String, Object> template : templates) {
+                if (template == null) {
+                    continue;
+                }
+                if (company.equals(asText(template.get("company"))) && title.equals(asText(template.get("title")))) {
+                    return asText(template.get("name"));
+                }
+            }
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", title);
+        payload.put("company", company);
+        payload.put("taxes", List.of(Map.of(
+                "tax_type", gstAccountHead,
+                "tax_rate", round(gstPercent))));
+        return asText(unwrap(erpNextClient.createResource("Item Tax Template", payload)).get("name"));
+    }
+
+    private String buildGstTemplateTitle(double gstPercent) {
+        return "AAS GST " + BigDecimal.valueOf(round(gstPercent)).stripTrailingZeros().toPlainString() + "%";
+    }
+
+    private String escape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
@@ -132,10 +283,6 @@ public class InvoiceService {
         }
         builder.append("]");
         return builder.toString();
-    }
-
-    private String escape(String value) {
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private void validateFields(InvoiceRequest request) {
@@ -216,8 +363,23 @@ public class InvoiceService {
         return value == null ? "" : value.toString().trim();
     }
 
+    private double asDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        try {
+            return value == null ? 0.0 : Double.parseDouble(value.toString());
+        } catch (Exception ex) {
+            return 0.0;
+        }
+    }
+
     private boolean hasValue(Object value) {
         return value != null && !value.toString().isBlank();
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     @SuppressWarnings("unchecked")

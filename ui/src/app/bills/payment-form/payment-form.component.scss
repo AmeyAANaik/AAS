@@ -30,6 +30,7 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   align-items: end;
+  margin-bottom: 8px;
 }
 
 .actions {
@@ -45,7 +46,7 @@
 }
 
 .helper {
-  margin-top: 8px;
+  margin-top: 12px;
   color: var(--muted);
 }
 

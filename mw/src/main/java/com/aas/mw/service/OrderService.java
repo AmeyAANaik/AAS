@@ -477,7 +477,7 @@ public class OrderService {
         params.put("fields",
                 "[\"name\",\"title\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_category\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"currency\",\"price_list_currency\","
-                        + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_margin_percent\","
+                        + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_transport_charge\",\"aas_rounding_adjustment\",\"aas_margin_percent\","
                         + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\",\"aas_is_deleted\",\"aas_deleted_at\"]");
         // Sort by last modification so newly created orders show up reliably on the first page.
         params.put("order_by", "modified desc");

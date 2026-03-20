@@ -181,6 +181,12 @@ public class VendorPdfService {
             vendorBillDate = parser.extractBillDate(ocrText);
         }
         String vendorBillRef = purchaseOrderId == null ? "" : purchaseOrderId;
+        double transportCharge = 0.0;
+        if (vendorTemplate != null
+                && vendorTemplate.transportChargeRegex() != null
+                && !vendorTemplate.transportChargeRegex().isBlank()) {
+            transportCharge = extractAmountByRegex(ocrText, vendorTemplate.transportChargeRegex());
+        }
 
         UploadedFileInfo pdfInfo;
         try {
@@ -197,6 +203,7 @@ public class VendorPdfService {
         linkUpdate.put("aas_status", "VENDOR_PDF_RECEIVED");
         linkUpdate.put("aas_vendor_bill_total", vendorBillTotal);
         linkUpdate.put("aas_vendor_bill_ref", vendorBillRef);
+        linkUpdate.put("aas_transport_charge", transportCharge);
         if (vendorBillDate != null && !vendorBillDate.isBlank()) {
             linkUpdate.put("aas_vendor_bill_date", vendorBillDate);
         }
@@ -216,6 +223,7 @@ public class VendorPdfService {
         response.put("vendorBillTotal", vendorBillTotal);
         response.put("vendorBillRef", vendorBillRef);
         response.put("vendorBillDate", vendorBillDate);
+        response.put("transportCharge", transportCharge);
         response.put("items", parsedItems);
         response.put("orderItems", baseItems);
         response.put("template", Map.of(
@@ -251,7 +259,8 @@ public class VendorPdfService {
                 String billDateRegex = parserMap.get("billDateRegex") == null ? null : String.valueOf(parserMap.get("billDateRegex"));
                 if (version > 0 && itemLineRegex != null && !itemLineRegex.isBlank()) {
                     String finalAmountRegex = parserMap.get("finalAmountRegex") == null ? null : String.valueOf(parserMap.get("finalAmountRegex"));
-                    return java.util.Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex, finalAmountRegex));
+                    String transportChargeRegex = parserMap.get("transportChargeRegex") == null ? null : String.valueOf(parserMap.get("transportChargeRegex"));
+                    return java.util.Optional.of(new VendorInvoiceTemplate(version, itemLineRegex, billDateRegex, finalAmountRegex, transportChargeRegex));
                 }
             }
 
@@ -264,7 +273,7 @@ public class VendorPdfService {
                     //   1 SFK SAMRAT ATTA 50KG 11010000 500 KG 35.50 17750.00
                     // Named groups required by VendorInvoiceTemplateParser: name/qty/rate/amount/(optional hsn)
                     String generic = "^(?:\\d+\\s+)?(?<name>.+?)\\s+(?<hsn>\\d{4,10})\\s+(?<qty>\\d+(?:\\.\\d+)?)\\s*(?:[A-Za-z]{1,6})?\\s+(?<rate>\\d+(?:\\.\\d+)?)\\s+(?<amount>\\d+(?:\\.\\d+)?)$";
-                    return java.util.Optional.of(new VendorInvoiceTemplate(1, generic, null, null));
+                    return java.util.Optional.of(new VendorInvoiceTemplate(1, generic, null, null, null));
                 }
             }
         } catch (Exception ignored) {
@@ -445,6 +454,9 @@ public class VendorPdfService {
             row.put("qty", item.qty());
             row.put("rate", item.rate());
             row.put("aas_margin_percent", resolveItemMarginPercent(itemCode));
+            if (item.gstPercent() != null && item.gstPercent() >= 0) {
+                row.put("aas_gst_percent", round(item.gstPercent()));
+            }
             if (item.mrp() != null && item.mrp() > 0) {
                 row.put("aas_mrp", round(item.mrp()));
             }

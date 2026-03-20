@@ -1,0 +1,66 @@
+<section class="user-settings-page">
+  <app-page-header title="User Details" subtitle="Review and update the signed-in ERPNext user profile that drives company, branch, and workflow access."></app-page-header>
+
+  <mat-card class="settings-card">
+    <div class="state" *ngIf="isLoading">Loading user details...</div>
+    <div class="state error" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div class="state success" *ngIf="message">{{ message }}</div>
+
+    <div class="identity" *ngIf="!isLoading">
+      <img *ngIf="userImageUrl" class="identity-avatar" [src]="userImageUrl" alt="User avatar" />
+      <div *ngIf="!userImageUrl" class="identity-avatar fallback">{{ (form.get('full_name')?.value || form.get('name')?.value || 'US').slice(0, 2).toUpperCase() }}</div>
+      <div>
+        <div class="identity-title">{{ form.get('full_name')?.value || form.get('name')?.value || 'User' }}</div>
+        <div class="identity-subtitle">{{ userRole || 'Signed in user' }}</div>
+      </div>
+    </div>
+
+    <form [formGroup]="form" class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>User ID</mat-label>
+        <input matInput formControlName="name" readonly />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Full Name</mat-label>
+        <input matInput formControlName="full_name" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Email</mat-label>
+        <input matInput formControlName="email" readonly />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Mobile Number</mat-label>
+        <input matInput formControlName="mobile_no" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Location</mat-label>
+        <input matInput formControlName="location" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Default Company</mat-label>
+        <input matInput formControlName="company" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Branch</mat-label>
+        <input matInput formControlName="customer" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Supplier</mat-label>
+        <input matInput formControlName="supplier" />
+      </mat-form-field>
+    </form>
+
+    <div class="actions">
+      <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
+        {{ isSaving ? 'Saving...' : 'Save User Details' }}
+      </button>
+    </div>
+  </mat-card>
+</section>

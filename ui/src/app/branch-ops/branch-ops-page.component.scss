@@ -59,13 +59,25 @@
 }
 
 .card-actions {
+  align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
 }
 
 .card-actions .mat-mdc-form-field,
 .card-actions mat-form-field {
-  min-width: 240px;
+  min-width: 260px;
+  flex: 1 1 280px;
+}
+
+.download-all-action {
+  min-height: 42px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.88);
 }
 
 .card-title,
@@ -223,6 +235,11 @@
   .card-actions {
     width: 100%;
     justify-content: stretch;
+  }
+
+  .download-all-action {
+    width: 42px;
+    justify-content: center;
   }
 
   .subsection-header {

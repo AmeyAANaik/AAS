@@ -36,6 +36,8 @@ interface UiOrder {
   vendor: string;
   currency: string;
   billTotal: number | null;
+  transportCharge: number;
+  roundingAdjustment: number;
   billRef: string;
   billDate: Date | null;
   raw: OrderSummary;
@@ -51,11 +53,22 @@ interface PdfParseResult {
   fileName?: string;
   fileUrl?: string;
   items?: unknown[];
-  orderItems?: Array<{ item_code?: string; item_name?: string; qty?: number; rate?: number; amount?: number; aas_margin_percent?: number; aas_vendor_rate?: number; aas_mrp?: number }>;
+  orderItems?: Array<{
+    item_code?: string;
+    item_name?: string;
+    qty?: number;
+    rate?: number;
+    amount?: number;
+    aas_margin_percent?: number;
+    aas_vendor_rate?: number;
+    aas_mrp?: number;
+    aas_gst_percent?: number;
+  }>;
   template?: { configured?: boolean; used?: boolean; key?: string };
   vendorBillTotal?: number;
   vendorBillRef?: string;
   vendorBillDate?: string;
+  transportCharge?: number;
   marginPercent?: number;
   [key: string]: unknown;
 }
@@ -69,6 +82,7 @@ interface UiOrderLine {
   aas_margin_percent: number;
   aas_vendor_rate?: number | null;
   aas_mrp?: number | null;
+  aas_gst_percent?: number | null;
   mrpApplied: boolean;
 }
 
@@ -103,6 +117,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   draftVendorFilters = new Set<string>();
 
   billTotalControl = new FormControl<number | null>(null);
+  transportChargeControl = new FormControl<number>(0, { nonNullable: true });
+  mismatchOverrideControl = new FormControl<boolean>(false, { nonNullable: true });
+  applyTransportToInvoiceControl = new FormControl<boolean>(false, { nonNullable: true });
   billRefControl = new FormControl<string>('', { nonNullable: true });
   billDateControl = new FormControl<Date | null>(new Date());
 
@@ -198,6 +215,12 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.subscriptions.add(
       this.billTotalControl.valueChanges.subscribe(() => this.updateBillMismatchError())
+    );
+    this.subscriptions.add(
+      this.transportChargeControl.valueChanges.subscribe(() => this.updateBillMismatchError())
+    );
+    this.subscriptions.add(
+      this.mismatchOverrideControl.valueChanges.subscribe(() => this.updateBillMismatchError())
     );
     this.subscriptions.add(
       this.route.queryParamMap.subscribe(params => {
@@ -585,6 +608,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.orderLines = [];
 
     this.billTotalControl.setValue(order.billTotal);
+    this.transportChargeControl.setValue(order.transportCharge ?? 0);
+    this.mismatchOverrideControl.setValue(false);
+    this.applyTransportToInvoiceControl.setValue((order.transportCharge ?? 0) > 0);
     this.billRefControl.setValue(order.billRef);
     this.billDateControl.setValue(order.billDate ?? new Date());
     const seq = ++this.orderDetailsSeq;
@@ -791,6 +817,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
             this.billTotalControl.setValue(vendorBillTotal);
           }
 
+          const transportCharge = Number(parsed?.transportCharge ?? 0);
+          this.transportChargeControl.setValue(Number.isFinite(transportCharge) && transportCharge > 0 ? transportCharge : 0);
+
           const vendorBillRef = String(parsed?.vendorBillRef ?? '').trim();
           if (vendorBillRef) {
             this.billRefControl.setValue(vendorBillRef);
@@ -841,9 +870,25 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.recalcLine(line);
   }
 
-  get itemsTotal(): number {
+  get itemsSubtotal(): number {
     const sum = this.orderLines.reduce((acc, line) => acc + Number(line.amount ?? 0), 0);
     return Math.round(sum * 100) / 100;
+  }
+
+  get gstTotal(): number {
+    const sum = this.orderLines.reduce((acc, line) => {
+      const amount = Number(line.amount ?? 0);
+      const gstPercent = Number(line.aas_gst_percent ?? 0);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(gstPercent) || gstPercent <= 0) {
+        return acc;
+      }
+      return acc + (amount * gstPercent) / 100;
+    }, 0);
+    return Math.round(sum * 100) / 100;
+  }
+
+  get itemsTotal(): number {
+    return Math.round((this.itemsSubtotal + this.gstTotal) * 100) / 100;
   }
 
   get billTotal(): number {
@@ -852,7 +897,48 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   get billDiff(): number {
-    return Math.round((this.billTotal - this.itemsTotal) * 100) / 100;
+    return Math.round((this.billTotal - this.expectedBillTotal) * 100) / 100;
+  }
+
+  get unappliedAdditionalSpend(): number {
+    return this.billDiff > 0.5 ? this.billDiff : 0;
+  }
+
+  get transportCharge(): number {
+    const v = Number(this.transportChargeControl.value ?? 0);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  }
+
+  get showAdditionalSpendField(): boolean {
+    return this.transportCharge > 0 || this.unappliedAdditionalSpend > 0;
+  }
+
+  get shouldApplyTransportToInvoice(): boolean {
+    return this.applyTransportToInvoiceControl.value && this.invoiceTransportCharge > 0;
+  }
+
+  get invoiceTransportCharge(): number {
+    const value = Number(this.selectedOrder?.transportCharge ?? 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  get previewInvoiceTotal(): number {
+    const base = Number(this.sellPreview?.estimatedPrice ?? 0);
+    const transport = this.shouldApplyTransportToInvoice ? this.invoiceTransportCharge : 0;
+    return Math.round((base + transport) * 100) / 100;
+  }
+
+  get previewItemsCount(): number {
+    const base = Number(this.sellPreview?.itemsCount ?? 0);
+    return base + (this.shouldApplyTransportToInvoice ? 1 : 0);
+  }
+
+  get canProceedAsMismatchBill(): boolean {
+    return this.transportCharge <= 0 && !this.billMatchesItems;
+  }
+
+  get expectedBillTotal(): number {
+    return Math.round((this.itemsTotal + this.transportCharge) * 100) / 100;
   }
 
   get billMatchesItems(): boolean {
@@ -871,11 +957,21 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.billMatchesItems) {
       return '';
     }
-    return `Bill total must match items total. Diff: ${this.billDiff.toFixed(2)}`;
+    return `Bill total must match items total, GST, and transport or additional spend. Diff: ${this.billDiff.toFixed(2)}`;
   }
 
   applyItemsTotalToBill(): void {
-    this.billTotalControl.setValue(this.itemsTotal);
+    this.billTotalControl.setValue(this.expectedBillTotal);
+    this.updateBillMismatchError();
+  }
+
+  applyDiffAsAdditionalSpend(): void {
+    if (this.unappliedAdditionalSpend <= 0) {
+      return;
+    }
+    this.transportChargeControl.setValue(
+      Math.round((this.transportCharge + this.unappliedAdditionalSpend) * 100) / 100
+    );
     this.updateBillMismatchError();
   }
 
@@ -902,7 +998,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       qty: Number(line.qty ?? 0),
       rate: Number(line.rate ?? 0),
       aas_margin_percent: Number(line.aas_margin_percent ?? 0),
-      aas_mrp: Number(line.aas_mrp ?? 0) || undefined
+      aas_mrp: Number(line.aas_mrp ?? 0) || undefined,
+      aas_gst_percent: Number(line.aas_gst_percent ?? 0) || undefined
     }));
     this.isItemsSaving = true;
     this.errorMessage = '';
@@ -939,7 +1036,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       total > 0 &&
       Boolean(ref) &&
       Boolean(date) &&
-      this.billMatchesItems
+      (this.billMatchesItems || (this.canProceedAsMismatchBill && this.mismatchOverrideControl.value))
     );
   }
 
@@ -947,8 +1044,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.selectedOrder) {
       return;
     }
-    if (!this.billMatchesItems) {
-      this.errorMessage = this.billValidationMessage || 'Bill total must match items total.';
+    if (!this.billMatchesItems && !(this.canProceedAsMismatchBill && this.mismatchOverrideControl.value)) {
+      this.errorMessage = this.billValidationMessage || 'Bill total must match items total plus transport or additional spend.';
       return;
     }
     if (!this.isBillFormValid()) {
@@ -963,7 +1060,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .captureVendorBill(this.selectedOrder.name, {
         vendor_bill_total: total,
         vendor_bill_ref: ref,
-        vendor_bill_date: this.formatDate(date)
+        vendor_bill_date: this.formatDate(date),
+        transport_charge: this.transportCharge,
+        allow_mismatch: this.canProceedAsMismatchBill && this.mismatchOverrideControl.value
       })
       .pipe(finalize(() => this.loadOrders()))
       .subscribe({
@@ -972,9 +1071,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
             ...this.selectedOrder!,
             status: 'VENDOR_BILL_CAPTURED',
             billTotal: total,
+            transportCharge: this.transportCharge,
             billRef: ref,
             billDate: date
           };
+          this.applyTransportToInvoiceControl.setValue(this.transportCharge > 0);
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to capture vendor bill'))
       });
@@ -984,7 +1085,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const ctrl = this.billTotalControl;
     const total = this.billTotal;
     const shouldValidate = this.orderLines.length > 0 && total > 0;
-    const mismatch = shouldValidate && !this.billMatchesItems;
+    const mismatch = shouldValidate
+      && !this.billMatchesItems
+      && !(this.canProceedAsMismatchBill && this.mismatchOverrideControl.value);
 
     const current = ctrl.errors ?? {};
     if (mismatch) {
@@ -1022,7 +1125,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     this.errorMessage = '';
     this.orderService
-      .createSellOrder(this.selectedOrder.name)
+      .createSellOrder(this.selectedOrder.name, {
+        apply_transport_to_invoice: this.shouldApplyTransportToInvoice
+      })
       .pipe(finalize(() => this.loadOrders()))
       .subscribe({
         next: () => {
@@ -1041,6 +1146,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.selectedOrder = updated;
       this.vendorControl.setValue(updated.vendor || null);
       this.billTotalControl.setValue(updated.billTotal);
+      this.transportChargeControl.setValue(updated.transportCharge ?? 0);
+      this.applyTransportToInvoiceControl.setValue((updated.transportCharge ?? 0) > 0);
       this.billRefControl.setValue(updated.billRef);
       this.billDateControl.setValue(updated.billDate ?? new Date());
     }
@@ -1067,6 +1174,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const currency = this.resolveCurrency(order);
 
     const billTotal = order.aas_vendor_bill_total === undefined ? null : Number(order.aas_vendor_bill_total);
+    const transportCharge = Number(order.aas_transport_charge ?? 0);
+    const roundingAdjustment = Number(order.aas_rounding_adjustment ?? 0);
     const billRef = String(order.aas_vendor_bill_ref ?? '');
     const billDate = this.parseDate(order.aas_vendor_bill_date);
 
@@ -1078,6 +1187,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       status,
       currency,
       billTotal,
+      transportCharge: Number.isFinite(transportCharge) && transportCharge > 0 ? transportCharge : 0,
+      roundingAdjustment: Number.isFinite(roundingAdjustment) ? Math.round(roundingAdjustment * 100) / 100 : 0,
       billRef,
       billDate,
       raw: order
@@ -1091,6 +1202,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const margin = Number(row?.aas_margin_percent ?? 0);
     const vendorRate = Number(row?.aas_vendor_rate ?? rate);
     const mrp = Number(row?.aas_mrp ?? 0);
+    const gst = Number(row?.aas_gst_percent ?? 0);
     const line: UiOrderLine = {
       item_code: String(row?.item_code ?? '').trim(),
       item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
@@ -1100,6 +1212,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0,
       aas_vendor_rate: Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : null,
       aas_mrp: Number.isFinite(mrp) && mrp > 0 ? mrp : null,
+      aas_gst_percent: Number.isFinite(gst) && gst >= 0 ? gst : null,
       mrpApplied: false
     };
     line.mrpApplied = this.isMrpCapApplied(line);

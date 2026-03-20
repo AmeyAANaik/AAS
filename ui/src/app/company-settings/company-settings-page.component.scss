@@ -5,23 +5,40 @@
 }
 
 .settings-card {
-  padding: 20px;
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 20px;
 }
 
 .identity {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(255, 250, 242, 0.95), rgba(247, 249, 250, 0.98));
+}
+
+.identity-main {
+  display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 20px;
+  min-width: 0;
 }
 
 .identity-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
   object-fit: cover;
   background: #fff;
   border: 1px solid var(--border);
+  flex: 0 0 auto;
 }
 
 .identity-logo.fallback {
@@ -29,33 +46,149 @@
   place-items: center;
   font-weight: 700;
   color: #fff;
-  background: var(--ink);
+  background: linear-gradient(135deg, #102a43, #1d6f7a);
+}
+
+.identity-kicker {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent-strong);
+  margin-bottom: 8px;
 }
 
 .identity-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .identity-subtitle {
   color: var(--muted);
   font-size: 13px;
+  margin-top: 4px;
 }
 
-.form-grid {
+.identity-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.meta-chip {
+  min-width: 120px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.85);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 4px;
+}
+
+.meta-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.meta-chip strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.settings-form {
+  display: grid;
+  gap: 18px;
+}
+
+.form-section {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.section-copy {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding-top: 4px;
+}
+
+.section-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.horizontal-form {
+  display: grid;
   gap: 14px;
 }
 
-.actions {
-  margin-top: 8px;
-  display: flex;
-  justify-content: flex-end;
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.form-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.form-row:first-child {
+  padding-top: 0;
+}
+
+.row-label {
+  display: grid;
+  gap: 4px;
+  padding-top: 6px;
+}
+
+.row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.row-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.horizontal-form mat-form-field,
+.horizontal-form .mat-mdc-form-field {
+  width: 100%;
+}
+
+.settings-actions {
+  justify-content: space-between;
+  padding: 16px 20px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.save-note {
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .state {
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .state.error {
@@ -64,4 +197,42 @@
 
 .state.success {
   color: #1f7a4d;
+}
+
+@media (max-width: 1024px) {
+  .form-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-card {
+    padding: 18px;
+  }
+
+  .identity,
+  .form-section {
+    padding: 16px;
+  }
+
+  .identity-main {
+    align-items: flex-start;
+  }
+
+  .identity-meta {
+    width: 100%;
+  }
+
+  .meta-chip {
+    flex: 1 1 100%;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .settings-actions {
+    padding: 12px 0 0;
+  }
 }

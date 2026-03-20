@@ -53,6 +53,8 @@
 .form-actions {
   display: flex;
   align-items: center;
+  align-self: start;
+  min-height: 56px;
   gap: 12px;
 }
 

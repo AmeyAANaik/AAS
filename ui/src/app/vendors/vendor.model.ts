@@ -44,6 +44,8 @@ export interface VendorTemplateValidation {
   missingSummaryFields: string[];
   finalBillAmount: string;
   finalBillMatch?: string;
+  transportChargeAmount?: string;
+  transportChargeMatch?: string;
   activationReady: boolean;
   ocrLineCount: number;
   previewItems: Array<Record<string, unknown>>;

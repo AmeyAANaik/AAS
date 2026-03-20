@@ -162,13 +162,27 @@ public class SetupService {
                 "Date",
                 null,
                 "aas_vendor_bill_ref");
+        boolean transportChargeField = ensureCustomField(
+                "Sales Order",
+                "aas_transport_charge",
+                "Transport Charge",
+                "Currency",
+                null,
+                "aas_vendor_bill_date");
+        boolean roundingAdjustmentField = ensureCustomField(
+                "Sales Order",
+                "aas_rounding_adjustment",
+                "Rounding Adjustment",
+                "Currency",
+                null,
+                "aas_transport_charge");
         boolean vendorPurchaseInvoiceField = ensureCustomField(
                 "Sales Order",
                 "aas_pi_vendor",
                 "Vendor Purchase Invoice",
                 "Link",
                 "Purchase Invoice",
-                "aas_vendor_bill_date");
+                "aas_rounding_adjustment");
         boolean sellOrderTotalField = ensureCustomField(
                 "Sales Order",
                 "aas_sell_order_total",
@@ -218,6 +232,13 @@ public class SetupService {
                 "Link",
                 "Sales Order",
                 "customer");
+        boolean invoiceRoundingAdjustmentField = ensureCustomField(
+                "Sales Invoice",
+                "aas_rounding_adjustment",
+                "Rounding Adjustment",
+                "Currency",
+                null,
+                "aas_source_sales_order");
         boolean companyInvoicePrintFormatField = ensureCustomField(
                 "Company",
                 "aas_sales_invoice_print_format",
@@ -302,6 +323,13 @@ public class SetupService {
                 "Float",
                 null,
                 "aas_mrp");
+        boolean siItemGstField = ensureCustomField(
+                "Sales Invoice Item",
+                "aas_gst_percent",
+                "GST %",
+                "Float",
+                null,
+                "rate");
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
@@ -313,6 +341,7 @@ public class SetupService {
         result.put("soItemVendorRateFieldCreated", soItemVendorRateField);
         result.put("soItemMrpFieldCreated", soItemMrpField);
         result.put("soItemGstFieldCreated", soItemGstField);
+        result.put("siItemGstFieldCreated", siItemGstField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
         result.put("branchSalesOrderFieldCreated", branchSalesOrderField);
@@ -320,6 +349,8 @@ public class SetupService {
         result.put("vendorBillTotalFieldCreated", vendorBillTotalField);
         result.put("vendorBillRefFieldCreated", vendorBillRefField);
         result.put("vendorBillDateFieldCreated", vendorBillDateField);
+        result.put("transportChargeFieldCreated", transportChargeField);
+        result.put("roundingAdjustmentFieldCreated", roundingAdjustmentField);
         result.put("vendorPurchaseInvoiceFieldCreated", vendorPurchaseInvoiceField);
         result.put("sellOrderTotalFieldCreated", sellOrderTotalField);
         result.put("branchLocationFieldCreated", branchLocationField);
@@ -328,6 +359,7 @@ public class SetupService {
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
+        result.put("invoiceRoundingAdjustmentFieldCreated", invoiceRoundingAdjustmentField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
         result.put("categoryCodeFieldCreated", categoryCodeField);

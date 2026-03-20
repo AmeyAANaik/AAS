@@ -277,8 +277,13 @@ public class OrdersController {
     }
 
     @PostMapping("/{id}/sell-order")
-    public ResponseEntity<Map<String, Object>> createSellOrder(@PathVariable String id) {
-        return ResponseEntity.ok(orderBillingService.createSellOrder(id));
+    public ResponseEntity<Map<String, Object>> createSellOrder(
+            @PathVariable String id,
+            @RequestBody(required = false) FieldsRequest request) {
+        Map<String, Object> fields = request == null || request.getFields() == null
+                ? Map.of()
+                : request.getFields();
+        return ResponseEntity.ok(orderBillingService.createSellOrder(id, fields));
     }
 
     @DeleteMapping("/{id}")

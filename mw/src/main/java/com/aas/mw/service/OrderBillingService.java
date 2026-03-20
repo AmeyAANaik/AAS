@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,20 +17,24 @@ public class OrderBillingService {
     private static final String SALES_INVOICE = "Sales Invoice";
     private static final String PURCHASE_INVOICE = "Purchase Invoice";
     private static final String BILL_ITEM_CODE = "AAS-VENDOR-BILL";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
 
     private final ErpNextClient erpNextClient;
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final OrderPricingService orderPricingService;
     private final double defaultMarginPercent;
+    private final String gstTemplate;
 
     public OrderBillingService(
             ErpNextClient erpNextClient,
             OrderFlowStateMachine orderFlowStateMachine,
             OrderPricingService orderPricingService,
+            @Value("${app.billing.gst-template:}") String gstTemplate,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.orderPricingService = orderPricingService;
+        this.gstTemplate = gstTemplate == null ? "" : gstTemplate.trim();
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
@@ -46,13 +51,24 @@ public class OrderBillingService {
         }
 
         double vendorBillTotal = readRequiredPositive(fields, "vendor_bill_total");
+        double transportCharge = readOptionalNonNegative(fields, "transport_charge");
+        boolean allowMismatch = asFlag(fields.get("allow_mismatch"));
         double itemsTotal = sumOrderItemsTotal(orderData);
-        double diff = round(vendorBillTotal - itemsTotal);
-        // Hard validation: bill total must match the scanned items total (within rounding tolerance).
+        double expectedBillTotal = round(itemsTotal + transportCharge);
+        double diff = round(vendorBillTotal - expectedBillTotal);
+        double roundingAdjustment = Math.abs(diff) <= 0.5 ? diff : 0.0;
+        // Hard validation: bill total must match scanned items total including GST plus optional transport (within rounding tolerance).
         if (itemsTotal > 0 && Math.abs(diff) > 0.5) {
+            if (transportCharge <= 0 && allowMismatch) {
+                // Explicit mismatch override: no transport/additional spend is being applied, but the user chose to proceed.
+            } else {
             throw new IllegalArgumentException(
-                    "Vendor bill total must match scanned items total. "
-                            + "Items total=" + itemsTotal + ", Bill total=" + round(vendorBillTotal) + ", Diff=" + diff + ".");
+                    "Vendor bill total must match scanned items total including GST plus transport charge. "
+                            + "Items total=" + itemsTotal
+                            + ", Transport=" + round(transportCharge)
+                            + ", Bill total=" + round(vendorBillTotal)
+                            + ", Diff=" + diff + ".");
+            }
         }
         String billRef = asText(fields.get("vendor_bill_ref"));
         if (billRef.isBlank()) {
@@ -66,12 +82,14 @@ public class OrderBillingService {
 
         ensureBillItem();
         Map<String, Object> purchaseInvoice = createPurchaseInvoice(
-                orderId, vendor, company, vendorBillTotal, billRef, billDate);
+                orderId, vendor, company, vendorBillTotal, billRef, billDate, roundingAdjustment);
 
         Map<String, Object> update = new HashMap<>();
         update.put("aas_vendor_bill_total", vendorBillTotal);
         update.put("aas_vendor_bill_ref", billRef);
         update.put("aas_vendor_bill_date", billDate);
+        update.put("aas_transport_charge", transportCharge);
+        update.put("aas_rounding_adjustment", roundingAdjustment);
         update.put("aas_margin_percent", marginPercent);
         update.put("aas_pi_vendor", extractDocName(purchaseInvoice));
         update.put("aas_status", "VENDOR_BILL_CAPTURED");
@@ -80,6 +98,8 @@ public class OrderBillingService {
         return Map.of(
                 "orderId", orderId,
                 "vendorBillTotal", vendorBillTotal,
+                "transportCharge", transportCharge,
+                "roundingAdjustment", roundingAdjustment,
                 "marginPercent", marginPercent,
                 "purchaseInvoice", purchaseInvoice);
     }
@@ -102,6 +122,10 @@ public class OrderBillingService {
     }
 
     public Map<String, Object> createSellOrder(String orderId) {
+        return createSellOrder(orderId, Map.of());
+    }
+
+    public Map<String, Object> createSellOrder(String orderId, Map<String, Object> fields) {
         Map<String, Object> orderData = unwrap(erpNextClient.getResource(SALES_ORDER, orderId));
         orderFlowStateMachine.ensureCanCreateSellOrder(asText(orderData.get("aas_status")));
         String customer = asText(orderData.get("customer"));
@@ -114,9 +138,15 @@ public class OrderBillingService {
             throw new IllegalStateException("Vendor bill total is required before creating sell order.");
         }
         List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, deriveOrderMarginPercent(orderData));
-        double sellTotal = sumAmount(sellItems);
+        List<Map<String, Object>> invoiceItems = new ArrayList<>(sellItems);
+        boolean applyTransportToInvoice = asFlag(fields == null ? null : fields.get("apply_transport_to_invoice"));
+        double transportCharge = asDouble(orderData.get("aas_transport_charge"));
+        if (applyTransportToInvoice && transportCharge > 0) {
+            invoiceItems.add(buildTransportInvoiceItem(transportCharge));
+        }
+        double sellTotal = sumAmount(invoiceItems);
         double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellTotal);
-        Map<String, Object> salesInvoice = createSalesInvoice(orderId, customer, company, sellItems, orderData, marginPercent);
+        Map<String, Object> salesInvoice = createSalesInvoice(orderId, customer, company, invoiceItems, orderData, marginPercent);
 
         Map<String, Object> update = new HashMap<>();
         update.put("aas_so_branch", "");
@@ -131,7 +161,9 @@ public class OrderBillingService {
                 "orderId", orderId,
                 "salesInvoice", salesInvoice,
                 "sellTotal", sellTotal,
-                "marginPercent", marginPercent);
+                "marginPercent", marginPercent,
+                "transportAppliedToInvoice", applyTransportToInvoice && transportCharge > 0,
+                "transportCharge", round(transportCharge));
     }
 
     private Map<String, Object> createPurchaseInvoice(
@@ -140,7 +172,8 @@ public class OrderBillingService {
             String company,
             double vendorBillTotal,
             String billRef,
-            String billDate) {
+            String billDate,
+            double roundingAdjustment) {
         String companyCurrency = resolveCompanyCurrency(company);
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", vendor);
@@ -157,6 +190,11 @@ public class OrderBillingService {
                 "rate", vendorBillTotal,
                 "amount", vendorBillTotal)));
         payload.put("aas_source_sales_order", sourceOrderId);
+        if (Math.abs(roundingAdjustment) > 0.0001) {
+            payload.put("rounding_adjustment", roundingAdjustment);
+            payload.put("disable_rounded_total", 0);
+            payload.put("rounded_total", round(vendorBillTotal));
+        }
         return erpNextClient.createResource(PURCHASE_INVOICE, payload);
     }
 
@@ -188,6 +226,17 @@ public class OrderBillingService {
         payload.put("items", items);
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
+        double roundingAdjustment = asDouble(sourceOrder.get("aas_rounding_adjustment"));
+        if (Math.abs(roundingAdjustment) > 0.0001) {
+            payload.put("aas_rounding_adjustment", roundingAdjustment);
+            payload.put("rounding_adjustment", roundingAdjustment);
+            payload.put("disable_rounded_total", 0);
+        }
+        if (hasGst(items)) {
+            applyGstTemplates(payload, company);
+        } else if (!gstTemplate.isBlank()) {
+            payload.put("taxes_and_charges", gstTemplate);
+        }
         if (warehouse != null && !warehouse.isBlank()) {
             payload.put("set_warehouse", warehouse);
         }
@@ -279,6 +328,10 @@ public class OrderBillingService {
             item.put("amount", round(pricing.sellRate() * qty));
             item.put("aas_vendor_rate", vendorRate);
             item.put("aas_margin_percent", pricing.effectiveMarginPercent());
+            double gstPercent = asDouble(row.get("aas_gst_percent"));
+            if (gstPercent > 0) {
+                item.put("aas_gst_percent", gstPercent);
+            }
             if (asNullableDouble(row.get("aas_mrp")) != null) {
                 item.put("aas_mrp", asNullableDouble(row.get("aas_mrp")));
             }
@@ -358,6 +411,50 @@ public class OrderBillingService {
         }
     }
 
+    private void ensureTransportItem() {
+        try {
+            Map<String, Object> existing = unwrap(erpNextClient.getResource("Item", TRANSPORT_ITEM_CODE));
+            Object disabled = existing.get("disabled");
+            boolean isDisabled = false;
+            if (disabled instanceof Boolean b) {
+                isDisabled = b;
+            } else if (disabled instanceof Number n) {
+                isDisabled = n.intValue() != 0;
+            } else if (disabled != null) {
+                isDisabled = "1".equals(disabled.toString().trim());
+            }
+            if (isDisabled) {
+                erpNextClient.updateResource("Item", TRANSPORT_ITEM_CODE, Map.of("disabled", 0));
+            }
+        } catch (Exception ex) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", TRANSPORT_ITEM_CODE);
+            payload.put("item_name", "Transport Charges");
+            payload.put("item_group", "All Item Groups");
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 0);
+            payload.put("is_sales_item", 1);
+            payload.put("is_purchase_item", 0);
+            payload.put("disabled", 0);
+            payload.put("description", "Synthetic item for customer-side transport recovery.");
+            erpNextClient.createResource("Item", payload);
+        }
+    }
+
+    private Map<String, Object> buildTransportInvoiceItem(double transportCharge) {
+        ensureTransportItem();
+        double roundedCharge = round(transportCharge);
+        Map<String, Object> item = new HashMap<>();
+        item.put("item_code", TRANSPORT_ITEM_CODE);
+        item.put("qty", 1);
+        item.put("rate", roundedCharge);
+        item.put("amount", roundedCharge);
+        item.put("aas_vendor_rate", roundedCharge);
+        item.put("aas_margin_percent", 0.0);
+        item.put("aas_gst_percent", 0.0);
+        return item;
+    }
+
     private String resolveDate(Object value) {
         String text = asText(value);
         return text.isBlank() ? LocalDate.now().toString() : text;
@@ -383,6 +480,14 @@ public class OrderBillingService {
         return value;
     }
 
+    private double readOptionalNonNegative(Map<String, Object> fields, String key) {
+        double value = asDouble(fields == null ? null : fields.get(key));
+        if (value < 0) {
+            throw new IllegalArgumentException(key + " must be non-negative.");
+        }
+        return value;
+    }
+
     private double resolveMarginPercent(Object requestValue, Object existingValue) {
         Object source = requestValue == null ? existingValue : requestValue;
         double margin = asDouble(source);
@@ -403,6 +508,137 @@ public class OrderBillingService {
         return round(total);
     }
 
+    private boolean hasGst(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return false;
+        }
+        for (Map<String, Object> item : items) {
+            if (asDouble(item.get("aas_gst_percent")) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyGstTemplates(Map<String, Object> payload, String company) {
+        if (payload == null || company == null || company.isBlank()) {
+            return;
+        }
+        Object rawItems = payload.get("items");
+        if (!(rawItems instanceof List<?> rawList) || rawList.isEmpty()) {
+            return;
+        }
+
+        String gstAccountHead = ensureGstAccountHead(company);
+        if (gstAccountHead.isBlank()) {
+            return;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) rawItems;
+        boolean applied = false;
+        for (Map<String, Object> item : items) {
+            if (item == null) {
+                continue;
+            }
+            double gstPercent = asDouble(item.get("aas_gst_percent"));
+            if (gstPercent <= 0) {
+                continue;
+            }
+            item.put("item_tax_template", ensureItemTaxTemplate(company, gstAccountHead, gstPercent));
+            applied = true;
+        }
+
+        if (!applied) {
+            return;
+        }
+
+        payload.remove("taxes_and_charges");
+        payload.remove("taxes");
+    }
+
+    private String ensureGstAccountHead(String company) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\",\"account_type\",\"parent_account\",\"is_group\",\"root_type\",\"report_type\"]");
+        params.put("filters", "[[\"company\",\"=\",\"" + escape(company) + "\"]]");
+        params.put("limit_page_length", 200);
+        List<Map<String, Object>> accounts = erpNextClient.listResources("Account", params);
+        if (accounts != null) {
+            for (Map<String, Object> account : accounts) {
+                if (account == null) {
+                    continue;
+                }
+                if (company.equals(asText(account.get("company")))
+                        && "Tax".equalsIgnoreCase(asText(account.get("account_type")))
+                        && "GST".equalsIgnoreCase(asText(account.get("account_name")))) {
+                    return asText(account.get("name"));
+                }
+            }
+            for (Map<String, Object> account : accounts) {
+                if (account == null) {
+                    continue;
+                }
+                if (company.equals(asText(account.get("company")))
+                        && "Duties and Taxes".equalsIgnoreCase(asText(account.get("account_name")))) {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("account_name", "GST");
+                    payload.put("company", company);
+                    payload.put("parent_account", asText(account.get("name")));
+                    payload.put("account_type", "Tax");
+                    payload.put("is_group", 0);
+                    if (!asText(account.get("root_type")).isBlank()) {
+                        payload.put("root_type", asText(account.get("root_type")));
+                    }
+                    if (!asText(account.get("report_type")).isBlank()) {
+                        payload.put("report_type", asText(account.get("report_type")));
+                    }
+                    Map<String, Object> created = unwrap(erpNextClient.createResource("Account", payload));
+                    return asText(created.get("name"));
+                }
+            }
+        }
+        return "";
+    }
+
+    private String ensureItemTaxTemplate(String company, String gstAccountHead, double gstPercent) {
+        String title = buildGstTemplateTitle(gstPercent);
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"title\",\"company\"]");
+        params.put(
+                "filters",
+                "[[\"company\",\"=\",\"" + escape(company) + "\"],[\"title\",\"=\",\"" + escape(title) + "\"]]");
+        params.put("limit_page_length", 20);
+        List<Map<String, Object>> templates = erpNextClient.listResources("Item Tax Template", params);
+        if (templates != null) {
+            for (Map<String, Object> template : templates) {
+                if (template == null) {
+                    continue;
+                }
+                if (company.equals(asText(template.get("company"))) && title.equals(asText(template.get("title")))) {
+                    return asText(template.get("name"));
+                }
+            }
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", title);
+        payload.put("company", company);
+        payload.put("taxes", List.of(Map.of(
+                "tax_type", gstAccountHead,
+                "tax_rate", round(gstPercent))));
+        Map<String, Object> created = unwrap(erpNextClient.createResource("Item Tax Template", payload));
+        return asText(created.get("name"));
+    }
+
+    private String buildGstTemplateTitle(double gstPercent) {
+        BigDecimal value = BigDecimal.valueOf(round(gstPercent)).stripTrailingZeros();
+        return "AAS GST " + value.toPlainString() + "%";
+    }
+
+    private String escape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
     private double sumOrderItemsTotal(Map<String, Object> orderData) {
         if (orderData == null) {
             return 0.0;
@@ -416,6 +652,10 @@ public class OrderBillingService {
             if (rowObj instanceof Map<?, ?> row) {
                 double amount = asDouble(((Map<?, ?>) row).get("amount"));
                 if (amount > 0) {
+                    double gstPercent = asDouble(((Map<?, ?>) row).get("aas_gst_percent"));
+                    if (gstPercent > 0) {
+                        amount += amount * (gstPercent / 100.0);
+                    }
                     total += amount;
                 }
             }
@@ -441,6 +681,20 @@ public class OrderBillingService {
     private Double asNullableDouble(Object value) {
         double parsed = asDouble(value);
         return parsed > 0 ? parsed : null;
+    }
+
+    private boolean asFlag(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        String text = value.toString().trim();
+        return "1".equals(text) || "true".equalsIgnoreCase(text) || "yes".equalsIgnoreCase(text);
     }
 
     private double round(double value) {

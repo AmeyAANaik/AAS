@@ -39,6 +39,7 @@ export class InvoiceCreateComponent {
   });
 
   gstControl = new FormControl(true);
+  roundingAdjustmentControl = new FormControl(0, { nonNullable: true });
 
   constructor(private fb: FormBuilder, private billsService: BillsService) {}
 
@@ -61,6 +62,9 @@ export class InvoiceCreateComponent {
       .subscribe({
         next: order => {
           this.orderSnapshot = order ?? null;
+          this.roundingAdjustmentControl.setValue(Number(order?.aas_rounding_adjustment ?? 0) || 0, {
+            emitEvent: false
+          });
           this.statusMessage = order ? 'Order loaded.' : 'Order not found.';
         },
         error: err => {
@@ -169,7 +173,8 @@ export class InvoiceCreateComponent {
         qty: Number(item.qty ?? 0),
         rate: Number(item.rate ?? 0)
       })),
-      apply_gst: this.gstControl.value ?? true
+      apply_gst: this.gstControl.value ?? true,
+      rounding_adjustment: this.roundingAdjustmentValue || undefined
     };
     this.createInvoice(payload, customer);
   }
@@ -200,7 +205,8 @@ export class InvoiceCreateComponent {
       customer: String(formValue.customer ?? '').trim(),
       company,
       items,
-      apply_gst: this.gstControl.value ?? true
+      apply_gst: this.gstControl.value ?? true,
+      rounding_adjustment: this.roundingAdjustmentValue || undefined
     };
     this.createInvoice(payload, payload.customer);
   }
@@ -236,6 +242,12 @@ export class InvoiceCreateComponent {
     this.manualItems.clear();
     this.manualItems.push(this.createManualItemGroup());
     this.orderSnapshot = null;
+    this.roundingAdjustmentControl.setValue(0);
+  }
+
+  get roundingAdjustmentValue(): number {
+    const value = Number(this.roundingAdjustmentControl.value ?? 0);
+    return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
   }
 
   private createManualItemGroup(): FormGroup {

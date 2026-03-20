@@ -10,7 +10,8 @@ const TEMPLATE_JSON = JSON.stringify(
     version: 1,
     itemLineRegex:
       '^(?:\\\\d+\\\\s*[\\\\|\\\\]]?\\\\s*)?(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?:\\\\d+\\\\s*%\\\\s*\\\\|?)\\\\s*(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s*(?:[A-Za-z]{1,6})\\\\s*\\\\)?\\\\s*(?:\\\\|?\\\\s*\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)?\\\\s+(?<rate>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$',
-    billDateRegex: '(?i)\\\\bdated\\\\b\\\\s*(?<date>[^\\\\n\\\\r]+)'
+    billDateRegex: '(?i)\\\\bdated\\\\b\\\\s*(?<date>[^\\\\n\\\\r]+)',
+    transportChargeRegex: '(?im)^transport\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$'
   },
   null,
   2

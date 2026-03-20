@@ -156,6 +156,7 @@ describe('OrderPageComponent', () => {
 
     component.selectOrder(order);
     component.billTotalControl.setValue(100);
+    component.transportChargeControl.setValue(0);
     component.billRefControl.setValue('VB-1');
     component.billDateControl.setValue(new Date('2024-01-10'));
 
@@ -164,7 +165,166 @@ describe('OrderPageComponent', () => {
     expect(orderService.captureVendorBill).toHaveBeenCalledWith(order.name, {
       vendor_bill_total: 100,
       vendor_bill_ref: 'VB-1',
-      vendor_bill_date: '2024-01-10'
+      vendor_bill_date: '2024-01-10',
+      transport_charge: 0,
+      allow_mismatch: false
+    });
+  });
+
+  it('keeps GST percent when updating reviewed order items', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED' }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          {
+            item_code: 'ITEM-1',
+            item_name: 'Item 1',
+            qty: 2,
+            rate: 50,
+            amount: 100,
+            aas_margin_percent: 12,
+            aas_gst_percent: 5
+          }
+        ]
+      }
+    }));
+    orderService.updateOrderItems.and.returnValue(of({
+      items: [
+        {
+          item_code: 'ITEM-1',
+          item_name: 'Item 1',
+          qty: 2,
+          rate: 50,
+          amount: 100,
+          aas_margin_percent: 12,
+          aas_gst_percent: 5
+        }
+      ]
+    }));
+
+    component.selectOrder(order);
+    component.saveOrderLines();
+
+    expect(orderService.updateOrderItems).toHaveBeenCalledWith(order.name, [
+      jasmine.objectContaining({
+        item_code: 'ITEM-1',
+        aas_gst_percent: 5
+      })
+    ]);
+  });
+
+  it('includes transport charge in bill validation and capture payload', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      billTotal: 115,
+      transportCharge: 15,
+      billRef: 'VB-2',
+      billDate: new Date('2024-01-10'),
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED', aas_transport_charge: 15 }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          { item_code: 'ITEM-1', item_name: 'Item 1', qty: 2, rate: 50, amount: 100, aas_margin_percent: 12 }
+        ]
+      }
+    }));
+
+    component.selectOrder(order);
+    component.transportChargeControl.setValue(15);
+    component.billTotalControl.setValue(115);
+    component.billRefControl.setValue('VB-2');
+    component.billDateControl.setValue(new Date('2024-01-10'));
+
+    expect(component.expectedBillTotal).toBe(115);
+    expect(component.billMatchesItems).toBeTrue();
+
+    component.captureBill();
+
+    expect(orderService.captureVendorBill).toHaveBeenCalledWith(order.name, {
+      vendor_bill_total: 115,
+      vendor_bill_ref: 'VB-2',
+      vendor_bill_date: '2024-01-10',
+      transport_charge: 15,
+      allow_mismatch: false
+    });
+  });
+
+  it('includes GST in the expected bill total', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      billTotal: 105,
+      transportCharge: 0,
+      billRef: 'VB-GST',
+      billDate: new Date('2024-01-10'),
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED', aas_transport_charge: 0 }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          {
+            item_code: 'ITEM-1',
+            item_name: 'Item 1',
+            qty: 2,
+            rate: 50,
+            amount: 100,
+            aas_margin_percent: 12,
+            aas_gst_percent: 5
+          }
+        ]
+      }
+    }));
+
+    component.selectOrder(order);
+    component.billTotalControl.setValue(105);
+
+    expect(component.itemsSubtotal).toBe(100);
+    expect(component.gstTotal).toBe(5);
+    expect(component.expectedBillTotal).toBe(105);
+    expect(component.billMatchesItems).toBeTrue();
+  });
+
+  it('allows capture as mismatched bill when there is no transport', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      billTotal: 110,
+      transportCharge: 0,
+      billRef: 'VB-3',
+      billDate: new Date('2024-01-10'),
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED', aas_transport_charge: 0 }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          { item_code: 'ITEM-1', item_name: 'Item 1', qty: 2, rate: 50, amount: 100, aas_margin_percent: 12 }
+        ]
+      }
+    }));
+
+    component.selectOrder(order);
+    component.billTotalControl.setValue(110);
+    component.billRefControl.setValue('VB-3');
+    component.billDateControl.setValue(new Date('2024-01-10'));
+
+    expect(component.billMatchesItems).toBeFalse();
+    expect(component.canProceedAsMismatchBill).toBeTrue();
+
+    component.mismatchOverrideControl.setValue(true);
+    component.captureBill();
+
+    expect(orderService.captureVendorBill).toHaveBeenCalledWith(order.name, {
+      vendor_bill_total: 110,
+      vendor_bill_ref: 'VB-3',
+      vendor_bill_date: '2024-01-10',
+      transport_charge: 0,
+      allow_mismatch: true
     });
   });
 
@@ -184,7 +344,48 @@ describe('OrderPageComponent', () => {
     component.saveOrderLines();
 
     expect(orderService.updateOrderItems).toHaveBeenCalledWith(order.name, [
-      { item_code: 'ITEM-1', qty: 2, rate: 50, aas_margin_percent: 15 }
+      jasmine.objectContaining({
+        item_code: 'ITEM-1',
+        qty: 2,
+        rate: 50,
+        aas_margin_percent: 15
+      })
     ]);
+  });
+
+  it('defaults transport application to on when captured transport exists', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_BILL_CAPTURED' as const,
+      transportCharge: 15,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_BILL_CAPTURED', aas_transport_charge: 15 }
+    };
+
+    component.selectOrder(order);
+
+    expect(component.applyTransportToInvoiceControl.value).toBeTrue();
+    expect(component.shouldApplyTransportToInvoice).toBeTrue();
+  });
+
+  it('passes the transport toggle when creating the sell order', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_BILL_CAPTURED' as const,
+      transportCharge: 15,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_BILL_CAPTURED', aas_transport_charge: 15 }
+    };
+    component.selectOrder(order);
+    component.sellPreview = {
+      estimatedPrice: 107,
+      itemsCount: 2,
+      raw: { orderId: order.name, vendorBillTotal: 100, marginPercent: 7, sellAmount: 107, marginAmount: 7 }
+    };
+
+    component.applyTransportToInvoiceControl.setValue(true);
+    component.createSellOrder();
+
+    expect(orderService.createSellOrder).toHaveBeenCalledWith(order.name, {
+      apply_transport_to_invoice: true
+    });
   });
 });

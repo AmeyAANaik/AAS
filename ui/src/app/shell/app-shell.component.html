@@ -24,14 +24,18 @@
           <span class="material-icons" aria-hidden="true">expand_more</span>
         </button>
         <div class="user-menu-panel" *ngIf="isUserMenuOpen">
-          <div class="user-panel-head">
+          <a class="user-panel-head user-panel-link" routerLink="/user-settings" (click)="closeUserMenu()">
             <div class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</div>
             <div class="user-panel-copy">
               <strong>{{ userName }}</strong>
               <span *ngIf="userEmail">{{ userEmail }}</span>
               <span>{{ userRole || 'Signed in' }}</span>
             </div>
-          </div>
+          </a>
+          <a class="user-menu-link" routerLink="/user-settings" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">person</span>
+            User Details
+          </a>
           <a class="user-menu-link" routerLink="/company-settings" (click)="closeUserMenu()">
             <span class="material-icons" aria-hidden="true">business</span>
             Company Settings

@@ -21,6 +21,8 @@
 }
 
 .template-section {
+  display: grid;
+  gap: 12px;
   padding-top: 8px;
   border-top: 1px dashed var(--border-subtle);
 }
@@ -31,7 +33,6 @@
 }
 
 .template-actions {
-  margin-top: 8px;
   justify-content: flex-start;
 }
 
@@ -55,6 +56,34 @@
   border-radius: 12px;
   background: #f7f3ea;
   border: 1px solid var(--border-subtle);
+}
+
+.template-example {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fbf8f1;
+  border: 1px dashed var(--border);
+}
+
+.template-example .model-title,
+.template-example p {
+  margin: 0;
+}
+
+.template-example pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  background: #1f2430;
+  color: #f6f1e8;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .model-title {
@@ -147,6 +176,11 @@
 
 :host ::ng-deep .template-json-field .mat-mdc-text-field-wrapper {
   background: #fff8ea;
+}
+
+:host ::ng-deep .template-json-field .mat-mdc-form-field-subscript-wrapper {
+  position: static;
+  min-height: 0;
 }
 
 :host ::ng-deep .template-json-field textarea.mat-mdc-input-element,

@@ -8,6 +8,8 @@ This folder contains the maintained documentation for the AAS platform.
   - Fastest way to bootstrap a future Codex session.
 - [System Architecture Analysis](./system-architecture-analysis.md)
   - Deeper code-based architecture reference.
+- [ERPNext Workflow Review](./erpnext-workflow-review.md)
+  - Persistent review log comparing AAS workflow with ERPNext-oriented standards.
 - [Seed Data How-To](./seed-data-howto.md)
   - How to seed realistic data and validate reports and OCR flow.
 - [Docs Changelog](./CHANGELOG.md)

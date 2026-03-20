@@ -1,0 +1,69 @@
+.user-settings-page {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-card {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.state {
+  font-size: 14px;
+  color: var(--muted, #667085);
+}
+
+.state.error {
+  color: #b42318;
+}
+
+.state.success {
+  color: #027a48;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.identity-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid var(--border, #d0d5dd);
+}
+
+.identity-avatar.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent-strong, #0f766e) 14%, white);
+  color: var(--ink, #101828);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.identity-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.identity-subtitle {
+  margin-top: 4px;
+  color: var(--muted, #667085);
+  font-size: 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}

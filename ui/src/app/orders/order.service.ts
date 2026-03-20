@@ -2,7 +2,15 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { OrderCreatePayload, OrderFilters, OrderItemPayload, OrderSummary, SellPreview, VendorBillPayload } from './order.model';
+import {
+  CreateSellOrderPayload,
+  OrderCreatePayload,
+  OrderFilters,
+  OrderItemPayload,
+  OrderSummary,
+  SellPreview,
+  VendorBillPayload
+} from './order.model';
 
 @Injectable({
   providedIn: 'root'
@@ -135,8 +143,12 @@ export class OrderService {
     return this.http.get<SellPreview>(`/api/orders/${orderId}/sell-preview`, { headers: this.authHeaders() });
   }
 
-  createSellOrder(orderId: string): Observable<Record<string, unknown>> {
-    return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/sell-order`, {}, { headers: this.authHeaders() });
+  createSellOrder(orderId: string, payload: CreateSellOrderPayload = {}): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      `/api/orders/${orderId}/sell-order`,
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
   }
 
   getOrder(orderId: string): Observable<Record<string, unknown>> {

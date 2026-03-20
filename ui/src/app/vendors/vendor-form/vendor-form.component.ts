@@ -10,6 +10,16 @@ import { InvoiceTemplateModel } from '../../shared/invoice-template-model.servic
   styleUrl: './vendor-form.component.scss'
 })
 export class VendorFormComponent implements OnChanges {
+  readonly templateExample = `{
+  "parser": {
+    "version": 1,
+    "itemLineRegex": "^(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$",
+    "billDateRegex": "(?im)^dated\\\\s*(?<date>[^\\\\n\\\\r]+)$",
+    "finalAmountRegex": "(?im)^total\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$",
+    "transportChargeRegex": "(?im)^transport\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$"
+  }
+}`;
+
   @ViewChild('sampleInput') sampleInput?: ElementRef<HTMLInputElement>;
   @Input() vendor: VendorView | null = null;
   @Input() categories: Category[] = [];
