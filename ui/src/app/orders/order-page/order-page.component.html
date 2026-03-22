@@ -286,9 +286,15 @@
               <mat-select [formControl]="vendorControl" [disabled]="isVendorsLoading || !!vendorsError">
                 <mat-option value="">Select vendor</mat-option>
                 <mat-option *ngIf="isVendorsLoading" disabled>Loading vendors...</mat-option>
-                <mat-option *ngFor="let vendor of vendorOptions" [value]="vendor.id">{{ vendor.name }}</mat-option>
+                <mat-option *ngIf="!isVendorsLoading && !vendorsError && !assignableVendorOptions.length" disabled>
+                  No vendors mapped to this order category
+                </mat-option>
+                <mat-option *ngFor="let vendor of assignableVendorOptions" [value]="vendor.id">{{ vendor.name }}</mat-option>
               </mat-select>
               <mat-hint *ngIf="vendorsError">{{ vendorsError }}</mat-hint>
+              <mat-hint *ngIf="!vendorsError && selectedOrder?.raw?.aas_category">
+                Showing vendors mapped to {{ selectedOrder?.raw?.aas_category }}.
+              </mat-hint>
             </mat-form-field>
             <button mat-raised-button color="primary" (click)="assignVendor()" [disabled]="!vendorControl.value" class="full-width">Assign Vendor</button>
           </div>
@@ -303,12 +309,12 @@
         </div>
 
         <!-- Step 2: PDF Upload -->
-        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_ASSIGNED'">
+        <div class="step-content" [class.active]="canManageVendorPdf">
           <div class="step-header">
             <h3>Step 2: Vendor PDF Upload</h3>
-            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">✓ Completed</span>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT'">✓ Completed</span>
           </div>
-          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_ASSIGNED'">
+          <div class="step-body" *ngIf="canManageVendorPdf">
             <div class="stage-link" *ngIf="vendorPdfUrl">
               <span class="stage-link-label">Vendor PDF already uploaded</span>
               <div class="stage-link-actions">
@@ -341,13 +347,13 @@
                 <span>{{ fileError }}</span>
               </div>
               <button mat-raised-button color="primary" (click)="uploadAndParsePDF()" [disabled]="!selectedFile || isUploading" class="full-width">
-                <span *ngIf="!isUploading">Upload and Parse PDF</span>
+                <span *ngIf="!isUploading">{{ vendorPdfUrl ? 'Re-upload and Parse PDF' : 'Upload and Parse PDF' }}</span>
                 <mat-spinner diameter="20" *ngIf="isUploading" [ngStyle]="{'display': 'inline-block', 'margin-right': '8px'}"></mat-spinner>
                 <span *ngIf="isUploading">Processing...</span>
               </button>
             </div>
           </div>
-          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'DRAFT'">
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT'">
             <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
             <p *ngIf="vendorPdfUrl">
               <strong>Vendor PDF:</strong>

@@ -167,6 +167,7 @@ public class VendorPdfService {
         List<Map<String, Object>> sellItems = withSellMargin(baseItems);
         double marginPercent = calculateDerivedMarginPercent(sourceOrderItems);
 
+        removeExistingPurchaseOrderForReupload(orderData, currentStatus);
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
         String purchaseOrderId = extractDocName(purchaseOrder);
         double vendorBillTotal = sumAmount(baseItems);
@@ -240,6 +241,17 @@ public class VendorPdfService {
                 "fileUrl", pdfInfo.fileUrl(),
                 "fileId", pdfInfo.fileId()));
         return response;
+    }
+
+    private void removeExistingPurchaseOrderForReupload(Map<String, Object> orderData, String currentStatus) {
+        if (!"VENDOR_PDF_RECEIVED".equals(orderFlowStateMachine.normalize(currentStatus))) {
+            return;
+        }
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        if (purchaseOrderId.isBlank() || !resourceExists(PURCHASE_ORDER, purchaseOrderId)) {
+            return;
+        }
+        erpNextClient.deleteResource(PURCHASE_ORDER, purchaseOrderId);
     }
 
     private void validateParsedTemplateOutput(

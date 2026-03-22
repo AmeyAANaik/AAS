@@ -1,0 +1,43 @@
+{
+    "aspectRatio": "16:9",
+    "autoFps": true,
+    "creationTime": "2026.03.22 23:40:46",
+    "definitionEdited": false,
+    "definitionTypeByUser": 0,
+    "enableEffects": true,
+    "fps": 30,
+    "frames": 0,
+    "id": "80962fed-e4db-4406-ba1c-9447e753e18e",
+    "isPanoramic": false,
+    "lastModifiedTime": "2026.03.22 23:40:46",
+    "lowQualityProxyType": -1,
+    "mainMagnetizable": true,
+    "markTrimEnd": 0,
+    "markTrimIn": 0,
+    "markTrimVisible": false,
+    "name": "Untitled1",
+    "projectPath": "/Users/roshninaik/Projects/AAS/Untitled1",
+    "tracks": [
+        {
+            "audible": true,
+            "id": "6c886980-9bb2-46a1-bf30-c41429d68d1e",
+            "locked": false,
+            "type": 0,
+            "visible": true
+        },
+        {
+            "audible": true,
+            "id": "3d91d3d8-36d6-4db5-aa00-5c2dbee5e12a",
+            "locked": false,
+            "type": 2,
+            "visible": true
+        },
+        {
+            "audible": true,
+            "id": "46d77c8b-f0ee-4ac9-98b5-4148fe482f94",
+            "locked": false,
+            "type": 3,
+            "visible": true
+        }
+    ]
+}

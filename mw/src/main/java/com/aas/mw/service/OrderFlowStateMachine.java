@@ -23,8 +23,9 @@ public class OrderFlowStateMachine {
 
     public void ensureCanUploadVendorPdf(String currentStatus) {
         String normalized = normalize(currentStatus);
-        if (!VENDOR_ASSIGNED.equals(normalized)) {
-            throw new IllegalStateException("Vendor PDF can only be uploaded when order status is VENDOR_ASSIGNED.");
+        if (!VENDOR_ASSIGNED.equals(normalized) && !VENDOR_PDF_RECEIVED.equals(normalized)) {
+            throw new IllegalStateException(
+                    "Vendor PDF can only be uploaded when order status is VENDOR_ASSIGNED or VENDOR_PDF_RECEIVED.");
         }
     }
 

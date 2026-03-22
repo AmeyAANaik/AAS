@@ -43,6 +43,12 @@ interface UiOrder {
   raw: OrderSummary;
 }
 
+interface VendorOption {
+  id: string;
+  name: string;
+  category?: string;
+}
+
 interface UiSellPreview {
   estimatedPrice: number;
   itemsCount: number;
@@ -135,7 +141,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly dataSource = new MatTableDataSource<UiOrder>([]);
   selectedOrder: UiOrder | null = null;
 
-  vendorOptions: OrderOption[] = [];
+  vendorOptions: VendorOption[] = [];
   isVendorsLoading = false;
   vendorsError = '';
 
@@ -255,13 +261,14 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
             return {
               id: String(vendor?.name ?? name),
               name: name || String(vendor?.name ?? ''),
+              category: String(vendor?.category ?? '').trim(),
               disabled: this.isDisabled(vendor?.disabled)
             };
           });
           this.vendorOptions = options
             .filter(option => !option.disabled)
             .filter(option => option.id.trim() && option.name.trim())
-            .map(({ id, name }) => ({ id, name }))
+            .map(({ id, name, category }) => ({ id, name, category }))
             .sort((a, b) => a.name.localeCompare(b.name));
         },
         error: err => {
@@ -651,6 +658,22 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.fileError = '';
     this.orderLines = [];
     this.isItemsSaving = false;
+  }
+
+  get assignableVendorOptions(): VendorOption[] {
+    const category = this.normalizeCategory(String(this.selectedOrder?.raw?.aas_category ?? ''));
+    if (!category) {
+      return this.vendorOptions;
+    }
+    const categoryMatches = this.vendorOptions.filter(vendor =>
+      this.normalizeCategory(vendor.category ?? '') === category
+    );
+    return categoryMatches.length ? categoryMatches : this.vendorOptions;
+  }
+
+  get canManageVendorPdf(): boolean {
+    const status = this.selectedOrder?.status ?? 'DRAFT';
+    return status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
   }
 
   getStatusLabel(status: UiOrderStatus): string {
@@ -1193,6 +1216,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       billDate,
       raw: order
     };
+  }
+
+  private normalizeCategory(value: string): string {
+    return String(value ?? '').trim().toLowerCase();
   }
 
   private toUiOrderLine(row: any): UiOrderLine {

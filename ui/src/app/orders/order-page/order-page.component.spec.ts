@@ -42,6 +42,7 @@ describe('OrderPageComponent', () => {
           name: 'ORD-1',
           customer: 'Sukarta Aundh',
           aas_vendor: '',
+          aas_category: 'Bakery Inputs',
           aas_status: 'DRAFT',
           transaction_date: '2024-01-10',
           delivery_date: '2024-01-12',
@@ -70,7 +71,10 @@ describe('OrderPageComponent', () => {
     orderService.createSellOrder.and.returnValue(of({}));
 
     vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
-    vendorService.listVendors.and.returnValue(of([{ name: 'VENDOR-1', supplier_name: 'Vendor A' }]));
+    vendorService.listVendors.and.returnValue(of([
+      { name: 'VENDOR-1', supplier_name: 'Vendor A', category: 'Bakery Inputs' },
+      { name: 'VENDOR-2', supplier_name: 'Vendor B', category: 'Beverages' }
+    ]));
 
     await TestBed.configureTestingModule({
       declarations: [OrderPageComponent],
@@ -125,6 +129,24 @@ describe('OrderPageComponent', () => {
     component.assignVendor();
 
     expect(orderService.assignVendor).toHaveBeenCalledWith(order.name, 'VENDOR-1');
+  });
+
+  it('filters vendor assignment options by order category', () => {
+    const order = component.orders[0];
+    component.selectOrder(order);
+
+    expect(component.assignableVendorOptions.map(vendor => vendor.id)).toEqual(['VENDOR-1']);
+  });
+
+  it('allows PDF management after vendor PDF is already received', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED' }
+    };
+    component.selectOrder(order);
+
+    expect(component.canManageVendorPdf).toBeTrue();
   });
 
   it('allows delete for vendor-pdf-received orders even when a purchase order is linked', () => {

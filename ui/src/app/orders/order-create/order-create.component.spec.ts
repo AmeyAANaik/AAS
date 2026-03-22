@@ -112,4 +112,14 @@ describe('OrderCreateComponent', () => {
     expect(component.categoryVendors.map(vendor => vendor.name)).toEqual(['Daily Staples', 'Fresh Harvest']);
     expect(component.categoryItems.map(item => item.name)).toEqual(['Rice']);
   });
+
+  it('keeps the source switch working between upload images and select items', () => {
+    expect(component.createMode).toBe('images');
+
+    component.setCreateMode('items');
+    expect(component.createMode).toBe('items');
+
+    component.setCreateMode('images');
+    expect(component.createMode).toBe('images');
+  });
 });
