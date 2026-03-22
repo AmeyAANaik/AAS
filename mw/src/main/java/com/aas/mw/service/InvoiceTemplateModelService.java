@@ -15,9 +15,17 @@ public class InvoiceTemplateModelService {
     }
 
     public Map<String, Object> describeModel() {
+        Map<String, Object> requiredFields = Map.of(
+                "items", requiredItemKeys(),
+                "summary", requiredSummaryKeys());
+        Map<String, Object> workflow = Map.of(
+                "inputMode", "field_mapping",
+                "uiPolicy", "Do not expose regex configuration in UI. Collect invoice field mapping and validate extracted data from backend preview.");
         return Map.of(
                 "itemFields", toFieldMaps(properties.getItemFields()),
-                "summaryFields", toFieldMaps(properties.getSummaryFields()));
+                "summaryFields", toFieldMaps(properties.getSummaryFields()),
+                "requiredFields", requiredFields,
+                "workflow", workflow);
     }
 
     public List<String> requiredItemKeys() {
@@ -32,6 +40,14 @@ public class InvoiceTemplateModelService {
                 .filter(InvoiceTemplateModelProperties.TemplateField::isRequired)
                 .map(InvoiceTemplateModelProperties.TemplateField::getKey)
                 .toList();
+    }
+
+    public List<InvoiceTemplateModelProperties.TemplateField> itemFieldDefinitions() {
+        return properties.getItemFields();
+    }
+
+    public List<InvoiceTemplateModelProperties.TemplateField> summaryFieldDefinitions() {
+        return properties.getSummaryFields();
     }
 
     private List<Map<String, Object>> toFieldMaps(List<InvoiceTemplateModelProperties.TemplateField> fields) {

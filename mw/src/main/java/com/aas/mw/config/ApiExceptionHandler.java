@@ -101,14 +101,50 @@ public class ApiExceptionHandler {
             return "";
         }
         String message = raw.trim();
+        String lower = message.toLowerCase();
+        if (lower.contains("field not permitted in query:")) {
+            return "System setup is incomplete. Please run setup again and refresh the page.";
+        }
+        if (lower.contains("traceback") || lower.contains("feignclient#") || lower.contains("/api/resource/")) {
+            String shortened = friendlyMessageFromRaw(message);
+            if (!shortened.isBlank()) {
+                return shortened;
+            }
+        }
         message = message.replace("ERPNext", "system");
         message = message.replace("erpnext", "system");
+        message = message.replaceAll("https?://\\S+", "");
+        message = message.replaceAll("//host\\.docker\\.internal:\\d+\\S*", "");
         message = message.replaceAll("(?i)\\[\\d+\\s+[A-Z_ ]+\\].*?:\\s*", "");
         message = message.replaceAll("(?i).*FeignClient#[^(]+\\([^)]*\\):\\s*", "");
+        message = message.replaceAll("(?i)traceback.*", "");
         message = message.replaceAll("\\s+", " ").trim();
         if (message.startsWith("{") || message.startsWith("[")) {
             return "";
         }
         return message;
+    }
+
+    private String friendlyMessageFromRaw(String raw) {
+        String lower = raw == null ? "" : raw.toLowerCase();
+        if (lower.contains("field not permitted in query:")) {
+            return "System setup is incomplete. Please run setup again and refresh the page.";
+        }
+        if (lower.contains("uommustbeintegererror")) {
+            return "Purchase order could not be created because at least one item has a fractional quantity with UOM Nos. Update the item UOM mapping and try again.";
+        }
+        if (lower.contains("partydisabled") && lower.contains("customer")) {
+            return "The selected branch is inactive. Choose an active branch or reactivate this customer in Branches.";
+        }
+        if (lower.contains("duplicate entry") && lower.contains("for key 'primary'")) {
+            return "Some new items already exist in the system. Refresh the order and try the upload again.";
+        }
+        if (lower.contains("doctype") && lower.contains("deleted")) {
+            return "System data is incomplete. Please re-run setup and try again.";
+        }
+        if (lower.contains("traceback")) {
+            return "The system could not complete this request. Please refresh or contact an administrator.";
+        }
+        return "";
     }
 }

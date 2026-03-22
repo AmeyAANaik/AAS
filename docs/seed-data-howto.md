@@ -101,6 +101,6 @@ curl -H "Authorization: Bearer <JWT>" http://localhost:8083/api/reports/shop-cat
 
 ## Notes
 
-- The seed keeps legacy default entities such as `Vendor A` and `Shop A` for compatibility.
+- The seed uses `Sukarta Aundh` as the default shop customer and maps the default vendor user to `FreshHarvest Agro Foods`.
 - UI and middleware API contracts are unchanged.
 - ERPNext remains the system of record; the seed writes data using existing doctypes rather than introducing new core doctypes.

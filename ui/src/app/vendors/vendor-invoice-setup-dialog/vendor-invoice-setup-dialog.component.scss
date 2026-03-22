@@ -1,0 +1,374 @@
+.dialog-title-row,
+.panel-header,
+.mapping-topline,
+.mapping-check-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-subtitle,
+.muted,
+.status,
+.mapping-key,
+.empty-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.dialog-subtitle {
+  margin-top: 4px;
+}
+
+.dialog-content {
+  display: grid;
+  gap: 16px;
+  min-width: min(1180px, 94vw);
+  padding-top: 8px;
+}
+
+.setup-overview,
+.overview-stats,
+.mapping-row,
+.mapping-field-meta {
+  display: grid;
+  gap: 12px;
+}
+
+.template-status-badge,
+.required-pill,
+.check-pill,
+.column-chip,
+.suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.template-status-badge {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-subtle);
+  background: #f6f1e8;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.template-status-badge[data-state='ready'] {
+  border-color: #b8e4c7;
+  background: #e7f7ed;
+  color: #17633b;
+}
+
+.template-status-badge[data-state='warning'] {
+  border-color: #f1c4b5;
+  background: #fff0ea;
+  color: #9c442f;
+}
+
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workflow-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: #fbf8f1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workflow-card.done {
+  border-color: #b8e4c7;
+  background: #f2fbf5;
+}
+
+.workflow-card.active {
+  border-color: #1f8f52;
+  box-shadow: 0 0 0 1px rgba(31, 143, 82, 0.12);
+}
+
+.workflow-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #efe5d2;
+  color: #655739;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workflow-card.done .workflow-step {
+  background: #1f8f52;
+  color: white;
+}
+
+.workflow-title,
+.panel-title,
+.mapping-title,
+.mapping-section-title {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.setup-overview {
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-banner,
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary-stat {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: #fcfaf4;
+}
+
+.summary-stat.compact {
+  min-height: 74px;
+}
+
+.summary-stat.emphasis {
+  min-height: 88px;
+  background: #fff;
+}
+
+.summary-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.summary-stat strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.9fr);
+  gap: 16px;
+}
+
+.workspace-main,
+.workspace-side,
+.mapping-section,
+.mapping-card,
+.mapping-check-group,
+.ocr-preview,
+.guide-list,
+.mapping-check-copy,
+.review-panel,
+.review-stage {
+  display: grid;
+  gap: 12px;
+}
+
+.review-layout {
+  align-items: start;
+}
+
+.review-help {
+  align-self: start;
+}
+
+.panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-subtle);
+  background: #fffdf7;
+}
+
+.upload-box {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: #fbf8f1;
+  cursor: pointer;
+  text-align: center;
+}
+
+.upload-box input {
+  display: none;
+}
+
+.upload-status.ready,
+.message.success,
+.check-pill.ok,
+.column-chip.ok {
+  background: #e3f5e7;
+  color: #17633b;
+}
+
+.mapping-card,
+.mapping-check-group {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: white;
+}
+
+.mapping-card {
+  gap: 10px;
+}
+
+.mapping-row {
+  grid-template-columns: minmax(220px, 0.7fr) minmax(280px, 1fr);
+  align-items: start;
+}
+
+.mapping-input {
+  width: 100%;
+}
+
+.required-pill {
+  padding: 4px 10px;
+  background: #f6f1e8;
+  color: #4d4535;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.required-pill.optional-pill {
+  background: #f1f0eb;
+  color: #6a6556;
+}
+
+.suggestion-row,
+.validation-columns,
+.mapping-check-grid,
+.action-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion-chip {
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.custom-link {
+  min-width: 0;
+}
+
+.guide-item {
+  padding-left: 14px;
+  border-left: 3px solid #e7dcc6;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.side-banner {
+  grid-template-columns: 1fr;
+}
+
+.ocr-preview {
+  max-height: 320px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: white;
+}
+
+.ocr-line {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ocr-line:last-child {
+  border-bottom: none;
+}
+
+.column-chip {
+  padding: 4px 10px;
+  background: #f0ece2;
+  color: #4d4535;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.column-chip.missing,
+.check-pill.missing,
+.message.error {
+  background: #fde8e4;
+  color: #a33e2b;
+}
+
+.check-pill {
+  min-width: 84px;
+  padding: 4px 10px;
+  background: #f0ece2;
+  color: #4d4535;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.message {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 960px) {
+  .dialog-title-row,
+  .panel-header,
+  .mapping-topline,
+  .mapping-check-row {
+    flex-direction: column;
+  }
+
+  .workflow-strip,
+  .setup-overview,
+  .overview-stats,
+  .summary-banner,
+  .review-metrics,
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-row {
+    grid-template-columns: 1fr;
+  }
+
+  .action-stack {
+    display: grid;
+  }
+}

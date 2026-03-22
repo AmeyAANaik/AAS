@@ -16,6 +16,10 @@ import org.springframework.util.MultiValueMap;
 public class ErpNextClient {
 
     private static final List<String> OPTIONAL_QUERY_FIELDS = List.of(
+            "aas_category",
+            "aas_category_code",
+            "aas_margin_percent",
+            "aas_vendor_code",
             "aas_is_deleted",
             "aas_deleted_at",
             "aas_transport_charge",

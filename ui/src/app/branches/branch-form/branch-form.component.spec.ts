@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatCardModule } from '@angular/material/card';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { BranchFormComponent } from './branch-form.component';
 
@@ -12,7 +13,7 @@ describe('BranchFormComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       declarations: [BranchFormComponent],
-      imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, NoopAnimationsModule]
+      imports: [ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatCardModule, NoopAnimationsModule]
     }).compileComponents();
 
     fixture = TestBed.createComponent(BranchFormComponent);
@@ -21,12 +22,12 @@ describe('BranchFormComponent', () => {
   });
 
   it('marks form invalid when branch name is missing', () => {
-    component.form.setValue({ branchName: '', location: '', whatsappGroupName: '' });
+    component.form.setValue({ branchName: '', location: '', whatsappGroupName: '', creditDays: 0 });
     expect(component.form.invalid).toBeTrue();
   });
 
   it('marks form valid when branch name is provided', () => {
-    component.form.setValue({ branchName: 'Branch A', location: '', whatsappGroupName: '' });
+    component.form.setValue({ branchName: 'Branch A', location: '', whatsappGroupName: '', creditDays: 0 });
     expect(component.form.valid).toBeTrue();
   });
 });

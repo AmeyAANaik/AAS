@@ -3,6 +3,7 @@ import { NgModule } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -14,16 +15,18 @@ import { EmptyStateComponent } from '../shared/empty-state/empty-state.component
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { StatusPillComponent } from '../shared/status-pill/status-pill.component';
 import { VendorFormComponent } from './vendor-form/vendor-form.component';
+import { VendorInvoiceSetupDialogComponent } from './vendor-invoice-setup-dialog/vendor-invoice-setup-dialog.component';
 import { VendorListComponent } from './vendor-list/vendor-list.component';
 import { VendorsRoutingModule } from './vendors-routing.module';
 
 @NgModule({
-  declarations: [VendorListComponent, VendorFormComponent],
+  declarations: [VendorListComponent, VendorFormComponent, VendorInvoiceSetupDialogComponent],
   imports: [
     CommonModule,
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,

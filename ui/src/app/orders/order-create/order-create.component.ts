@@ -269,6 +269,10 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     return this.imageFiles.length > 0;
   }
 
+  get noActiveBranchesAvailable(): boolean {
+    return !this.isShopsLoading && !this.shopsError && this.shops.length === 0;
+  }
+
   private setTodayDefaults(): void {
     const today = this.formatDate(new Date());
     this.detailsGroup.patchValue({ orderDate: today, deliveryDate: today });
@@ -302,6 +306,20 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   private formatError(err: unknown, fallback: string): string {
     return formatUiError(err, fallback);
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'yes';
   }
 
   private loadCompanies(): void {
@@ -338,8 +356,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         next: branches => {
           this.shops = (branches ?? []).map(branch => {
             const name = String(branch?.customer_name ?? branch?.name ?? '').trim();
-            return { id: String(branch?.name ?? name), name: name || String(branch?.name ?? '') };
-          });
+            const disabled = this.asFlag(branch?.disabled);
+            return { id: String(branch?.name ?? name), name: name || String(branch?.name ?? ''), disabled };
+          })
+          .filter(branch => !branch.disabled)
+          .map(({ id, name }) => ({ id, name }));
         },
         error: err => {
           this.shopsError = this.formatError(err, 'Unable to load branches');

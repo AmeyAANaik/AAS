@@ -1,8 +1,23 @@
 <mat-card class="vendor-form-card">
-  <mat-card-title>{{ mode === 'edit' ? 'Edit vendor' : 'Create vendor' }}</mat-card-title>
+  <mat-card-title>
+    <div class="card-title-row">
+      <div>
+        <div>{{ mode === 'edit' ? 'Edit vendor' : 'Create vendor' }}</div>
+        <div class="card-subtitle">{{ formSubtitle }}</div>
+      </div>
+      <div class="mode-pill">{{ mode === 'edit' ? 'Vendor profile' : 'New record' }}</div>
+    </div>
+  </mat-card-title>
   <mat-card-content>
     <form [formGroup]="form" (ngSubmit)="submit()">
       <div class="form-grid">
+        <div class="full section-heading">
+          <div>
+            <div class="section-title">Vendor details</div>
+            <div class="section-copy">Capture the supplier identity, compliance details, and operating status.</div>
+          </div>
+        </div>
+
         <mat-form-field appearance="outline">
           <mat-label>Vendor name</mat-label>
           <input matInput formControlName="supplierName" />
@@ -67,183 +82,81 @@
           <mat-error *ngIf="form.get('status')?.hasError('required')">Status is required.</mat-error>
         </mat-form-field>
 
+        <div class="full section-heading setup-heading">
+          <div>
+            <div class="section-title">Invoice extraction setup</div>
+            <div class="section-copy">Generate and validate a vendor-specific invoice template from a sample PDF before activation.</div>
+          </div>
+        </div>
+
         <div class="full template-section">
-          <div class="template-header">Vendor invoice template</div>
-          <div class="status muted">{{ templateHint }}</div>
-
-          <div class="model-block" *ngIf="itemFields.length || summaryFields.length">
-            <div class="model-title">Internal model</div>
-            <div class="template-columns">
-              <span class="column-chip" *ngFor="let field of itemFields">{{ field.key }}</span>
-            </div>
-            <div class="mapping-list" *ngFor="let field of itemFields">
-              <strong>{{ field.label }}</strong>: {{ field.key }}
-              <span class="muted" *ngIf="field.sourceAliases.length"> <- {{ field.sourceAliases.join(', ') }}</span>
-            </div>
-            <div class="model-title" *ngIf="summaryFields.length">Billing summary</div>
-            <div class="template-columns" *ngIf="summaryFields.length">
-              <span class="column-chip" *ngFor="let field of summaryFields">{{ field.key }}</span>
-            </div>
-            <div class="mapping-list" *ngFor="let field of summaryFields">
-              <strong>{{ field.label }}</strong>: {{ field.key }}
-              <span class="muted" *ngIf="field.sourceAliases.length"> <- {{ field.sourceAliases.join(', ') }}</span>
-            </div>
+          <div class="inline-notice" *ngIf="mode !== 'edit'">
+            Save this vendor first. Sample upload and OCR preview are enabled only after the vendor record exists.
           </div>
 
-          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full template-json-field">
-            <mat-label>Template JSON</mat-label>
-            <textarea
-              matInput
-              rows="10"
-              formControlName="invoiceTemplateJson"
-              placeholder='Paste vendor template JSON here'></textarea>
-            <mat-hint>
-              Add the vendor invoice template JSON here. Use `transportChargeRegex` only for vendors whose invoices include a separate transport line.
-            </mat-hint>
-            <mat-error *ngIf="form.get('invoiceTemplateJson')?.hasError('json')">
-              Invalid JSON. Fix formatting and try again.
-            </mat-error>
-            <mat-error *ngIf="activeTemplateRequired">
-              Active vendors require a visible invoice template JSON.
-            </mat-error>
-            <mat-error *ngIf="sampleRequiredForActive">
-              Active vendors require a validated sample invoice PDF.
-            </mat-error>
-          </mat-form-field>
-
-          <div class="template-example">
-            <div class="model-title">Example parser JSON</div>
-            <p class="muted">
-              If the invoice has no transport row, leave `transportChargeRegex` out.
-            </p>
-            <pre>{{ templateExample }}</pre>
-          </div>
-
-          <div class="template-actions">
-            <input
-              #sampleInput
-              type="file"
-              accept="application/pdf"
-              class="template-file-input"
-              (change)="onSampleFileSelected($event)" />
-            <button
-              mat-stroked-button
-              class="sample-upload-button"
-              [class.upload-ready]="hasUploadedSample"
-              type="button"
-              (click)="triggerSampleUpload()"
-              [disabled]="mode !== 'edit' || isValidatingTemplate">
-              Upload sample PDF
-            </button>
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="validateSample()"
-              [disabled]="mode !== 'edit' || !sampleFile || isValidatingTemplate">
-              {{ isValidatingTemplate ? 'Validating...' : 'Validate sample' }}
-            </button>
-            <button
-              mat-stroked-button
-              color="warn"
-              class="secondary-action"
-              type="button"
-              (click)="clearInvoiceTemplate()"
-              [disabled]="mode !== 'edit'">
-              Clear template
-            </button>
-          </div>
-
-          <div class="status upload-status" [class.ready]="hasUploadedSample" *ngIf="sampleFile || samplePdfUrl">
-            {{ sampleFile ? 'Sample PDF selected: ' + sampleFile.name : 'Sample PDF uploaded and available for validation.' }}
-          </div>
-
-          <div class="validation-panel" *ngIf="templateValidation as validation">
-            <div class="validation-summary" [class.ready]="validation.activationReady">
-              <span>Parser used: {{ validation.parserSource }}</span>
-              <span>Items found: {{ validation.detectedItems }}</span>
-              <span>OCR lines: {{ validation.ocrLineCount }}</span>
-              <span>{{ validation.activationReady ? 'Activation ready' : 'Not activation ready' }}</span>
+          <div class="template-summary-card">
+            <div class="template-section-header">
+              <div>
+                <div class="template-header">Invoice extraction</div>
+                <div class="status muted">{{ templateHint }}</div>
+              </div>
+              <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
             </div>
 
-            <div class="validation-columns">
-              <span
-                class="column-chip"
-                [class.ok]="validation.parsedColumns.includes(column)"
-                [class.missing]="validation.missingColumns.includes(column)"
-                *ngFor="let column of validation.requiredColumns">
-                {{ column }}
-              </span>
+            <div class="summary-line" *ngIf="savedTemplateProfile && !savedTemplateMapping">
+              Saved profile: {{ savedTemplateProfile.label }}
             </div>
 
-            <div class="validation-columns" *ngIf="validation.requiredSummaryFields.length">
-              <span
-                class="column-chip"
-                [class.ok]="validation.parsedSummaryFields.includes(field)"
-                [class.missing]="validation.missingSummaryFields.includes(field)"
-                *ngFor="let field of validation.requiredSummaryFields">
-                {{ field }}
-              </span>
+            <div class="summary-line" *ngIf="savedTemplateMapping">
+              Vendor-specific generated template is already saved on this vendor.
             </div>
 
-            <div class="status" *ngIf="validation.missingColumns.length">
-              Missing columns: {{ validation.missingColumns.join(', ') }}
-            </div>
-            <div class="status" *ngIf="validation.missingSummaryFields.length">
-              Missing billing fields: {{ validation.missingSummaryFields.join(', ') }}
-            </div>
-            <div class="status" *ngIf="validation.finalBillAmount">
-              Final bill amount: {{ validation.finalBillAmount }}
-            </div>
-            <div class="status" *ngIf="validation.finalBillMatch">
-              Summary match: {{ validation.finalBillMatch }}
-            </div>
-            <div class="status" *ngIf="validation.transportChargeAmount">
-              Transport charge: {{ validation.transportChargeAmount }}
-            </div>
-            <div class="status" *ngIf="validation.transportChargeMatch">
-              Transport match: {{ validation.transportChargeMatch }}
+            <div class="summary-metrics">
+              <div class="summary-metric">
+                <span class="setup-stat-label">Required</span>
+                <strong>{{ requiredFieldCount }}</strong>
+              </div>
+              <div class="summary-metric">
+                <span class="setup-stat-label">Mapped</span>
+                <strong>{{ mappedFieldCount }}/{{ requiredFieldCount }}</strong>
+              </div>
+              <div class="summary-metric">
+                <span class="setup-stat-label">Sample PDF</span>
+                <strong>{{ samplePdfDisplayName }}</strong>
+              </div>
             </div>
 
-            <div class="preview-table" *ngIf="validation.previewItems.length">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>ID</th>
-                    <th>Qty</th>
-                    <th>Rate</th>
-                    <th>GST</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let row of validation.previewItems">
-                    <td>{{ row['item_name'] }}</td>
-                    <td>{{ row['item_id'] || '—' }}</td>
-                    <td>{{ row['qty'] }}</td>
-                    <td>{{ row['rate'] }}</td>
-                    <td>{{ row['gst'] || '—' }}</td>
-                    <td>{{ row['total'] }}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="summary-list">
+              <div class="summary-line" *ngFor="let line of extractionSummaryLines">{{ line }}</div>
             </div>
-          </div>
 
-          <div class="status muted">
-            Vendors should stay inactive until template validation shows all required item columns are parsed.
+            <div class="template-actions">
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="openSetupDialog()"
+                [disabled]="mode !== 'edit'">
+                {{ previewActionLabel }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="form-actions">
-        <button mat-raised-button color="primary" type="submit" [disabled]="isSaving || form.invalid">
+        <button mat-raised-button color="primary" type="submit" [disabled]="isSaving">
           {{ mode === 'edit' ? 'Update vendor' : 'Save vendor' }}
         </button>
         <button mat-stroked-button class="secondary-action" type="button" (click)="clear()">Cancel</button>
       </div>
       <div class="feedback form-status" *ngIf="statusMessage">{{ statusMessage }}</div>
+      <div class="feedback form-status" *ngIf="activationPending">
+        Save the vendor first, then complete invoice extraction setup before activating it.
+      </div>
+      <div class="feedback form-status" *ngIf="previewRequiredForActive">
+        Run a successful mapping preview before activating this vendor.
+      </div>
     </form>
   </mat-card-content>
 </mat-card>

@@ -121,7 +121,7 @@ public class VendorFieldRegistry {
                 "aas_invoice_template_key",
                 "Invoice Template Key",
                 "Select",
-                "heuristic_v1\ntable_v1",
+                "table_v1",
                 "aas_invoice_template_enabled",
                 true,
                 false));

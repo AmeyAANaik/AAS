@@ -126,6 +126,7 @@ public class VendorInvoiceTemplateParser {
         }
         String lowered = line.trim().toLowerCase();
         return lowered.startsWith("invoice-cum")
+                || lowered.startsWith("invoice(page")
                 || lowered.startsWith("sanshray foods")
                 || lowered.startsWith("gstin/uin")
                 || lowered.startsWith("buyer")
@@ -145,6 +146,8 @@ public class VendorInvoiceTemplateParser {
                 || lowered.startsWith("tax rate")
                 || lowered.startsWith("declaration")
                 || lowered.startsWith("company's")
+                || lowered.startsWith("continued to page number")
+                || lowered.startsWith("this is a computer generated invoice")
                 || lowered.startsWith("receiver")
                 || lowered.startsWith("authorised")
                 || lowered.startsWith("sub total");
@@ -167,6 +170,7 @@ public class VendorInvoiceTemplateParser {
             String amountText = firstGroup(matcher, "amount", "total", "total_value_after_tax", "totalValueAfterTax");
             String hsn = firstGroup(matcher, "hsn", "item_id", "itemId", "hsn_code", "hsnCode", "id");
             String gstText = firstGroup(matcher, "gst", "tax", "tax_percent", "taxPercent", "gst_percent", "gstPercent");
+            String uom = firstGroup(matcher, "uom", "unit", "stock_uom", "uom_name", "unit_name", "measure_unit", "measureUnit");
             String mrpText = firstGroup(matcher, "mrp", "retail_price", "retailPrice", "max_retail_price", "maxRetailPrice");
             if (name.isBlank()) {
                 return null;
@@ -211,9 +215,9 @@ public class VendorInvoiceTemplateParser {
             if (rate <= 0 || amount <= 0) {
                 return null;
             }
-            Double gstPercentValue = gstPercent > 0 ? gstPercent : null;
+            Double gstPercentValue = gstText.isBlank() ? null : gstPercent;
             Double mrpValue = mrp > 0 ? mrp : null;
-            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn, gstPercentValue, mrpValue);
+            return new ParsedItem(name, qty, rate, amount, hsn.isBlank() ? null : hsn, gstPercentValue, uom.isBlank() ? null : uom, mrpValue);
         } catch (IllegalArgumentException ex) {
             return null;
         }
@@ -301,6 +305,9 @@ public class VendorInvoiceTemplateParser {
         text = text.replace('O', '0').replace('o', '0');
         // Strip currency markers.
         text = text.replaceAll("(?i)inr|rs\\.?", "");
+        // Allow GST-like tokens such as "5 %" to parse as numeric values.
+        text = text.replace("%", "");
+        text = text.replaceAll("\\s+", "");
         text = text.trim();
         try {
             return Double.parseDouble(text);

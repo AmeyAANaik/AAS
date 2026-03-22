@@ -8,6 +8,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,10 +32,11 @@ public class VendorPdfService {
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService fileService;
     private final OcrService ocrService;
-    private final VendorPdfParser parser;
     private final VendorInvoiceTemplateResolver templateResolver;
     private final VendorInvoiceTemplateCatalog templateCatalog;
     private final VendorInvoiceTemplateParser templateParser;
+    private final Invoice2DataExtractionService invoice2DataExtractionService;
+    private final InvoiceTemplateModelService invoiceTemplateModelService;
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final CatalogRoutingService catalogRoutingService;
     private final OrderPricingService orderPricingService;
@@ -45,10 +47,11 @@ public class VendorPdfService {
             ErpNextClient erpNextClient,
             ErpNextFileService fileService,
             OcrService ocrService,
-            VendorPdfParser parser,
             VendorInvoiceTemplateResolver templateResolver,
             VendorInvoiceTemplateCatalog templateCatalog,
             VendorInvoiceTemplateParser templateParser,
+            Invoice2DataExtractionService invoice2DataExtractionService,
+            InvoiceTemplateModelService invoiceTemplateModelService,
             OrderFlowStateMachine orderFlowStateMachine,
             CatalogRoutingService catalogRoutingService,
             OrderPricingService orderPricingService,
@@ -57,10 +60,11 @@ public class VendorPdfService {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
         this.ocrService = ocrService;
-        this.parser = parser;
         this.templateResolver = templateResolver;
         this.templateCatalog = templateCatalog;
         this.templateParser = templateParser;
+        this.invoice2DataExtractionService = invoice2DataExtractionService;
+        this.invoiceTemplateModelService = invoiceTemplateModelService;
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.catalogRoutingService = catalogRoutingService;
         this.orderPricingService = orderPricingService;
@@ -105,59 +109,58 @@ public class VendorPdfService {
         boolean templateConfigured = false;
         boolean templateUsed = false;
         String templateKey = "";
-        List<ParsedItem> parsedItems;
+        List<ParsedItem> parsedItems = List.of();
         VendorInvoiceTemplate vendorTemplate = null;
+        Invoice2DataExtractionService.ExtractionResult invoice2DataResult = null;
         var resolvedJson = templateResolver.loadTemplateJson(vendor);
         if (resolvedJson.isPresent()) {
             templateConfigured = true;
-            templateKey = "vendor_json";
-            vendorTemplate = parseVendorTemplate(resolvedJson.get()).orElse(null);
-            if (vendorTemplate != null) {
-                List<ParsedItem> templated = templateParser.parseItems(ocrText, vendorTemplate);
-                if (templated != null && !templated.isEmpty()) {
-                    templateUsed = true;
-                    parsedItems = templated;
-                } else {
-                    parsedItems = parser.parseItems(ocrText);
-                }
+            Invoice2DataExtractionService.Invoice2DataProfile invoice2DataProfile =
+                    invoice2DataExtractionService.parseStoredProfile(resolvedJson.get());
+            if (invoice2DataProfile != null) {
+                templateKey = invoice2DataProfile.id();
+                invoice2DataResult = invoice2DataExtractionService.extract(pdfBytes, invoice2DataProfile);
+                parsedItems = invoice2DataResult.items();
+                templateUsed = parsedItems != null && !parsedItems.isEmpty();
             } else {
-                parsedItems = parser.parseItems(ocrText);
+                templateKey = "vendor_json";
+                vendorTemplate = parseVendorTemplate(resolvedJson.get()).orElse(null);
+                if (vendorTemplate == null) {
+                    throw new IllegalStateException("Vendor template JSON is invalid. Save a valid parser configuration before uploading vendor PDFs.");
+                }
             }
         } else {
             var resolvedKey = templateResolver.loadTemplateKey(vendor);
             if (resolvedKey.isPresent()) {
                 templateConfigured = true;
                 templateKey = resolvedKey.get();
-                var template = templateCatalog.byKey(templateKey);
-                if (template.isPresent()) {
-                    List<ParsedItem> templated = templateParser.parseItems(ocrText, template.get());
-                    if (templated != null && !templated.isEmpty()) {
-                        templateUsed = true;
-                        parsedItems = templated;
-                    } else {
-                        parsedItems = parser.parseItems(ocrText);
-                    }
-                } else {
-                    // Unknown key -> fallback.
-                    parsedItems = parser.parseItems(ocrText);
-                }
-            } else {
-                parsedItems = parser.parseItems(ocrText);
+                final String resolvedTemplateKey = templateKey;
+                vendorTemplate = templateCatalog.byKey(resolvedTemplateKey)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Vendor template key \"" + resolvedTemplateKey + "\" is not supported."));
             }
         }
-        if (parsedItems.isEmpty()) {
-            VendorPdfParser.ParseDiagnostics diagnostics = parser.diagnose(ocrText);
-            throw new IllegalStateException(
-                    "No items could be parsed from vendor PDF. "
-                            + "Extracted "
-                            + diagnostics.textLength()
-                            + " characters across "
-                            + diagnostics.lineCount()
-                            + " lines ("
-                            + diagnostics.candidateLines()
-                            + " candidate item rows). "
-                            + "Ensure the invoice contains an item table with Qty/Rate/Amount columns, or upload a clearer PDF export.");
+        if (!templateConfigured || vendorTemplate == null) {
+            if (invoice2DataResult == null) {
+                throw new IllegalStateException(
+                        "Vendor invoice template is required before uploading vendor PDF. Configure and validate the vendor template first.");
+            }
         }
+        if (invoice2DataResult == null) {
+            parsedItems = templateParser.parseItems(ocrText, vendorTemplate);
+            templateUsed = parsedItems != null && !parsedItems.isEmpty();
+        }
+        if (!templateUsed) {
+            int lineCount = countNonEmptyLines(ocrText);
+            throw new IllegalStateException(
+                    "Configured vendor template did not extract any invoice items. "
+                            + "Extracted "
+                            + ocrText.length()
+                            + " characters across "
+                            + lineCount
+                            + " non-empty lines. Review the vendor template mapping and sample invoice.");
+        }
+        validateParsedTemplateOutput(parsedItems, ocrText, vendorTemplate, invoice2DataResult);
 
         List<Map<String, Object>> baseItems = resolveItems(parsedItems, vendorResolution);
         List<Map<String, Object>> sourceOrderItems = withVendorRate(baseItems);
@@ -167,23 +170,25 @@ public class VendorPdfService {
         Map<String, Object> purchaseOrder = createPurchaseOrder(orderId, vendor, company, baseItems, orderData);
         String purchaseOrderId = extractDocName(purchaseOrder);
         double vendorBillTotal = sumAmount(baseItems);
-        if (templateUsed && vendorTemplate != null && vendorTemplate.finalAmountRegex() != null && !vendorTemplate.finalAmountRegex().isBlank()) {
+        if (invoice2DataResult != null && hasText(invoice2DataResult.finalAmount())) {
+            vendorBillTotal = parseNumber(invoice2DataResult.finalAmount());
+        } else if (vendorTemplate != null && vendorTemplate.finalAmountRegex() != null && !vendorTemplate.finalAmountRegex().isBlank()) {
             double extractedTotal = extractAmountByRegex(ocrText, vendorTemplate.finalAmountRegex());
             if (extractedTotal > 0) {
                 vendorBillTotal = extractedTotal;
             }
         }
         String vendorBillDate = "";
-        if (templateUsed && vendorTemplate != null && vendorTemplate.billDateRegex() != null && !vendorTemplate.billDateRegex().isBlank()) {
+        if (invoice2DataResult != null && hasText(invoice2DataResult.invoiceDate())) {
+            vendorBillDate = normalizeDateToIso(invoice2DataResult.invoiceDate());
+        } else if (vendorTemplate != null && vendorTemplate.billDateRegex() != null && !vendorTemplate.billDateRegex().isBlank()) {
             vendorBillDate = extractBillDateByRegex(ocrText, vendorTemplate.billDateRegex());
-        }
-        if (vendorBillDate == null || vendorBillDate.isBlank()) {
-            vendorBillDate = parser.extractBillDate(ocrText);
         }
         String vendorBillRef = purchaseOrderId == null ? "" : purchaseOrderId;
         double transportCharge = 0.0;
-        if (vendorTemplate != null
-                && vendorTemplate.transportChargeRegex() != null
+        if (invoice2DataResult != null && hasText(invoice2DataResult.transportCharge())) {
+            transportCharge = parseNumber(invoice2DataResult.transportCharge());
+        } else if (vendorTemplate != null && vendorTemplate.transportChargeRegex() != null
                 && !vendorTemplate.transportChargeRegex().isBlank()) {
             transportCharge = extractAmountByRegex(ocrText, vendorTemplate.transportChargeRegex());
         }
@@ -235,6 +240,77 @@ public class VendorPdfService {
                 "fileUrl", pdfInfo.fileUrl(),
                 "fileId", pdfInfo.fileId()));
         return response;
+    }
+
+    private void validateParsedTemplateOutput(
+            List<ParsedItem> parsedItems,
+            String ocrText,
+            VendorInvoiceTemplate template,
+            Invoice2DataExtractionService.ExtractionResult invoice2DataResult) {
+        java.util.Set<String> parsedColumns = new java.util.LinkedHashSet<>();
+        for (ParsedItem item : parsedItems) {
+            if (item == null) {
+                continue;
+            }
+            if (hasText(item.name())) {
+                parsedColumns.add("item_name");
+            }
+            if (hasText(item.hsn())) {
+                parsedColumns.add("item_id");
+            }
+            if (item.qty() > 0) {
+                parsedColumns.add("qty");
+            }
+            if (hasText(item.uom())) {
+                parsedColumns.add("uom");
+            }
+            if (item.rate() > 0) {
+                parsedColumns.add("rate");
+            }
+            if (item.gstPercent() != null) {
+                parsedColumns.add("gst");
+            }
+            if (item.amount() > 0) {
+                parsedColumns.add("total");
+            }
+        }
+        List<String> missingColumns = invoiceTemplateModelService.requiredItemKeys().stream()
+                .filter(key -> !parsedColumns.contains(key))
+                .toList();
+        if (!missingColumns.isEmpty()) {
+            throw new IllegalStateException(
+                    "Configured vendor template did not extract required item fields: " + String.join(", ", missingColumns) + ".");
+        }
+        List<String> missingSummaryFields = new ArrayList<>();
+        if (invoiceTemplateModelService.requiredSummaryKeys().contains("final_bill_amount")) {
+            double extractedTotal = invoice2DataResult != null
+                    ? parseNumber(invoice2DataResult.finalAmount())
+                    : extractAmountByRegex(ocrText, template == null ? null : template.finalAmountRegex());
+            if (extractedTotal <= 0) {
+                missingSummaryFields.add("final_bill_amount");
+            }
+        }
+        if (!missingSummaryFields.isEmpty()) {
+            throw new IllegalStateException(
+                    "Configured vendor template did not extract required summary fields: " + String.join(", ", missingSummaryFields) + ".");
+        }
+    }
+
+    private int countNonEmptyLines(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        int count = 0;
+        for (String rawLine : text.replace('\f', '\n').split("\\r?\\n")) {
+            if (!asText(rawLine).isBlank()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private java.util.Optional<VendorInvoiceTemplate> parseVendorTemplate(String json) {
@@ -435,23 +511,31 @@ public class VendorPdfService {
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
             String vendorHsnCode = asText(catalogRoutingService.normalizeCodeSegment(item.hsn()));
+            String uom = normalizeUom(item.uom());
+            if (uom.isBlank()) {
+                uom = "Nos";
+            }
+            ensureUomExists(uom);
             if (vendorHsnCode.isBlank()) {
                 throw new IllegalStateException(
                         "Vendor HSN code is required for parsed item \"" + itemName
                                 + "\". Update the vendor template/parser so item_id or hsn is captured.");
             }
-            String itemCode = catalogRoutingService.buildItemCode(
+            String itemCode = catalogRoutingService.buildParsedItemCode(
                     vendorResolution.vendorCode(),
                     vendorResolution.categoryCode(),
-                    vendorHsnCode);
+                    vendorHsnCode,
+                    itemName);
             if (!resourceExists(itemCode)) {
-                itemCode = createItem(itemName, vendorResolution, vendorHsnCode);
+                itemCode = createItem(itemName, vendorResolution, vendorHsnCode, uom);
             }
             ensureItemEnabled(itemCode);
             Map<String, Object> row = new HashMap<>();
             row.put("item_code", itemCode);
             row.put("item_name", itemName);
             row.put("qty", item.qty());
+            row.put("uom", uom);
+            row.put("stock_uom", uom);
             row.put("rate", item.rate());
             row.put("aas_margin_percent", resolveItemMarginPercent(itemCode));
             if (item.gstPercent() != null && item.gstPercent() >= 0) {
@@ -620,16 +704,18 @@ public class VendorPdfService {
     private String createItem(
             String itemName,
             CatalogRoutingService.VendorCategoryResolution vendorResolution,
-            String vendorHsnCode) {
+            String vendorHsnCode,
+            String uom) {
         Map<String, Object> payload = new HashMap<>();
-        String code = catalogRoutingService.buildItemCode(
+        String code = catalogRoutingService.buildParsedItemCode(
                 vendorResolution.vendorCode(),
                 vendorResolution.categoryCode(),
-                vendorHsnCode);
+                vendorHsnCode,
+                itemName);
         payload.put("item_code", code);
         payload.put("item_name", itemName);
         payload.put("item_group", vendorResolution.categoryId());
-        payload.put("stock_uom", "Nos");
+        payload.put("stock_uom", normalizeUom(asText(uom).isBlank() ? "Nos" : uom));
         payload.put("is_stock_item", 1);
         payload.put("aas_vendor", vendorResolution.vendorId());
         payload.put("aas_vendor_hsn_code", vendorHsnCode);
@@ -638,10 +724,51 @@ public class VendorPdfService {
         return name == null ? code : name.toString();
     }
 
+    private String normalizeUom(String raw) {
+        String normalized = asText(raw).trim().toUpperCase(Locale.ROOT);
+        if (normalized.isBlank()) {
+            return "";
+        }
+        return switch (normalized) {
+            case "KG", "KGS", "KILOGRAM", "KILOGRAMS" -> "Kg";
+            case "GM", "GMS", "GRAM", "GRAMS" -> "Gram";
+            case "LTR", "LITRE", "LITRES", "LITER", "LITERS" -> "Litre";
+            case "PCS", "PC", "PIECE", "PIECES", "NOS", "NO", "NUMBER", "NUMBERS", "UNIT", "UNITS" -> "Nos";
+            case "TIN", "TINS" -> "Tin";
+            case "PACK", "PACKS", "PKT", "PKTS", "PACKET", "PACKETS" -> "Pack";
+            default -> {
+                String titleCase = normalized.substring(0, 1) + normalized.substring(1).toLowerCase(Locale.ROOT);
+                yield titleCase;
+            }
+        };
+    }
+
+    private void ensureUomExists(String uomName) {
+        if (uomName == null || uomName.isBlank() || resourceExists("UOM", uomName)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("uom_name", uomName);
+        payload.put("must_be_whole_number", "Nos".equalsIgnoreCase(uomName) ? 1 : 0);
+        erpNextClient.createResource("UOM", payload);
+    }
+
     private boolean resourceExists(String itemCode) {
         try {
             Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
             return !item.isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean resourceExists(String doctype, String name) {
+        if (doctype == null || doctype.isBlank() || name == null || name.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> resource = unwrapResource(erpNextClient.getResource(doctype, name));
+            return !resource.isEmpty();
         } catch (Exception ignored) {
             return false;
         }

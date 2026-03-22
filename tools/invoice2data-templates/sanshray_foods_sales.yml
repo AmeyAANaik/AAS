@@ -1,0 +1,69 @@
+issuer: Sanshray Foods
+keywords:
+  - SANSHRAY FOODS
+  - Invoice-cum-Bill of Supply
+  - "GSTIN/UIN: 27AEUFS4372M1Z2"
+fields:
+  invoice_number:
+    parser: regex
+    regex: Market Yard, Pune\s+(\d+)\s+\d{2}-[A-Za-z]{3}-\d{2}
+  date:
+    parser: regex
+    regex: Market Yard, Pune\s+\d+\s+(\d{2}-[A-Za-z]{3}-\d{2})
+    type: date
+  amount:
+    parser: regex
+    regex: (?m)^\s*Total\s+\D*([\d,]+\.\d{2})\s*$
+    type: float
+  transport:
+    parser: regex
+    regex: (?m)^\s*Transport\s+([\d,]+\.\d{2})\s*$
+    type: float
+lines:
+  start: (?m)^Sl\s+Description of Goods
+  end: (?m)^\s*Transport\s+[\d,]+\.\d{2}\s*$
+  first_line: ^\s*(?P<line_no>\d+)\s+(?P<description>.*?)\s{2,}(?P<item_id>\d{5,8})\s+(?P<gst>\d+(?:\.\d+)?\s*%)\s+(?P<qty>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?P<uom>[A-Z]+)\s+(?P<mrp>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?P<rate_incl_tax>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?P<rate>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?P<per>[A-Z]+)\s+(?P<amount>\d+(?:,\d{3})*(?:\.\d+)?)\s*$
+  line: ^\s{2,}(?P<description>[A-Za-z0-9][A-Za-z0-9 &().,'/-]*[A-Za-z0-9)])\s*$
+  skip_line:
+    - ^\s*No\.\s*$
+    - ^\s*Rate\s+\(Incl\. of Tax\)\s*$
+    - ^\s*continued to page number\s+\d+\s*$
+    - ^\s*This is a Computer Generated Invoice\s*$
+    - ^\s*Invoice-cum-Bill of Supply(?:\(Page \d+\))?\s*$
+    - ^\s*SANSHRAY FOODS.*$
+    - ^\s*109, Market Yard, Pune.*$
+    - ^\s*411037\s*$
+    - ^\s*\d{6}\s+Delivery Note.*$
+    - ^\s*GSTIN/UIN:.*$
+    - ^\s*State Name :.*$
+    - ^\s*E-Mail :.*$
+    - ^\s*Buyer \(Bill to\)\s*$
+    - ^\s*Invoice No\..*$
+    - ^\s*Reference No\..*$
+    - ^\s*Buyer’s Order No\..*$
+    - ^\s*Dispatch Doc No\..*$
+    - ^\s*SUKHKARTA NEW.*$
+    - ^\s*Dispatched through.*$
+    - ^\s*BANER\s*$
+    - ^\s*Terms of Delivery\s*$
+    - ^\s*Sl\s+Description of Goods.*$
+    - ^\s*[\d,]+\.\d{2}\s*$
+    - ^\s*CGST@.*$
+    - ^\s*SGST@.*$
+    - ^\s*Round Off.*$
+    - ^\s*Amount Chargeable.*$
+    - ^\s*INR One Lakh.*$
+    - ^\s*Taxable\s+CGST.*$
+    - ^\s*Value\s+Rate\s+Amount.*$
+    - ^\s*Total:\s+.*$
+  types:
+    qty: float
+    mrp: float
+    rate_incl_tax: float
+    rate: float
+    amount: float
+options:
+  currency: INR
+  date_formats:
+    - "%d-%b-%y"
+  decimal_separator: "."

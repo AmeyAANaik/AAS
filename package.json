@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "seed:vendors": "node scripts/seed-vendors.mjs",
     "seed:mock": "node scripts/seed-mock-data.mjs",
     "seed:items": "node scripts/seed/items.mjs"
   },

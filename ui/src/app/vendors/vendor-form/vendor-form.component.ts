@@ -1,7 +1,15 @@
-import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, Output, SimpleChanges } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Category } from '../../categories/category.model';
-import { VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
+import {
+  VendorFormValue,
+  VendorInvoiceTemplateMappingPreview,
+  VendorView,
+  countMappedRequiredFields,
+  parseVendorTemplateMapping,
+  parseVendorTemplateProfile,
+  parseVendorTemplateSampleFileName
+} from '../vendor.model';
 import { InvoiceTemplateModel } from '../../shared/invoice-template-model.service';
 
 @Component({
@@ -10,29 +18,16 @@ import { InvoiceTemplateModel } from '../../shared/invoice-template-model.servic
   styleUrl: './vendor-form.component.scss'
 })
 export class VendorFormComponent implements OnChanges {
-  readonly templateExample = `{
-  "parser": {
-    "version": 1,
-    "itemLineRegex": "^(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$",
-    "billDateRegex": "(?im)^dated\\\\s*(?<date>[^\\\\n\\\\r]+)$",
-    "finalAmountRegex": "(?im)^total\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$",
-    "transportChargeRegex": "(?im)^transport\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$"
-  }
-}`;
-
-  @ViewChild('sampleInput') sampleInput?: ElementRef<HTMLInputElement>;
   @Input() vendor: VendorView | null = null;
   @Input() categories: Category[] = [];
   @Input() mode: 'create' | 'edit' = 'create';
   @Input() isSaving = false;
   @Input() statusMessage = '';
-  @Input() isValidatingTemplate = false;
-  @Input() templateValidation: VendorTemplateValidation | null = null;
   @Input() invoiceTemplateModel: InvoiceTemplateModel | null = null;
+  @Input() mappingPreview: VendorInvoiceTemplateMappingPreview | null = null;
   @Output() save = new EventEmitter<VendorFormValue>();
   @Output() reset = new EventEmitter<void>();
-  @Output() clearTemplate = new EventEmitter<void>();
-  @Output() validateTemplateSample = new EventEmitter<{ file: File; templateJson: string }>();
+  @Output() openInvoiceSetup = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
     supplierName: ['', [Validators.required, Validators.maxLength(140)]],
@@ -47,9 +42,10 @@ export class VendorFormComponent implements OnChanges {
     status: ['Inactive', [Validators.required]],
     invoiceTemplateJson: ['']
   });
-  sampleFile: File | null = null;
 
-  constructor(private fb: FormBuilder) {}
+  constructor(private fb: FormBuilder) {
+    this.form.get('status')?.valueChanges.subscribe(() => this.syncStatusErrors());
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (this.vendor) {
@@ -84,12 +80,8 @@ export class VendorFormComponent implements OnChanges {
         status: 'Inactive',
         invoiceTemplateJson: ''
       });
-      this.sampleFile = null;
     }
-
-    if (changes['templateValidation']?.currentValue?.activationReady) {
-      this.form.patchValue({ status: 'Active' }, { emitEvent: false });
-    }
+    this.syncStatusErrors();
   }
 
   submit(): void {
@@ -98,55 +90,19 @@ export class VendorFormComponent implements OnChanges {
       return;
     }
     const status = String(this.form.get('status')?.value ?? 'Inactive');
-    const json = String(this.form.get('invoiceTemplateJson')?.value ?? '').trim();
-    if (status === 'Active' && !json) {
-      this.form.get('invoiceTemplateJson')?.setErrors({ requiredForActive: true });
+    if (status === 'Active' && this.mode === 'create') {
+      this.form.get('status')?.setErrors({ activationPending: true });
       return;
     }
-    if (status === 'Active' && !this.hasValidatedSample) {
-      this.form.get('invoiceTemplateJson')?.setErrors({ sampleRequiredForActive: true });
+    if (status === 'Active' && !this.previewReady) {
+      this.form.get('status')?.setErrors({ previewRequired: true });
       return;
-    }
-    if (json) {
-      try {
-        JSON.parse(json);
-      } catch {
-        this.form.get('invoiceTemplateJson')?.setErrors({ json: true });
-        return;
-      }
     }
     this.save.emit(this.form.getRawValue() as VendorFormValue);
   }
 
-  clearInvoiceTemplate(): void {
-    this.sampleFile = null;
-    this.resetSampleInput();
-    this.clearTemplate.emit();
-  }
-
-  onSampleFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.item(0) ?? null;
-    this.sampleFile = file;
-  }
-
-  triggerSampleUpload(): void {
-    const input = this.sampleInput?.nativeElement;
-    if (!input) {
-      return;
-    }
-    input.value = '';
-    input.click();
-  }
-
-  validateSample(): void {
-    if (this.mode !== 'edit' || !this.vendor || !this.sampleFile) {
-      return;
-    }
-    this.validateTemplateSample.emit({
-      file: this.sampleFile,
-      templateJson: String(this.form.get('invoiceTemplateJson')?.value ?? '')
-    });
+  openSetupDialog(): void {
+    this.openInvoiceSetup.emit();
   }
 
   clear(): void {
@@ -163,31 +119,85 @@ export class VendorFormComponent implements OnChanges {
       status: 'Inactive',
       invoiceTemplateJson: ''
     });
-    this.resetSampleInput();
     this.reset.emit();
   }
 
-  get activeTemplateRequired(): boolean {
-    return this.form.get('invoiceTemplateJson')?.hasError('requiredForActive') === true;
+  get activationPending(): boolean {
+    return this.form.get('status')?.hasError('activationPending') === true;
   }
 
-  get sampleRequiredForActive(): boolean {
-    return this.form.get('invoiceTemplateJson')?.hasError('sampleRequiredForActive') === true;
+  get previewRequiredForActive(): boolean {
+    return this.form.get('status')?.hasError('previewRequired') === true;
   }
 
-  get hasValidatedSample(): boolean {
-    if (this.templateValidation?.activationReady) {
-      return true;
+  get previewReady(): boolean {
+    return this.mappingPreview?.mappingReady === true || this.hasSavedTemplateSetup;
+  }
+
+  get validationStateLabel(): string {
+    if (this.mappingPreview?.mappingReady) {
+      return 'Preview validated';
     }
-    const raw = (this.vendor?.raw ?? {}) as Record<string, unknown>;
-    return String(raw['invoice_template_sample_pdf'] ?? '').trim().length > 0;
+    if (this.hasSavedTemplateSetup) {
+      return 'Setup saved';
+    }
+    if (!this.mappingPreview) {
+      return 'Preview pending';
+    }
+    return 'Needs review';
+  }
+
+  get validationStatusTone(): 'ready' | 'warning' | 'idle' {
+    if (this.previewReady) {
+      return 'ready';
+    }
+    if (!this.mappingPreview && !this.hasSavedTemplateSetup) {
+      return 'idle';
+    }
+    return 'warning';
   }
 
   get templateHint(): string {
     if (this.mode !== 'edit') {
-      return 'Save the vendor first, then upload a sample invoice to validate the parser before activation.';
+      return 'Save the vendor first, then open invoice extraction setup to upload a sample PDF and generate the vendor template.';
     }
-    return 'Upload a sample invoice PDF to validate the template and confirm required item columns are extracted.';
+    return 'Open invoice extraction setup to upload a sample PDF, map required business fields from detected columns, and validate the generated template.';
+  }
+
+  get formSubtitle(): string {
+    return this.mode === 'edit'
+      ? 'Maintain vendor master data and verify the stored invoice template before activation.'
+      : 'Capture vendor details first. Sample-based invoice template generation becomes available after the vendor is created.';
+  }
+
+  get requiredFieldCount(): number {
+    return (this.invoiceTemplateModel?.requiredFields?.items.length ?? this.requiredItemFields.length)
+      + (this.invoiceTemplateModel?.requiredFields?.summary.length ?? this.requiredSummaryFields.length);
+  }
+
+  get mappedFieldCount(): number {
+    const requiredItems = this.invoiceTemplateModel?.requiredFields?.items ?? this.requiredItemFields.map(field => field.key);
+    const requiredSummary = this.invoiceTemplateModel?.requiredFields?.summary ?? this.requiredSummaryFields.map(field => field.key);
+    if (this.mappingPreview) {
+      return countMappedRequiredFields(this.mappingPreview.mapping, requiredItems, requiredSummary);
+    }
+    if (this.savedTemplateMapping) {
+      return countMappedRequiredFields(this.savedTemplateMapping, requiredItems, requiredSummary);
+    }
+    return this.hasSavedTemplateSetup ? this.requiredFieldCount : 0;
+  }
+
+  get previewActionLabel(): string {
+    return this.hasSavedTemplateSetup || this.mappingPreview ? 'Update setup view' : 'Open setup view';
+  }
+
+  get extractionSummaryLines(): string[] {
+    return [
+      `Required fields: ${this.requiredFieldCount}`,
+      `Mapped fields: ${this.mappedFieldCount}/${this.requiredFieldCount}`,
+      `Sample PDF: ${this.samplePdfDisplayName}`,
+      `Template: ${this.savedTemplateMapping ? 'Vendor-specific generated template' : (this.savedTemplateProfile?.label ?? this.validationStateLabel)}`
+    ];
   }
 
   get samplePdfUrl(): string {
@@ -196,21 +206,50 @@ export class VendorFormComponent implements OnChanges {
   }
 
   get hasUploadedSample(): boolean {
-    return !!this.sampleFile || !!this.samplePdfUrl;
+    return !!this.samplePdfUrl;
   }
 
-  get itemFields() {
-    return this.invoiceTemplateModel?.itemFields ?? [];
-  }
-
-  get summaryFields() {
-    return this.invoiceTemplateModel?.summaryFields ?? [];
-  }
-
-  private resetSampleInput(): void {
-    const input = this.sampleInput?.nativeElement;
-    if (input) {
-      input.value = '';
+  get samplePdfDisplayName(): string {
+    if (!this.hasUploadedSample) {
+      return 'Pending';
     }
+    const parsedName = parseVendorTemplateSampleFileName(this.vendor?.raw);
+    if (parsedName) {
+      return parsedName;
+    }
+    const lastSegment = this.samplePdfUrl.split('/').pop() ?? '';
+    return decodeURIComponent(lastSegment || 'Attached');
+  }
+
+  get savedTemplateProfile() {
+    return parseVendorTemplateProfile(this.vendor?.raw);
+  }
+
+  get savedTemplateMapping() {
+    return parseVendorTemplateMapping(this.vendor?.raw);
+  }
+
+  private get hasSavedTemplateSetup(): boolean {
+    return (!!this.savedTemplateMapping || !!this.savedTemplateProfile) && this.hasUploadedSample;
+  }
+
+  get requiredItemFields() {
+    return (this.invoiceTemplateModel?.itemFields ?? []).filter(field => field.required);
+  }
+
+  get requiredSummaryFields() {
+    return (this.invoiceTemplateModel?.summaryFields ?? []).filter(field => field.required);
+  }
+
+  private syncStatusErrors(): void {
+    const control = this.form.get('status');
+    if (!control) {
+      return;
+    }
+    const current = { ...(control.errors ?? {}) };
+    delete current['activationPending'];
+    delete current['previewRequired'];
+    const nextErrors = Object.keys(current).length ? current : null;
+    control.setErrors(nextErrors);
   }
 }

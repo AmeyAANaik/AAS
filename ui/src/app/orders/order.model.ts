@@ -113,6 +113,7 @@ export interface OrderItemPayload {
 export interface OrderOption {
   id: string;
   name: string;
+  disabled?: boolean;
 }
 
 export interface ItemOption {

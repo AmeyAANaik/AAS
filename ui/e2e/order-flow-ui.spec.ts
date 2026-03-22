@@ -9,7 +9,7 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
   const buildOrders = () => [
     {
       name: 'SO-0001',
-      customer: 'Shop A',
+      customer: 'Sukarta Aundh',
       company: 'AAS',
       transaction_date: '2026-02-19',
       delivery_date: '2026-02-20',
@@ -27,7 +27,7 @@ test('order workflow through UI: assign vendor -> vendor pdf -> vendor bill -> s
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ name: 'SHOP-1', customer_name: 'Shop A' }])
+      body: JSON.stringify([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }])
     });
   });
 

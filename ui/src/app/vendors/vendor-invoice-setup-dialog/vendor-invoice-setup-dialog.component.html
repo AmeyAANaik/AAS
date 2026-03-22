@@ -1,0 +1,303 @@
+<h2 mat-dialog-title>
+  <div class="dialog-title-row">
+    <div>
+      <div>Invoice extraction setup</div>
+      <div class="dialog-subtitle">{{ data.vendor.name }}</div>
+    </div>
+    <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
+  </div>
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <div class="message" *ngIf="isLoadingModel">
+    Loading invoice setup details...
+  </div>
+
+  <div class="workflow-strip" aria-label="Setup progress">
+    <button
+      type="button"
+      class="workflow-card"
+      *ngFor="let item of stepCards; trackBy: trackChecklist"
+      [class.done]="item.done"
+      [class.active]="(item.step !== '3' && activeStage === 'setup') || (item.step === '3' && activeStage === 'review')"
+      (click)="item.step === '3' ? openReviewStage() : openSetupStage()">
+      <div class="workflow-step">{{ item.step }}</div>
+      <div class="workflow-copy">
+        <div class="workflow-title">{{ item.title }}</div>
+        <div class="status muted">{{ item.description }}</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="setup-overview">
+    <div class="overview-copy">
+      <div class="panel-title">Generate a vendor-specific invoice template</div>
+      <div class="status muted">Upload a real invoice, let the backend detect invoice columns, map required business fields from dropdowns, then validate rows and totals before saving.</div>
+    </div>
+    <div class="overview-stats">
+      <div class="summary-stat compact">
+        <span class="summary-label">Required</span>
+        <strong>{{ requiredFieldCount }}</strong>
+      </div>
+      <div class="summary-stat compact">
+        <span class="summary-label">Mapped</span>
+        <strong>{{ mappedFieldCount }}/{{ requiredFieldCount }}</strong>
+      </div>
+      <div class="summary-stat compact">
+        <span class="summary-label">Sample</span>
+        <strong>{{ hasUploadedSample ? 'Ready' : 'Needed' }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="workspace-grid" *ngIf="activeStage === 'setup'">
+    <div class="workspace-main">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">1. Upload sample invoice</div>
+            <div class="status muted">Use one real invoice PDF from this vendor. We reuse the stored sample if you do not upload a new one.</div>
+          </div>
+        </div>
+
+        <label class="upload-box">
+          <input type="file" accept="application/pdf" (change)="onSampleFileSelected($event)" />
+          <span>{{ sampleFile ? sampleFile.name : 'Choose sample PDF' }}</span>
+        </label>
+
+        <div class="status muted" *ngIf="savedSampleFileName">
+          Saved sample: {{ savedSampleFileName }}
+        </div>
+
+        <div class="status muted" *ngIf="selectedSampleFileName">
+          New selected sample: {{ selectedSampleFileName }}
+        </div>
+
+        <div class="status upload-status" [class.ready]="hasUploadedSample" *ngIf="hasUploadedSample">
+          {{ sampleFile ? 'Selected PDF will be used after you click Analyze sample PDF.' : 'A sample PDF is already stored for this vendor.' }}
+        </div>
+
+        <div class="action-stack">
+          <button mat-flat-button color="primary" type="button" (click)="analyzeSample()" [disabled]="!canAnalyze">
+            {{ isAnalyzing ? 'Analyzing...' : 'Analyze sample PDF' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="panel" *ngIf="analysis">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">2. Map required business fields</div>
+            <div class="status muted">Choose only from the invoice columns detected by the backend. No freehand field typing is used here.</div>
+          </div>
+        </div>
+
+        <div class="mapping-section">
+          <div class="mapping-section-title">Detected line-item columns</div>
+          <div class="suggestion-row">
+            <span class="suggestion-chip" *ngFor="let option of itemOptions(); trackBy: trackOption">{{ option.label }}</span>
+          </div>
+        </div>
+
+        <div class="mapping-section">
+          <div class="mapping-section-title">Required line-item fields</div>
+          <div class="mapping-card" *ngFor="let field of itemFields; trackBy: trackField">
+            <div class="mapping-topline">
+              <div>
+                <div class="mapping-title">{{ field.label }}</div>
+                <div class="mapping-key">{{ field.key }}</div>
+              </div>
+              <span class="required-pill" *ngIf="field.required; else optionalItemPill">Required</span>
+              <ng-template #optionalItemPill><span class="required-pill optional-pill">Optional</span></ng-template>
+            </div>
+            <mat-form-field appearance="outline" class="mapping-input">
+              <mat-label>Invoice column</mat-label>
+              <mat-select [formControl]="controlForItem(field.key)">
+                <mat-option value="">Not available</mat-option>
+                <mat-option *ngFor="let option of itemOptions(); trackBy: trackOption" [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+        </div>
+
+        <div class="mapping-section">
+          <div class="mapping-section-title">Detected summary labels</div>
+          <div class="suggestion-row" *ngIf="summaryOptions().length">
+            <span class="suggestion-chip" *ngFor="let option of summaryOptions(); trackBy: trackOption">{{ option.label }}</span>
+          </div>
+        </div>
+
+        <div class="mapping-section">
+          <div class="mapping-section-title">Summary fields</div>
+          <div class="mapping-card" *ngFor="let field of summaryFields; trackBy: trackField">
+            <div class="mapping-topline">
+              <div>
+                <div class="mapping-title">{{ field.label }}</div>
+                <div class="mapping-key">{{ field.key }}</div>
+              </div>
+              <span class="required-pill" *ngIf="field.required; else optionalSummaryPill">Required</span>
+              <ng-template #optionalSummaryPill><span class="required-pill optional-pill">Optional</span></ng-template>
+            </div>
+            <mat-form-field appearance="outline" class="mapping-input">
+              <mat-label>Invoice field</mat-label>
+              <mat-select [formControl]="controlForSummary(field.key)">
+                <mat-option value="">Not available</mat-option>
+                <mat-option *ngFor="let option of summaryOptions(); trackBy: trackOption" [value]="option.value">
+                  {{ option.label }}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace-side">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Preview status</div>
+            <div class="status muted">We validate the generated template against the sample before saving it on the vendor.</div>
+          </div>
+        </div>
+
+        <div class="summary-banner side-banner">
+          <div class="summary-stat compact">
+            <span class="summary-label">Items detected</span>
+            <strong>{{ detectedItemCount || '—' }}</strong>
+          </div>
+          <div class="summary-stat compact">
+            <span class="summary-label">Rows scanned</span>
+            <strong>{{ ocrRowsScanned || '—' }}</strong>
+          </div>
+          <div class="summary-stat compact">
+            <span class="summary-label">Bill amount</span>
+            <strong>{{ detectedBillAmount }}</strong>
+          </div>
+          <div class="summary-stat compact">
+            <span class="summary-label">Transport</span>
+            <strong>{{ detectedTransportCharge }}</strong>
+          </div>
+        </div>
+
+        <div class="guide-list">
+          <div class="guide-item">Upload or reuse a sample PDF first.</div>
+          <div class="guide-item">Map required business fields only from detected invoice columns.</div>
+          <div class="guide-item">Preview must validate rows and totals before the template is saved.</div>
+        </div>
+
+        <div class="action-stack">
+          <button mat-flat-button color="primary" type="button" (click)="previewMapping()" [disabled]="!canPreview">
+            {{ isWorking ? 'Checking...' : 'Preview generated template' }}
+          </button>
+          <button mat-stroked-button color="warn" type="button" (click)="clearTemplate()" [disabled]="isWorking">
+            Clear setup
+          </button>
+        </div>
+
+        <div class="message success" *ngIf="infoMessage">{{ infoMessage }}</div>
+        <div class="message error" *ngIf="errorMessage">{{ errorMessage }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="review-stage" *ngIf="activeStage === 'review' && mappingPreview as preview">
+    <div class="panel review-panel">
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">Review extracted data</div>
+          <div class="status muted">Confirm the generated vendor template is extracting the expected rows and summary values before saving.</div>
+        </div>
+        <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
+      </div>
+
+      <div class="review-metrics">
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Items detected</span>
+          <strong>{{ preview.previewMetrics.itemsDetected }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">OCR rows scanned</span>
+          <strong>{{ preview.previewMetrics.totalRows }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Detected bill amount</span>
+          <strong>{{ preview.previewMetrics.billAmount || 'Not found' }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Detected transport</span>
+          <strong>{{ preview.previewMetrics.transportCharge || 'Not found' }}</strong>
+        </div>
+      </div>
+
+      <div class="validation-columns">
+        <span
+          class="column-chip"
+          [class.ok]="!preview.missingFields.items.includes(field.key)"
+          [class.missing]="preview.missingFields.items.includes(field.key)"
+          *ngFor="let field of requiredItemFields; trackBy: trackField">
+          {{ field.label }}
+        </span>
+      </div>
+
+      <div class="validation-columns">
+        <span
+          class="column-chip"
+          [class.ok]="!preview.missingFields.summary.includes(field.key)"
+          [class.missing]="preview.missingFields.summary.includes(field.key)"
+          *ngFor="let field of requiredSummaryFields; trackBy: trackField">
+          {{ field.label }}
+        </span>
+      </div>
+    </div>
+
+    <div class="workspace-grid review-layout">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Preview rows</div>
+            <div class="status muted">These rows come from the generated vendor template preview.</div>
+          </div>
+          <button mat-stroked-button type="button" (click)="openSetupStage()">Edit mapping</button>
+        </div>
+
+        <div class="ocr-preview" *ngIf="preview.previewItems?.length; else previewFallback">
+          <div class="ocr-line" *ngFor="let row of preview.previewItems">
+            {{ row['item_name'] }} | {{ row['item_id'] }} | {{ row['qty'] }} {{ row['uom'] || '' }} | {{ row['rate'] }} | {{ row['total'] }}
+          </div>
+        </div>
+
+        <ng-template #previewFallback>
+          <div class="ocr-preview">
+            <div class="ocr-line" *ngFor="let line of preview.ocrPreview">{{ line }}</div>
+          </div>
+        </ng-template>
+      </div>
+
+      <div class="panel review-help">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Before saving</div>
+            <div class="status muted">Use this checklist to confirm the vendor template is safe for Manage Order.</div>
+          </div>
+        </div>
+
+        <div class="guide-list">
+          <div class="guide-item">Required fields must all be green.</div>
+          <div class="guide-item">Item count should look reasonable for the invoice.</div>
+          <div class="guide-item">Bill amount should match the invoice total exactly.</div>
+          <div class="guide-item">Optional fields like UOM and transport can remain unmapped if the invoice does not contain them.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="close()" [disabled]="isWorking">Cancel</button>
+  <button mat-flat-button color="primary" type="button" (click)="apply()" [disabled]="!canSave">
+    {{ isWorking ? 'Saving...' : 'Save template' }}
+  </button>
+</mat-dialog-actions>

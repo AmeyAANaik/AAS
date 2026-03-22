@@ -223,125 +223,70 @@ const suppliers = [
 
 const customers = [
   {
-    customer_name: 'Shop A',
+    customer_name: 'Sukarta Aundh',
     company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'AAS-Shop-A-Pune',
+    whatsapp_group: 'Sukarta-Aundh-Orders',
     gstin: '27AAECS5001Q1ZX',
-    billing: { line1: '14 JM Road', city: 'Pune', state: 'Maharashtra', pincode: '411005', country: 'India' },
-    shipping: { line1: 'Receiving Bay, 14 JM Road', city: 'Pune', state: 'Maharashtra', pincode: '411005', country: 'India' }
+    billing: { line1: 'Survey 22, ITI Road, Aundh', city: 'Pune', state: 'Maharashtra', pincode: '411007', country: 'India' },
+    shipping: { line1: 'Receiving Bay, ITI Road, Aundh', city: 'Pune', state: 'Maharashtra', pincode: '411007', country: 'India' }
   },
   {
-    customer_name: 'Sahyadri Rooftop Bar',
+    customer_name: 'Sukarta Baner',
     company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'HSP-Rooftop-Bar-Orders',
+    whatsapp_group: 'Sukarta-Baner-Orders',
     gstin: '27AAECS5002Q1ZW',
-    billing: { line1: '118 Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' },
-    shipping: { line1: 'Level 7 Service Entry, 118 Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' }
+    billing: { line1: 'Pan Card Club Road, Baner', city: 'Pune', state: 'Maharashtra', pincode: '411045', country: 'India' },
+    shipping: { line1: 'Service Entry, Baner High Street', city: 'Pune', state: 'Maharashtra', pincode: '411045', country: 'India' }
   },
   {
-    customer_name: 'Sahyadri All-Day Dining',
+    customer_name: 'Sukarta Balewadi',
     company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'HSP-ADD-Procurement',
+    whatsapp_group: 'Sukarta-Balewadi-Procurement',
     gstin: '27AAECS5003Q1ZV',
-    billing: { line1: '118 Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' },
-    shipping: { line1: 'Receiving Dock, Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' }
+    billing: { line1: 'Balewadi High Street', city: 'Pune', state: 'Maharashtra', pincode: '411045', country: 'India' },
+    shipping: { line1: 'Receiving Dock, Balewadi High Street', city: 'Pune', state: 'Maharashtra', pincode: '411045', country: 'India' }
   },
   {
-    customer_name: 'Sahyadri Banquet Deck',
+    customer_name: 'Sukarta Wakad',
     company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'HSP-Banquets-Events',
+    whatsapp_group: 'Sukarta-Wakad-Events',
     gstin: '27AAECS5004Q1ZU',
-    billing: { line1: '118 Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' },
-    shipping: { line1: 'Banquet Loading Bay, Bhandarkar Road', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' }
+    billing: { line1: 'Datta Mandir Road, Wakad', city: 'Pune', state: 'Maharashtra', pincode: '411057', country: 'India' },
+    shipping: { line1: 'Banquet Loading Bay, Wakad', city: 'Pune', state: 'Maharashtra', pincode: '411057', country: 'India' }
   },
   {
-    customer_name: 'Blue Lagoon Takeaway - Bandra',
-    company: 'Blue Lagoon Restaurant Mumbai LLP',
-    customer_type: 'Company',
-    customer_group: 'All Customer Groups',
-    territory: 'All Territories',
-    whatsapp_group: 'BLR-Bandra-Takeaway',
-    gstin: '27AADCB3001L1ZT',
-    billing: { line1: '22 Carter Road, Bandra West', city: 'Mumbai', state: 'Maharashtra', pincode: '400050', country: 'India' },
-    shipping: { line1: 'Rear Service Entry, Carter Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400050', country: 'India' }
-  },
-  {
-    customer_name: 'Blue Lagoon Sea Lounge',
-    company: 'Blue Lagoon Restaurant Mumbai LLP',
-    customer_type: 'Company',
-    customer_group: 'All Customer Groups',
-    territory: 'All Territories',
-    whatsapp_group: 'BLR-Sea-Lounge-Orders',
-    gstin: '27AADCB3002L1ZS',
-    billing: { line1: '22 Carter Road, Bandra West', city: 'Mumbai', state: 'Maharashtra', pincode: '400050', country: 'India' },
-    shipping: { line1: 'Level 2 Beverage Dock, Carter Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400050', country: 'India' }
-  },
-  {
-    customer_name: 'Fortune Hills Poolside Bar',
-    company: 'Fortune Hills Resort Lonavala Pvt Ltd',
-    customer_type: 'Company',
-    customer_group: 'All Customer Groups',
-    territory: 'All Territories',
-    whatsapp_group: 'FHR-Poolside-Bar',
-    gstin: '27AACCF6001A1ZP',
-    billing: { line1: 'Survey 44, Old Mumbai Pune Highway', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' },
-    shipping: { line1: 'Poolside Service Corridor', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' }
-  },
-  {
-    customer_name: 'Fortune Hills Banquet Hall',
-    company: 'Fortune Hills Resort Lonavala Pvt Ltd',
-    customer_type: 'Company',
-    customer_group: 'All Customer Groups',
-    territory: 'All Territories',
-    whatsapp_group: 'FHR-Banquets-Orders',
-    gstin: '27AACCF6002A1ZO',
-    billing: { line1: 'Survey 44, Old Mumbai Pune Highway', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' },
-    shipping: { line1: 'Banquet Receiving Bay', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' }
-  },
-  {
-    customer_name: 'Fortune Hills Room Service',
-    company: 'Fortune Hills Resort Lonavala Pvt Ltd',
-    customer_type: 'Company',
-    customer_group: 'All Customer Groups',
-    territory: 'All Territories',
-    whatsapp_group: 'FHR-RoomService-Dispatch',
-    gstin: '27AACCF6003A1ZN',
-    billing: { line1: 'Survey 44, Old Mumbai Pune Highway', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' },
-    shipping: { line1: 'Room Service Basement Store', city: 'Lonavala', state: 'Maharashtra', pincode: '410401', country: 'India' }
-  },
-  {
-    customer_name: 'Cafe Sunrise – Koregaon Park',
+    customer_name: 'Sukarta Hinjawadi',
     company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'Cafe-Sunrise-KP',
+    whatsapp_group: 'Sukarta-Hinjawadi-Dispatch',
     gstin: '27AAECS5005Q1ZT',
-    billing: { line1: 'Lane 6, Koregaon Park', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' },
-    shipping: { line1: 'Back Entry, Lane 6, Koregaon Park', city: 'Pune', state: 'Maharashtra', pincode: '411001', country: 'India' }
+    billing: { line1: 'Rajiv Gandhi Infotech Park, Hinjawadi', city: 'Pune', state: 'Maharashtra', pincode: '411057', country: 'India' },
+    shipping: { line1: 'Dock 2, Hinjawadi Phase 1', city: 'Pune', state: 'Maharashtra', pincode: '411057', country: 'India' }
   },
   {
-    customer_name: 'Bistro Central – Andheri',
-    company: 'Blue Lagoon Restaurant Mumbai LLP',
+    customer_name: 'Sukarta Kothrud',
+    company: 'Hotel Sahyadri Pune Pvt Ltd',
     customer_type: 'Company',
     customer_group: 'All Customer Groups',
     territory: 'All Territories',
-    whatsapp_group: 'Bistro-Central-Andheri',
-    gstin: '27AADCB3003L1ZR',
-    billing: { line1: 'MIDC Central Road, Andheri East', city: 'Mumbai', state: 'Maharashtra', pincode: '400093', country: 'India' },
-    shipping: { line1: 'Dock 2, MIDC Central Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400093', country: 'India' }
+    whatsapp_group: 'Sukarta-Kothrud-Orders',
+    gstin: '27AAECS5006Q1ZS',
+    billing: { line1: 'Paud Road, Kothrud', city: 'Pune', state: 'Maharashtra', pincode: '411038', country: 'India' },
+    shipping: { line1: 'Back Entry, Paud Road, Kothrud', city: 'Pune', state: 'Maharashtra', pincode: '411038', country: 'India' }
   }
 ];
 
@@ -450,9 +395,9 @@ const extraUsers = {
     { email: 'neeraj.nair@brewmasters.local', fullName: 'Neeraj Nair', supplier: 'BrewMasters Beverages Pvt Ltd' }
   ],
   shop: [
-    { email: 'arpita.deshmukh@hsp.local', fullName: 'Arpita Deshmukh', customer: 'Sahyadri All-Day Dining' },
-    { email: 'karan.fernandes@blr.local', fullName: 'Karan Fernandes', customer: 'Blue Lagoon Takeaway - Bandra' },
-    { email: 'madhura.patil@fhr.local', fullName: 'Madhura Patil', customer: 'Fortune Hills Banquet Hall' }
+    { email: 'arpita.deshmukh@hsp.local', fullName: 'Arpita Deshmukh', customer: 'Sukarta Balewadi' },
+    { email: 'karan.fernandes@blr.local', fullName: 'Karan Fernandes', customer: 'Sukarta Baner' },
+    { email: 'madhura.patil@fhr.local', fullName: 'Madhura Patil', customer: 'Sukarta Kothrud' }
   ],
   helper: [
     { email: 'deepak.waghmare@aas.local', fullName: 'Deepak Waghmare' },
@@ -681,17 +626,12 @@ const itemFamilies = [
 ];
 
 const outlets = [
-  { customer: 'Shop A', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'all-day', size: 0.85 },
-  { customer: 'Sahyadri All-Day Dining', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'all-day', size: 1.15 },
-  { customer: 'Sahyadri Rooftop Bar', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'bar', size: 1.0 },
-  { customer: 'Sahyadri Banquet Deck', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'banquet', size: 1.45 },
-  { customer: 'Blue Lagoon Takeaway - Bandra', company: 'Blue Lagoon Restaurant Mumbai LLP', segment: 'all-day', size: 1.0 },
-  { customer: 'Blue Lagoon Sea Lounge', company: 'Blue Lagoon Restaurant Mumbai LLP', segment: 'bar', size: 1.15 },
-  { customer: 'Fortune Hills Poolside Bar', company: 'Fortune Hills Resort Lonavala Pvt Ltd', segment: 'bar', size: 1.1, resort: true },
-  { customer: 'Fortune Hills Banquet Hall', company: 'Fortune Hills Resort Lonavala Pvt Ltd', segment: 'banquet', size: 1.55, resort: true },
-  { customer: 'Fortune Hills Room Service', company: 'Fortune Hills Resort Lonavala Pvt Ltd', segment: 'all-day', size: 1.0, resort: true },
-  { customer: 'Cafe Sunrise – Koregaon Park', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'external', size: 0.75 },
-  { customer: 'Bistro Central – Andheri', company: 'Blue Lagoon Restaurant Mumbai LLP', segment: 'external', size: 0.82 }
+  { customer: 'Sukarta Aundh', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'all-day', size: 0.9 },
+  { customer: 'Sukarta Baner', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'bar', size: 1.0 },
+  { customer: 'Sukarta Balewadi', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'all-day', size: 1.15 },
+  { customer: 'Sukarta Wakad', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'banquet', size: 1.35 },
+  { customer: 'Sukarta Hinjawadi', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'external', size: 0.95 },
+  { customer: 'Sukarta Kothrud', company: 'Hotel Sahyadri Pune Pvt Ltd', segment: 'external', size: 0.88 }
 ];
 
 const taxRates = {
@@ -926,6 +866,9 @@ async function erpEnsure(doctype, name, payload, updateFields = []) {
     }
     if (doctype === 'Supplier') {
       record.supplier_name = name;
+      if (!record.aas_vendor_code) {
+        record.aas_vendor_code = slug(name).replace(/-/g, '_').toUpperCase();
+      }
     }
     if (doctype === 'Customer') {
       record.customer_name = name;
@@ -1281,7 +1224,7 @@ async function ensureUsers() {
       fullName: 'Shop User',
       password: 'ShopAAS!2026',
       role: 'Customer',
-      customer: 'Shop A'
+      customer: 'Sukarta Aundh'
     },
     {
       email: 'helper@example.com',

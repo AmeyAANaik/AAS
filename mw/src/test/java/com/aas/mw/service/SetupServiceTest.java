@@ -3,10 +3,13 @@ package com.aas.mw.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.aas.mw.client.ErpNextClient;
+import feign.Request;
+import feign.Response;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.aas.mw.meta.VendorFieldsProperties;
 import java.util.Collections;
@@ -18,14 +21,17 @@ import org.junit.jupiter.api.Test;
 class SetupServiceTest {
 
     private ErpNextClient erpNextClient;
+    private CustomFieldProvisioner customFieldProvisioner;
+    private VendorFieldRegistry vendorFieldRegistry;
+    private CatalogRoutingService catalogRoutingService;
     private SetupService service;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        CustomFieldProvisioner customFieldProvisioner = mock(CustomFieldProvisioner.class);
-        VendorFieldRegistry vendorFieldRegistry = new VendorFieldRegistry(new VendorFieldsProperties());
-        CatalogRoutingService catalogRoutingService = new CatalogRoutingService(erpNextClient);
+        customFieldProvisioner = mock(CustomFieldProvisioner.class);
+        vendorFieldRegistry = new VendorFieldRegistry(new VendorFieldsProperties());
+        catalogRoutingService = new CatalogRoutingService(erpNextClient);
         when(customFieldProvisioner.ensure(
                 eq("Supplier"), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
@@ -37,10 +43,10 @@ class SetupServiceTest {
         when(erpNextClient.listResources(eq("UOM"), anyMap())).thenReturn(List.of(Map.of("name", "Nos")));
         when(erpNextClient.createResource(eq("Supplier Group"), anyMap())).thenReturn(Map.of("name", "All Supplier Groups"));
         when(erpNextClient.createResource(eq("Item"), anyMap())).thenReturn(Map.of("name", "AAS-BRANCH-IMAGE"));
-        when(erpNextClient.getResource(eq("Supplier"), eq("Vendor A"))).thenThrow(new RuntimeException("missing"));
-        when(erpNextClient.getResource(eq("Customer"), eq("Shop A"))).thenThrow(new RuntimeException("missing"));
-        when(erpNextClient.createResource(eq("Supplier"), anyMap())).thenReturn(Map.of("name", "Vendor A"));
-        when(erpNextClient.createResource(eq("Customer"), anyMap())).thenReturn(Map.of("name", "Shop A"));
+        when(erpNextClient.getResource(eq("Supplier"), eq("FreshHarvest Agro Foods"))).thenThrow(notFound("Supplier", "FreshHarvest Agro Foods"));
+        when(erpNextClient.getResource(eq("Customer"), eq("Sukarta Aundh"))).thenThrow(notFound("Customer", "Sukarta Aundh"));
+        when(erpNextClient.createResource(eq("Supplier"), anyMap())).thenReturn(Map.of("name", "FreshHarvest Agro Foods"));
+        when(erpNextClient.createResource(eq("Customer"), anyMap())).thenReturn(Map.of("name", "Sukarta Aundh"));
 
         when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
                 .thenReturn(List.of(
@@ -86,11 +92,11 @@ class SetupServiceTest {
                 "vendor@example.com",
                 "Vendor User",
                 "vendor123",
-                "Vendor A",
+                "FreshHarvest Agro Foods",
                 "shop@example.com",
                 "Shop User",
                 "shop123",
-                "Shop A",
+                "Sukarta Aundh",
                 "helper@example.com",
                 "Helper User",
                 "helper123",
@@ -104,5 +110,49 @@ class SetupServiceTest {
         assertEquals(2, result.get("salesOrdersMarginBackfilled"));
         assertEquals(2, result.get("salesOrderItemsMarginBackfilled"));
         assertEquals(2, result.get("itemsMarginBackfilled"));
+    }
+
+    @Test
+    void defaultSupplierUsesRootSupplierGroup() {
+        service = new SetupService(
+                erpNextClient,
+                customFieldProvisioner,
+                vendorFieldRegistry,
+                catalogRoutingService,
+                true,
+                "Supplier",
+                "Customer",
+                "Stock User",
+                "vendor@example.com",
+                "Vendor User",
+                "vendor123",
+                "FreshHarvest Agro Foods",
+                "shop@example.com",
+                "Shop User",
+                "shop123",
+                "Sukarta Aundh",
+                "helper@example.com",
+                "Helper User",
+                "helper123",
+                7.0);
+
+        service.ensureSetup();
+
+        org.mockito.Mockito.verify(erpNextClient).createResource(
+                eq("Supplier"),
+                argThat(payload -> "All Supplier Groups".equals(payload.get("supplier_group"))
+                        && "FRESHHARVEST_AGRO_FOODS".equals(payload.get("aas_vendor_code"))
+                        && "FreshHarvest Agro Foods".equals(payload.get("supplier_name"))));
+    }
+
+    private feign.FeignException.NotFound notFound(String doctype, String name) {
+        Request request = Request.create(Request.HttpMethod.GET, "/api/resource/" + doctype + "/" + name, Map.of(), null, null, null);
+        Response response = Response.builder()
+                .status(404)
+                .reason("Not Found")
+                .request(request)
+                .headers(Map.of())
+                .build();
+        return (feign.FeignException.NotFound) feign.FeignException.errorStatus("getResource", response);
     }
 }

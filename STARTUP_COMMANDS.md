@@ -16,6 +16,38 @@ Preferred local workflow:
 - MW: run with Docker Compose
 - ERPNext: run with Docker Compose
 
+## Fresh Setup Quick Start
+
+Use this when you want a clean local setup from scratch:
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
+
+cd /Users/roshninaik/Projects/AAS
+docker compose -f docker-compose.mw.yml up -d --build
+
+TOKEN=$(curl -sS http://localhost:8083/api/auth/login \
+  -H 'content-type: application/json' \
+  --data '{"username":"Administrator","password":"admin"}' \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
+
+curl -X POST http://localhost:8083/api/setup/ensure \
+  -H "Authorization: Bearer $TOKEN"
+
+cd /Users/roshninaik/Projects/AAS/ui
+npm start -- --host 0.0.0.0 --port 4200
+```
+
+URLs after startup:
+
+- ERPNext: `http://localhost:8080`
+- MW Swagger: `http://localhost:8083/swagger-ui.html`
+- UI: `http://localhost:4200`
+
 ### Stop all services
 
 ```bash
@@ -39,7 +71,9 @@ After a wipe, start the stack again and rerun setup/seed commands.
 ### Start all services
 
 ```bash
-cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml up -d
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml run --rm create-site
+cd /Users/roshninaik/Projects/AAS/erpmodule && docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
 cd /Users/roshninaik/Projects/AAS && docker compose -f docker-compose.mw.yml up -d --build
 cd /Users/roshninaik/Projects/AAS/ui && npm start -- --host 0.0.0.0 --port 4200
 ```
@@ -175,7 +209,9 @@ sed -n '1,240p' pwd.yml
 
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
-docker compose -f pwd.yml up -d
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
 ```
 
 ### Start ERPNext with rebuild
@@ -184,7 +220,9 @@ Use this after ERP Dockerfile, ERP apps, or compose changes.
 
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
-docker compose -f pwd.yml up -d --build
+docker compose -f pwd.yml up -d --build db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d --build backend websocket queue-short queue-long scheduler frontend
 ```
 
 ### Start only the ERP frontend first
@@ -199,9 +237,11 @@ docker compose -f pwd.yml up -d db redis-cache redis-queue configurator create-s
 ### Re-run ERP site bootstrap/custom-field setup
 
 This is useful if the ERP site exists but you want to re-apply the `create-site` step logic.
+Before running it, make sure `db`, `redis-cache`, `redis-queue`, and `configurator` are already up.
 
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
 docker compose -f pwd.yml run --rm create-site
 ```
 
@@ -228,7 +268,9 @@ To apply these defaults, you must recreate the ERPNext volumes (data wipe):
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down -v
-docker compose -f pwd.yml up -d
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
 ```
 
 ### Stop ERPNext
@@ -252,9 +294,37 @@ This removes ERP volumes and recreates the site with the defaults from `mw/src/m
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down -v
-docker compose -f pwd.yml up -d --build
+docker compose -f pwd.yml up -d --build db redis-cache redis-queue configurator
 docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d --build backend websocket queue-short queue-long scheduler frontend
 ```
+
+### Fresh ERP reset checklist
+
+Use this exact order after a full wipe:
+
+```bash
+cd /Users/roshninaik/Projects/AAS/erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
+docker compose -f pwd.yml ps
+curl -I http://localhost:8080
+```
+
+### ERP bootstrap troubleshooting
+
+If `create-site` fails, check these first:
+
+- `wait-for-it: timeout ... db:3306` or Redis timeouts:
+  Start `db`, `redis-cache`, `redis-queue`, and `configurator` before `create-site`.
+- `sites/common_site_config.json` not found:
+  `configurator` has not finished writing the shared site config yet.
+- `Site aas.core.local already exists` with weird partial setup errors:
+  On a broken fresh install, use `docker compose -f pwd.yml down -v` and recreate from zero.
+- `safe_exec`, `__import__ not found`, or inline script errors:
+  These are fixed in the current repo; rerun with the latest `pwd.yml`.
 
 ### Access ERPNext UI
 
@@ -434,8 +504,8 @@ docker compose -f docker-compose.mw.yml up --build
 
 3) **Default users created**
 After first login (admin), MW calls `/api/setup/ensure` and creates:
-- `vendor@example.com` / `VendorAAS!2026` (Supplier `Vendor A`)
-- `shop@example.com` / `ShopAAS!2026` (Customer `Shop A`)
+- `vendor@example.com` / `VendorAAS!2026` (Supplier `FreshHarvest Agro Foods`)
+- `shop@example.com` / `ShopAAS!2026` (Customer `Sukarta Aundh`)
 - `helper@example.com` / `HelperAAS!2026`
 
 4) **UI**
@@ -494,12 +564,12 @@ MW creates default users on first login (if enabled) and will not overwrite exis
 Vendor User
 - Email: `vendor@example.com`
 - Password: `VendorAAS!2026`
-- Supplier: `Vendor A`
+- Supplier: `FreshHarvest Agro Foods`
 
 Shop User
 - Email: `shop@example.com`
 - Password: `ShopAAS!2026`
-- Customer: `Shop A`
+- Customer: `Sukarta Aundh`
 
 Helper User
 - Email: `helper@example.com`

@@ -7,17 +7,22 @@ public record ParsedItem(
         double amount,
         String hsn,
         Double gstPercent,
+        String uom,
         Double mrp) {
 
     public ParsedItem(String name, double qty, double rate, double amount) {
-        this(name, qty, rate, amount, null, null, null);
+        this(name, qty, rate, amount, null, null, null, null);
     }
 
     public ParsedItem(String name, double qty, double rate, double amount, String hsn) {
-        this(name, qty, rate, amount, hsn, null, null);
+        this(name, qty, rate, amount, hsn, null, null, null);
     }
 
     public ParsedItem(String name, double qty, double rate, double amount, String hsn, Double gstPercent) {
-        this(name, qty, rate, amount, hsn, gstPercent, null);
+        this(name, qty, rate, amount, hsn, gstPercent, null, null);
+    }
+
+    public ParsedItem(String name, double qty, double rate, double amount, String hsn, Double gstPercent, Double mrp) {
+        this(name, qty, rate, amount, hsn, gstPercent, null, mrp);
     }
 }

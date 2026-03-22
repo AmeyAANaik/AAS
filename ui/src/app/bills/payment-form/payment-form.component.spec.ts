@@ -35,7 +35,7 @@ describe('PaymentFormComponent', () => {
 
     fixture = TestBed.createComponent(PaymentFormComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Shop A', company: 'aas' }];
+    component.customers = [{ id: 'SHOP-1', name: 'Sukarta Aundh', company: 'aas' }];
     component.invoices = [{ id: 'ACC-SINV-0001', name: 'INV', customer: 'SHOP-1', company: 'aas', outstanding: 250 }];
     fixture.detectChanges();
   });

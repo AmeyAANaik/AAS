@@ -38,7 +38,7 @@ describe('OrderCreateComponent', () => {
     orderService.createOrder.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
     orderService.uploadOrderImage.and.returnValue(of({}));
-    orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Shop A' }]));
+    orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }]));
     orderService.listCompanies.and.returnValue(of([{ name: 'AAS' }]));
 
     categoryService = jasmine.createSpyObj('CategoryService', ['listCategories']);
@@ -95,7 +95,7 @@ describe('OrderCreateComponent', () => {
 
   it('loads branches into shops', () => {
     expect(orderService.listBranches).toHaveBeenCalled();
-    expect(component.shops).toEqual([{ id: 'SHOP-1', name: 'Shop A' }]);
+    expect(component.shops).toEqual([{ id: 'SHOP-1', name: 'Sukarta Aundh' }]);
   });
 
   it('loads categories and companies', () => {

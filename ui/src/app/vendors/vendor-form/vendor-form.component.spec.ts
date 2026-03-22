@@ -28,6 +28,24 @@ describe('VendorFormComponent', () => {
 
     fixture = TestBed.createComponent(VendorFormComponent);
     component = fixture.componentInstance;
+    component.invoiceTemplateModel = {
+      itemFields: [
+        { key: 'item_name', label: 'Item name', required: true, sourceAliases: ['Item Description'] },
+        { key: 'qty', label: 'Quantity', required: true, sourceAliases: ['Qty'] },
+        { key: 'uom', label: 'UOM', required: false, sourceAliases: ['Unit'] }
+      ],
+      summaryFields: [
+        { key: 'final_bill_amount', label: 'Final bill amount', required: true, sourceAliases: ['Grand Total'] }
+      ],
+      requiredFields: {
+        items: ['item_name', 'qty'],
+        summary: ['final_bill_amount']
+      },
+      workflow: {
+        inputMode: 'field_mapping',
+        uiPolicy: 'Do not expose regex configuration in UI.'
+      }
+    };
     fixture.detectChanges();
   });
 
@@ -39,10 +57,36 @@ describe('VendorFormComponent', () => {
   it('marks form valid with required fields', () => {
     component.form.patchValue({
       supplierName: 'Vendor A',
+      vendorCode: 'VENDOR_A',
+      category: 'Grocery',
       priority: 1,
-      status: 'Active',
-      invoiceTemplateJson: '{"targetSchema":{"items":[]},"parser":{"version":1,"itemLineRegex":"(?<name>item)\\\\s+(?<item_id>1234)\\\\s+(?<qty>1)\\\\s+(?<rate>10)\\\\s+(?<gst>5)\\\\s+(?<total>10)"}}'
+      status: 'Inactive',
+      invoiceTemplateJson: ''
     });
     expect(component.form.valid).toBeTrue();
+  });
+
+  it('shows the required field count from the invoice model', () => {
+    expect(component.requiredFieldCount).toBe(3);
+  });
+
+  it('emits open setup event', () => {
+    component.mode = 'edit';
+    component.vendor = {
+      id: 'SUP-0001',
+      name: 'Vendor A',
+      vendorCode: 'VENDOR_A',
+      category: 'Grocery',
+      priority: 1,
+      status: 'Inactive',
+      templateKey: '',
+      templateHasJson: false,
+      raw: {}
+    };
+    spyOn(component.openInvoiceSetup, 'emit');
+
+    component.openSetupDialog();
+
+    expect(component.openInvoiceSetup.emit).toHaveBeenCalled();
   });
 });

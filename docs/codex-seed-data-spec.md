@@ -77,7 +77,7 @@ Create Customers representing hotel outlets and external B2B customers, e.g.:
 - External: "Cafe Sunrise – Koregaon Park", "Bistro Central – Andheri"
 
 Requirements:
-- Keep existing "Shop A" mapped to `shop@example.com` / `ShopAAS!2026`.
+- Keep `Sukarta Aundh` mapped to `shop@example.com` / `ShopAAS!2026`.
 - Add realistic billing & shipping addresses (Indian addresses, PIN codes).
 - Mark GST registration where realistic.
 
@@ -210,7 +210,7 @@ Users to preserve:
 - Shop User:
   - Email: `shop@example.com`
   - Password: `ShopAAS!2026`
-  - Customer: `Shop A`
+  - Customer: `Sukarta Aundh`
 
 - Helper User:
   - Email: `helper@example.com`

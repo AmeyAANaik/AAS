@@ -204,7 +204,7 @@ See `mw/src/main/java/com/aas/mw/service/SetupService.java`.
 If `Supplier.aas_invoice_template_enabled` is true and `Supplier.aas_invoice_template_key` contains a known built-in template key, MW will attempt template-based parsing during vendor PDF processing:
 - Flow: `POST /api/orders/{id}/vendor-pdf` (`VendorPdfService`)
 - Behavior:
-  - Use the configured template key first (e.g. `table_v1`), then fall back to the existing heuristic `VendorPdfParser`.
+  - Use the configured vendor template only; if required fields are not extracted, the PDF flow fails and the vendor configuration must be corrected.
   - This is a best-effort feature: a bad template should not break the OCR flow.
 
 ## 7. Order Flow State Machine (Middleware-Enforced)

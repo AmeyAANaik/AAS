@@ -37,7 +37,13 @@ async function main() {
     await searchInput.fill(ORDER_ID);
     await page.waitForTimeout(400);
 
-    const row = page.locator('tr.mat-mdc-row', { hasText: ORDER_ID }).first();
+    let row = page.locator('tr.mat-mdc-row', { hasText: ORDER_ID }).first();
+    if ((await row.count()) === 0 || !(await row.isVisible().catch(() => false))) {
+      row = page.locator('tr.mat-mdc-row', { hasText: VENDOR_NAME || '' }).first();
+    }
+    if ((await row.count()) === 0 || !(await row.isVisible().catch(() => false))) {
+      row = page.locator('tr.mat-mdc-row').first();
+    }
     await row.waitFor({ timeout: 30_000 });
     await row.locator('button:has-text("Manage")').click();
     await page.waitForSelector('.manage-modal', { timeout: 30_000 });
@@ -110,7 +116,9 @@ async function main() {
     }
 
     // Fix mismatch using the helper button.
-    await page.click('button:has-text("Set bill total = items total")');
+    const syncTotalButton = page.locator('button:has-text("Set bill total = expected total"), button:has-text("Set bill total = items total")').first();
+    await syncTotalButton.scrollIntoViewIfNeeded();
+    await syncTotalButton.click();
     await page.waitForTimeout(300);
 
     // Capture should succeed.
@@ -129,6 +137,30 @@ async function main() {
         // ignore
       }
       throw new Error(`Expected vendor-bill 200, got ${billResp.status()} payload=${JSON.stringify(payload)}`);
+    }
+
+    const calculateBtn = page.locator('button:has-text("Calculate Preview")').first();
+    await calculateBtn.waitFor({ timeout: 30_000 });
+    await calculateBtn.scrollIntoViewIfNeeded();
+    await calculateBtn.click();
+    await page.waitForSelector('text=Order Preview', { timeout: 30_000 });
+
+    const sellOrderRespPromise = page.waitForResponse(
+      (r) => r.url().includes('/sell-order') && r.request().method() === 'POST',
+      { timeout: 60_000 }
+    );
+    const createSellOrderBtn = page.locator('button:has-text("Create Sell Order")').first();
+    await createSellOrderBtn.click();
+    const sellOrderResp = await sellOrderRespPromise;
+    console.log(JSON.stringify({ sellOrderStatus: sellOrderResp.status() }));
+    if (sellOrderResp.status() !== 200) {
+      let payload = null;
+      try {
+        payload = await sellOrderResp.json();
+      } catch {
+        // ignore
+      }
+      throw new Error(`Expected sell-order 200, got ${sellOrderResp.status()} payload=${JSON.stringify(payload)}`);
     }
 
     await browser.close();

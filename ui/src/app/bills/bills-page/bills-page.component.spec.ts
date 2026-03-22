@@ -33,7 +33,7 @@ describe('BillsPageComponent', () => {
     billsService = jasmine.createSpyObj('BillsService', ['listInvoices', 'downloadInvoicePdf', 'exportInvoices']);
     billsService.listInvoices.and.returnValue(
       of([
-        { name: 'INV-1', customer: 'Shop A', posting_date: '2024-01-10', grand_total: 120, status: 'Paid' },
+        { name: 'INV-1', customer: 'Sukarta Aundh', posting_date: '2024-01-10', grand_total: 120, status: 'Paid' },
         { name: 'INV-2', customer: 'Shop B', posting_date: '2024-01-11', grand_total: 80, status: 'Unpaid' }
       ])
     );

@@ -40,7 +40,7 @@ describe('OrderPageComponent', () => {
       of([
         {
           name: 'ORD-1',
-          customer: 'Shop A',
+          customer: 'Sukarta Aundh',
           aas_vendor: '',
           aas_status: 'DRAFT',
           transaction_date: '2024-01-10',

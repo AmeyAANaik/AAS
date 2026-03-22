@@ -27,7 +27,9 @@ This ERPNext module serves as the **ERP Core** for the AAS (Agri-Automation Syst
 
 ```bash
 cd erpmodule
-docker compose -f pwd.yml up -d
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
 ```
 
 ### Stop ERPNext
@@ -42,6 +44,30 @@ docker compose -f pwd.yml down
 - URL: http://localhost:8080
 - Default User: `Administrator`
 - Default Password: `admin`
+
+### Fresh Reset Flow
+
+If you want a fully clean ERP site:
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
+```
+
+Important:
+- Do not run `create-site` by itself right after `down -v`
+- `db`, `redis-cache`, `redis-queue`, and `configurator` must be up first
+
+### Re-run only site bootstrap
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+```
 
 ### Invoice PDF Rendering Note
 
@@ -78,7 +104,55 @@ These are applied automatically in `pwd.yml` during the `create-site` step. If y
 
 ```bash
 cd erpmodule
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
 docker compose -f pwd.yml run --rm create-site
+```
+
+## Bootstrap Notes
+
+The current `create-site` flow uses `erpmodule/scripts/bootstrap_site.py` instead of fragile inline `safe_exec` snippets.
+
+Why this matters:
+- avoids RestrictedPython import errors
+- uses the bench virtualenv correctly
+- initializes the site with explicit `sites_path`
+- creates required log directories before `frappe.connect()`
+- applies AAS customer custom fields idempotently
+
+## Common Bootstrap Failures
+
+### `wait-for-it: timeout occurred after waiting 120 seconds for db:3306`
+
+Cause:
+- `create-site` was started before DB/Redis/configurator
+
+Fix:
+```bash
+cd erpmodule
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+```
+
+### `sites/common_site_config.json` not found
+
+Cause:
+- `configurator` has not finished generating shared site config
+
+Fix:
+- start `configurator` first and rerun `create-site`
+
+### Weird partial-site setup errors after earlier failures
+
+Cause:
+- site metadata may be half-created from an earlier broken run
+
+Fix:
+```bash
+cd erpmodule
+docker compose -f pwd.yml down -v
+docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
+docker compose -f pwd.yml run --rm create-site
+docker compose -f pwd.yml up -d backend websocket queue-short queue-long scheduler frontend
 ```
 
 ## Multi-Tenant Usage

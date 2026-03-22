@@ -1,13 +1,15 @@
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
-import { Vendor, VendorFormValue, VendorTemplateValidation, VendorView } from '../vendor.model';
+import { Vendor, VendorFormValue, VendorInvoiceTemplateMappingPreview, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
 import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
 import { formatUiError } from '../../shared/error-message.util';
+import { VendorInvoiceSetupDialogComponent, VendorInvoiceSetupDialogResult } from '../vendor-invoice-setup-dialog/vendor-invoice-setup-dialog.component';
 
 @Component({
   selector: 'app-vendor-list',
@@ -26,14 +28,15 @@ export class VendorListComponent implements OnInit {
   isSaving = false;
   isValidatingTemplate = false;
   statusMessage = '';
-  templateValidation: VendorTemplateValidation | null = null;
   invoiceTemplateModel: InvoiceTemplateModel | null = null;
+  mappingPreview: VendorInvoiceTemplateMappingPreview | null = null;
 
   constructor(
     private vendorService: VendorService,
     private categoryService: CategoryService,
     private invoiceTemplateModelService: InvoiceTemplateModelService,
-    private toastService: MasterDataToastService
+    private toastService: MasterDataToastService,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -77,7 +80,7 @@ export class VendorListComponent implements OnInit {
     this.mode = 'edit';
     this.isFormOpen = true;
     this.statusMessage = '';
-    this.templateValidation = null;
+    this.mappingPreview = null;
   }
 
   openCreate(): void {
@@ -85,7 +88,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = true;
     this.statusMessage = '';
-    this.templateValidation = null;
+    this.mappingPreview = null;
   }
 
   clearSelection(): void {
@@ -96,7 +99,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = false;
     this.mode = 'create';
-    this.templateValidation = null;
+    this.mappingPreview = null;
     if (clearStatus) {
       this.statusMessage = '';
     }
@@ -124,39 +127,40 @@ export class VendorListComponent implements OnInit {
     });
   }
 
-  validateTemplateSample(payload: { file: File; templateJson: string }): void {
-    if (!this.selectedVendor) {
-      this.statusMessage = 'Save the vendor first before validating a sample invoice.';
+  openInvoiceSetup(): void {
+    if (!this.selectedVendor || this.mode !== 'edit') {
+      this.statusMessage = 'Save the vendor first before opening invoice extraction setup.';
       return;
     }
-    this.isValidatingTemplate = true;
-    this.vendorService
-      .uploadInvoiceTemplateSample(this.selectedVendor.id, payload.file, payload.templateJson)
-      .pipe(finalize(() => (this.isValidatingTemplate = false)))
-      .subscribe({
-        next: response => {
-          if (this.selectedVendor) {
-            this.selectedVendor = {
-              ...this.selectedVendor,
-              status: response.validation.activationReady ? 'Active' : this.selectedVendor.status,
-              raw: {
-                ...this.selectedVendor.raw,
-                invoice_template_json: payload.templateJson,
-                invoice_template_sample_pdf: response.file?.fileUrl ?? this.selectedVendor.raw.invoice_template_sample_pdf
-              }
-            };
-          }
-          this.templateValidation = response.validation;
-          this.statusMessage = response.validation.activationReady
-            ? 'Template validation passed. Vendor can be activated.'
-            : 'Template validation did not capture all required item columns.';
-          this.loadVendors();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to validate template sample');
-          this.templateValidation = null;
-        }
-      });
+    const dialogRef = this.dialog.open<VendorInvoiceSetupDialogComponent, {
+      vendor: VendorView;
+      invoiceTemplateModel: InvoiceTemplateModel | null;
+      mappingPreview: VendorInvoiceTemplateMappingPreview | null;
+    }, VendorInvoiceSetupDialogResult>(VendorInvoiceSetupDialogComponent, {
+      width: 'min(1120px, 94vw)',
+      maxWidth: '94vw',
+      data: {
+        vendor: this.selectedVendor,
+        invoiceTemplateModel: this.invoiceTemplateModel,
+        mappingPreview: this.mappingPreview
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) {
+        return;
+      }
+      this.mappingPreview = result.mappingPreview;
+      if (result.invoiceTemplateModel) {
+        this.invoiceTemplateModel = result.invoiceTemplateModel;
+      }
+      if (result.statusMessage) {
+        this.statusMessage = result.statusMessage;
+      }
+      if (result.refreshVendor) {
+        this.loadVendors();
+      }
+    });
   }
 
   private toViewModel(vendor: Vendor): VendorView {
@@ -205,7 +209,7 @@ export class VendorListComponent implements OnInit {
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: () => {
-          this.templateValidation = null;
+          this.mappingPreview = null;
           this.statusMessage = 'Template cleared.';
           this.loadVendors();
         },

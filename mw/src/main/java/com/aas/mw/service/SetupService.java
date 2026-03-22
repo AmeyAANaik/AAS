@@ -645,6 +645,8 @@ public class SetupService {
         }
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier_name", supplierName);
+        payload.put("supplier_group", "All Supplier Groups");
+        payload.put("aas_vendor_code", catalogRoutingService.normalizeCodeSegment(supplierName));
         erpNextClient.createResource("Supplier", payload);
         return true;
     }

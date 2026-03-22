@@ -91,8 +91,8 @@
             *ngIf="!isLoading"
             icon="person_add"
             title="No vendors yet"
-            message="Create the first vendor to start assigning purchase orders."
-            hint="Use the Create vendor action to add a new vendor.">
+            message="Create the first vendor to start configuring invoice mapping."
+            hint="Use the Create vendor action to add a vendor, then upload a sample invoice and map the required fields.">
           </app-empty-state>
         </ng-template>
       </mat-card-content>
@@ -104,14 +104,12 @@
         [categories]="categories"
         [mode]="mode"
         [isSaving]="isSaving"
-        [isValidatingTemplate]="isValidatingTemplate"
         [statusMessage]="statusMessage"
-        [templateValidation]="templateValidation"
         [invoiceTemplateModel]="invoiceTemplateModel"
+        [mappingPreview]="mappingPreview"
         (save)="saveVendor($event)"
         (reset)="clearSelection()"
-        (validateTemplateSample)="validateTemplateSample($event)"
-        (clearTemplate)="clearTemplate()">
+        (openInvoiceSetup)="openInvoiceSetup()">
       </app-vendor-form>
     </mat-card>
   </div>

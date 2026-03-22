@@ -4,6 +4,7 @@ export interface Branch {
   aas_branch_location?: string;
   aas_whatsapp_group_name?: string;
   aas_credit_days?: number;
+  disabled?: number | boolean;
 }
 
 export interface BranchMetadata {

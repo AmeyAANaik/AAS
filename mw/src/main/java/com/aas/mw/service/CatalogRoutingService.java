@@ -108,6 +108,18 @@ public class CatalogRoutingService {
         return normalizedVendorCode + "_" + normalizedCategoryCode + "_" + normalizedVendorHsnCode;
     }
 
+    public String buildParsedItemCode(String vendorCode, String categoryCode, String vendorHsnCode, String itemName) {
+        String base = buildItemCode(vendorCode, categoryCode, vendorHsnCode);
+        String normalizedItemName = normalizeCodeSegment(itemName);
+        if (normalizedItemName.isBlank()) {
+            return base;
+        }
+        if (normalizedItemName.length() > 48) {
+            normalizedItemName = normalizedItemName.substring(0, 48).replaceAll("_+$", "");
+        }
+        return base + "_" + normalizedItemName;
+    }
+
     public String normalizeCodeSegment(String value) {
         String normalized = asText(value).trim().toUpperCase(Locale.ROOT);
         normalized = NON_ALNUM.matcher(normalized).replaceAll("_");

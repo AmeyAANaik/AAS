@@ -72,7 +72,7 @@ class OrderServiceTest {
 
         com.aas.mw.dto.OrderRequest request = new com.aas.mw.dto.OrderRequest();
         Map<String, Object> fields = new HashMap<>();
-        fields.put("customer", "Shop A");
+        fields.put("customer", "Sukarta Aundh");
         fields.put("company", "AAS");
         fields.put("items", java.util.List.of(new HashMap<>(Map.of("item_code", "AAS-BRANCH-IMAGE", "qty", 1, "rate", 0, "amount", 0))));
         request.setFields(fields);
@@ -103,7 +103,7 @@ class OrderServiceTest {
 
         com.aas.mw.dto.OrderRequest request = new com.aas.mw.dto.OrderRequest();
         Map<String, Object> fields = new HashMap<>();
-        fields.put("customer", "Shop A");
+        fields.put("customer", "Sukarta Aundh");
         fields.put("company", "AAS");
         fields.put("aas_category", "Grocery");
         fields.put("transaction_date", "2026-03-15");
@@ -116,7 +116,7 @@ class OrderServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
         verify(erpNextClient).createResource(eq("Sales Order"), payloadCaptor.capture());
-        assertEquals("Shop_A_Grocery_20260315_3", payloadCaptor.getValue().get("title"));
+        assertEquals("Sukarta_Aundh_Grocery_20260315_3", payloadCaptor.getValue().get("title"));
     }
 
     @Test

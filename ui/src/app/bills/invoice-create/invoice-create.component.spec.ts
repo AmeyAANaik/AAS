@@ -21,7 +21,7 @@ describe('InvoiceCreateComponent', () => {
     billsService = jasmine.createSpyObj('BillsService', ['createInvoice', 'getOrderSnapshot']);
     billsService.createInvoice.and.returnValue(of({ name: 'INV-1' }));
     billsService.getOrderSnapshot.and.returnValue(
-      of({ customer: 'Shop A', company: 'aas', items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }] })
+      of({ customer: 'Sukarta Aundh', company: 'aas', items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }] })
     );
 
     await TestBed.configureTestingModule({
@@ -42,7 +42,7 @@ describe('InvoiceCreateComponent', () => {
 
     fixture = TestBed.createComponent(InvoiceCreateComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Shop A', company: 'aas' }];
+    component.customers = [{ id: 'SHOP-1', name: 'Sukarta Aundh', company: 'aas' }];
     component.items = [{ id: 'ITEM-1', name: 'Item A', code: 'ITM-1' }];
     component.orders = [{ id: 'ORD-1', name: 'ORD-1' }];
     fixture.detectChanges();
@@ -96,7 +96,7 @@ describe('InvoiceCreateComponent', () => {
 
     expect(billsService.getOrderSnapshot).toHaveBeenCalledWith('ORD-1');
     expect(billsService.createInvoice).toHaveBeenCalledWith({
-      customer: 'Shop A',
+      customer: 'Sukarta Aundh',
       company: 'aas',
       items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }],
       apply_gst: true,

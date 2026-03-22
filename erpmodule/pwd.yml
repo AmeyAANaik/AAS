@@ -61,6 +61,7 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
       - ../mw/src/main/resources/application.properties:/config/mw.properties:ro
+      - ./scripts/bootstrap_site.py:/config/bootstrap_site.py:ro
     entrypoint:
       - bash
       - -c
@@ -93,7 +94,7 @@ services:
             val="$$(prop "$$1")";
             if echo "$$val" | grep -q '^$${'; then
               val="$${val#*:}";
-              val="$${val%}}";
+              val="$${val%\}}";
             fi;
             echo "$$val";
           };
@@ -120,14 +121,7 @@ services:
         if [ -z "$$ERP_SETUP_FY_START_DATE" ]; then ERP_SETUP_FY_START_DATE="2026-01-01"; fi;
         if [ -z "$$ERP_SETUP_FY_END_DATE" ]; then ERP_SETUP_FY_END_DATE="2026-12-31"; fi;
         if [ -z "$$ERP_SETUP_CHART_OF_ACCOUNTS" ]; then ERP_SETUP_CHART_OF_ACCOUNTS="Standard"; fi;
-        if [ ! -f sites/aas.core.local/.setup_complete ]; then
-          ARGS="{'full_name':'$$ERP_SETUP_FULL_NAME','email':'$$ERP_SETUP_EMAIL','password':'$$ERP_SETUP_PASSWORD','company_name':'$$ERP_SETUP_COMPANY_NAME','company_abbr':'$$ERP_SETUP_COMPANY_ABBR','country':'$$ERP_SETUP_COUNTRY','currency':'$$ERP_SETUP_CURRENCY','timezone':'$$ERP_SETUP_TIMEZONE','fy_start_date':'$$ERP_SETUP_FY_START_DATE','fy_end_date':'$$ERP_SETUP_FY_END_DATE','language':'english','company_tagline':'AAS','chart_of_accounts':'$$ERP_SETUP_CHART_OF_ACCOUNTS'}";
-          bench --site aas.core.local execute frappe.utils.safe_exec.safe_exec --kwargs "{'script': \"from frappe import _dict; from erpnext.setup.setup_wizard.setup_wizard import setup_complete; setup_complete(_dict($$ARGS))\"}";
-          touch sites/aas.core.local/.setup_complete;
-        else
-          echo "Setup already completed";
-        fi;
-        bench --site aas.core.local execute frappe.utils.safe_exec.safe_exec --kwargs "{'script': \"import frappe; from frappe.custom.doctype.custom_field.custom_field import create_custom_field;\\n\\n def ensure(dt, fieldname, label, fieldtype, insert_after):\\n  if frappe.db.exists('Custom Field', {'dt': dt, 'fieldname': fieldname}):\\n    return\\n  create_custom_field(dt, {'fieldname': fieldname, 'label': label, 'fieldtype': fieldtype, 'insert_after': insert_after});\\n\\n ensure('Customer', 'aas_branch_location', 'Branch Location', 'Data', 'customer_name');\\n ensure('Customer', 'aas_whatsapp_group_name', 'WhatsApp Group Name', 'Data', 'aas_branch_location');\\n ensure('Customer', 'aas_credit_days', 'Credit Days', 'Int', 'aas_whatsapp_group_name');\\n frappe.db.commit()\"}";
+        cd /home/frappe/frappe-bench && ./env/bin/python /config/bootstrap_site.py;
 
   db:
     image: mariadb:10.6

@@ -123,7 +123,7 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
-                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\"]");
+                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\",\"disabled\"]");
         return erpNextClient.listResources("Customer", params);
     }
 
@@ -218,6 +218,7 @@ public class MasterDataService {
         payload.putIfAbsent("customer_type", "Company");
         payload.putIfAbsent("customer_group", "All Customer Groups");
         payload.putIfAbsent("territory", "All Territories");
+        payload.put("disabled", 0);
         return erpNextClient.createResource("Customer", payload);
     }
 
@@ -355,7 +356,9 @@ public class MasterDataService {
     }
 
     public Map<String, Object> updateShop(String id, FieldsRequest request) {
-        return erpNextClient.updateResource("Customer", id, new HashMap<>(request.getFields()));
+        Map<String, Object> payload = new HashMap<>(request.getFields());
+        payload.put("disabled", 0);
+        return erpNextClient.updateResource("Customer", id, payload);
     }
 
     public Map<String, Object> updateItem(String id, FieldsRequest request) {
@@ -614,10 +617,13 @@ public class MasterDataService {
                 if (item.qty() > 0) {
                     parsedColumns.add("qty");
                 }
+                if (hasText(item.uom())) {
+                    parsedColumns.add("uom");
+                }
                 if (item.rate() > 0) {
                     parsedColumns.add("rate");
                 }
-                if (item.gstPercent() != null && item.gstPercent() > 0) {
+                if (item.gstPercent() != null) {
                     parsedColumns.add("gst");
                 }
                 if (item.amount() > 0) {

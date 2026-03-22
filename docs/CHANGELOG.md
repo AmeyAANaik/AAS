@@ -54,7 +54,7 @@ Vendors can now have an invoice parsing template stored in ERPNext. Middleware u
 - DocType: `Supplier`
 - Fields (custom fields provisioned by MW `POST /api/setup/ensure`):
   - `aas_invoice_template_enabled` (Check)
-  - `aas_invoice_template_key` (Select, legacy: `heuristic_v1`, `table_v1`)
+- `aas_invoice_template_key` (Select: `table_v1`)
   - `aas_invoice_template_json` (Code, optional)
   - `aas_invoice_template_sample_pdf` (Attach)
 
@@ -66,8 +66,8 @@ Vendors can now have an invoice parsing template stored in ERPNext. Middleware u
 - When processing `POST /api/orders/{id}/vendor-pdf`, MW:
   1. Loads the order’s assigned vendor (`Sales Order.aas_vendor`).
   2. Loads `Supplier` by name from ERPNext.
-  3. If template is enabled and `aas_invoice_template_json` is present, parses items using the vendor JSON template first (`template.key=vendor_json`).
-  4. If template parsing yields no items, falls back to the existing heuristic parser (`VendorPdfParser`).
+  3. Parses items only with the configured vendor JSON template (`template.key=vendor_json`) or explicit built-in template key.
+  4. Fails the request if the configured template does not extract the required item and summary fields.
 
 ### New MW Endpoints (Admin-only)
 
@@ -76,7 +76,7 @@ Optional/legacy support:
   - `POST /api/vendors/{id}/invoice-template/sample` (multipart form field `file`)
   - Uploads to ERPNext and stores the file URL in `Supplier.aas_invoice_template_sample_pdf`
   - Sets `Supplier.aas_invoice_template_enabled = 1`
-  - Sets `Supplier.aas_invoice_template_key` based on OCR detection (`table_v1` or `heuristic_v1`)
+- Sets `Supplier.aas_invoice_template_key` based on OCR detection when the built-in `table_v1` template matches
 
 - Clear a vendor template:
   - `DELETE /api/vendors/{id}/invoice-template`
@@ -127,7 +127,7 @@ Manage Order (Orders page modal) now supports a practical “review and fix” l
 - If `Supplier.aas_invoice_template_enabled=1` and `Supplier.aas_invoice_template_json` is present, MW will:
   - attempt to parse items using the vendor JSON template (supports multi-line OCR rows by joining small windows of adjacent lines)
   - normalize bill date matches to ERPNext format (`YYYY-MM-DD`)
-  - fall back to the default heuristic parser if the template yields no items
+  - reject the PDF if the configured template does not extract the required fields
 
 ### Vendor Bill Capture Validation (Totals Must Match)
 
