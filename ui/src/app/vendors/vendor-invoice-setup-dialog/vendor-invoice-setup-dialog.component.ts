@@ -1,15 +1,11 @@
 import { Component, Inject, OnInit } from '@angular/core';
-import { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { InvoiceTemplateModel, InvoiceTemplateModelField, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
 import {
-  VendorInvoiceDetectedColumn,
-  VendorInvoiceTemplateAnalysis,
-  VendorInvoiceTemplateMappingConfig,
-  VendorInvoiceTemplateMappingPreview,
+  VendorInvoiceTemplateProfilePreview,
   VendorView,
-  parseVendorTemplateMapping,
+  parseVendorTemplateProfile,
   parseVendorTemplateSampleFileName
 } from '../vendor.model';
 import { VendorService } from '../vendor.service';
@@ -17,11 +13,11 @@ import { VendorService } from '../vendor.service';
 export interface VendorInvoiceSetupDialogData {
   vendor: VendorView;
   invoiceTemplateModel: InvoiceTemplateModel | null;
-  mappingPreview: VendorInvoiceTemplateMappingPreview | null;
+  profilePreview: VendorInvoiceTemplateProfilePreview | null;
 }
 
 export interface VendorInvoiceSetupDialogResult {
-  mappingPreview: VendorInvoiceTemplateMappingPreview | null;
+  profilePreview: VendorInvoiceTemplateProfilePreview | null;
   refreshVendor: boolean;
   statusMessage?: string;
   invoiceTemplateModel?: InvoiceTemplateModel | null;
@@ -33,28 +29,23 @@ export interface VendorInvoiceSetupDialogResult {
   styleUrl: './vendor-invoice-setup-dialog.component.scss'
 })
 export class VendorInvoiceSetupDialogComponent implements OnInit {
-  readonly mappingForm: FormGroup = this.fb.group({});
-
   activeStage: 'setup' | 'review' = 'setup';
   sampleFile: File | null = null;
   isWorking = false;
-  isAnalyzing = false;
   isLoadingModel = false;
   errorMessage = '';
   infoMessage = '';
-  analysis: VendorInvoiceTemplateAnalysis | null = null;
-  mappingPreview: VendorInvoiceTemplateMappingPreview | null;
+  profilePreview: VendorInvoiceTemplateProfilePreview | null;
   private loadedInvoiceTemplateModel: InvoiceTemplateModel | null = null;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public readonly data: VendorInvoiceSetupDialogData,
     private readonly dialogRef: MatDialogRef<VendorInvoiceSetupDialogComponent, VendorInvoiceSetupDialogResult>,
-    private readonly fb: FormBuilder,
     private readonly vendorService: VendorService,
     private readonly invoiceTemplateModelService: InvoiceTemplateModelService
   ) {
-    this.mappingPreview = data.mappingPreview;
-    this.activeStage = this.mappingPreview ? 'review' : 'setup';
+    this.profilePreview = data.profilePreview;
+    this.activeStage = this.profilePreview ? 'review' : 'setup';
   }
 
   ngOnInit(): void {
@@ -73,29 +64,17 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
     return (this.invoiceTemplateModel.itemFields ?? []).filter(field => field.required);
   }
 
-  get itemFields(): InvoiceTemplateModelField[] {
-    return this.invoiceTemplateModel.itemFields ?? [];
-  }
-
-  get optionalItemFields(): InvoiceTemplateModelField[] {
-    return (this.invoiceTemplateModel.itemFields ?? []).filter(field => !field.required);
-  }
-
   get requiredSummaryFields(): InvoiceTemplateModelField[] {
     return (this.invoiceTemplateModel.summaryFields ?? []).filter(field => field.required);
-  }
-
-  get summaryFields(): InvoiceTemplateModelField[] {
-    return this.invoiceTemplateModel.summaryFields ?? [];
-  }
-
-  get optionalSummaryFields(): InvoiceTemplateModelField[] {
-    return (this.invoiceTemplateModel.summaryFields ?? []).filter(field => !field.required);
   }
 
   get samplePdfUrl(): string {
     const raw = (this.data.vendor.raw ?? {}) as Record<string, unknown>;
     return String(raw['invoice_template_sample_pdf'] ?? '').trim();
+  }
+
+  get savedTemplateProfile() {
+    return parseVendorTemplateProfile(this.data.vendor.raw);
   }
 
   get savedSampleFileName(): string {
@@ -123,72 +102,81 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
     return this.requiredItemFields.length + this.requiredSummaryFields.length;
   }
 
-  get mappedFieldCount(): number {
-    const request = this.buildMappingRequest();
-    const requiredItems = new Set(this.requiredItemFields.map(field => field.key));
-    const requiredSummary = new Set(this.requiredSummaryFields.map(field => field.key));
-    return request.itemMappings.filter(mapping => requiredItems.has(mapping.targetField)).length
-      + request.summaryMappings.filter(mapping => requiredSummary.has(mapping.targetField)).length;
-  }
-
-  get canAnalyze(): boolean {
-    return this.hasUploadedSample && !this.isWorking && !this.isAnalyzing && !this.isLoadingModel;
+  get matchedFieldCount(): number {
+    if (!this.profilePreview) {
+      return this.savedTemplateProfile ? this.requiredFieldCount : 0;
+    }
+    return this.countMatches(this.profilePreview.parsedFields.items, this.requiredItemFields.map(field => field.key))
+      + this.countMatches(this.profilePreview.parsedFields.summary, this.requiredSummaryFields.map(field => field.key));
   }
 
   get canPreview(): boolean {
-    return !!this.analysis && this.mappedFieldCount === this.requiredFieldCount && !this.isWorking && !this.isAnalyzing && !this.isLoadingModel;
+    return this.hasUploadedSample
+      && !this.isWorking
+      && !this.isLoadingModel;
   }
 
   get canSave(): boolean {
-    return !!this.mappingPreview?.mappingReady && !this.isWorking && !this.isAnalyzing && !this.isLoadingModel;
+    return !!(this.profilePreview?.saveAllowed ?? this.profilePreview?.profileReady)
+      && !this.isWorking
+      && !this.isLoadingModel;
+  }
+
+  get expectedItemCount(): number {
+    return this.profilePreview?.completeness?.expectedItemCount ?? this.profilePreview?.previewMetrics?.expectedItems ?? 0;
+  }
+
+  get extractedItemCount(): number {
+    return this.profilePreview?.completeness?.extractedItemCount ?? this.profilePreview?.previewMetrics?.itemsDetected ?? 0;
+  }
+
+  get itemCountMismatch(): boolean {
+    return !!this.profilePreview
+      && this.expectedItemCount > 0
+      && this.extractedItemCount < this.expectedItemCount;
+  }
+
+  get missingSerialNumbers(): number[] {
+    return this.profilePreview?.completeness?.missingSerials ?? [];
+  }
+
+  get missingSerialContexts(): Array<{ serial: number; parserContext: string[]; camelotContext: string[] }> {
+    return this.profilePreview?.completeness?.missingSerialContexts ?? [];
+  }
+
+  get missingSerialSummary(): string {
+    if (!this.missingSerialNumbers.length) {
+      return '';
+    }
+    return this.missingSerialNumbers.join(', ');
+  }
+
+  get fieldMappingItemRows() {
+    return this.profilePreview?.fieldMapping?.itemMappings ?? [];
+  }
+
+  get fieldMappingSummaryRows() {
+    return this.profilePreview?.fieldMapping?.summaryMappings ?? [];
   }
 
   get validationStateLabel(): string {
-    if (this.mappingPreview?.mappingReady) {
-      return 'Preview validated';
+    if (this.profilePreview) {
+      return this.profilePreview.profileReady ? 'Preview validated' : 'Needs review';
     }
-    if (this.analysis) {
-      return 'Analysis ready';
-    }
-    if (parseVendorTemplateMapping(this.data.vendor.raw)) {
+    if (this.savedTemplateProfile) {
       return 'Setup saved';
     }
     return 'Setup pending';
   }
 
   get validationStatusTone(): 'ready' | 'warning' | 'idle' {
-    if (this.mappingPreview?.mappingReady || parseVendorTemplateMapping(this.data.vendor.raw)) {
+    if (this.profilePreview) {
+      return this.profilePreview.profileReady ? 'ready' : 'warning';
+    }
+    if (this.savedTemplateProfile) {
       return 'ready';
     }
-    if (this.analysis) {
-      return 'warning';
-    }
     return 'idle';
-  }
-
-  get previewMetrics(): { itemsDetected: number; totalRows: number; billAmount: string; transportCharge: string } {
-    return this.mappingPreview?.previewMetrics ?? this.analysis?.previewMetrics ?? {
-      itemsDetected: 0,
-      totalRows: 0,
-      billAmount: '',
-      transportCharge: ''
-    };
-  }
-
-  get detectedItemCount(): number {
-    return this.previewMetrics.itemsDetected;
-  }
-
-  get ocrRowsScanned(): number {
-    return this.previewMetrics.totalRows;
-  }
-
-  get detectedBillAmount(): string {
-    return this.previewMetrics.billAmount || 'Not found';
-  }
-
-  get detectedTransportCharge(): string {
-    return this.previewMetrics.transportCharge || 'Not found';
   }
 
   get stepCards(): Array<{ step: string; title: string; description: string; done: boolean }> {
@@ -201,15 +189,15 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
       },
       {
         step: '2',
-        title: 'Map required fields',
-        description: 'Choose only from backend-detected invoice columns.',
-        done: !!this.analysis && this.mappedFieldCount === this.requiredFieldCount
+        title: 'Analyze invoice',
+        description: 'Build a vendor-specific native PDF layout mapping from this sample.',
+        done: !!this.profilePreview
       },
       {
         step: '3',
-        title: 'Review extracted data',
-        description: 'Validate row count and summary values before saving.',
-        done: this.mappingPreview?.mappingReady === true
+        title: 'Review preview',
+        description: 'Confirm extracted rows and totals before saving.',
+        done: this.profilePreview?.profileReady === true
       }
     ];
   }
@@ -219,7 +207,7 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
   }
 
   openReviewStage(): void {
-    if (this.mappingPreview) {
+    if (this.profilePreview) {
       this.activeStage = 'review';
     }
   }
@@ -230,59 +218,40 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
     if (input) {
       input.value = '';
     }
-    this.analysis = null;
-    this.mappingPreview = null;
+    this.profilePreview = null;
+    this.activeStage = 'setup';
     this.errorMessage = '';
     this.infoMessage = this.sampleFile
-      ? `Selected sample PDF: ${this.sampleFile.name}. Analyze it to replace the currently saved sample.`
+      ? `Selected sample PDF: ${this.sampleFile.name}. Analyze it to build a new native PDF layout mapping for this vendor.`
       : '';
-    this.initializeMappingForm({ itemMappings: [], summaryMappings: [] });
   }
 
-  analyzeSample(): void {
+  analyzeInvoice(): void {
     if (!this.hasUploadedSample) {
       this.errorMessage = 'Upload a sample PDF or reuse the sample already attached to this vendor.';
-      return;
-    }
-    this.isAnalyzing = true;
-    this.errorMessage = '';
-    this.infoMessage = '';
-    this.vendorService.analyzeInvoiceTemplateSample(this.data.vendor.id, this.sampleFile)
-      .pipe(finalize(() => (this.isAnalyzing = false)))
-      .subscribe({
-        next: analysis => {
-          this.analysis = analysis;
-          this.mappingPreview = null;
-          this.initializeMappingForm(this.preferredMapping(analysis));
-          this.activeStage = 'setup';
-          this.infoMessage = 'Sample analyzed. Map the required business fields from the detected invoice columns.';
-        },
-        error: err => {
-          this.errorMessage = this.extractMessage(err, 'Unable to analyze the sample invoice.');
-        }
-      });
-  }
-
-  previewMapping(): void {
-    if (!this.analysis) {
-      this.errorMessage = 'Analyze the sample PDF first.';
       return;
     }
     this.isWorking = true;
     this.errorMessage = '';
     this.infoMessage = '';
-    this.vendorService.previewInvoiceTemplateMapping(this.data.vendor.id, this.sampleFile, this.buildMappingRequest())
+    this.vendorService.generateInvoiceTemplateProfile(this.data.vendor.id, this.sampleFile)
       .pipe(finalize(() => (this.isWorking = false)))
       .subscribe({
         next: preview => {
-          this.mappingPreview = preview;
+          this.profilePreview = preview;
           this.activeStage = 'review';
-          this.infoMessage = preview.mappingReady
-            ? 'Preview passed. The generated vendor template is ready to save.'
-            : 'Preview completed. Review missing fields before saving.';
+          this.infoMessage = preview.profileReady
+            ? 'Preview passed. The generated native PDF layout mapping is ready to save.'
+            : preview.saveAllowed
+              ? `Preview completed with warnings. ${this.itemCountMismatch
+                  ? `The invoice shows ${this.expectedItemCount} serial-numbered rows and only ${this.extractedItemCount} were extracted. Missing serials: ${this.missingSerialSummary || 'review mismatch details below'}. `
+                  : ''}You can save this setup after review.`
+            : this.itemCountMismatch
+              ? `Preview completed, but the invoice shows ${this.expectedItemCount} serial-numbered rows and only ${this.extractedItemCount} were extracted. Missing serials: ${this.missingSerialSummary || 'review mismatch details below'}.`
+              : 'Preview completed. Review the detected row mapping and missing fields before saving.';
         },
         error: err => {
-          this.errorMessage = this.extractMessage(err, 'Unable to preview the generated vendor template.');
+          this.errorMessage = this.extractMessage(err, 'Unable to analyze the invoice and build a native layout mapping.');
         }
       });
   }
@@ -295,12 +264,10 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
       .pipe(finalize(() => (this.isWorking = false)))
       .subscribe({
         next: () => {
-          this.analysis = null;
-          this.mappingPreview = null;
+          this.profilePreview = null;
           this.sampleFile = null;
-          this.initializeMappingForm({ itemMappings: [], summaryMappings: [] });
           this.dialogRef.close({
-            mappingPreview: null,
+            profilePreview: null,
             refreshVendor: true,
             statusMessage: 'Invoice extraction setup cleared.',
             invoiceTemplateModel: this.loadedInvoiceTemplateModel ?? this.data.invoiceTemplateModel
@@ -313,21 +280,25 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
   }
 
   apply(): void {
-    if (!this.analysis) {
-      this.errorMessage = 'Analyze the sample PDF before saving.';
+    if (!this.profilePreview?.generatedTemplate?.id) {
+      this.errorMessage = 'Analyze the invoice successfully before saving.';
       return;
     }
     this.isWorking = true;
     this.errorMessage = '';
     this.infoMessage = '';
-    this.vendorService.saveInvoiceTemplateMapping(this.data.vendor.id, this.sampleFile, this.buildMappingRequest())
+    this.vendorService.saveGeneratedInvoiceTemplateProfile(
+      this.data.vendor.id,
+      this.sampleFile,
+      this.profilePreview.generatedTemplate
+    )
       .pipe(finalize(() => (this.isWorking = false)))
       .subscribe({
         next: response => {
           this.dialogRef.close({
-            mappingPreview: response.mappingPreview ?? this.mappingPreview,
+            profilePreview: response.profilePreview ?? this.profilePreview,
             refreshVendor: true,
-            statusMessage: 'Vendor-specific invoice template saved.',
+            statusMessage: 'Vendor native invoice mapping saved.',
             invoiceTemplateModel: this.loadedInvoiceTemplateModel ?? this.data.invoiceTemplateModel
           });
         },
@@ -339,46 +310,14 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
 
   close(): void {
     this.dialogRef.close({
-      mappingPreview: this.mappingPreview,
+      profilePreview: this.profilePreview,
       refreshVendor: false,
       invoiceTemplateModel: this.loadedInvoiceTemplateModel ?? this.data.invoiceTemplateModel
     });
   }
 
-  itemOptions(): VendorInvoiceDetectedColumn[] {
-    return this.analysis?.detectedColumns.items ?? [];
-  }
-
-  summaryOptions(): VendorInvoiceDetectedColumn[] {
-    return this.analysis?.detectedColumns.summary ?? [];
-  }
-
-  mappingControl(section: 'items' | 'summary', fieldKey: string): FormControl<string> {
-    return this.mappingForm.get(`${section}.${fieldKey}`) as FormControl<string>;
-  }
-
-  controlForItem(fieldKey: string): FormControl<string> {
-    return this.mappingControl('items', fieldKey);
-  }
-
-  controlForSummary(fieldKey: string): FormControl<string> {
-    return this.mappingControl('summary', fieldKey);
-  }
-
-  trackStep(_: number, item: { step: string }): string {
-    return item.step;
-  }
-
   trackChecklist(_: number, item: { step: string }): string {
     return item.step;
-  }
-
-  trackColumn(_: number, item: VendorInvoiceDetectedColumn): string {
-    return `${item.targetField}:${item.value}`;
-  }
-
-  trackOption(_: number, item: VendorInvoiceDetectedColumn): string {
-    return `${item.targetField}:${item.value}`;
   }
 
   trackField(_: number, item: InvoiceTemplateModelField): string {
@@ -388,7 +327,6 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
   private loadModelIfNeeded(): void {
     if (this.data.invoiceTemplateModel) {
       this.loadedInvoiceTemplateModel = this.data.invoiceTemplateModel;
-      this.initializeFromSavedSetup();
       return;
     }
     this.isLoadingModel = true;
@@ -397,7 +335,6 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
       .subscribe({
         next: model => {
           this.loadedInvoiceTemplateModel = model;
-          this.initializeFromSavedSetup();
         },
         error: () => {
           this.errorMessage = 'Unable to load required invoice fields from API.';
@@ -405,53 +342,9 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
       });
   }
 
-  private initializeFromSavedSetup(): void {
-    const savedMapping = parseVendorTemplateMapping(this.data.vendor.raw) ?? { itemMappings: [], summaryMappings: [] };
-    this.initializeMappingForm(savedMapping);
-    if (this.samplePdfUrl) {
-      this.infoMessage = 'A sample PDF is already saved for this vendor. Select a new PDF and click Analyze sample PDF to replace it, or reuse the saved sample by clicking Analyze sample PDF now.';
-    }
-  }
-
-  private preferredMapping(analysis: VendorInvoiceTemplateAnalysis): VendorInvoiceTemplateMappingConfig {
-    const saved = analysis.savedMapping;
-    if ((saved.itemMappings?.length ?? 0) > 0 || (saved.summaryMappings?.length ?? 0) > 0) {
-      return saved;
-    }
-    return analysis.suggestedMapping;
-  }
-
-  private initializeMappingForm(mapping: VendorInvoiceTemplateMappingConfig): void {
-    const itemGroup = this.fb.group({});
-    const summaryGroup = this.fb.group({});
-    const itemMap = new Map((mapping.itemMappings ?? []).map(entry => [entry.targetField, entry.sourceLabel]));
-    const summaryMap = new Map((mapping.summaryMappings ?? []).map(entry => [entry.targetField, entry.sourceLabel]));
-
-    [...this.requiredItemFields, ...this.optionalItemFields].forEach(field => {
-      itemGroup.addControl(field.key, this.fb.nonNullable.control(itemMap.get(field.key) ?? ''));
-    });
-    [...this.requiredSummaryFields, ...this.optionalSummaryFields].forEach(field => {
-      summaryGroup.addControl(field.key, this.fb.nonNullable.control(summaryMap.get(field.key) ?? ''));
-    });
-
-    this.mappingForm.setControl('items', itemGroup);
-    this.mappingForm.setControl('summary', summaryGroup);
-  }
-
-  private buildMappingRequest(): VendorInvoiceTemplateMappingConfig {
-    const itemMappings = [...this.requiredItemFields, ...this.optionalItemFields]
-      .map(field => ({
-        targetField: field.key,
-        sourceLabel: String(this.mappingControl('items', field.key)?.value ?? '').trim()
-      }))
-      .filter(entry => entry.sourceLabel);
-    const summaryMappings = [...this.requiredSummaryFields, ...this.optionalSummaryFields]
-      .map(field => ({
-        targetField: field.key,
-        sourceLabel: String(this.mappingControl('summary', field.key)?.value ?? '').trim()
-      }))
-      .filter(entry => entry.sourceLabel);
-    return { itemMappings, summaryMappings };
+  private countMatches(parsedFields: string[], requiredFields: string[]): number {
+    const parsed = new Set(parsedFields ?? []);
+    return requiredFields.filter(field => parsed.has(field)).length;
   }
 
   private extractMessage(err: unknown, fallback: string): string {

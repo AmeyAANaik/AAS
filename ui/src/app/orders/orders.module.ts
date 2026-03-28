@@ -7,6 +7,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -46,6 +47,7 @@ import { OrdersRoutingModule } from './orders-routing.module';
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
+    MatAutocompleteModule,
     MatCheckboxModule,
     MatDatepickerModule,
     MatBadgeModule,

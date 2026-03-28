@@ -17,12 +17,20 @@ export interface StockView {
   id: string;
   name: string;
   code: string;
+  vendorName: string;
   quantity: number;
   threshold: number | null;
   isLow: boolean;
   thresholdLabel: string;
   statusLabel: string;
   raw: StockItem;
+}
+
+export interface VendorStockGroup {
+  vendorName: string;
+  itemCount: number;
+  totalQuantity: number;
+  itemNames: string[];
 }
 
 export interface StockThresholdFormValue {

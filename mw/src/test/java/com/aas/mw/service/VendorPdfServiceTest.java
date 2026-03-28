@@ -4,7 +4,6 @@ import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.config.InvoiceTemplateModelProperties;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.UploadedFileInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,27 +21,36 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeastOnce;
 
 class VendorPdfServiceTest {
 
-    private static final String STRICT_TEMPLATE_JSON = """
+    private static final String NATIVE_PROFILE_JSON = """
             {
-              "parser": {
-                "version": 1,
-                "itemLineRegex": "^(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<uom>[A-Za-z]{1,6})\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<gst>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$",
-                "finalAmountRegex": "(?im)^total\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$"
+              "kind": "native_layout_mapping",
+              "engine": {
+                "type": "native_layout",
+                "reader": "pdftotext_layout"
+              },
+              "profile": {
+                "id": "vendor_a_native_layout",
+                "label": "Vendor A native layout",
+                "vendorName": "Vendor A"
+              },
+              "fieldMapping": {
+                "itemMappings": [],
+                "summaryMappings": []
               }
             }
             """;
 
     private ErpNextClient erpNextClient;
     private ErpNextFileService fileService;
-    private OcrService ocrService;
     private VendorInvoiceTemplateResolver templateResolver;
-    private VendorInvoiceTemplateCatalog templateCatalog;
-    private VendorInvoiceTemplateParser templateParser;
-    private Invoice2DataExtractionService invoice2DataExtractionService;
+    private NativeLayoutInvoiceService nativeLayoutInvoiceService;
     private OrderFlowStateMachine orderFlowStateMachine;
     private CatalogRoutingService catalogRoutingService;
     private VendorPdfService service;
@@ -51,11 +59,8 @@ class VendorPdfServiceTest {
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
         fileService = mock(ErpNextFileService.class);
-        ocrService = mock(OcrService.class);
         templateResolver = mock(VendorInvoiceTemplateResolver.class);
-        templateCatalog = new VendorInvoiceTemplateCatalog();
-        templateParser = mock(VendorInvoiceTemplateParser.class);
-        invoice2DataExtractionService = mock(Invoice2DataExtractionService.class);
+        nativeLayoutInvoiceService = mock(NativeLayoutInvoiceService.class);
         orderFlowStateMachine = new OrderFlowStateMachine();
         catalogRoutingService = mock(CatalogRoutingService.class);
         when(catalogRoutingService.normalizeCodeSegment(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -64,91 +69,60 @@ class VendorPdfServiceTest {
         service = new VendorPdfService(
                 erpNextClient,
                 fileService,
-                ocrService,
                 templateResolver,
-                templateCatalog,
-                templateParser,
-                invoice2DataExtractionService,
+                nativeLayoutInvoiceService,
                 new InvoiceTemplateModelService(new InvoiceTemplateModelProperties()),
                 orderFlowStateMachine,
                 catalogRoutingService,
                 new OrderPricingService(),
-                new ObjectMapper(),
                 7.0);
     }
 
     @Test
-    void processesVendorPdfAndCreatesDocs() {
+    void processesVendorPdfUsingNativeLayoutProfile() {
         MockMultipartFile pdf = validPdf();
-        mockStrictOrderContext();
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 2 KG 45 5 90
-                Total 90.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)));
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "90.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
         Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
 
         assertNotNull(response.get("purchaseOrder"));
-        assertNotNull(response.get("sellPreview"));
-        assertEquals(7.0, response.get("marginPercent"));
-        assertEquals(0.0, response.get("transportCharge"));
-        assertEquals(java.util.Map.of("configured", true, "used", true, "key", "vendor_json"), response.get("template"));
+        assertEquals(90.0, response.get("vendorBillTotal"));
+        assertEquals(Map.of("configured", true, "used", true, "key", "vendor_a_native_layout"), response.get("template"));
 
         ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
-        Mockito.verify(erpNextClient, Mockito.atLeastOnce())
-                .updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        verify(erpNextClient, Mockito.atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
         assertEquals("VENDOR_PDF_RECEIVED", updateCaptor.getValue().get("aas_status"));
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) updateCaptor.getValue().get("items");
-        assertEquals(7.0, updatedItems.get(0).get("aas_margin_percent"));
-        assertEquals("KG", updatedItems.get(0).get("uom"));
+        verify(nativeLayoutInvoiceService).extract(any(), any());
     }
 
     @Test
-    void storesGstPercentAndUomFromParsedVendorItems() {
+    void storesTransportChargeFromNativeLayoutExtraction() {
         MockMultipartFile pdf = validPdf();
-        mockStrictOrderContext();
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                EVEREST KASHMIRI CHILLY POWDER 09109100 6 KG 447.62 5 2685.72
-                Total 2685.72
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("EVEREST KASHMIRI CHILLY POWDER", 6, 447.62, 2685.72, "09109100", 5.0, "KG", 530.0)));
-        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
-        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
-
-        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> orderItems = (List<Map<String, Object>>) response.get("orderItems");
-        assertEquals(5.0, orderItems.get(0).get("aas_gst_percent"));
-        assertEquals("KG", orderItems.get(0).get("uom"));
-    }
-
-    @Test
-    void capturesTransportChargeFromVendorPdfText() {
-        MockMultipartFile pdf = validPdf();
-        mockStrictOrderContext("""
-                {
-                  "parser": {
-                    "version": 1,
-                    "itemLineRegex": "^(?<name>.+?)\\\\s+(?<hsn>\\\\d{4,10})\\\\s+(?<qty>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<uom>[A-Za-z]{1,6})\\\\s+(?<rate>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<gst>\\\\d+(?:\\\\.\\\\d+)?)\\\\s+(?<amount>\\\\d+(?:\\\\.\\\\d+)?)$",
-                    "finalAmountRegex": "(?im)^total\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$",
-                    "transportChargeRegex": "(?im)^transport\\\\s+(?<amount>\\\\d+(?:,\\\\d{3})*(?:\\\\.\\\\d+)?)$"
-                  }
-                }
-                """);
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 2 KG 45 5 90
-                Transport 50.00
-                Total 140.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)));
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "140.00",
+                        "50.00",
+                        "",
+                        List.of(),
+                        List.of()));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
@@ -158,7 +132,7 @@ class VendorPdfServiceTest {
     }
 
     @Test
-    void prefersBuiltInTemplateKeyWhenConfigured() {
+    void reuploadUpdatesExistingDraftPurchaseOrderInsteadOfDeletingIt() {
         MockMultipartFile pdf = validPdf();
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
                 .thenReturn(Map.of(
@@ -166,71 +140,58 @@ class VendorPdfServiceTest {
                         "company", "AAS",
                         "aas_category", "Grocery",
                         "aas_vendor", "Vendor A",
-                        "aas_status", "VENDOR_ASSIGNED"));
+                        "aas_status", "VENDOR_PDF_RECEIVED",
+                        "aas_po", "PO-0001"));
         when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
                 .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
-        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
-        when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.of("table_v1"));
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 2 KG 45 5 90
-                Total 90.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)));
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "90.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
-        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+        when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-0001")))
+                .thenReturn(Map.of("name", "PO-0001", "docstatus", 0));
+        when(erpNextClient.updateResource(eq("Purchase Order"), eq("PO-0001"), any()))
+                .thenReturn(Map.of("name", "PO-0001"));
 
         Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
 
-        assertEquals(java.util.Map.of("configured", true, "used", true, "key", "table_v1"), response.get("template"));
+        assertNotNull(response.get("purchaseOrder"));
+        verify(erpNextClient).updateResource(eq("Purchase Order"), eq("PO-0001"), any());
+        verify(erpNextClient, never()).deleteResource(eq("Purchase Order"), eq("PO-0001"));
+        verify(erpNextClient, never()).createResource(eq("Purchase Order"), any());
+        verify(erpNextClient, atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), any());
     }
 
     @Test
-    void fallsBackToDefaultMarginWhenOrderMarginIsZero() {
+    void capsStoredMarginWhenMrpWouldBeExceeded() {
         MockMultipartFile pdf = validPdf();
-        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
-                .thenReturn(Map.of(
-                        "customer", "Sukarta Aundh",
-                        "company", "AAS",
-                        "aas_category", "Grocery",
-                        "aas_vendor", "Vendor A",
-                        "aas_status", "VENDOR_ASSIGNED",
-                        "aas_margin_percent", 0.0));
-        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
-                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
-        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of(STRICT_TEMPLATE_JSON));
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 2 KG 45 5 90
-                Total 90.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)));
-        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
-        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
-
-        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
-
-        assertEquals(7.0, response.get("marginPercent"));
-    }
-
-    @Test
-    void capsStoredMarginWhenTemplateMrpWouldBeExceeded() {
-        MockMultipartFile pdf = validPdf();
-        mockStrictOrderContext();
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 1 KG 100 5 100
-                Total 100.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 1, 100, 100, "11010000", 5.0, "KG", 105.0)));
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 1, 100, 100, "11010000", 5.0, "KG", 105.0)),
+                        "INV-1",
+                        "2026-02-19",
+                        "100.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
         when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
 
         service.processVendorPdf("SO-0001", pdf, "sid=abc");
 
         ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
-        Mockito.verify(erpNextClient, Mockito.atLeastOnce())
-                .updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        verify(erpNextClient, Mockito.atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) updateCaptor.getValue().get("items");
         assertEquals(5.0, updatedItems.get(0).get("aas_margin_percent"));
@@ -240,13 +201,18 @@ class VendorPdfServiceTest {
     @Test
     void rejectsVendorPdfWhenVendorRateExceedsMrp() {
         MockMultipartFile pdf = validPdf();
-        mockStrictOrderContext();
-        when(ocrService.extractTextFromPdf(any())).thenReturn("""
-                Tomatoes 11010000 1 KG 120 5 120
-                Total 120.00
-                """);
-        when(templateParser.parseItems(any(), any()))
-                .thenReturn(List.of(new ParsedItem("Tomatoes", 1, 120, 120, "11010000", 5.0, "KG", 110.0)));
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 1, 120, 120, "11010000", 5.0, "KG", 110.0)),
+                        "INV-1",
+                        "2026-02-19",
+                        "120.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
         when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
@@ -269,33 +235,88 @@ class VendorPdfServiceTest {
     }
 
     @Test
-    void rejectsVendorPdfWhenNoTemplateIsConfigured() {
+    void rejectsVendorPdfWhenNoNativeProfileIsConfigured() {
         MockMultipartFile pdf = validPdf();
-        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
-                .thenReturn(Map.of(
-                        "customer", "Sukarta Aundh",
-                        "company", "AAS",
-                        "aas_category", "Grocery",
-                        "aas_vendor", "Vendor A",
-                        "aas_status", "VENDOR_ASSIGNED"));
-        when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
-                .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
+        mockOrderContext();
         when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
-        when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
-        when(ocrService.extractTextFromPdf(any())).thenReturn("Tomatoes 11010000 1 KG 120 5 120");
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
 
-        assertEquals(
-                "Vendor invoice template is required before uploading vendor PDF. Configure and validate the vendor template first.",
-                ex.getMessage());
+        assertEquals("Vendor native invoice mapping is required before uploading vendor PDF.", ex.getMessage());
+        verify(nativeLayoutInvoiceService, never()).extract(any(), any());
     }
 
-    private void mockStrictOrderContext() {
-        mockStrictOrderContext(STRICT_TEMPLATE_JSON);
+    @Test
+    void rejectsVendorPdfWhenStoredTemplateJsonIsNotNativeLayout() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of("""
+                {"kind":"unsupported_template_kind","profile":{"id":"legacy"}}
+                """));
+        when(nativeLayoutInvoiceService.parseStoredProfile(any())).thenReturn(null);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
+
+        assertEquals("Vendor native invoice mapping is required before uploading vendor PDF.", ex.getMessage());
+        verify(nativeLayoutInvoiceService, never()).extract(any(), any());
     }
 
-    private void mockStrictOrderContext(String templateJson) {
+    @Test
+    void surfacesNativeLayoutExecutionErrorsWithoutFallback() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenThrow(new IllegalStateException("native layout extraction failed for profile vendor_a_native_layout: parser exploded"));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
+
+        assertEquals("native layout extraction failed for profile vendor_a_native_layout: parser exploded", ex.getMessage());
+    }
+
+    @Test
+    void rejectsVendorPdfWhenNativeLayoutReturnsNoRows() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(),
+                        "INV-1",
+                        "2026-02-19",
+                        "100.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
+
+        assertEquals("Configured vendor template did not extract required item fields: item_name, item_id, qty, rate, gst, total.", ex.getMessage());
+    }
+
+    @Test
+    void rejectsVendorPdfWhenNativeLayoutMissesRequiredSummaryFields() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
+
+        assertEquals("Configured vendor template did not extract required summary fields: final_bill_amount.", ex.getMessage());
+    }
+
+    private void mockOrderContext() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
                 .thenReturn(Map.of(
                         "customer", "Sukarta Aundh",
@@ -305,8 +326,28 @@ class VendorPdfServiceTest {
                         "aas_status", "VENDOR_ASSIGNED"));
         when(catalogRoutingService.resolveVendorForCategory(eq("Vendor A"), eq("Grocery")))
                 .thenReturn(new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"));
-        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of(templateJson));
-        when(templateResolver.loadTemplateKey(eq("Vendor A"))).thenReturn(java.util.Optional.empty());
+    }
+
+    private void mockNativeProfile() {
+        when(templateResolver.loadTemplateJson(eq("Vendor A"))).thenReturn(java.util.Optional.of(NATIVE_PROFILE_JSON));
+        when(nativeLayoutInvoiceService.parseStoredProfile(any()))
+                .thenReturn(new NativeLayoutInvoiceService.StoredProfile(
+                        "vendor_a_native_layout",
+                        "Vendor A native layout",
+                        "Vendor A",
+                        "Native PDF layout extraction with LLM field mapping.",
+                        List.of(),
+                        List.of(),
+                        "",
+                        "native_layout",
+                        "",
+                        "",
+                        "",
+                        Map.of(),
+                        Map.of(),
+                        Map.of(),
+                        List.of(),
+                        List.of()));
     }
 
     private MockMultipartFile validPdf() {

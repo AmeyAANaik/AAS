@@ -12,6 +12,7 @@ import { ItemService } from '../../items/item.service';
 import { Item } from '../../items/item.model';
 import { VendorService } from '../../vendors/vendor.service';
 import { Vendor } from '../../vendors/vendor.model';
+import { CompanyContextService } from '../../shared/company-context.service';
 
 type CreateMode = 'images' | 'items';
 const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
@@ -55,7 +56,8 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   imageFiles: File[] = [];
   imagePreviewUrls: string[] = [];
   createdOrderId: string | null = null;
-  companies: OrderOption[] = [];
+  currentCompanyName = 'AAS';
+  currentCompanyId = 'AAS';
   categories: OrderOption[] = [];
   createMode: CreateMode = 'images';
   allItems: CategoryOrderItemOption[] = [];
@@ -92,6 +94,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     private categoryService: CategoryService,
     private itemService: ItemService,
     private vendorService: VendorService,
+    private companyContextService: CompanyContextService,
     private location: Location,
     private router: Router
   ) {
@@ -99,7 +102,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadCompanies();
+    this.loadCompanyContext();
     if (!this.shops?.length) {
       this.loadShops();
     }
@@ -282,7 +285,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.detailsGroup.reset({
       customer: '',
       category: '',
-      company: this.defaultCompanyId,
+      company: this.currentCompanyId,
       orderDate: this.formatDate(new Date()),
       deliveryDate: this.formatDate(new Date())
     });
@@ -322,24 +325,26 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     return text === '1' || text === 'true' || text === 'yes';
   }
 
-  private loadCompanies(): void {
+  private loadCompanyContext(): void {
     this.isCompaniesLoading = true;
     this.companiesError = '';
-    const sub = this.orderService
-      .listCompanies()
+    const sub = this.companyContextService
+      .getContext()
       .pipe(finalize(() => (this.isCompaniesLoading = false)))
       .subscribe({
-        next: companies => {
-          this.companies = (companies ?? []).map(company => {
-            const name = String(company?.name ?? '').trim();
-            return { id: name, name };
-          });
-          this.detailsGroup.patchValue({ company: this.defaultCompanyId });
+        next: context => {
+          const company = context?.company;
+          const name = String(company?.name ?? '').trim();
+          this.currentCompanyName = name || 'AAS';
+          this.currentCompanyId = name || 'AAS';
+          this.detailsGroup.patchValue({ company: this.currentCompanyId });
         },
         error: err => {
-          this.companiesError = this.formatError(err, 'Unable to load companies');
+          this.companiesError = this.formatError(err, 'Unable to load selected company');
+          this.currentCompanyName = 'AAS';
+          this.currentCompanyId = 'AAS';
           if (!this.detailsGroup.get('company')?.value) {
-            this.detailsGroup.patchValue({ company: 'AAS' });
+            this.detailsGroup.patchValue({ company: this.currentCompanyId });
           }
         }
       });
@@ -592,11 +597,8 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     return String(anyResponse?.title ?? anyResponse?.data?.title ?? '').trim();
   }
 
-  get defaultCompanyId(): string {
-    if (!this.companies.length) {
-      return 'AAS';
-    }
-    return this.companies.find(company => company.id === 'AAS')?.id ?? this.companies[0].id;
+  get selectedCompanyLabel(): string {
+    return this.currentCompanyName || this.currentCompanyId || 'AAS';
   }
 
   private mapItemOption(item: Item): CategoryOrderItemOption {

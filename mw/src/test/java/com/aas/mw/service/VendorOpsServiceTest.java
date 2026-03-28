@@ -89,7 +89,7 @@ class VendorOpsServiceTest {
     }
 
     @Test
-    void getVendorLedgerOnlyUsesSubmittedInvoicesAndPayments() {
+    void getVendorLedgerIncludesDraftInvoicesButOnlySubmittedPayments() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
         when(erpNextClient.getResource("Payment Entry", "PAY-001"))
@@ -143,22 +143,27 @@ class VendorOpsServiceTest {
 
         Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
 
-        assertThat(response.get("balance")).isEqualTo(600.0);
+        assertThat(response.get("balance")).isEqualTo(1100.0);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
 
-        assertThat(entries).hasSize(2);
+        assertThat(entries).hasSize(3);
         assertThat(entries.get(0))
                 .containsEntry("voucherType", "Purchase Invoice")
                 .containsEntry("debit", 0.0)
                 .containsEntry("credit", 1000.0)
                 .containsEntry("runningBalance", 1000.0);
         assertThat(entries.get(1))
+                .containsEntry("voucherType", "Draft Purchase Invoice")
+                .containsEntry("debit", 0.0)
+                .containsEntry("credit", 500.0)
+                .containsEntry("runningBalance", 1500.0);
+        assertThat(entries.get(2))
                 .containsEntry("voucherType", "Payment Entry")
                 .containsEntry("debit", 400.0)
                 .containsEntry("credit", 0.0)
-                .containsEntry("runningBalance", 600.0);
+                .containsEntry("runningBalance", 1100.0);
     }
 
     @Test

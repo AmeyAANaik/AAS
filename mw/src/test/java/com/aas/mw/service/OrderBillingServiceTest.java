@@ -134,6 +134,38 @@ class OrderBillingServiceTest {
     }
 
     @Test
+    void capturesVendorBillWithRoundingAdjustmentWhenDiffIsBelowOne() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_vendor", "SUP-1",
+                "company", "AAS",
+                "items", List.of(Map.of(
+                        "item_code", "ITEM-1",
+                        "qty", 5,
+                        "rate", 50.0,
+                        "amount", 250.0,
+                        "aas_gst_percent", 5.0,
+                        "aas_margin_percent", 12.0))));
+        when(erpNextClient.getResource(eq("Item"), eq("AAS-VENDOR-BILL")))
+                .thenReturn(Map.of("name", "AAS-VENDOR-BILL"));
+        when(erpNextClient.createResource(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(Map.of("name", "PINV-1"));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("vendor_bill_total", 263.2);
+
+        Map<String, Object> response = service.captureVendorBill("SO-1", fields);
+
+        assertEquals(0.7, response.get("roundingAdjustment"));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq("SO-1"), updateCaptor.capture());
+        assertEquals(0.7, updateCaptor.getValue().get("aas_rounding_adjustment"));
+    }
+
+    @Test
     void capturesVendorBillWithTransportCharge() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",

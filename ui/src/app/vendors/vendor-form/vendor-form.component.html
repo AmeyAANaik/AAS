@@ -76,16 +76,20 @@
         <mat-form-field appearance="outline">
           <mat-label>Status</mat-label>
           <mat-select formControlName="status">
-            <mat-option value="Active">Active</mat-option>
+            <mat-option value="Active" disabled>Active</mat-option>
             <mat-option value="Inactive">Inactive</mat-option>
           </mat-select>
           <mat-error *ngIf="form.get('status')?.hasError('required')">Status is required.</mat-error>
         </mat-form-field>
 
+        <div class="full inline-notice">
+          {{ activationRequirementMessage }}
+        </div>
+
         <div class="full section-heading setup-heading">
           <div>
             <div class="section-title">Invoice extraction setup</div>
-            <div class="section-copy">Generate and validate a vendor-specific invoice template from a sample PDF before activation.</div>
+            <div class="section-copy">Analyze a sample invoice, generate the native invoice mapping, and validate it before activation.</div>
           </div>
         </div>
 
@@ -103,12 +107,8 @@
               <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
             </div>
 
-            <div class="summary-line" *ngIf="savedTemplateProfile && !savedTemplateMapping">
-              Saved profile: {{ savedTemplateProfile.label }}
-            </div>
-
-            <div class="summary-line" *ngIf="savedTemplateMapping">
-              Vendor-specific generated template is already saved on this vendor.
+            <div class="summary-line" *ngIf="savedTemplateProfile">
+              Saved generated template: {{ savedTemplateProfile.label }}
             </div>
 
             <div class="summary-metrics">
@@ -117,7 +117,7 @@
                 <strong>{{ requiredFieldCount }}</strong>
               </div>
               <div class="summary-metric">
-                <span class="setup-stat-label">Mapped</span>
+                <span class="setup-stat-label">Matched</span>
                 <strong>{{ mappedFieldCount }}/{{ requiredFieldCount }}</strong>
               </div>
               <div class="summary-metric">
@@ -145,6 +145,14 @@
       </div>
 
       <div class="form-actions">
+        <button
+          mat-raised-button
+          color="accent"
+          type="button"
+          (click)="activateVendor()"
+          [disabled]="isSaving || !canShowActivateAction">
+          Activate vendor
+        </button>
         <button mat-raised-button color="primary" type="submit" [disabled]="isSaving">
           {{ mode === 'edit' ? 'Update vendor' : 'Save vendor' }}
         </button>
@@ -155,7 +163,7 @@
         Save the vendor first, then complete invoice extraction setup before activating it.
       </div>
       <div class="feedback form-status" *ngIf="previewRequiredForActive">
-        Run a successful mapping preview before activating this vendor.
+        Run a successful invoice analysis preview before activating this vendor.
       </div>
     </form>
   </mat-card-content>

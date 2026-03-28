@@ -146,6 +146,11 @@ export interface VendorInvoiceTemplateProfile {
 export interface VendorInvoiceTemplateProfilePreview {
   vendorId: string;
   engineType: string;
+  generation?: {
+    method: string;
+    model: string;
+    summary: string;
+  };
   templateProfile: {
     id: string;
     label: string;
@@ -154,12 +159,24 @@ export interface VendorInvoiceTemplateProfilePreview {
     supportedItemFields: string[];
     supportedSummaryFields: string[];
   };
+  generatedTemplate?: {
+    id: string;
+    label: string;
+    vendorName: string;
+    description: string;
+    inputReader: string;
+    yaml: string;
+    generatorType: string;
+    generatorModel: string;
+  };
   sample: {
     fileName?: string;
     fileUrl?: string;
   };
   ocrLineCount: number;
   ocrPreview: string[];
+  parserLineCount?: number;
+  parserPreview?: string[];
   previewMetrics: {
     itemsDetected: number;
     itemFieldsMatched: number;
@@ -168,6 +185,27 @@ export interface VendorInvoiceTemplateProfilePreview {
     transportCharge: string;
     invoiceNumber?: string;
     invoiceDate?: string;
+    expectedItems?: number;
+    itemCountComplete?: boolean;
+  };
+  fieldMapping?: {
+    itemMappings: Array<{
+      targetField: string;
+      sourceLabel: string;
+      required: boolean;
+      present: boolean;
+      confidence: string;
+    }>;
+    summaryMappings: Array<{
+      targetField: string;
+      sourceLabel: string;
+      required: boolean;
+      present: boolean;
+      confidence: string;
+    }>;
+    notes?: string;
+    generatorType?: string;
+    generatorModel?: string;
   };
   requiredFields: {
     items: string[];
@@ -182,7 +220,21 @@ export interface VendorInvoiceTemplateProfilePreview {
     summary: string[];
   };
   previewItems: Array<Record<string, unknown>>;
+  completeness?: {
+    expectedItemCount: number;
+    extractedItemCount: number;
+    itemCountComplete: boolean;
+    expectedSerials: number[];
+    extractedSerials?: number[];
+    missingSerials?: number[];
+    missingSerialContexts?: Array<{
+      serial: number;
+      parserContext: string[];
+      camelotContext: string[];
+    }>;
+  };
   profileReady: boolean;
+  saveAllowed?: boolean;
   nextStep: string;
 }
 
@@ -282,7 +334,7 @@ export function parseVendorTemplateProfile(vendor: Vendor | null | undefined): S
         validatedAt?: string;
       };
     };
-    if (parsed.kind !== 'invoice2data_profile' || !parsed.profile?.id) {
+    if (String(parsed.kind ?? '').trim() !== 'native_layout_mapping' || !parsed.profile?.id) {
       return null;
     }
     return {

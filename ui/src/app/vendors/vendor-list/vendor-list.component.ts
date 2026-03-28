@@ -4,7 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
-import { Vendor, VendorFormValue, VendorInvoiceTemplateMappingPreview, VendorView } from '../vendor.model';
+import { Vendor, VendorFormValue, VendorInvoiceTemplateProfilePreview, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
 import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
@@ -29,7 +29,7 @@ export class VendorListComponent implements OnInit {
   isValidatingTemplate = false;
   statusMessage = '';
   invoiceTemplateModel: InvoiceTemplateModel | null = null;
-  mappingPreview: VendorInvoiceTemplateMappingPreview | null = null;
+  profilePreview: VendorInvoiceTemplateProfilePreview | null = null;
 
   constructor(
     private vendorService: VendorService,
@@ -80,7 +80,7 @@ export class VendorListComponent implements OnInit {
     this.mode = 'edit';
     this.isFormOpen = true;
     this.statusMessage = '';
-    this.mappingPreview = null;
+    this.profilePreview = null;
   }
 
   openCreate(): void {
@@ -88,7 +88,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = true;
     this.statusMessage = '';
-    this.mappingPreview = null;
+    this.profilePreview = null;
   }
 
   clearSelection(): void {
@@ -99,7 +99,7 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = false;
     this.mode = 'create';
-    this.mappingPreview = null;
+    this.profilePreview = null;
     if (clearStatus) {
       this.statusMessage = '';
     }
@@ -135,14 +135,14 @@ export class VendorListComponent implements OnInit {
     const dialogRef = this.dialog.open<VendorInvoiceSetupDialogComponent, {
       vendor: VendorView;
       invoiceTemplateModel: InvoiceTemplateModel | null;
-      mappingPreview: VendorInvoiceTemplateMappingPreview | null;
+      profilePreview: VendorInvoiceTemplateProfilePreview | null;
     }, VendorInvoiceSetupDialogResult>(VendorInvoiceSetupDialogComponent, {
       width: 'min(1120px, 94vw)',
       maxWidth: '94vw',
       data: {
         vendor: this.selectedVendor,
         invoiceTemplateModel: this.invoiceTemplateModel,
-        mappingPreview: this.mappingPreview
+        profilePreview: this.profilePreview
       }
     });
 
@@ -150,7 +150,7 @@ export class VendorListComponent implements OnInit {
       if (!result) {
         return;
       }
-      this.mappingPreview = result.mappingPreview;
+      this.profilePreview = result.profilePreview;
       if (result.invoiceTemplateModel) {
         this.invoiceTemplateModel = result.invoiceTemplateModel;
       }
@@ -194,7 +194,7 @@ export class VendorListComponent implements OnInit {
       food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
       disabled: formValue.status === 'Inactive' ? 1 : 0,
-      invoice_template_json: String(formValue.invoiceTemplateJson ?? '').trim()
+      aas_invoice_template_json: String(formValue.invoiceTemplateJson ?? '').trim()
     };
   }
 
@@ -209,7 +209,7 @@ export class VendorListComponent implements OnInit {
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: () => {
-          this.mappingPreview = null;
+          this.profilePreview = null;
           this.statusMessage = 'Template cleared.';
           this.loadVendors();
         },

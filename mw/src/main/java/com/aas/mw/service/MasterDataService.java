@@ -28,6 +28,7 @@ public class MasterDataService {
     private final ObjectMapper objectMapper;
     private final OcrService ocrService;
     private final VendorInvoiceTemplateParser templateParser;
+    private final NativeLayoutInvoiceService nativeLayoutInvoiceService;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
     private final CatalogRoutingService catalogRoutingService;
     private final ErpNextFileService erpNextFileService;
@@ -39,6 +40,7 @@ public class MasterDataService {
             ObjectMapper objectMapper,
             OcrService ocrService,
             VendorInvoiceTemplateParser templateParser,
+            NativeLayoutInvoiceService nativeLayoutInvoiceService,
             InvoiceTemplateModelService invoiceTemplateModelService,
             CatalogRoutingService catalogRoutingService,
             ErpNextFileService erpNextFileService,
@@ -48,6 +50,7 @@ public class MasterDataService {
         this.objectMapper = objectMapper;
         this.ocrService = ocrService;
         this.templateParser = templateParser;
+        this.nativeLayoutInvoiceService = nativeLayoutInvoiceService;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
         this.catalogRoutingService = catalogRoutingService;
         this.erpNextFileService = erpNextFileService;
@@ -516,10 +519,10 @@ public class MasterDataService {
         if (!templateChanged && !activatingVendor) {
             return;
         }
-        if (!hasTemplateParser(templateJson)) {
+        if (!hasSupportedTemplateProfile(templateJson)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Vendor invoice template JSON must include a parser with itemLineRegex.");
+                    "Vendor invoice template JSON must contain a supported native layout profile.");
         }
         if (!hasTemplateSample(supplier)) {
             throw new ResponseStatusException(
@@ -542,7 +545,10 @@ public class MasterDataService {
         payload.put("aas_invoice_template_enabled", templateJson.isBlank() ? 0 : 1);
     }
 
-    private boolean hasTemplateParser(String templateJson) {
+    private boolean hasSupportedTemplateProfile(String templateJson) {
+        if (nativeLayoutInvoiceService.parseStoredProfile(templateJson) != null) {
+            return true;
+        }
         try {
             Map<String, Object> map = objectMapper.readValue(templateJson, new TypeReference<Map<String, Object>>() {});
             Object parserObj = map.get("parser");
@@ -571,6 +577,53 @@ public class MasterDataService {
         String samplePdf = asText(supplier.get("aas_invoice_template_sample_pdf"));
         if (samplePdf.isBlank()) {
             return false;
+        }
+        NativeLayoutInvoiceService.StoredProfile nativeProfile = nativeLayoutInvoiceService.parseStoredProfile(templateJson);
+        if (nativeProfile != null) {
+            try {
+                byte[] pdfBytes = erpNextFileService.downloadFile(samplePdf).bytes();
+                NativeLayoutInvoiceService.ExtractionResult extraction = nativeLayoutInvoiceService.extract(pdfBytes, nativeProfile);
+                if (extraction.items().isEmpty()) {
+                    return false;
+                }
+                Set<String> parsedColumns = new LinkedHashSet<>();
+                for (ParsedItem item : extraction.items()) {
+                    if (item == null) {
+                        continue;
+                    }
+                    if (hasText(item.name())) {
+                        parsedColumns.add("item_name");
+                    }
+                    if (hasText(item.hsn())) {
+                        parsedColumns.add("item_id");
+                    }
+                    if (item.qty() > 0) {
+                        parsedColumns.add("qty");
+                    }
+                    if (hasText(item.uom())) {
+                        parsedColumns.add("uom");
+                    }
+                    if (item.rate() > 0) {
+                        parsedColumns.add("rate");
+                    }
+                    if (item.gstPercent() != null) {
+                        parsedColumns.add("gst");
+                    }
+                    if (item.amount() > 0) {
+                        parsedColumns.add("total");
+                    }
+                }
+                if (!parsedColumns.containsAll(invoiceTemplateModelService.requiredItemKeys())) {
+                    return false;
+                }
+                Set<String> parsedSummaryFields = new LinkedHashSet<>();
+                if (hasText(extraction.finalAmount())) {
+                    parsedSummaryFields.add("final_bill_amount");
+                }
+                return parsedSummaryFields.containsAll(invoiceTemplateModelService.requiredSummaryKeys());
+            } catch (Exception ex) {
+                return false;
+            }
         }
         try {
             Map<String, Object> map = objectMapper.readValue(templateJson, new TypeReference<Map<String, Object>>() {});

@@ -3,3 +3,4 @@
 /.vscode/
 /ui/.vscode/
 /ui/node_modules/
+/.env.mw

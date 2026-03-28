@@ -16,6 +16,7 @@ import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderCreateComponent } from './order-create.component';
+import { CompanyContextService } from '../../shared/company-context.service';
 
 describe('OrderCreateComponent', () => {
   let component: OrderCreateComponent;
@@ -24,6 +25,7 @@ describe('OrderCreateComponent', () => {
   let categoryService: jasmine.SpyObj<CategoryService>;
   let itemService: jasmine.SpyObj<ItemService>;
   let vendorService: jasmine.SpyObj<VendorService>;
+  let companyContextService: jasmine.SpyObj<CompanyContextService>;
   let location: jasmine.SpyObj<Location>;
   let router: jasmine.SpyObj<Router>;
 
@@ -32,14 +34,12 @@ describe('OrderCreateComponent', () => {
       'createOrder',
       'createOrderFromBranchImage',
       'uploadOrderImage',
-      'listBranches',
-      'listCompanies'
+      'listBranches'
     ]);
     orderService.createOrder.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
     orderService.uploadOrderImage.and.returnValue(of({}));
     orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }]));
-    orderService.listCompanies.and.returnValue(of([{ name: 'AAS' }]));
 
     categoryService = jasmine.createSpyObj('CategoryService', ['listCategories']);
     categoryService.listCategories.and.returnValue(of([{ name: 'Grocery', item_group_name: 'Grocery' }]));
@@ -56,6 +56,14 @@ describe('OrderCreateComponent', () => {
       { name: 'SUP-2', supplier_name: 'Daily Staples', category: 'Grocery', disabled: 0 },
       { name: 'SUP-3', supplier_name: 'CleanCo', category: 'Cleaning', disabled: 0 }
     ]));
+
+    companyContextService = jasmine.createSpyObj('CompanyContextService', ['getContext']);
+    companyContextService.getContext.and.returnValue(of({
+      company: { id: 'AAS', name: 'AAS' },
+      branch: null,
+      companies: [{ name: 'AAS' }],
+      branches: []
+    }));
 
     location = jasmine.createSpyObj('Location', ['back']);
     router = jasmine.createSpyObj('Router', ['navigate']);
@@ -79,6 +87,7 @@ describe('OrderCreateComponent', () => {
         { provide: CategoryService, useValue: categoryService },
         { provide: ItemService, useValue: itemService },
         { provide: VendorService, useValue: vendorService },
+        { provide: CompanyContextService, useValue: companyContextService },
         { provide: Location, useValue: location },
         { provide: Router, useValue: router }
       ]
@@ -100,10 +109,11 @@ describe('OrderCreateComponent', () => {
 
   it('loads categories and companies', () => {
     expect(categoryService.listCategories).toHaveBeenCalled();
-    expect(orderService.listCompanies).toHaveBeenCalled();
+    expect(companyContextService.getContext).toHaveBeenCalled();
     expect(vendorService.listVendors).toHaveBeenCalled();
     expect(component.categories).toEqual([{ id: 'Grocery', name: 'Grocery' }]);
-    expect(component.companies).toEqual([{ id: 'AAS', name: 'AAS' }]);
+    expect(component.selectedCompanyLabel).toBe('AAS');
+    expect(component.detailsGroup.get('company')?.value).toBe('AAS');
   });
 
   it('shows all vendors and items for the selected category', () => {

@@ -55,6 +55,11 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "allowedHosts": [
+              "extended-advantage-strengthening-patterns.trycloudflare.com"
+            ]
+          },
           "configurations": {
             "production": {
               "buildTarget": "aas-ui:build:production"

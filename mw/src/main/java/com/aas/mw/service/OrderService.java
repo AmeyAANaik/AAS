@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OrderService {
+    private static final String MANUAL_ENTRY_MARKER = "[AAS_MANUAL_ENTRY]";
+    private static final String PARSE_NOTE_PREFIX = "[AAS_PARSE_NOTE]";
 
     private static final String DOCTYPE = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
@@ -682,6 +684,10 @@ public class OrderService {
         return value == null ? "" : value.toString().trim();
     }
 
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
     private String resolveDefaultWarehouse(String company) {
         if (company.isBlank()) {
             return "";
@@ -800,10 +806,19 @@ public class OrderService {
             Map<String, Object> row = new HashMap<>();
             row.put("doctype", childDoctype);
             row.put("item_code", itemCode);
+            if (hasText(line.getItem_name())) {
+                row.put("item_name", line.getItem_name().trim());
+            }
             row.put("qty", line.getQty());
             row.put("rate", line.getRate());
             row.put("amount", line.getQty() * line.getRate());
             row.put("aas_margin_percent", pricing.effectiveMarginPercent());
+            if (line.getAas_mrp() != null && line.getAas_mrp() > 0) {
+                row.put("aas_mrp", line.getAas_mrp());
+            }
+            if (line.getAas_gst_percent() != null && line.getAas_gst_percent() >= 0) {
+                row.put("aas_gst_percent", line.getAas_gst_percent());
+            }
             if (matchIdx >= 0) {
                 Object name = existingRow.get("name");
                 if (name != null) {
@@ -816,14 +831,62 @@ public class OrderService {
                 copyIfPresent(existingRow, row, "schedule_date");
                 copyIfPresent(existingRow, row, "expense_account");
                 copyIfPresent(existingRow, row, "cost_center");
-                copyIfPresent(existingRow, row, "aas_mrp");
+                copyIfPresent(existingRow, row, "description");
             }
             if ("Sales Order Item".equals(childDoctype)) {
                 row.put("aas_vendor_rate", line.getRate());
             }
+            String description = buildItemDescription(
+                    asText(existingRow.get("description")),
+                    hasText(line.getItem_name()) ? line.getItem_name().trim() : itemCode,
+                    line.isManual_entry(),
+                    line.getParse_note());
+            if (!description.isBlank()) {
+                row.put("description", description);
+            }
             out.add(row);
         }
         return out;
+    }
+
+    private String buildItemDescription(
+            String existingDescription,
+            String itemName,
+            boolean manualEntry,
+            String parseNote) {
+        boolean hadMeta = hasText(existingDescription)
+                && (existingDescription.contains(MANUAL_ENTRY_MARKER) || existingDescription.contains(PARSE_NOTE_PREFIX));
+        String baseDescription = stripAasLineMeta(existingDescription).trim();
+        if (baseDescription.isBlank() && (manualEntry || hasText(parseNote) || hadMeta)) {
+            baseDescription = asText(itemName).trim();
+        }
+        if (baseDescription.isBlank() && !manualEntry && !hasText(parseNote) && !hadMeta) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        if (!baseDescription.isBlank()) {
+            lines.add(baseDescription);
+        }
+        if (manualEntry) {
+            lines.add(MANUAL_ENTRY_MARKER);
+        }
+        String note = asText(parseNote).trim();
+        if (!note.isBlank()) {
+            lines.add(PARSE_NOTE_PREFIX + " " + note);
+        }
+        return String.join("\n", lines).trim();
+    }
+
+    private String stripAasLineMeta(String description) {
+        if (!hasText(description)) {
+            return "";
+        }
+        return description.lines()
+                .map(String::trim)
+                .filter(line -> !line.startsWith(MANUAL_ENTRY_MARKER))
+                .filter(line -> !line.startsWith(PARSE_NOTE_PREFIX))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
     }
 
     private void copyIfPresent(Map<String, Object> from, Map<String, Object> to, String key) {
@@ -859,12 +922,30 @@ public class OrderService {
                 simple.put("amount", row.get("amount"));
                 simple.put("aas_margin_percent", row.get("aas_margin_percent"));
                 simple.put("aas_vendor_rate", row.get("aas_vendor_rate"));
+                simple.put("aas_rate_before_tax", row.get("aas_rate_before_tax"));
+                simple.put("aas_rate_after_tax", row.get("aas_rate_after_tax"));
                 simple.put("aas_mrp", row.get("aas_mrp"));
                 simple.put("aas_gst_percent", row.get("aas_gst_percent"));
+                simple.put("description", row.get("description"));
+                simple.put("manual_entry", isManualEntry(row.get("description")));
+                simple.put("parse_note", extractParseNote(row.get("description")));
                 out.add(simple);
             }
         }
         return out;
+    }
+
+    private boolean isManualEntry(Object description) {
+        return asText(description).lines().map(String::trim).anyMatch(line -> line.startsWith(MANUAL_ENTRY_MARKER));
+    }
+
+    private String extractParseNote(Object description) {
+        return asText(description).lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith(PARSE_NOTE_PREFIX))
+                .map(line -> line.substring(PARSE_NOTE_PREFIX.length()).trim())
+                .findFirst()
+                .orElse("");
     }
 
     @SuppressWarnings("unchecked")

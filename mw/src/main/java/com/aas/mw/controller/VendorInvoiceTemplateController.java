@@ -15,8 +15,10 @@ import com.aas.mw.service.VendorInvoiceTemplate;
 import com.aas.mw.service.VendorInvoiceTemplateParser;
 import com.aas.mw.service.InvoiceSummaryExtractor;
 import com.aas.mw.service.InvoiceTemplateModelService;
-import com.aas.mw.service.Invoice2DataExtractionService;
-import com.aas.mw.service.Invoice2DataProfileCatalogService;
+import com.aas.mw.service.InvoiceFieldMappingService;
+import com.aas.mw.service.CamelotTableExtractionService;
+import com.aas.mw.service.NativeLayoutInvoiceService;
+import com.aas.mw.service.PdfTextExtractionService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,8 +59,10 @@ public class VendorInvoiceTemplateController {
     private final VendorInvoiceTemplateParser templateParser;
     private final ObjectMapper objectMapper;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
-    private final Invoice2DataProfileCatalogService invoice2DataProfileCatalogService;
-    private final Invoice2DataExtractionService invoice2DataExtractionService;
+    private final PdfTextExtractionService pdfTextExtractionService;
+    private final InvoiceFieldMappingService invoiceFieldMappingService;
+    private final CamelotTableExtractionService camelotTableExtractionService;
+    private final NativeLayoutInvoiceService nativeLayoutInvoiceService;
 
     public VendorInvoiceTemplateController(
             ErpNextClient erpNextClient,
@@ -68,8 +72,10 @@ public class VendorInvoiceTemplateController {
             VendorInvoiceTemplateParser templateParser,
             ObjectMapper objectMapper,
             InvoiceTemplateModelService invoiceTemplateModelService,
-            Invoice2DataProfileCatalogService invoice2DataProfileCatalogService,
-            Invoice2DataExtractionService invoice2DataExtractionService) {
+            PdfTextExtractionService pdfTextExtractionService,
+            InvoiceFieldMappingService invoiceFieldMappingService,
+            CamelotTableExtractionService camelotTableExtractionService,
+            NativeLayoutInvoiceService nativeLayoutInvoiceService) {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
         this.ocrService = ocrService;
@@ -77,38 +83,10 @@ public class VendorInvoiceTemplateController {
         this.templateParser = templateParser;
         this.objectMapper = objectMapper;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
-        this.invoice2DataProfileCatalogService = invoice2DataProfileCatalogService;
-        this.invoice2DataExtractionService = invoice2DataExtractionService;
-    }
-
-    @GetMapping("/invoice-template-profiles")
-    public ResponseEntity<Map<String, Object>> listInvoiceTemplateProfiles() {
-        return ResponseEntity.ok(Map.of("profiles", invoice2DataProfileCatalogService.describeProfiles()));
-    }
-
-    @PostMapping(value = "/{id}/invoice-template/analyze", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> analyzeInvoiceTemplateSample(
-            @PathVariable String id,
-            @RequestPart(value = "file", required = false) MultipartFile file,
-            HttpServletRequest request) {
-        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
-        if (id == null || id.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Vendor id is required."));
-        }
-        try {
-            OcrSample sample = resolveOcrSample(id, file, sessionCookie);
-            return ResponseEntity.ok(buildMappingAnalysisPayload(id, sample));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
-        } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Unable to analyze the sample invoice PDF."));
-        }
+        this.pdfTextExtractionService = pdfTextExtractionService;
+        this.invoiceFieldMappingService = invoiceFieldMappingService;
+        this.camelotTableExtractionService = camelotTableExtractionService;
+        this.nativeLayoutInvoiceService = nativeLayoutInvoiceService;
     }
 
     @PostMapping(value = "/{id}/invoice-template/sample", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -134,29 +112,18 @@ public class VendorInvoiceTemplateController {
         // Upload the sample file to ERPNext and store the link on Supplier.
         UploadedFileInfo info = fileService.uploadFile(SUPPLIER, id, resolveSampleFileName(file), file, sessionCookie);
 
-        // Auto-detect whether the built-in strict table template fits the sample.
         String chosenKey = "";
         int detectedItems = 0;
         String ocrText = "";
         try {
             byte[] pdfBytes = file.getBytes();
             ocrText = ocrService.extractTextFromPdf(pdfBytes);
-            if (ocrText != null && !ocrText.isBlank()) {
-                var table = templateCatalog.byKey(VendorInvoiceTemplateCatalog.KEY_TABLE_V1);
-                if (table.isPresent()) {
-                    int count = templateParser.parseItems(ocrText, table.get()).size();
-                    if (count > 0) {
-                        chosenKey = VendorInvoiceTemplateCatalog.KEY_TABLE_V1;
-                        detectedItems = count;
-                    }
-                }
-            }
         } catch (Exception ignored) {
             chosenKey = "";
             detectedItems = 0;
         }
 
-        TemplateValidation validation = validateTemplate(id, templateJson, ocrText, chosenKey);
+        TemplateValidation validation = validateTemplate(id, templateJson, ocrText);
 
         Map<String, Object> update = new HashMap<>();
         if (templateJson != null && !templateJson.trim().isBlank()) {
@@ -202,11 +169,10 @@ public class VendorInvoiceTemplateController {
                 .body(file.bytes());
     }
 
-    @PostMapping(value = "/{id}/invoice-template/profile/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> previewInvoiceTemplateProfile(
+    @PostMapping(value = "/{id}/invoice-template/generate-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> generateInvoiceTemplatePreview(
             @PathVariable String id,
             @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestPart("templateProfileId") String templateProfileId,
             HttpServletRequest request) {
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
@@ -220,21 +186,21 @@ public class VendorInvoiceTemplateController {
         }
         try {
             OcrSample sample = resolveOcrSample(id, file, sessionCookie);
-            Invoice2DataProfileCatalogService.Profile profile = invoice2DataProfileCatalogService.byId(templateProfileId)
-                    .orElseThrow(() -> new IllegalArgumentException("Select a supported invoice template profile."));
-            return ResponseEntity.ok(buildInvoice2DataPreviewPayload(id, profile, sample));
+            return ResponseEntity.ok(generateNativeLayoutTemplatePreview(id, sample));
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Unable to preview invoice extraction template."));
+            return ResponseEntity.badRequest().body(Map.of("error", hasText(ex.getMessage())
+                    ? ex.getMessage()
+                    : "Unable to generate invoice extraction template."));
         }
     }
 
-    @PostMapping(value = "/{id}/invoice-template/profile/save", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> saveInvoiceTemplateProfile(
+    @PostMapping(value = "/{id}/invoice-template/generate-save", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> saveGeneratedInvoiceTemplate(
             @PathVariable String id,
             @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestPart("templateProfileId") String templateProfileId,
+            @RequestPart("generatedTemplate") String generatedTemplateJson,
             HttpServletRequest request) {
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
@@ -248,10 +214,10 @@ public class VendorInvoiceTemplateController {
         }
         try {
             OcrSample sample = resolveOcrSample(id, file, sessionCookie);
-            Invoice2DataProfileCatalogService.Profile profile = invoice2DataProfileCatalogService.byId(templateProfileId)
-                    .orElseThrow(() -> new IllegalArgumentException("Select a supported invoice template profile."));
-            Map<String, Object> preview = buildInvoice2DataPreviewPayload(id, profile, sample);
-            if (!Boolean.TRUE.equals(preview.get("profileReady"))) {
+            GeneratedInvoice2DataTemplate generatedTemplate = parseNativeGeneratedTemplatePayload(generatedTemplateJson, id);
+            Map<String, Object> preview = buildNativeLayoutPreviewPayload(id, sample, generatedTemplate);
+            boolean saveAllowed = Boolean.TRUE.equals(preview.get("saveAllowed"));
+            if (!saveAllowed) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "error", "Preview must succeed before saving invoice extraction setup.",
                         "preview", preview));
@@ -259,7 +225,15 @@ public class VendorInvoiceTemplateController {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> previewMetrics = (Map<String, Object>) preview.getOrDefault("previewMetrics", Map.of());
-            String profileJson = invoice2DataExtractionService.buildProfileJson(profile, previewMetrics, sample.fileName());
+            String profileJson = nativeLayoutInvoiceService.buildProfileJson(
+                    generatedTemplate.id(),
+                    generatedTemplate.label(),
+                    generatedTemplate.vendorName(),
+                    generatedTemplate.description(),
+                    castMap(preview.get("fieldMapping")),
+                    castMap(preview.get("deterministicRules")),
+                    previewMetrics,
+                    sample.fileName());
             Map<String, Object> update = new HashMap<>();
             update.put("aas_invoice_template_json", profileJson);
             update.put("aas_invoice_template_enabled", 1);
@@ -278,97 +252,9 @@ public class VendorInvoiceTemplateController {
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
         } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Unable to save invoice extraction setup."));
-        }
-    }
-
-    @PostMapping(value = "/{id}/invoice-template/mapping/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> previewTemplateMapping(
-            @PathVariable String id,
-            @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestPart(value = "mapping", required = false) String mappingJson,
-            HttpServletRequest request) {
-        return doPreviewTemplateMapping(id, file, mappingJson, request);
-    }
-
-    @PostMapping(value = "/{id}/invoice-template/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> previewTemplateMappingAlias(
-            @PathVariable String id,
-            @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestPart(value = "mapping", required = false) String mappingJson,
-            HttpServletRequest request) {
-        return doPreviewTemplateMapping(id, file, mappingJson, request);
-    }
-
-    @PostMapping(value = "/{id}/invoice-template/mapping/save", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> saveTemplateMapping(
-            @PathVariable String id,
-            @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestPart(value = "mapping", required = false) String mappingJson,
-            HttpServletRequest request) {
-        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
-        if (id == null || id.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Vendor id is required."));
-        }
-
-        VendorInvoiceTemplateMappingRequest mapping = parseMappingRequest(mappingJson);
-        OcrSample ocrSample = resolveOcrSample(id, file, sessionCookie);
-        Map<String, Object> preview = buildMappingPreviewPayload(id, mapping, ocrSample.ocrText());
-        if (!Boolean.TRUE.equals(preview.get("mappingReady"))) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Preview must succeed before saving invoice extraction setup.",
-                    "preview", preview));
-        }
-
-        String generatedTemplateJson = generateTemplateJson(mapping, ocrSample.ocrText(), ocrSample.fileName());
-        Map<String, Object> update = new HashMap<>();
-        update.put("aas_invoice_template_json", generatedTemplateJson);
-        update.put("aas_invoice_template_enabled", 1);
-        update.put("aas_invoice_template_key", "");
-        if (ocrSample.fileUrl() != null && !ocrSample.fileUrl().isBlank()) {
-            update.put("aas_invoice_template_sample_pdf", ocrSample.fileUrl());
-        }
-        Map<String, Object> supplier = erpNextClient.updateResource(SUPPLIER, id, update);
-
-        return ResponseEntity.ok(Map.of(
-                "vendor", supplier,
-                "mappingPreview", preview,
-                "templateJson", generatedTemplateJson,
-                "file", Map.of(
-                        "fileName", ocrSample.fileName(),
-                        "fileUrl", ocrSample.fileUrl())));
-    }
-
-    private ResponseEntity<Map<String, Object>> doPreviewTemplateMapping(
-            String id,
-            MultipartFile file,
-            String mappingJson,
-            HttpServletRequest request) {
-        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
-        if (id == null || id.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Vendor id is required."));
-        }
-
-        VendorInvoiceTemplateMappingRequest mapping = parseMappingRequest(mappingJson);
-        try {
-            OcrSample ocrSample = resolveOcrSample(id, file, sessionCookie);
-            return ResponseEntity.ok(buildMappingPreviewPayload(id, mapping, ocrSample.ocrText()));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
-        } catch (Exception ex) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Unable to OCR the uploaded PDF."));
+            return ResponseEntity.badRequest().body(Map.of("error", hasText(ex.getMessage())
+                    ? ex.getMessage()
+                    : "Unable to save invoice extraction setup."));
         }
     }
 
@@ -396,7 +282,232 @@ public class VendorInvoiceTemplateController {
         return ResponseEntity.ok(Map.of("vendor", supplier));
     }
 
-    private TemplateValidation validateTemplate(String vendorId, String templateJson, String ocrText, String fallbackKey) {
+    private Map<String, Object> generateNativeLayoutTemplatePreview(String vendorId, OcrSample sample) {
+        Map<String, Object> vendor = unwrapResource(erpNextClient.getResource(SUPPLIER, vendorId));
+        String vendorName = asText(vendor.get("supplier_name"));
+        if (vendorName.isBlank()) {
+            vendorName = asText(vendor.get("name"));
+        }
+        GeneratedInvoice2DataTemplate generatedTemplate = new GeneratedInvoice2DataTemplate(
+                sanitizeNativeProfileId(vendorName, vendorId),
+                vendorName.isBlank() ? "Native layout mapping" : vendorName + " native layout mapping",
+                vendorName,
+                "Native PDF layout extraction with LLM field mapping.",
+                "pdftotext_layout",
+                "",
+                invoiceTemplateModelService.requiredItemKeys(),
+                invoiceTemplateModelService.requiredSummaryKeys(),
+                "native_layout",
+                "");
+        return buildNativeLayoutPreviewPayload(vendorId, sample, generatedTemplate);
+    }
+
+    private Map<String, Object> buildNativeLayoutPreviewPayload(
+            String vendorId,
+            OcrSample sample,
+            GeneratedInvoice2DataTemplate generatedTemplate) {
+        Map<String, Object> vendor = unwrapResource(erpNextClient.getResource(SUPPLIER, vendorId));
+        String vendorName = asText(vendor.get("supplier_name"));
+        if (vendorName.isBlank()) {
+            vendorName = asText(vendor.get("name"));
+        }
+
+        var nativeSample = nativeLayoutInvoiceService.extractSample(
+                sample.fileName(),
+                sample.fileUrl(),
+                sample.pdfBytes());
+        String mappingPrompt = nativeLayoutInvoiceService.buildMappingPromptInput(
+                vendorId,
+                vendorName,
+                nativeSample,
+                invoiceTemplateModelService.itemFieldDefinitions(),
+                invoiceTemplateModelService.summaryFieldDefinitions());
+        String tableHints = nativeSample.tables().isEmpty()
+                ? ""
+                : nativeSample.tables().getFirst().rows().stream().limit(8).map(row -> row.cells().toString()).toList().toString();
+        InvoiceFieldMappingService.MappingResult fieldMapping = invoiceFieldMappingService.detectMappings(
+                vendorId,
+                vendorName,
+                mappingPrompt,
+                tableHints,
+                invoiceTemplateModelService.itemFieldDefinitions(),
+                invoiceTemplateModelService.summaryFieldDefinitions());
+        String deterministicRulePrompt = nativeLayoutInvoiceService.buildDeterministicRulePromptInput(
+                vendorId,
+                vendorName,
+                nativeSample,
+                fieldMapping.itemMappings(),
+                fieldMapping.summaryMappings());
+        InvoiceFieldMappingService.LayoutRuleResult layoutRules =
+                invoiceFieldMappingService.detectLayoutRules(vendorId, vendorName, deterministicRulePrompt);
+        NativeLayoutInvoiceService.StoredProfile profile = new NativeLayoutInvoiceService.StoredProfile(
+                generatedTemplate.id(),
+                generatedTemplate.label(),
+                generatedTemplate.vendorName(),
+                generatedTemplate.description(),
+                fieldMapping.itemMappings(),
+                fieldMapping.summaryMappings(),
+                fieldMapping.notes(),
+                fieldMapping.generatorType(),
+                fieldMapping.generatorModel(),
+                layoutRules.primaryItemTableBlockId(),
+                layoutRules.gstSummaryBlockId(),
+                layoutRules.summaryFieldRoles(),
+                layoutRules.parsingHints(),
+                layoutRules.fieldParsingRules(),
+                layoutRules.rowRules().skipLabels(),
+                layoutRules.rowRules().headerContinuationLabels());
+        NativeLayoutInvoiceService.ExtractionResult extraction = nativeLayoutInvoiceService.extract(sample.pdfBytes(), profile);
+
+        Set<String> parsedItemFields = new LinkedHashSet<>();
+        for (ParsedItem item : extraction.items()) {
+            if (item == null) {
+                continue;
+            }
+            if (hasText(item.name())) {
+                parsedItemFields.add("item_name");
+            }
+            if (hasText(item.hsn())) {
+                parsedItemFields.add("item_id");
+            }
+            if (item.qty() > 0) {
+                parsedItemFields.add("qty");
+            }
+            if (hasText(item.uom())) {
+                parsedItemFields.add("uom");
+            }
+            if (item.rate() > 0) {
+                parsedItemFields.add("rate");
+            }
+            if (item.gstPercent() != null) {
+                parsedItemFields.add("gst");
+            }
+            if (item.mrp() != null && item.mrp() > 0) {
+                parsedItemFields.add("mrp");
+            }
+            if (item.amount() > 0) {
+                parsedItemFields.add("total");
+            }
+        }
+        List<String> requiredItemFields = invoiceTemplateModelService.requiredItemKeys();
+        List<String> requiredSummaryFields = invoiceTemplateModelService.requiredSummaryKeys();
+        List<String> missingItemFields = requiredItemFields.stream()
+                .filter(field -> !parsedItemFields.contains(field))
+                .toList();
+        List<String> parsedSummaryFields = new ArrayList<>();
+        if (hasText(extraction.finalAmount())) {
+            parsedSummaryFields.add("final_bill_amount");
+        }
+        if (hasText(extraction.transportCharge())) {
+            parsedSummaryFields.add("transport_charge");
+        }
+        List<String> missingSummaryFields = requiredSummaryFields.stream()
+                .filter(field -> !parsedSummaryFields.contains(field))
+                .toList();
+        List<Integer> expectedSerials = detectExpectedSerials(nativeSample.layoutText());
+        int expectedItemCount = expectedSerials.size();
+        List<Integer> extractedSerials = extraction.extractedSerials();
+        List<Integer> missingSerials = detectMissingSerials(expectedSerials, extractedSerials);
+        boolean itemCountComplete = expectedItemCount == 0 || missingSerials.isEmpty();
+        List<Map<String, Object>> previewItems = extraction.items().stream()
+                .limit(8)
+                .map(item -> Map.<String, Object>of(
+                        "item_name", item.name() == null ? "" : item.name(),
+                        "item_id", item.hsn() == null ? "" : item.hsn(),
+                        "qty", item.qty(),
+                        "uom", item.uom() == null ? "" : item.uom(),
+                        "rate", item.rate(),
+                        "rate_before_tax", item.rateBeforeTax() == null ? "" : item.rateBeforeTax(),
+                        "rate_after_tax", item.rateAfterTax() == null ? "" : item.rateAfterTax(),
+                        "gst", item.gstPercent() == null ? "" : item.gstPercent(),
+                        "total", item.amount()))
+                .toList();
+
+        Map<String, Object> previewMetrics = new LinkedHashMap<>();
+        previewMetrics.put("itemsDetected", extraction.items().size());
+        previewMetrics.put("itemFieldsMatched", requiredItemFields.size() - missingItemFields.size());
+        previewMetrics.put("totalRows", countNonEmptyLines(nativeSample.layoutText()));
+        previewMetrics.put("billAmount", extraction.finalAmount());
+        previewMetrics.put("transportCharge", extraction.transportCharge());
+        previewMetrics.put("invoiceNumber", extraction.invoiceNumber());
+        previewMetrics.put("invoiceDate", extraction.invoiceDate());
+        previewMetrics.put("expectedItems", expectedItemCount);
+        previewMetrics.put("itemCountComplete", itemCountComplete);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("vendorId", vendorId);
+        response.put("engineType", "native_layout");
+        response.put("templateProfile", Map.of(
+                "id", generatedTemplate.id(),
+                "label", generatedTemplate.label(),
+                "vendorName", generatedTemplate.vendorName(),
+                "description", generatedTemplate.description(),
+                "supportedItemFields", invoiceTemplateModelService.requiredItemKeys(),
+                "supportedSummaryFields", invoiceTemplateModelService.requiredSummaryKeys()));
+        response.put("generatedTemplate", Map.of(
+                "id", generatedTemplate.id(),
+                "label", generatedTemplate.label(),
+                "vendorName", generatedTemplate.vendorName(),
+                "description", generatedTemplate.description(),
+                "inputReader", generatedTemplate.inputReader(),
+                "yaml", "",
+                "generatorType", fieldMapping.generatorType().isBlank() ? "native_layout" : fieldMapping.generatorType(),
+                "generatorModel", fieldMapping.generatorModel()));
+        response.put("generation", Map.of(
+                "method", fieldMapping.generatorType().isBlank() ? "native_layout" : fieldMapping.generatorType(),
+                "model", fieldMapping.generatorModel(),
+                "summary", "Native PDF layout mapped to required invoice fields."));
+        response.put("sample", Map.of(
+                "fileName", nativeSample.fileName(),
+                "fileUrl", nativeSample.fileUrl()));
+        response.put("ocrLineCount", countNonEmptyLines(nativeSample.layoutText()));
+        response.put("ocrPreview", buildOcrPreview(nativeSample.layoutText()));
+        response.put("parserLineCount", countNonEmptyLines(nativeSample.layoutText()));
+        response.put("parserPreview", buildOcrPreview(nativeSample.layoutText()));
+        response.put("previewMetrics", previewMetrics);
+        response.put("fieldMapping", Map.of(
+                "itemMappings", toFieldMappingMaps(fieldMapping.itemMappings()),
+                "summaryMappings", toFieldMappingMaps(fieldMapping.summaryMappings()),
+                "notes", fieldMapping.notes(),
+                "generatorType", fieldMapping.generatorType(),
+                "generatorModel", fieldMapping.generatorModel()));
+        response.put("deterministicRules", Map.of(
+                "primaryItemTableBlockId", layoutRules.primaryItemTableBlockId(),
+                "gstSummaryBlockId", layoutRules.gstSummaryBlockId(),
+                "summaryFieldRoles", layoutRules.summaryFieldRoles(),
+                "parsingHints", layoutRules.parsingHints(),
+                "fieldParsingRules", layoutRules.fieldParsingRules(),
+                "skipLabels", layoutRules.rowRules().skipLabels(),
+                "headerContinuationLabels", layoutRules.rowRules().headerContinuationLabels(),
+                "notes", layoutRules.notes(),
+                "generatorType", layoutRules.generatorType(),
+                "generatorModel", layoutRules.generatorModel()));
+        response.put("requiredFields", Map.of(
+                "items", requiredItemFields,
+                "summary", requiredSummaryFields));
+        response.put("parsedFields", Map.of(
+                "items", new ArrayList<>(parsedItemFields),
+                "summary", parsedSummaryFields));
+        response.put("missingFields", Map.of(
+                "items", missingItemFields,
+                "summary", missingSummaryFields));
+        response.put("previewItems", previewItems);
+        boolean saveAllowed = !previewItems.isEmpty() && missingItemFields.isEmpty() && missingSummaryFields.isEmpty();
+        response.put("profileReady", saveAllowed && itemCountComplete);
+        response.put("saveAllowed", saveAllowed);
+        response.put("completeness", Map.of(
+                "expectedItemCount", expectedItemCount,
+                "extractedItemCount", extraction.items().size(),
+                "itemCountComplete", itemCountComplete,
+                "expectedSerials", expectedSerials,
+                "extractedSerials", extractedSerials,
+                "missingSerials", missingSerials,
+                "missingSerialContexts", List.of()));
+        response.put("nextStep", "Review the native PDF row mapping, confirm the extracted rows and summary values, then save it for this vendor.");
+        return response;
+    }
+
+    private TemplateValidation validateTemplate(String vendorId, String templateJson, String ocrText) {
         String sampleText = ocrText == null ? "" : ocrText;
         String effectiveTemplateJson = templateJson == null ? "" : templateJson.trim();
         if (effectiveTemplateJson.isBlank()) {
@@ -415,15 +526,6 @@ public class VendorInvoiceTemplateController {
             parserSource = "vendor_json";
             parsedItems = templateParser.parseItems(sampleText, template.get());
             used = !parsedItems.isEmpty();
-        } else if (!fallbackKey.isBlank() && !sampleText.isBlank()) {
-            var builtin = templateCatalog.byKey(fallbackKey);
-            if (builtin.isPresent()) {
-                configured = true;
-                parserSource = fallbackKey;
-                effectiveTemplate = builtin.get();
-                parsedItems = templateParser.parseItems(sampleText, builtin.get());
-                used = !parsedItems.isEmpty();
-            }
         }
         return buildValidation(sampleText, configured, used, parserSource, parsedItems, effectiveTemplate);
     }
@@ -1351,117 +1453,79 @@ public class VendorInvoiceTemplateController {
         return response;
     }
 
-    private Map<String, Object> buildInvoice2DataPreviewPayload(
-            String vendorId,
-            Invoice2DataProfileCatalogService.Profile profile,
-            OcrSample sample) {
-        Invoice2DataExtractionService.ExtractionResult extraction = invoice2DataExtractionService.extract(
-                sample.pdfBytes(),
-                new Invoice2DataExtractionService.Invoice2DataProfile(
-                        profile.id(),
-                        profile.label(),
-                        profile.inputReader(),
-                        profile.yaml()));
-
-        Set<String> parsedItemFields = new LinkedHashSet<>();
-        for (ParsedItem item : extraction.items()) {
-            if (item == null) {
-                continue;
-            }
-            if (hasText(item.name())) {
-                parsedItemFields.add("item_name");
-            }
-            if (hasText(item.hsn())) {
-                parsedItemFields.add("item_id");
-            }
-            if (item.qty() > 0) {
-                parsedItemFields.add("qty");
-            }
-            if (hasText(item.uom())) {
-                parsedItemFields.add("uom");
-            }
-            if (item.rate() > 0) {
-                parsedItemFields.add("rate");
-            }
-            if (item.gstPercent() != null || profile.supportedItemFields().contains("gst")) {
-                parsedItemFields.add("gst");
-            }
-            if (item.mrp() != null && item.mrp() > 0) {
-                parsedItemFields.add("mrp");
-            }
-            if (item.amount() > 0) {
-                parsedItemFields.add("total");
-            }
+    private List<Map<String, Object>> toFieldMappingMaps(List<InvoiceFieldMappingService.FieldMapping> mappings) {
+        if (mappings == null || mappings.isEmpty()) {
+            return List.of();
         }
-
-        List<String> requiredItemFields = invoiceTemplateModelService.requiredItemKeys();
-        List<String> requiredSummaryFields = invoiceTemplateModelService.requiredSummaryKeys();
-        List<String> missingItemFields = requiredItemFields.stream()
-                .filter(field -> !parsedItemFields.contains(field))
+        return mappings.stream()
+                .map(mapping -> Map.<String, Object>of(
+                        "targetField", mapping.targetField(),
+                        "sourceLabel", mapping.sourceLabel(),
+                        "required", mapping.required(),
+                        "present", mapping.present(),
+                        "confidence", mapping.confidence()))
                 .toList();
-        List<String> parsedSummaryFields = new ArrayList<>();
-        if (hasText(extraction.finalAmount())) {
-            parsedSummaryFields.add("final_bill_amount");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castMap(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private GeneratedInvoice2DataTemplate parseNativeGeneratedTemplatePayload(String generatedTemplateJson, String vendorId) {
+        String vendorName = "";
+        try {
+            Map<String, Object> payload = hasText(generatedTemplateJson)
+                    ? objectMapper.readValue(generatedTemplateJson, new TypeReference<Map<String, Object>>() {})
+                    : Map.of();
+            String id = asText(payload.get("id"));
+            String label = asText(payload.get("label"));
+            vendorName = asText(payload.get("vendorName"));
+            String description = asText(payload.get("description"));
+            String generatorType = asText(payload.get("generatorType"));
+            String generatorModel = asText(payload.get("generatorModel"));
+            String resolvedId = id.isBlank() ? sanitizeNativeProfileId(vendorName, vendorId) : id;
+            String resolvedLabel = label.isBlank()
+                    ? (vendorName.isBlank() ? "Native layout mapping" : vendorName + " native layout mapping")
+                    : label;
+            String resolvedDescription = description.isBlank()
+                    ? "Native PDF layout extraction with LLM field mapping."
+                    : description;
+            return new GeneratedInvoice2DataTemplate(
+                    resolvedId,
+                    resolvedLabel,
+                    vendorName,
+                    resolvedDescription,
+                    "pdftotext_layout",
+                    "",
+                    invoiceTemplateModelService.requiredItemKeys(),
+                    invoiceTemplateModelService.requiredSummaryKeys(),
+                    generatorType.isBlank() ? "native_layout" : generatorType,
+                    generatorModel);
+        } catch (Exception ex) {
+            return new GeneratedInvoice2DataTemplate(
+                    sanitizeNativeProfileId(vendorName, vendorId),
+                    vendorName.isBlank() ? "Native layout mapping" : vendorName + " native layout mapping",
+                    vendorName,
+                    "Native PDF layout extraction with LLM field mapping.",
+                    "pdftotext_layout",
+                    "",
+                    invoiceTemplateModelService.requiredItemKeys(),
+                    invoiceTemplateModelService.requiredSummaryKeys(),
+                    "native_layout",
+                    "");
         }
-        if (hasText(extraction.transportCharge())) {
-            parsedSummaryFields.add("transport_charge");
+    }
+
+    private String sanitizeNativeProfileId(String vendorName, String vendorId) {
+        String base = hasText(vendorName) ? vendorName : vendorId;
+        String normalized = base == null ? "" : base.trim().toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (normalized.isBlank()) {
+            normalized = "vendor";
         }
-        List<String> missingSummaryFields = requiredSummaryFields.stream()
-                .filter(field -> !parsedSummaryFields.contains(field))
-                .toList();
-
-        List<Map<String, Object>> previewItems = extraction.items().stream()
-                .limit(8)
-                .map(item -> Map.<String, Object>of(
-                        "item_name", item.name(),
-                        "item_id", item.hsn() == null ? "" : item.hsn(),
-                        "qty", item.qty(),
-                        "uom", item.uom() == null ? "" : item.uom(),
-                        "rate", item.rate(),
-                        "gst", item.gstPercent() == null ? "" : item.gstPercent(),
-                        "total", item.amount()))
-                .toList();
-
-        Map<String, Object> previewMetrics = new LinkedHashMap<>();
-        previewMetrics.put("itemsDetected", extraction.items().size());
-        previewMetrics.put("itemFieldsMatched", requiredItemFields.size() - missingItemFields.size());
-        previewMetrics.put("totalRows", countNonEmptyLines(sample.ocrText()));
-        previewMetrics.put("billAmount", extraction.finalAmount());
-        previewMetrics.put("transportCharge", extraction.transportCharge());
-        previewMetrics.put("invoiceNumber", extraction.invoiceNumber());
-        previewMetrics.put("invoiceDate", extraction.invoiceDate());
-
-        Map<String, Object> sampleMap = new LinkedHashMap<>();
-        sampleMap.put("fileName", sample.fileName());
-        sampleMap.put("fileUrl", sample.fileUrl() == null ? "" : sample.fileUrl());
-
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("vendorId", vendorId);
-        response.put("engineType", "invoice2data");
-        response.put("templateProfile", Map.of(
-                "id", profile.id(),
-                "label", profile.label(),
-                "vendorName", profile.vendorName(),
-                "description", profile.description(),
-                "supportedItemFields", profile.supportedItemFields(),
-                "supportedSummaryFields", profile.supportedSummaryFields()));
-        response.put("sample", sampleMap);
-        response.put("ocrLineCount", countNonEmptyLines(sample.ocrText()));
-        response.put("ocrPreview", buildOcrPreview(sample.ocrText()));
-        response.put("previewMetrics", previewMetrics);
-        response.put("requiredFields", Map.of(
-                "items", requiredItemFields,
-                "summary", requiredSummaryFields));
-        response.put("parsedFields", Map.of(
-                "items", new ArrayList<>(parsedItemFields),
-                "summary", parsedSummaryFields));
-        response.put("missingFields", Map.of(
-                "items", missingItemFields,
-                "summary", missingSummaryFields));
-        response.put("previewItems", previewItems);
-        response.put("profileReady", missingItemFields.isEmpty() && missingSummaryFields.isEmpty());
-        response.put("nextStep", "Review the extracted rows and save this vendor parser profile when the output matches the invoice.");
-        return response;
+        return normalized + "_native_layout";
     }
 
     private OcrSample resolveOcrSample(String vendorId, MultipartFile file, String sessionCookie) {
@@ -1470,10 +1534,16 @@ public class VendorInvoiceTemplateController {
                 UploadedFileInfo uploaded = fileService.uploadFile(SUPPLIER, vendorId, resolveSampleFileName(file), file, sessionCookie);
                 byte[] pdfBytes = file.getBytes();
                 String ocrText = ocrService.extractTextFromPdf(pdfBytes);
+                String parserText = pdfTextExtractionService.extractPlainText(pdfBytes);
+                CamelotTableExtractionService.ExtractionResult camelot = camelotTableExtractionService.extract(pdfBytes);
                 return new OcrSample(
                         uploaded.fileName(),
                         uploaded.fileUrl(),
                         ocrText == null ? "" : ocrText,
+                        parserText == null ? "" : parserText,
+                        camelot.text(),
+                        camelot.preview(),
+                        camelot.rowCount(),
                         pdfBytes);
             }
             Map<String, Object> supplier = unwrapResource(erpNextClient.getResource(SUPPLIER, vendorId));
@@ -1483,7 +1553,17 @@ public class VendorInvoiceTemplateController {
             }
             DownloadedFile downloaded = fileService.downloadFile(fileUrl);
             String ocrText = ocrService.extractTextFromPdf(downloaded.bytes());
-            return new OcrSample(downloaded.fileName(), fileUrl, ocrText == null ? "" : ocrText, downloaded.bytes());
+            String parserText = pdfTextExtractionService.extractPlainText(downloaded.bytes());
+            CamelotTableExtractionService.ExtractionResult camelot = camelotTableExtractionService.extract(downloaded.bytes());
+            return new OcrSample(
+                    downloaded.fileName(),
+                    fileUrl,
+                    ocrText == null ? "" : ocrText,
+                    parserText == null ? "" : parserText,
+                    camelot.text(),
+                    camelot.preview(),
+                    camelot.rowCount(),
+                    downloaded.bytes());
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -1988,6 +2068,262 @@ public class VendorInvoiceTemplateController {
     private record SummaryExtraction(String amount, String matchedText) {
     }
 
-    private record OcrSample(String fileName, String fileUrl, String ocrText, byte[] pdfBytes) {
+    private record GeneratedInvoice2DataTemplate(
+            String id,
+            String label,
+            String vendorName,
+            String description,
+            String inputReader,
+            String yaml,
+            List<String> supportedItemFields,
+            List<String> supportedSummaryFields,
+            String generatorType,
+            String generatorModel) {
+    }
+
+    private record OcrSample(
+            String fileName,
+            String fileUrl,
+            String ocrText,
+            String parserText,
+            String camelotText,
+            List<String> camelotPreview,
+            int camelotRowCount,
+            byte[] pdfBytes) {
+    }
+
+    private List<Integer> detectExpectedSerials(String parserText) {
+        List<Integer> detectedSerials = new ArrayList<>();
+        String[] lines = parserText == null ? new String[0] : parserText.replace('\f', '\n').split("\\r?\\n");
+        for (String rawLine : lines) {
+            String line = asText(rawLine);
+            java.util.regex.Matcher leadingSerial = java.util.regex.Pattern.compile("^\\s*(\\d{1,3})\\s{2,}.*$").matcher(line);
+            int value;
+            if (leadingSerial.matches()) {
+                value = parseInt(leadingSerial.group(1));
+            } else if (line.matches("^\\d{1,3}$")) {
+                value = parseInt(line);
+            } else {
+                continue;
+            }
+            if (value > 0 && value <= 500) {
+                detectedSerials.add(value);
+            }
+        }
+        if (detectedSerials.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> bestRun = new ArrayList<>();
+        List<Integer> currentRun = new ArrayList<>();
+        for (Integer value : detectedSerials) {
+            if (currentRun.isEmpty()) {
+                currentRun.add(value);
+                continue;
+            }
+            int previous = currentRun.get(currentRun.size() - 1);
+            if (value == previous) {
+                continue;
+            }
+            if (value == previous + 1) {
+                currentRun.add(value);
+                continue;
+            }
+            if (preferSerialRun(currentRun, bestRun)) {
+                bestRun = new ArrayList<>(currentRun);
+            }
+            currentRun = new ArrayList<>();
+            currentRun.add(value);
+        }
+        if (preferSerialRun(currentRun, bestRun)) {
+            bestRun = currentRun;
+        }
+        if (bestRun.isEmpty()) {
+            return List.of();
+        }
+        int max = bestRun.get(bestRun.size() - 1);
+        List<Integer> serials = new ArrayList<>();
+        for (int value = 1; value <= max; value++) {
+            serials.add(value);
+        }
+        return serials;
+    }
+
+    private boolean preferSerialRun(List<Integer> candidate, List<Integer> currentBest) {
+        if (candidate.isEmpty()) {
+            return false;
+        }
+        if (currentBest.isEmpty()) {
+            return true;
+        }
+        boolean candidateStartsAtOne = candidate.getFirst() == 1;
+        boolean bestStartsAtOne = currentBest.getFirst() == 1;
+        if (candidateStartsAtOne != bestStartsAtOne) {
+            return candidateStartsAtOne;
+        }
+        return candidate.size() > currentBest.size();
+    }
+
+    private int asInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return parseInt(asText(value));
+    }
+
+    private List<String> asStringList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        List<String> converted = new ArrayList<>();
+        for (Object item : list) {
+            String text = asText(item);
+            if (!text.isBlank()) {
+                converted.add(text);
+            }
+        }
+        return converted;
+    }
+
+    private List<Integer> asIntegerList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Integer> converted = new ArrayList<>();
+        for (Object item : list) {
+            int parsed = asInt(item);
+            if (parsed > 0) {
+                converted.add(parsed);
+            }
+        }
+        return converted;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> asMapList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> converted = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Map<?, ?> map) {
+                converted.add((Map<String, Object>) map);
+            }
+        }
+        return converted;
+    }
+
+    private List<Integer> detectExtractedSerials(String camelotText) {
+        if (!hasText(camelotText)) {
+            return List.of();
+        }
+        List<Integer> serials = new ArrayList<>();
+        Pattern pattern = Pattern.compile("^(\\d{1,3})\\s*\\|");
+        for (String rawLine : camelotText.split("\\r?\\n")) {
+            String line = asText(rawLine);
+            if (line.isBlank()) {
+                continue;
+            }
+            var matcher = pattern.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+            int value = parseInt(matcher.group(1));
+            if (value > 0 && value <= 500 && !serials.contains(value)) {
+                serials.add(value);
+            }
+        }
+        return serials;
+    }
+
+    private List<Integer> detectMissingSerials(List<Integer> expectedSerials, List<Integer> extractedSerials) {
+        if (expectedSerials.isEmpty()) {
+            return List.of();
+        }
+        Set<Integer> extracted = new LinkedHashSet<>(extractedSerials);
+        List<Integer> missing = new ArrayList<>();
+        for (Integer expected : expectedSerials) {
+            if (!extracted.contains(expected)) {
+                missing.add(expected);
+            }
+        }
+        return missing;
+    }
+
+    private List<Map<String, Object>> buildMissingSerialContexts(
+            String parserText,
+            String camelotText,
+            List<Integer> missingSerials) {
+        if (missingSerials.isEmpty()) {
+            return List.of();
+        }
+        List<String> parserLines = normalizedNonEmptyLines(parserText);
+        List<String> camelotRows = normalizedNonEmptyLines(camelotText);
+        List<Map<String, Object>> contexts = new ArrayList<>();
+        for (Integer serial : missingSerials.stream().limit(8).toList()) {
+            Map<String, Object> context = new LinkedHashMap<>();
+            context.put("serial", serial);
+            context.put("parserContext", findParserContextForSerial(parserLines, serial));
+            context.put("camelotContext", findCamelotContextForSerial(camelotRows, serial));
+            contexts.add(context);
+        }
+        return contexts;
+    }
+
+    private List<String> normalizedNonEmptyLines(String text) {
+        List<String> lines = new ArrayList<>();
+        if (!hasText(text)) {
+            return lines;
+        }
+        for (String rawLine : text.replace('\f', '\n').split("\\r?\\n")) {
+            String line = asText(rawLine);
+            if (!line.isBlank()) {
+                lines.add(line);
+            }
+        }
+        return lines;
+    }
+
+    private List<String> findParserContextForSerial(List<String> parserLines, int serial) {
+        List<String> context = new ArrayList<>();
+        String serialText = String.valueOf(serial);
+        for (int index = 0; index < parserLines.size(); index++) {
+            if (!serialText.equals(parserLines.get(index))) {
+                continue;
+            }
+            int start = Math.max(0, index - 2);
+            int end = Math.min(parserLines.size(), index + 5);
+            for (int cursor = start; cursor < end; cursor++) {
+                context.add(parserLines.get(cursor));
+            }
+            break;
+        }
+        return context;
+    }
+
+    private List<String> findCamelotContextForSerial(List<String> camelotRows, int serial) {
+        List<String> context = new ArrayList<>();
+        Pattern rowPattern = Pattern.compile("^(\\d{1,3})\\s*\\|");
+        for (String row : camelotRows) {
+            var matcher = rowPattern.matcher(row);
+            if (!matcher.find()) {
+                continue;
+            }
+            int rowSerial = parseInt(matcher.group(1));
+            if (Math.abs(rowSerial - serial) <= 1) {
+                context.add(row);
+            }
+            if (context.size() >= 4) {
+                break;
+            }
+        }
+        return context;
+    }
+
+    private int parseInt(String raw) {
+        try {
+            return Integer.parseInt(asText(raw));
+        } catch (Exception ex) {
+            return 0;
+        }
     }
 }

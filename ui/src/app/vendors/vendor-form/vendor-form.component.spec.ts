@@ -42,7 +42,7 @@ describe('VendorFormComponent', () => {
         summary: ['final_bill_amount']
       },
       workflow: {
-        inputMode: 'field_mapping',
+        inputMode: 'native_layout_mapping',
         uiPolicy: 'Do not expose regex configuration in UI.'
       }
     };
@@ -88,5 +88,80 @@ describe('VendorFormComponent', () => {
     component.openSetupDialog();
 
     expect(component.openInvoiceSetup.emit).toHaveBeenCalled();
+  });
+
+  it('keeps vendor activation disabled until invoice setup is validated', () => {
+    component.mode = 'edit';
+    component.vendor = {
+      id: 'SUP-0001',
+      name: 'Vendor A',
+      vendorCode: 'VENDOR_A',
+      category: 'Grocery',
+      priority: 1,
+      status: 'Inactive',
+      templateKey: '',
+      templateHasJson: false,
+      raw: {}
+    };
+
+    expect(component.canActivateVendor).toBeFalse();
+    expect(component.canShowActivateAction).toBeFalse();
+    expect(component.activationRequirementMessage).toContain('Validate and save');
+  });
+
+  it('allows vendor activation when a validated setup is present', () => {
+    component.mode = 'edit';
+    component.vendor = {
+      id: 'SUP-0001',
+      name: 'Vendor A',
+      vendorCode: 'VENDOR_A',
+      category: 'Grocery',
+      priority: 1,
+      status: 'Inactive',
+      templateKey: '',
+      templateHasJson: true,
+      raw: {
+        invoice_template_sample_pdf: 'http://localhost:8080/files/sample.pdf',
+        invoice_template_json: JSON.stringify({
+          kind: 'native_layout_mapping',
+          profile: { id: 'vendor_a_native', label: 'Vendor A native layout' },
+          fieldMapping: { itemMappings: [], summaryMappings: [] }
+        })
+      }
+    };
+    component.ngOnChanges({} as any);
+
+    expect(component.canActivateVendor).toBeTrue();
+    expect(component.canShowActivateAction).toBeTrue();
+    expect(component.activationRequirementMessage).toContain('Use Activate vendor');
+  });
+
+  it('activates vendor through the dedicated action', () => {
+    component.mode = 'edit';
+    component.vendor = {
+      id: 'SUP-0001',
+      name: 'Vendor A',
+      vendorCode: 'VENDOR_A',
+      category: 'Grocery',
+      priority: 1,
+      status: 'Inactive',
+      templateKey: '',
+      templateHasJson: true,
+      raw: {
+        invoice_template_sample_pdf: 'http://localhost:8080/files/sample.pdf',
+        invoice_template_json: JSON.stringify({
+          kind: 'native_layout_mapping',
+          profile: { id: 'vendor_a_native', label: 'Vendor A native layout' },
+          fieldMapping: { itemMappings: [], summaryMappings: [] }
+        })
+      }
+    };
+    component.ngOnChanges({} as any);
+    spyOn(component.save, 'emit');
+
+    component.activateVendor();
+
+    expect(component.form.get('status')?.value).toBe('Active');
+    expect(component.save.emit).toHaveBeenCalled();
   });
 });

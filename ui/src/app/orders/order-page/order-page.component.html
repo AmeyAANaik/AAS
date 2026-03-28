@@ -292,8 +292,8 @@
                 <mat-option *ngFor="let vendor of assignableVendorOptions" [value]="vendor.id">{{ vendor.name }}</mat-option>
               </mat-select>
               <mat-hint *ngIf="vendorsError">{{ vendorsError }}</mat-hint>
-              <mat-hint *ngIf="!vendorsError && selectedOrder?.raw?.aas_category">
-                Showing vendors mapped to {{ selectedOrder?.raw?.aas_category }}.
+              <mat-hint *ngIf="!vendorsError && selectedOrderCategory">
+                Showing vendors mapped to {{ selectedOrderCategory }}.
               </mat-hint>
             </mat-form-field>
             <button mat-raised-button color="primary" (click)="assignVendor()" [disabled]="!vendorControl.value" class="full-width">Assign Vendor</button>
@@ -373,36 +373,46 @@
           </div>
           <div class="step-body">
             <div class="pricing-summary">
-              <div>
-                <div class="label">Items subtotal</div>
+              <div class="summary-card">
+                <div class="label">Parsed line value</div>
                 <div class="value">{{ itemsSubtotal | number:'1.2-2' }}</div>
+                <div class="muted">Sum of the invoice line amounts currently shown below.</div>
               </div>
-              <div *ngIf="gstTotal > 0">
-                <div class="label">GST total</div>
+              <div *ngIf="gstTotal > 0 || gstIncludedInLineAmounts" class="summary-card">
+                <div class="label">{{ gstIncludedInLineAmounts ? 'GST handling' : 'GST added on top' }}</div>
                 <div class="value">{{ gstTotal | number:'1.2-2' }}</div>
+                <div class="muted" *ngIf="gstIncludedInLineAmounts">GST is already included in the parsed line rate / line total for this vendor layout.</div>
+                <div class="muted" *ngIf="!gstIncludedInLineAmounts">Additional GST calculated from the parsed rows.</div>
               </div>
-              <div>
-                <div class="label">Items total</div>
+              <div class="summary-card">
+                <div class="label">Parsed items total</div>
                 <div class="value">{{ itemsTotal | number:'1.2-2' }}</div>
+                <div class="muted">This is the running total from all parsed item rows.</div>
               </div>
-              <div *ngIf="transportCharge > 0">
-                <div class="label">Transport / additional spend</div>
+              <div *ngIf="transportCharge > 0" class="summary-card">
+                <div class="label">Invoice-level extra spend</div>
                 <div class="value">{{ transportCharge | number:'1.2-2' }}</div>
+                <div class="muted">Transport, freight, or any bill-level extra amount.</div>
               </div>
-              <div>
-                <div class="label">Expected bill total</div>
+              <div class="summary-card">
+                <div class="label">Expected vendor bill total</div>
                 <div class="value">{{ expectedBillTotal | number:'1.2-2' }}</div>
+                <div class="muted">
+                  Expected bill = parsed items total{{ transportCharge > 0 ? ' + invoice-level extra spend' : '' }}.
+                </div>
               </div>
-              <div>
-                <div class="label">Bill total</div>
+              <div class="summary-card">
+                <div class="label">Entered vendor bill total</div>
                 <div class="value">{{ billTotal | number:'1.2-2' }}</div>
+                <div class="muted">The bill total currently entered for capture.</div>
               </div>
-              <div>
-                <div class="label">Diff</div>
+              <div class="summary-card">
+                <div class="label">Difference to resolve</div>
                 <div class="value" [style.color]="billMatchesItems ? '#2c7a4b' : '#9c6a2c'">
                   {{ billDiff | number:'1.2-2' }}
                 </div>
-                <div class="muted" *ngIf="!billMatchesItems">Check the bill total against items, GST, and transport or additional spend before capture.</div>
+                <div class="muted" *ngIf="!billMatchesItems">Review missing rows, GST handling, or invoice-level extras until the difference becomes zero.</div>
+                <div class="muted" *ngIf="billMatchesItems">Entered bill total matches the parsed review total.</div>
               </div>
             </div>
             <div class="dialog-actions">
@@ -410,15 +420,65 @@
               <button mat-stroked-button type="button" *ngIf="unappliedAdditionalSpend > 0" (click)="applyDiffAsAdditionalSpend()">
                 Add diff as transport
               </button>
+              <button mat-stroked-button type="button" color="accent" *ngIf="hasMissingParsedRows" (click)="addManualOrderLine()">
+                Add missing row manually
+              </button>
+            </div>
+
+            <div class="bill-validation" *ngIf="hasMissingParsedRows">
+              <mat-icon>warning</mat-icon>
+              <span>
+                The parser may have missed invoice rows: {{ parserMissingRowsSummary }}.
+                Add a manual recovery row before saving if needed.
+              </span>
             </div>
 
             <div class="table-wrapper">
               <table mat-table [dataSource]="orderLines" class="orders-table compact">
+                <ng-container matColumnDef="serial">
+                  <th mat-header-cell *matHeaderCellDef>Sr no</th>
+                  <td mat-cell *matCellDef="let line; let i = index">{{ getOrderLineSerial(line, i) }}</td>
+                </ng-container>
+
                 <ng-container matColumnDef="item">
                   <th mat-header-cell *matHeaderCellDef>Item</th>
                   <td mat-cell *matCellDef="let line">
-                    <div class="cell-title">{{ line.item_name }}</div>
-                    <div class="cell-muted">{{ line.item_code }}</div>
+                    <ng-container *ngIf="line.manual_entry; else parsedItemCell">
+                      <div class="manual-item-editor">
+                        <mat-form-field appearance="outline" class="manual-item-field">
+                          <mat-label>Search item</mat-label>
+                          <input
+                            matInput
+                            placeholder="Type item name or code"
+                            [(ngModel)]="line.item_name"
+                            (ngModelChange)="recalcLine(line)"
+                            [matAutocomplete]="manualItemAuto" />
+                        </mat-form-field>
+                        <mat-autocomplete #manualItemAuto="matAutocomplete" (optionSelected)="selectManualItem(line, $event)">
+                          <mat-option *ngFor="let option of getManualItemMatches(line.item_name)" [value]="option.name">
+                            <div class="manual-option-name">{{ option.name }}</div>
+                            <div class="manual-option-meta">{{ option.code }}<span *ngIf="option.category"> · {{ option.category }}</span></div>
+                          </mat-option>
+                        </mat-autocomplete>
+                      </div>
+                      <div class="cell-muted" *ngIf="line.item_code; else unresolvedManualCode">{{ line.item_code }}</div>
+                      <ng-template #unresolvedManualCode>
+                        <div class="cell-note warning">Type an existing item name to resolve the ERP item code.</div>
+                      </ng-template>
+                    </ng-container>
+                    <ng-template #parsedItemCell>
+                      <div class="cell-title">{{ line.item_name }}</div>
+                      <div class="cell-muted">{{ line.item_code }}</div>
+                    </ng-template>
+                    <div class="cell-note muted" *ngIf="getLineRateBeforeTax(line) !== null || getLineRateAfterTax(line) !== null">
+                      Rate before tax:
+                      <strong>{{ (getLineRateBeforeTax(line) ?? 0) | number:'1.2-2' }}</strong>
+                      |
+                      Rate after tax:
+                      <strong>{{ (getLineRateAfterTax(line) ?? 0) | number:'1.2-2' }}</strong>
+                    </div>
+                    <div class="cell-note warning" *ngIf="line.manual_entry">Manual recovery row</div>
+                    <div class="cell-note muted" *ngIf="line.parse_note">{{ line.parse_note }}</div>
                     <div class="cell-note warning" *ngIf="line.mrpApplied">MRP cap applied</div>
                     <div class="cell-note error" *ngIf="!line.mrpApplied && line.aas_mrp && line.rate > line.aas_mrp">
                       Vendor rate exceeds MRP
@@ -429,7 +489,7 @@
                 <ng-container matColumnDef="qty">
                   <th mat-header-cell *matHeaderCellDef>Qty</th>
                   <td mat-cell *matCellDef="let line">
-                    <div class="qty-cell">
+                    <div class="qty-cell" *ngIf="line.manual_entry; else parsedQtyCell">
                       <button mat-icon-button type="button" aria-label="Decrease qty" (click)="adjustQty(line, -1)">
                         <mat-icon>remove</mat-icon>
                       </button>
@@ -438,23 +498,32 @@
                         <mat-icon>add</mat-icon>
                       </button>
                     </div>
+                    <ng-template #parsedQtyCell>{{ line.qty | number:'1.0-2' }}</ng-template>
                   </td>
                 </ng-container>
 
                 <ng-container matColumnDef="rate">
                   <th mat-header-cell *matHeaderCellDef>Rate</th>
                   <td mat-cell *matCellDef="let line">
-                    <input matInput type="number" [(ngModel)]="line.rate" (ngModelChange)="recalcLine(line)" />
+                    <ng-container *ngIf="line.manual_entry; else parsedRateCell">
+                      <input matInput type="number" [(ngModel)]="line.rate" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedRateCell>{{ line.rate | number:'1.2-2' }}</ng-template>
                   </td>
                 </ng-container>
 
                 <ng-container matColumnDef="gst">
                   <th mat-header-cell *matHeaderCellDef>GST %</th>
                   <td mat-cell *matCellDef="let line">
-                    <span *ngIf="line.aas_gst_percent !== null && line.aas_gst_percent !== undefined; else noGst">
-                      {{ line.aas_gst_percent | number:'1.0-2' }}
-                    </span>
-                    <ng-template #noGst>-</ng-template>
+                    <ng-container *ngIf="line.manual_entry; else parsedGstCell">
+                      <input matInput type="number" min="0" step="0.01" [(ngModel)]="line.aas_gst_percent" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedGstCell>
+                      <span *ngIf="line.aas_gst_percent !== null && line.aas_gst_percent !== undefined; else noGst">
+                        {{ line.aas_gst_percent | number:'1.0-2' }}
+                      </span>
+                      <ng-template #noGst>-</ng-template>
+                    </ng-template>
                   </td>
                 </ng-container>
 
@@ -469,7 +538,10 @@
                 <ng-container matColumnDef="margin">
                   <th mat-header-cell *matHeaderCellDef>Margin %</th>
                   <td mat-cell *matCellDef="let line">
-                    <input matInput type="number" min="0" step="0.01" [(ngModel)]="line.aas_margin_percent" (ngModelChange)="recalcLine(line)" />
+                    <ng-container *ngIf="line.manual_entry; else parsedMarginCell">
+                      <input matInput type="number" min="0" step="0.01" [(ngModel)]="line.aas_margin_percent" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedMarginCell>{{ line.aas_margin_percent | number:'1.0-2' }}</ng-template>
                   </td>
                 </ng-container>
 
@@ -487,8 +559,8 @@
                   </td>
                 </ng-container>
 
-                <tr mat-header-row *matHeaderRowDef="['item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
-                <tr mat-row *matRowDef="let row; columns: ['item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
+                <tr mat-header-row *matHeaderRowDef="['serial','item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['serial','item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
               </table>
             </div>
 

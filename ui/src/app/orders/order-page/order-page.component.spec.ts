@@ -14,6 +14,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
+import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderPageComponent } from './order-page.component';
@@ -23,6 +24,7 @@ describe('OrderPageComponent', () => {
   let fixture: ComponentFixture<OrderPageComponent>;
   let orderService: jasmine.SpyObj<OrderService>;
   let vendorService: jasmine.SpyObj<VendorService>;
+  let itemService: jasmine.SpyObj<ItemService>;
 
   beforeEach(async () => {
     orderService = jasmine.createSpyObj('OrderService', [
@@ -75,6 +77,10 @@ describe('OrderPageComponent', () => {
       { name: 'VENDOR-1', supplier_name: 'Vendor A', category: 'Bakery Inputs' },
       { name: 'VENDOR-2', supplier_name: 'Vendor B', category: 'Beverages' }
     ]));
+    itemService = jasmine.createSpyObj('ItemService', ['listItems']);
+    itemService.listItems.and.returnValue(of([
+      { name: 'ITEM-28', item_code: 'ITEM-28', item_name: 'NIRMA YELLOW POWDER 1KG', item_group: 'Bakery Inputs', stock_uom: 'Nos' }
+    ]));
 
     await TestBed.configureTestingModule({
       declarations: [OrderPageComponent],
@@ -95,6 +101,7 @@ describe('OrderPageComponent', () => {
       providers: [
         { provide: OrderService, useValue: orderService },
         { provide: VendorService, useValue: vendorService },
+        { provide: ItemService, useValue: itemService },
         { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({})) } },
         {
           provide: MatDialog,
@@ -277,6 +284,43 @@ describe('OrderPageComponent', () => {
     });
   });
 
+  it('treats sub-1 bill difference as round off', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      billTotal: 100.7,
+      transportCharge: 0,
+      billRef: 'VB-RND',
+      billDate: new Date('2024-01-10'),
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED', aas_transport_charge: 0 }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          { item_code: 'ITEM-1', item_name: 'Item 1', qty: 2, rate: 50, amount: 100, aas_margin_percent: 12 }
+        ]
+      }
+    }));
+
+    component.selectOrder(order);
+    component.billTotalControl.setValue(100.7);
+    component.billRefControl.setValue('VB-RND');
+    component.billDateControl.setValue(new Date('2024-01-10'));
+
+    expect(component.billDiff).toBeCloseTo(0.7, 2);
+    expect(component.billMatchesItems).toBeTrue();
+
+    component.captureBill();
+
+    expect(orderService.captureVendorBill).toHaveBeenCalledWith(order.name, {
+      vendor_bill_total: 100.7,
+      vendor_bill_ref: 'VB-RND',
+      vendor_bill_date: '2024-01-10',
+      transport_charge: 0,
+      allow_mismatch: false
+    });
+  });
+
   it('includes GST in the expected bill total', () => {
     const order = {
       ...component.orders[0],
@@ -409,5 +453,143 @@ describe('OrderPageComponent', () => {
     expect(orderService.createSellOrder).toHaveBeenCalledWith(order.name, {
       apply_transport_to_invoice: true
     });
+  });
+
+  it('prefills a manual recovery row with the missing invoice serial label', () => {
+    component.pdfData = {
+      completeness: {
+        missingSerials: [28]
+      }
+    };
+
+    component.addManualOrderLine();
+
+    expect(component.orderLines.at(-1)).toEqual(
+      jasmine.objectContaining({
+        item_name: 'Missing invoice row 28',
+        manual_entry: true,
+        parse_note: 'Added manually because invoice row 28 was not parsed.'
+      })
+    );
+  });
+
+  it('uses parser context to suggest the missing item name for a manual recovery row', () => {
+    component.pdfData = {
+      completeness: {
+        missingSerials: [28],
+        missingSerialContexts: [
+          {
+            serial: 28,
+            parserContext: ['28 NIRMA YELLOW POWDER 1KG 34029011 60.000 18.00 60.17 3610.10']
+          }
+        ]
+      }
+    };
+
+    component.addManualOrderLine();
+
+    expect(component.orderLines.at(-1)).toEqual(
+      jasmine.objectContaining({
+        item_name: 'NIRMA YELLOW POWDER 1KG',
+        item_code: 'ITEM-28',
+        manual_entry: true
+      })
+    );
+  });
+
+  it('searches manual recovery item suggestions by partial item text', () => {
+    expect(component.getManualItemMatches('yellow')).toEqual([
+      jasmine.objectContaining({
+        code: 'ITEM-28',
+        name: 'NIRMA YELLOW POWDER 1KG'
+      })
+    ]);
+  });
+
+  it('uses extracted parser serials for the displayed row serial numbers', () => {
+    component.pdfData = {
+      orderItems: [
+        { item_code: 'ITEM-1', item_name: 'Item 1', qty: 2, rate: 50, amount: 100, aas_margin_percent: 12 }
+      ],
+      completeness: {
+        extractedSerials: [7]
+      }
+    };
+    component.orderLines = (component.pdfData.orderItems ?? []).map((row: any) => ({
+      source_serial: 7,
+      item_code: row.item_code,
+      item_name: row.item_name,
+      qty: row.qty,
+      rate: row.rate,
+      amount: row.amount,
+      aas_margin_percent: row.aas_margin_percent,
+      aas_vendor_rate: row.rate,
+      aas_mrp: null,
+      aas_gst_percent: null,
+      manual_entry: false,
+      parse_note: null,
+      mrpApplied: false
+    }));
+
+    expect(component.getOrderLineSerial(component.orderLines[0], 0)).toBe('7');
+  });
+
+  it('does not add GST twice when the parsed layout uses after-tax line values', () => {
+    component.pdfData = {
+      fieldMapping: {
+        itemMappings: [
+          { targetField: 'rate', sourceLabel: 'Rate After Tax' },
+          { targetField: 'total', sourceLabel: 'Total Value After Tax' }
+        ]
+      }
+    };
+    component.orderLines = [
+      {
+        source_serial: 1,
+        item_code: 'ITEM-1',
+        item_name: 'Item 1',
+        qty: 5,
+        rate: 110,
+        amount: 550,
+        aas_margin_percent: 0,
+        aas_vendor_rate: 110,
+        aas_mrp: null,
+        aas_gst_percent: 5,
+        manual_entry: false,
+        parse_note: null,
+        mrpApplied: false
+      }
+    ];
+
+    expect(component.gstIncludedInLineAmounts).toBeTrue();
+    expect(component.gstTotal).toBe(0);
+    expect(component.itemsTotal).toBe(550);
+  });
+
+  it('infers GST is already included when the entered bill total matches line totals more closely than subtotal plus GST', () => {
+    component.billTotalControl.setValue(161916);
+    component.transportChargeControl.setValue(0);
+    component.orderLines = [
+      {
+        source_serial: 1,
+        item_code: 'ITEM-1',
+        item_name: 'Inclusive line item',
+        qty: 1,
+        rate: 161915.3,
+        amount: 161915.3,
+        aas_margin_percent: 0,
+        aas_vendor_rate: 161915.3,
+        aas_mrp: null,
+        aas_gst_percent: 3.10838,
+        manual_entry: false,
+        parse_note: null,
+        mrpApplied: false
+      }
+    ];
+
+    expect(component.gstIncludedInLineAmounts).toBeTrue();
+    expect(component.gstTotal).toBe(0);
+    expect(component.expectedBillTotal).toBe(161915.3);
+    expect(component.billDiff).toBeCloseTo(0.7, 1);
   });
 });

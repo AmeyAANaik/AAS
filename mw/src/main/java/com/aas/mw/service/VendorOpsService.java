@@ -377,13 +377,13 @@ public class VendorOpsService {
         List<Map<String, Object>> entries = new ArrayList<>();
 
         for (Map<String, Object> invoice : purchaseInvoices) {
-            if (!isSubmitted(invoice)) {
+            if (asInt(invoice.get("docstatus")) == 2) {
                 continue;
             }
             double credit = round(asDouble(invoice.get("grand_total")));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("date", asText(invoice.get("posting_date")));
-            row.put("voucherType", "Purchase Invoice");
+            row.put("voucherType", invoiceVoucherType(invoice, "Purchase Invoice"));
             row.put("voucherNo", asText(invoice.get("name")));
             row.put("reference", asText(invoice.get("bill_no")));
             row.put("debit", 0.0);
@@ -451,7 +451,7 @@ public class VendorOpsService {
                         + "\"aas_source_sales_order\",\"modified\",\"creation\",\"docstatus\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
-        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of("docstatus", "!=", "2"));
         if (hasText(vendorId)) {
             filters.add(List.of("supplier", "=", vendorId));
         }
@@ -764,6 +764,10 @@ public class VendorOpsService {
 
     private boolean isSubmitted(Map<String, Object> doc) {
         return asInt(doc.get("docstatus")) == 1;
+    }
+
+    private String invoiceVoucherType(Map<String, Object> doc, String baseType) {
+        return isSubmitted(doc) ? baseType : "Draft " + baseType;
     }
 
     private String toJson(List<List<String>> filters) {

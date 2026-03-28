@@ -56,9 +56,9 @@ public class OrderBillingService {
         double itemsTotal = sumOrderItemsTotal(orderData);
         double expectedBillTotal = round(itemsTotal + transportCharge);
         double diff = round(vendorBillTotal - expectedBillTotal);
-        double roundingAdjustment = Math.abs(diff) <= 0.5 ? diff : 0.0;
+        double roundingAdjustment = Math.abs(diff) < 1.0 ? diff : 0.0;
         // Hard validation: bill total must match scanned items total including GST plus optional transport (within rounding tolerance).
-        if (itemsTotal > 0 && Math.abs(diff) > 0.5) {
+        if (itemsTotal > 0 && Math.abs(diff) >= 1.0) {
             if (transportCharge <= 0 && allowMismatch) {
                 // Explicit mismatch override: no transport/additional spend is being applied, but the user chose to proceed.
             } else {

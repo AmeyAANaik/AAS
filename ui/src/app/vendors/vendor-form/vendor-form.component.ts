@@ -3,10 +3,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Category } from '../../categories/category.model';
 import {
   VendorFormValue,
-  VendorInvoiceTemplateMappingPreview,
+  VendorInvoiceTemplateProfilePreview,
   VendorView,
-  countMappedRequiredFields,
-  parseVendorTemplateMapping,
   parseVendorTemplateProfile,
   parseVendorTemplateSampleFileName
 } from '../vendor.model';
@@ -24,7 +22,7 @@ export class VendorFormComponent implements OnChanges {
   @Input() isSaving = false;
   @Input() statusMessage = '';
   @Input() invoiceTemplateModel: InvoiceTemplateModel | null = null;
-  @Input() mappingPreview: VendorInvoiceTemplateMappingPreview | null = null;
+  @Input() profilePreview: VendorInvoiceTemplateProfilePreview | null = null;
   @Output() save = new EventEmitter<VendorFormValue>();
   @Output() reset = new EventEmitter<void>();
   @Output() openInvoiceSetup = new EventEmitter<void>();
@@ -101,6 +99,15 @@ export class VendorFormComponent implements OnChanges {
     this.save.emit(this.form.getRawValue() as VendorFormValue);
   }
 
+  activateVendor(): void {
+    if (!this.canShowActivateAction) {
+      this.form.get('status')?.setErrors({ previewRequired: true });
+      return;
+    }
+    this.form.patchValue({ status: 'Active' });
+    this.submit();
+  }
+
   openSetupDialog(): void {
     this.openInvoiceSetup.emit();
   }
@@ -131,43 +138,68 @@ export class VendorFormComponent implements OnChanges {
   }
 
   get previewReady(): boolean {
-    return this.mappingPreview?.mappingReady === true || this.hasSavedTemplateSetup;
+    return this.profilePreview?.profileReady === true || this.hasSavedTemplateSetup;
+  }
+
+  get canActivateVendor(): boolean {
+    return this.mode === 'edit' && this.previewReady;
+  }
+
+  get canShowActivateAction(): boolean {
+    return this.canActivateVendor && this.currentStatus !== 'Active';
+  }
+
+  get currentStatus(): 'Active' | 'Inactive' {
+    return String(this.form.get('status')?.value ?? 'Inactive') === 'Active' ? 'Active' : 'Inactive';
+  }
+
+  get activationRequirementMessage(): string {
+    if (this.mode !== 'edit') {
+      return 'Save the vendor first, then complete invoice extraction setup before activating it.';
+    }
+    if (!this.previewReady) {
+      return 'Validate and save the vendor invoice extraction setup before activating this vendor.';
+    }
+    if (this.currentStatus === 'Active') {
+      return 'Vendor is active and invoice extraction setup is validated.';
+    }
+    return 'Invoice extraction setup is validated. Use Activate vendor to enable this vendor profile.';
   }
 
   get validationStateLabel(): string {
-    if (this.mappingPreview?.mappingReady) {
-      return 'Preview validated';
+    if (this.profilePreview) {
+      return this.profilePreview.profileReady ? 'Preview validated' : 'Needs review';
     }
     if (this.hasSavedTemplateSetup) {
       return 'Setup saved';
     }
-    if (!this.mappingPreview) {
-      return 'Preview pending';
-    }
-    return 'Needs review';
+    return 'Preview pending';
   }
 
   get validationStatusTone(): 'ready' | 'warning' | 'idle' {
-    if (this.previewReady) {
+    if (this.profilePreview) {
+      return this.profilePreview.profileReady ? 'ready' : 'warning';
+    }
+    if (this.hasSavedTemplateSetup) {
       return 'ready';
     }
-    if (!this.mappingPreview && !this.hasSavedTemplateSetup) {
-      return 'idle';
-    }
-    return 'warning';
+    return 'idle';
   }
 
   get templateHint(): string {
     if (this.mode !== 'edit') {
-      return 'Save the vendor first, then open invoice extraction setup to upload a sample PDF and generate the vendor template.';
+      return 'Save the vendor first, then open invoice extraction setup to upload a sample PDF and generate a native invoice mapping.';
     }
-    return 'Open invoice extraction setup to upload a sample PDF, map required business fields from detected columns, and validate the generated template.';
+    if (!this.previewReady) {
+      return 'Open invoice extraction setup to analyze a sample invoice, review the generated native mapping, and save a validated setup before activating this vendor.';
+    }
+    return 'Open invoice extraction setup to review or refresh the saved native invoice mapping before activation.';
   }
 
   get formSubtitle(): string {
     return this.mode === 'edit'
-      ? 'Maintain vendor master data and verify the stored invoice template before activation.'
-      : 'Capture vendor details first. Sample-based invoice template generation becomes available after the vendor is created.';
+      ? 'Maintain vendor master data and verify the stored invoice mapping before activation.'
+      : 'Capture vendor details first. Native invoice mapping becomes available after the vendor is created.';
   }
 
   get requiredFieldCount(): number {
@@ -176,27 +208,25 @@ export class VendorFormComponent implements OnChanges {
   }
 
   get mappedFieldCount(): number {
-    const requiredItems = this.invoiceTemplateModel?.requiredFields?.items ?? this.requiredItemFields.map(field => field.key);
-    const requiredSummary = this.invoiceTemplateModel?.requiredFields?.summary ?? this.requiredSummaryFields.map(field => field.key);
-    if (this.mappingPreview) {
-      return countMappedRequiredFields(this.mappingPreview.mapping, requiredItems, requiredSummary);
-    }
-    if (this.savedTemplateMapping) {
-      return countMappedRequiredFields(this.savedTemplateMapping, requiredItems, requiredSummary);
+    const requiredItems = this.requiredItemFields.map(field => field.key);
+    const requiredSummary = this.requiredSummaryFields.map(field => field.key);
+    if (this.profilePreview) {
+      return this.countMatchedRequiredFields(this.profilePreview.parsedFields.items, requiredItems)
+        + this.countMatchedRequiredFields(this.profilePreview.parsedFields.summary, requiredSummary);
     }
     return this.hasSavedTemplateSetup ? this.requiredFieldCount : 0;
   }
 
   get previewActionLabel(): string {
-    return this.hasSavedTemplateSetup || this.mappingPreview ? 'Update setup view' : 'Open setup view';
+    return this.hasSavedTemplateSetup || this.profilePreview ? 'Update setup view' : 'Open setup view';
   }
 
   get extractionSummaryLines(): string[] {
     return [
       `Required fields: ${this.requiredFieldCount}`,
-      `Mapped fields: ${this.mappedFieldCount}/${this.requiredFieldCount}`,
+      `Matched fields: ${this.mappedFieldCount}/${this.requiredFieldCount}`,
       `Sample PDF: ${this.samplePdfDisplayName}`,
-      `Template: ${this.savedTemplateMapping ? 'Vendor-specific generated template' : (this.savedTemplateProfile?.label ?? this.validationStateLabel)}`
+      `Generated template: ${this.savedTemplateProfile?.label ?? this.validationStateLabel}`
     ];
   }
 
@@ -225,12 +255,8 @@ export class VendorFormComponent implements OnChanges {
     return parseVendorTemplateProfile(this.vendor?.raw);
   }
 
-  get savedTemplateMapping() {
-    return parseVendorTemplateMapping(this.vendor?.raw);
-  }
-
   private get hasSavedTemplateSetup(): boolean {
-    return (!!this.savedTemplateMapping || !!this.savedTemplateProfile) && this.hasUploadedSample;
+    return !!this.savedTemplateProfile && this.hasUploadedSample;
   }
 
   get requiredItemFields() {
@@ -251,5 +277,10 @@ export class VendorFormComponent implements OnChanges {
     delete current['previewRequired'];
     const nextErrors = Object.keys(current).length ? current : null;
     control.setErrors(nextErrors);
+  }
+
+  private countMatchedRequiredFields(parsedFields: string[], requiredFields: string[]): number {
+    const parsed = new Set(parsedFields ?? []);
+    return requiredFields.filter(field => parsed.has(field)).length;
   }
 }

@@ -2,6 +2,8 @@ services:
   mw:
     build:
       context: ./mw
+    env_file:
+      - .env.mw
     ports:
       - "8083:8083"
     environment:

@@ -294,13 +294,13 @@ public class BranchOpsService {
     private List<Map<String, Object>> buildLedgerEntries(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
         List<Map<String, Object>> entries = new ArrayList<>();
         for (Map<String, Object> invoice : invoices) {
-            if (!isSubmitted(invoice)) {
+            if (asInt(invoice.get("docstatus")) == 2) {
                 continue;
             }
             double debit = round(asDouble(invoice.get("grand_total")));
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("date", asText(invoice.get("posting_date")));
-            row.put("voucherType", "Sales Invoice");
+            row.put("voucherType", invoiceVoucherType(invoice, "Sales Invoice"));
             row.put("voucherNo", asText(invoice.get("name")));
             row.put("reference", asText(invoice.get("customer")));
             row.put("debit", debit);
@@ -358,7 +358,7 @@ public class BranchOpsService {
         params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
-        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of("docstatus", "!=", "2"));
         if (hasText(branchId)) {
             filters.add(List.of("customer", "=", branchId));
         }
@@ -586,6 +586,10 @@ public class BranchOpsService {
 
     private boolean isSubmitted(Map<String, Object> doc) {
         return asInt(doc.get("docstatus")) == 1;
+    }
+
+    private String invoiceVoucherType(Map<String, Object> doc, String baseType) {
+        return isSubmitted(doc) ? baseType : "Draft " + baseType;
     }
 
     private double getLedgerBalance(List<Map<String, Object>> entries) {

@@ -21,6 +21,10 @@ Preferred local workflow:
 Use this when you want a clean local setup from scratch:
 
 ```bash
+cd /Users/roshninaik/Projects/AAS
+cp .env.mw.example .env.mw
+# Fill in APP_INVOICE_TEMPLATE_GENERATOR_API_KEY in .env.mw before starting MW
+
 cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down -v
 docker compose -f pwd.yml up -d db redis-cache redis-queue configurator
@@ -47,6 +51,28 @@ URLs after startup:
 - ERPNext: `http://localhost:8080`
 - MW Swagger: `http://localhost:8083/swagger-ui.html`
 - UI: `http://localhost:4200`
+
+### MW generator config
+
+Middleware reads invoice-mapping generator settings from `.env.mw`.
+
+```bash
+cd /Users/roshninaik/Projects/AAS
+cp .env.mw.example .env.mw
+```
+
+Then set at least:
+
+- `APP_INVOICE_TEMPLATE_GENERATOR_BASE_URL`
+- `APP_INVOICE_TEMPLATE_GENERATOR_MODEL`
+- `APP_INVOICE_TEMPLATE_GENERATOR_API_KEY`
+
+After updating `.env.mw`, recreate MW:
+
+```bash
+cd /Users/roshninaik/Projects/AAS
+docker compose -f docker-compose.mw.yml up -d --build mw
+```
 
 ### Stop all services
 

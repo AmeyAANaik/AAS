@@ -2,12 +2,15 @@ import { animate, style, transition, trigger } from '@angular/animations';
 import { AfterViewInit, Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
-import { OrderBranchImage, OrderItemPayload, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
+import { ItemService } from '../../items/item.service';
+import { Item } from '../../items/item.model';
+import { OrderBranchImage, OrderItemPayload, ItemOption, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
@@ -58,6 +61,13 @@ interface UiSellPreview {
 interface PdfParseResult {
   fileName?: string;
   fileUrl?: string;
+  fieldMapping?: {
+    itemMappings?: Array<{ targetField?: string; sourceLabel?: string; present?: boolean; confidence?: string }>;
+    summaryMappings?: Array<{ targetField?: string; sourceLabel?: string; present?: boolean; confidence?: string }>;
+    notes?: string;
+    generatorType?: string;
+    generatorModel?: string;
+  };
   items?: unknown[];
   orderItems?: Array<{
     item_code?: string;
@@ -67,9 +77,22 @@ interface PdfParseResult {
     amount?: number;
     aas_margin_percent?: number;
     aas_vendor_rate?: number;
+    aas_rate_before_tax?: number;
+    aas_rate_after_tax?: number;
     aas_mrp?: number;
     aas_gst_percent?: number;
+    manual_entry?: boolean;
+    parse_note?: string;
   }>;
+  completeness?: {
+    expectedItemCount?: number;
+    extractedItemCount?: number;
+    itemCountComplete?: boolean;
+    expectedSerials?: number[];
+    extractedSerials?: number[];
+    missingSerials?: number[];
+    missingSerialContexts?: Array<{ serial: number; parserContext?: string[]; camelotContext?: string[] }>;
+  };
   template?: { configured?: boolean; used?: boolean; key?: string };
   vendorBillTotal?: number;
   vendorBillRef?: string;
@@ -80,6 +103,7 @@ interface PdfParseResult {
 }
 
 interface UiOrderLine {
+  source_serial?: number | null;
   item_code: string;
   item_name: string;
   qty: number;
@@ -87,8 +111,12 @@ interface UiOrderLine {
   amount: number;
   aas_margin_percent: number;
   aas_vendor_rate?: number | null;
+  aas_rate_before_tax?: number | null;
+  aas_rate_after_tax?: number | null;
   aas_mrp?: number | null;
   aas_gst_percent?: number | null;
+  manual_entry?: boolean;
+  parse_note?: string | null;
   mrpApplied: boolean;
 }
 
@@ -144,6 +172,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   vendorOptions: VendorOption[] = [];
   isVendorsLoading = false;
   vendorsError = '';
+  itemOptions: ItemOption[] = [];
+  isItemsLoading = false;
+  itemsError = '';
 
   selectedFile: File | null = null;
   fileError = '';
@@ -164,6 +195,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     private readonly route: ActivatedRoute,
     private readonly dialog: MatDialog,
     private readonly vendorService: VendorService,
+    private readonly itemService: ItemService,
     private readonly orderService: OrderService,
     private readonly snackBar: MatSnackBar
   ) {}
@@ -208,6 +240,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     };
 
     this.loadVendors();
+    this.loadItems();
     this.loadOrders();
     this.subscriptions.add(
       this.searchControl.valueChanges.subscribe(() => this.applySearch())
@@ -636,9 +669,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         };
         const items = Array.isArray(data?.items) ? data.items : [];
-        this.orderLines = items
-          .map((row: any) => this.toUiOrderLine(row))
-          .filter((row: UiOrderLine) => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
+        this.orderLines = this.hydrateOrderLines(items);
       },
       error: () => {
         // Non-blocking: user can still proceed with upload/capture steps.
@@ -669,6 +700,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.normalizeCategory(vendor.category ?? '') === category
     );
     return categoryMatches.length ? categoryMatches : this.vendorOptions;
+  }
+
+  get selectedOrderCategory(): string {
+    return String(this.selectedOrder?.raw?.aas_category ?? '').trim();
   }
 
   get canManageVendorPdf(): boolean {
@@ -829,9 +864,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.pdfData = parsed;
           const lines = parsed?.orderItems ?? [];
           if (Array.isArray(lines) && lines.length) {
-            this.orderLines = lines
-              .map(line => this.toUiOrderLine(line))
-              .filter(row => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
+            this.orderLines = this.hydrateOrderLines(lines, parsed?.completeness?.extractedSerials ?? []);
           }
           this.updateBillMismatchError();
 
@@ -874,15 +907,52 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.updateBillMismatchError();
   }
 
+  addManualOrderLine(): void {
+    const nextMissing = this.missingParserSerials[0];
+    const suggestedName = this.suggestMissingItemName(nextMissing);
+    const parseNote = nextMissing
+      ? `Added manually because invoice row ${nextMissing} was not parsed.`
+      : 'Added manually because an invoice row was not parsed.';
+    this.orderLines = [
+      ...this.orderLines,
+      {
+        source_serial: Number.isFinite(nextMissing) ? Number(nextMissing) : null,
+        item_code: this.resolveItemCodeFromName(suggestedName),
+        item_name: suggestedName,
+        qty: 1,
+        rate: 0,
+        amount: 0,
+        aas_margin_percent: 0,
+        aas_vendor_rate: 0,
+        aas_rate_before_tax: null,
+        aas_rate_after_tax: null,
+        aas_mrp: null,
+        aas_gst_percent: null,
+        manual_entry: true,
+        parse_note: parseNote,
+        mrpApplied: false
+      }
+    ];
+    this.updateBillMismatchError();
+  }
+
   recalcLine(line: UiOrderLine): void {
     const qty = Number(line.qty ?? 0);
     const rate = Number(line.rate ?? 0);
     const margin = Number(line.aas_margin_percent ?? 0);
+    const gst = Number(line.aas_gst_percent ?? 0);
     line.qty = Number.isFinite(qty) ? qty : 0;
     line.rate = Number.isFinite(rate) ? rate : 0;
     line.aas_margin_percent = Number.isFinite(margin) && margin >= 0 ? margin : 0;
+    line.item_name = String(line.item_name ?? '').trim();
+    line.item_code = line.manual_entry
+      ? this.resolveItemCodeFromName(line.item_name)
+      : String(line.item_code ?? '').trim();
+    line.aas_gst_percent = Number.isFinite(gst) && gst >= 0 ? gst : 0;
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
     line.aas_vendor_rate = line.rate;
+    line.aas_rate_before_tax = this.deriveLineRateBeforeTax(line);
+    line.aas_rate_after_tax = this.deriveLineRateAfterTax(line);
     line.mrpApplied = this.isMrpCapApplied(line);
     this.updateBillMismatchError();
   }
@@ -899,19 +969,44 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   get gstTotal(): number {
-    const sum = this.orderLines.reduce((acc, line) => {
-      const amount = Number(line.amount ?? 0);
-      const gstPercent = Number(line.aas_gst_percent ?? 0);
-      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(gstPercent) || gstPercent <= 0) {
-        return acc;
-      }
-      return acc + (amount * gstPercent) / 100;
-    }, 0);
+    if (this.gstIncludedInLineAmounts) {
+      return 0;
+    }
+    const sum = this.rawGstOnTopTotal;
     return Math.round(sum * 100) / 100;
   }
 
   get itemsTotal(): number {
     return Math.round((this.itemsSubtotal + this.gstTotal) * 100) / 100;
+  }
+
+  get gstIncludedInLineAmounts(): boolean {
+    const itemMappings = this.pdfData?.fieldMapping?.itemMappings ?? [];
+    const labels = itemMappings
+      .filter(mapping => mapping?.targetField === 'rate' || mapping?.targetField === 'total')
+      .map(mapping => String(mapping?.sourceLabel ?? '').trim().toLowerCase())
+      .filter(Boolean);
+    const explicitInclusiveLabel = labels.some(label =>
+      label.includes('after tax') ||
+      label.includes('incl. of tax') ||
+      label.includes('incl of tax') ||
+      label.includes('inclusive')
+    );
+    if (explicitInclusiveLabel) {
+      return true;
+    }
+
+    const referenceBillTotal = this.referenceBillTotalForGstInference;
+    if (referenceBillTotal <= 0 || this.rawGstOnTopTotal <= 0) {
+      return false;
+    }
+
+    const subtotalWithTransport = Math.round((this.itemsSubtotal + this.transportCharge) * 100) / 100;
+    const totalWithExtraGst = Math.round((subtotalWithTransport + this.rawGstOnTopTotal) * 100) / 100;
+    const diffToInclusive = Math.abs(referenceBillTotal - subtotalWithTransport);
+    const diffToExclusive = Math.abs(referenceBillTotal - totalWithExtraGst);
+
+    return diffToInclusive <= 1 && diffToInclusive + 0.01 < diffToExclusive;
   }
 
   get billTotal(): number {
@@ -964,9 +1059,251 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     return Math.round((this.itemsTotal + this.transportCharge) * 100) / 100;
   }
 
+  private get rawGstOnTopTotal(): number {
+    return this.orderLines.reduce((acc, line) => {
+      const amount = Number(line.amount ?? 0);
+      const gstPercent = Number(line.aas_gst_percent ?? 0);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(gstPercent) || gstPercent <= 0) {
+        return acc;
+      }
+      return acc + (amount * gstPercent) / 100;
+    }, 0);
+  }
+
+  private get referenceBillTotalForGstInference(): number {
+    const entered = Number(this.billTotalControl.value ?? 0);
+    if (Number.isFinite(entered) && entered > 0) {
+      return entered;
+    }
+    const uploaded = Number(this.pdfData?.vendorBillTotal ?? 0);
+    if (Number.isFinite(uploaded) && uploaded > 0) {
+      return uploaded;
+    }
+    const selected = Number(this.selectedOrder?.billTotal ?? 0);
+    if (Number.isFinite(selected) && selected > 0) {
+      return selected;
+    }
+    return 0;
+  }
+
+  get missingParserSerials(): number[] {
+    return Array.isArray(this.pdfData?.completeness?.missingSerials)
+      ? (this.pdfData?.completeness?.missingSerials ?? [])
+      : [];
+  }
+
+  get hasMissingParsedRows(): boolean {
+    return this.missingParserSerials.length > 0;
+  }
+
+  get parserMissingRowsSummary(): string {
+    return this.missingParserSerials.join(', ');
+  }
+
+  getOrderLineSerial(line: UiOrderLine, index: number): string {
+    const explicit = Number(line.source_serial ?? NaN);
+    if (Number.isFinite(explicit) && explicit > 0) {
+      return String(Math.round(explicit));
+    }
+    const fromNote = this.extractMissingSerialFromParseNote(line.parse_note);
+    if (fromNote !== null) {
+      return String(fromNote);
+    }
+    return String(index + 1);
+  }
+
+  getManualItemMatches(query: string): ItemOption[] {
+    const term = String(query ?? '').trim().toLowerCase();
+    if (!term) {
+      return this.itemOptions.slice(0, 12);
+    }
+    return this.itemOptions
+      .filter(option => {
+        const haystack = [
+          option.name,
+          option.code,
+          option.category ?? '',
+          option.unit ?? ''
+        ]
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(term);
+      })
+      .slice(0, 12);
+  }
+
+  selectManualItem(line: UiOrderLine, event: MatAutocompleteSelectedEvent): void {
+    const selectedName = String(event.option.value ?? '').trim();
+    line.item_name = selectedName;
+    line.item_code = this.resolveItemCodeFromName(selectedName);
+    this.recalcLine(line);
+  }
+
+  private loadItems(): void {
+    this.isItemsLoading = true;
+    this.itemsError = '';
+    const sub = this.itemService
+      .listItems()
+      .pipe(finalize(() => (this.isItemsLoading = false)))
+      .subscribe({
+        next: items => {
+          this.itemOptions = (items ?? [])
+            .map(item => this.mapItemOption(item))
+            .filter(option => !!option.id && !!option.name)
+            .sort((left, right) => left.name.localeCompare(right.name));
+        },
+        error: err => {
+          this.itemsError = formatUiError(err, 'Unable to load item list for manual recovery.');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private suggestMissingItemName(serial?: number): string {
+    if (!Number.isFinite(serial)) {
+      return 'Manual recovery row';
+    }
+    const serialNumber = Number(serial);
+    const context = (this.pdfData?.completeness?.missingSerialContexts ?? []).find(entry => entry?.serial === serialNumber);
+    const candidates = [
+      ...(context?.parserContext ?? []),
+      ...(context?.camelotContext ?? [])
+    ]
+      .map(line => this.extractItemNameFromMissingContext(line, serialNumber))
+      .filter((value): value is string => !!value);
+    return candidates[0] ?? `Missing invoice row ${serialNumber}`;
+  }
+
+  private extractItemNameFromMissingContext(line: string, serial: number): string | null {
+    const text = String(line ?? '').replace(/\s+/g, ' ').trim();
+    if (!text) {
+      return null;
+    }
+    const withoutSerial = text.replace(new RegExp(`^${serial}\\s+`), '').trim();
+    if (!withoutSerial) {
+      return null;
+    }
+    if (withoutSerial.includes('|')) {
+      const pipeHead = withoutSerial.split('|')[0]?.trim();
+      if (pipeHead) {
+        return pipeHead;
+      }
+    }
+    const segments = withoutSerial.split(/\s{2,}/).map(segment => segment.trim()).filter(Boolean);
+    if (segments.length > 1) {
+      return segments[0];
+    }
+    const beforeNumericTail = withoutSerial.match(/^(.*?)(?=\s+\d[\d,.]*(?:\s+\d[\d,.%]*)*$)/);
+    const candidate = (beforeNumericTail?.[1] ?? withoutSerial).trim();
+    return candidate || null;
+  }
+
+  private mapItemOption(item: Item): ItemOption {
+    const code = String(item.item_code ?? item.name ?? '').trim();
+    const name = String(item.item_name ?? item.item_code ?? item.name ?? '').trim();
+    return {
+      id: code,
+      code,
+      name,
+      category: String(item.item_group ?? '').trim(),
+      unit: String(item.stock_uom ?? '').trim()
+    };
+  }
+
+  private resolveItemCodeFromName(name: string): string {
+    const text = String(name ?? '').trim();
+    if (!text) {
+      return '';
+    }
+    const exact = this.itemOptions.find(option =>
+      option.name.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0 ||
+      option.code.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0
+    );
+    return exact?.code ?? '';
+  }
+
+  getLineRateBeforeTax(line: UiOrderLine): number | null {
+    return this.deriveLineRateBeforeTax(line);
+  }
+
+  getLineRateAfterTax(line: UiOrderLine): number | null {
+    return this.deriveLineRateAfterTax(line);
+  }
+
+  private deriveLineRateBeforeTax(line: UiOrderLine): number | null {
+    const explicit = Number(line.aas_rate_before_tax ?? NaN);
+    if (Number.isFinite(explicit) && explicit >= 0) {
+      return explicit;
+    }
+    const baseRate = Number(line.rate ?? 0);
+    if (!Number.isFinite(baseRate) || baseRate <= 0) {
+      return null;
+    }
+    const gstPercent = Number(line.aas_gst_percent ?? 0);
+    if (this.gstIncludedInLineAmounts && Number.isFinite(gstPercent) && gstPercent > 0) {
+      return Math.round((baseRate / (1 + gstPercent / 100)) * 100) / 100;
+    }
+    return Math.round(baseRate * 100) / 100;
+  }
+
+  private deriveLineRateAfterTax(line: UiOrderLine): number | null {
+    const explicit = Number(line.aas_rate_after_tax ?? NaN);
+    if (Number.isFinite(explicit) && explicit >= 0) {
+      return explicit;
+    }
+    const baseRate = Number(line.rate ?? 0);
+    if (!Number.isFinite(baseRate) || baseRate <= 0) {
+      return null;
+    }
+    const gstPercent = Number(line.aas_gst_percent ?? 0);
+    if (this.gstIncludedInLineAmounts) {
+      return Math.round(baseRate * 100) / 100;
+    }
+    if (Number.isFinite(gstPercent) && gstPercent > 0) {
+      return Math.round((baseRate * (1 + gstPercent / 100)) * 100) / 100;
+    }
+    return Math.round(baseRate * 100) / 100;
+  }
+
+  private hydrateOrderLines(rows: any[], extractedSerials: number[] = []): UiOrderLine[] {
+    const fallbackSerials = this.orderLines.map(line => Number(line.source_serial ?? NaN));
+    const fallbackRatesBeforeTax = this.orderLines.map(line => Number(line.aas_rate_before_tax ?? NaN));
+    const fallbackRatesAfterTax = this.orderLines.map(line => Number(line.aas_rate_after_tax ?? NaN));
+    return (rows ?? [])
+      .map((row: any, index: number) => {
+        const line = this.toUiOrderLine(row);
+        const explicitSerial = Number(extractedSerials[index] ?? NaN);
+        const carriedSerial = Number(fallbackSerials[index] ?? NaN);
+        line.source_serial = Number.isFinite(explicitSerial) && explicitSerial > 0
+          ? explicitSerial
+          : Number.isFinite(carriedSerial) && carriedSerial > 0
+            ? carriedSerial
+            : this.extractMissingSerialFromParseNote(line.parse_note);
+        const carriedBeforeTax = Number(fallbackRatesBeforeTax[index] ?? NaN);
+        const carriedAfterTax = Number(fallbackRatesAfterTax[index] ?? NaN);
+        line.aas_rate_before_tax = line.aas_rate_before_tax ?? (Number.isFinite(carriedBeforeTax) ? carriedBeforeTax : null);
+        line.aas_rate_after_tax = line.aas_rate_after_tax ?? (Number.isFinite(carriedAfterTax) ? carriedAfterTax : null);
+        return line;
+      })
+      .filter((row: UiOrderLine) => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
+  }
+
+  private extractMissingSerialFromParseNote(note: string | null | undefined): number | null {
+    const text = String(note ?? '').trim();
+    if (!text) {
+      return null;
+    }
+    const match = text.match(/invoice row\s+(\d+)/i);
+    if (!match) {
+      return null;
+    }
+    const serial = Number(match[1]);
+    return Number.isFinite(serial) && serial > 0 ? serial : null;
+  }
+
   get billMatchesItems(): boolean {
-    // Treat small rounding differences as match.
-    return Math.abs(this.billDiff) <= 0.5;
+    // Treat sub-1 differences as round-off.
+    return Math.abs(this.billDiff) < 1;
   }
 
   get billValidationMessage(): string {
@@ -980,7 +1317,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.billMatchesItems) {
       return '';
     }
-    return `Bill total must match items total, GST, and transport or additional spend. Diff: ${this.billDiff.toFixed(2)}`;
+    return `Bill total must match items total, GST, and transport or additional spend. Diff: ${this.billDiff.toFixed(2)}. Differences below 1.00 are saved as round off.`;
   }
 
   applyItemsTotalToBill(): void {
@@ -1006,6 +1343,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.errorMessage = 'At least one item line is required.';
       return;
     }
+    const invalidCode = this.orderLines.find(line => !String(line.item_code ?? '').trim());
+    if (invalidCode) {
+      this.errorMessage = 'Every item row must include an item code before saving.';
+      return;
+    }
     const invalidMargin = this.orderLines.some(line => !Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) < 0);
     if (invalidMargin) {
       this.errorMessage = 'Margin must be a non-negative number for every item.';
@@ -1018,11 +1360,14 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     const payload: OrderItemPayload[] = this.orderLines.map(line => ({
       item_code: line.item_code,
+      item_name: String(line.item_name ?? '').trim() || undefined,
       qty: Number(line.qty ?? 0),
       rate: Number(line.rate ?? 0),
       aas_margin_percent: Number(line.aas_margin_percent ?? 0),
       aas_mrp: Number(line.aas_mrp ?? 0) || undefined,
-      aas_gst_percent: Number(line.aas_gst_percent ?? 0) || undefined
+      aas_gst_percent: Number(line.aas_gst_percent ?? 0) || undefined,
+      manual_entry: !!line.manual_entry,
+      parse_note: String(line.parse_note ?? '').trim() || undefined
     }));
     this.isItemsSaving = true;
     this.errorMessage = '';
@@ -1033,9 +1378,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         next: res => {
           const items = (res as any)?.items ?? [];
           if (Array.isArray(items) && items.length) {
-            this.orderLines = items
-              .map((row: any) => this.toUiOrderLine(row))
-              .filter((row: UiOrderLine) => row.item_code && row.item_code !== BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE);
+            this.orderLines = this.hydrateOrderLines(items);
           }
           this.updateBillMismatchError();
           this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
@@ -1228,9 +1571,14 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const amount = Number(row?.amount ?? qty * rate);
     const margin = Number(row?.aas_margin_percent ?? 0);
     const vendorRate = Number(row?.aas_vendor_rate ?? rate);
+    const rateBeforeTax = Number(row?.aas_rate_before_tax ?? NaN);
+    const rateAfterTax = Number(row?.aas_rate_after_tax ?? NaN);
     const mrp = Number(row?.aas_mrp ?? 0);
     const gst = Number(row?.aas_gst_percent ?? 0);
+    const description = String(row?.description ?? '').trim();
+    const parseNote = String(row?.parse_note ?? this.extractParseNote(description)).trim() || null;
     const line: UiOrderLine = {
+      source_serial: null,
       item_code: String(row?.item_code ?? '').trim(),
       item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
       qty: Number.isFinite(qty) ? qty : 0,
@@ -1238,10 +1586,16 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       amount: Number.isFinite(amount) ? amount : 0,
       aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0,
       aas_vendor_rate: Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : null,
+      aas_rate_before_tax: Number.isFinite(rateBeforeTax) && rateBeforeTax >= 0 ? rateBeforeTax : null,
+      aas_rate_after_tax: Number.isFinite(rateAfterTax) && rateAfterTax >= 0 ? rateAfterTax : null,
       aas_mrp: Number.isFinite(mrp) && mrp > 0 ? mrp : null,
       aas_gst_percent: Number.isFinite(gst) && gst >= 0 ? gst : null,
+      manual_entry: !!row?.manual_entry || description.includes('[AAS_MANUAL_ENTRY]'),
+      parse_note: parseNote,
       mrpApplied: false
     };
+    line.aas_rate_before_tax = this.deriveLineRateBeforeTax(line);
+    line.aas_rate_after_tax = this.deriveLineRateAfterTax(line);
     line.mrpApplied = this.isMrpCapApplied(line);
     return line;
   }
@@ -1270,6 +1624,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get vendorPdfUrl(): string {
     return String(this.selectedOrder?.raw?.aas_vendor_pdf ?? '').trim();
+  }
+
+  private extractParseNote(description: string): string {
+    const match = description.match(/\[AAS_PARSE_NOTE\]\s*(.+)$/m);
+    return match?.[1]?.trim() ?? '';
   }
 
   get hasBranchImages(): boolean {

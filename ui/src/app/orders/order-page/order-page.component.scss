@@ -102,6 +102,33 @@
     .cell-note.error {
       color: #b02a37;
     }
+
+    .manual-item-editor {
+      width: 100%;
+      display: grid;
+      gap: 6px;
+
+      .manual-item-field {
+        width: 100%;
+        min-width: 260px;
+        margin: 0;
+      }
+
+      input[matInput] {
+        min-width: 0;
+      }
+    }
+
+    .manual-option-name {
+      font-weight: 600;
+      color: #212529;
+    }
+
+    .manual-option-meta {
+      font-size: 12px;
+      color: #6c757d;
+      margin-top: 2px;
+    }
   }
 
   .applied-chips {
@@ -301,6 +328,43 @@
     font-size: 13px;
     font-weight: 600;
     color: #495057;
+  }
+
+  .pricing-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .summary-card {
+    border: 1px solid #eef1f4;
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: #fbfcfd;
+
+    .label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: #6c757d;
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 28px;
+      line-height: 1.1;
+      font-weight: 700;
+      color: #212529;
+      margin-bottom: 6px;
+    }
+
+    .muted {
+      font-size: 12px;
+      line-height: 1.45;
+      color: #6c757d;
+    }
   }
 
   .stage-link-actions {

@@ -17,6 +17,11 @@
       <div class="summary-value">{{ summary.lowStock }}</div>
       <div class="summary-hint">Needs reorder attention</div>
     </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Vendors covered</div>
+      <div class="summary-value">{{ summary.vendors }}</div>
+      <div class="summary-hint neutral">Grouped from linked item vendors</div>
+    </mat-card>
   </div>
 
   <app-stock-threshold-form
@@ -83,6 +88,40 @@
           title="No stock items found"
           message="No stock data is available for the selected filters."
           hint="Adjust filters or check data sync.">
+        </app-empty-state>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Vendor-wise item list</div>
+        <div class="section-subtitle">Review which items are currently mapped to each vendor.</div>
+      </div>
+    </div>
+    <mat-card-content>
+      <div class="vendor-groups" *ngIf="!isLoading && vendorGroups.length; else vendorEmptyState">
+        <div class="vendor-group-card" *ngFor="let group of vendorGroups">
+          <div class="vendor-group-head">
+            <div>
+              <div class="vendor-name">{{ group.vendorName }}</div>
+              <div class="muted">{{ group.itemCount }} items</div>
+            </div>
+            <div class="vendor-total">{{ group.totalQuantity | number: '1.0-2' }}</div>
+          </div>
+          <div class="vendor-group-items">
+            <span class="vendor-item-chip" *ngFor="let itemName of group.itemNames">{{ itemName }}</span>
+          </div>
+        </div>
+      </div>
+      <ng-template #vendorEmptyState>
+        <app-empty-state
+          *ngIf="!isLoading"
+          icon="local_shipping"
+          title="No vendor-linked items found"
+          message="Items will appear here once they are linked to vendors."
+          hint="Update item vendor mappings to build vendor-wise stock visibility.">
         </app-empty-state>
       </ng-template>
     </mat-card-content>

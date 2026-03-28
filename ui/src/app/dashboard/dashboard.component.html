@@ -12,9 +12,9 @@
 
     <div class="kpi-grid" *ngIf="!vm.loading && vm.snapshot">
       <mat-card class="kpi-card">
-        <div class="kpi-label">Tracked items</div>
-        <div class="kpi-value">{{ vm.snapshot.stockSnapshot.totalItems }}</div>
-        <div class="kpi-meta">Total qty {{ vm.snapshot.stockSnapshot.totalQuantity | number: '1.0-2' }}</div>
+        <div class="kpi-label">Stock on hand</div>
+        <div class="kpi-value">{{ vm.snapshot.stockSnapshot.totalQuantity | number: '1.0-2' }}</div>
+        <div class="kpi-meta">Live quantity across inventory</div>
       </mat-card>
       <mat-card class="kpi-card">
         <div class="kpi-label">Invoices</div>
