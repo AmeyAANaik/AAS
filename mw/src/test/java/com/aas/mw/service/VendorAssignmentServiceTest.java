@@ -27,6 +27,8 @@ class VendorAssignmentServiceTest {
 
     @Test
     void assignsVendorOnlyFromDraft() {
+        when(erpNextClient.getResource(eq("Supplier"), eq("SUP-1")))
+                .thenReturn(Map.of("name", "SUP-1", "disabled", 0, "aas_category", "Grocery"));
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1")))
                 .thenReturn(Map.of("aas_status", "DRAFT"));
         when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
@@ -44,6 +46,8 @@ class VendorAssignmentServiceTest {
 
     @Test
     void rejectsAssignVendorWhenNotDraft() {
+        when(erpNextClient.getResource(eq("Supplier"), eq("SUP-1")))
+                .thenReturn(Map.of("name", "SUP-1", "disabled", 0, "aas_category", "Grocery"));
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1")))
                 .thenReturn(Map.of("aas_status", "VENDOR_ASSIGNED"));
 

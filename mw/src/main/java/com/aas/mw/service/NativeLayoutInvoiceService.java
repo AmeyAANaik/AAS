@@ -104,6 +104,7 @@ public class NativeLayoutInvoiceService {
             List<InvoiceTemplateModelProperties.TemplateField> summaryFields) {
         NativeLayoutTable primaryTable = mergeCompatibleTables(sample.tables(), "");
         List<String> headers = primaryTable == null ? List.of() : primaryTable.headers();
+        int totalTableRows = primaryTable == null ? 0 : primaryTable.rows().size();
         List<NativeLayoutTableRow> rows = primaryTable == null ? List.of() : primaryTable.rows().stream().limit(8).toList();
         List<String> rawTableLines = primaryTable == null ? List.of() : primaryTable.rawLines().stream().limit(12).toList();
         return """
@@ -113,6 +114,7 @@ public class NativeLayoutInvoiceService {
                   "requiredItemFields": %s,
                   "requiredSummaryFields": %s,
                   "tableHeaders": %s,
+                  "totalTableRows": %d,
                   "sampleRows": %s,
                   "summaryLabels": %s,
                   "summaryLines": %s,
@@ -125,6 +127,7 @@ public class NativeLayoutInvoiceService {
                 describeFieldKeys(itemFields),
                 describeFieldKeys(summaryFields),
                 headers,
+                totalTableRows,
                 describeRows(rows),
                 sample.summaryLabels(),
                 sample.summaryLines().stream().limit(10).toList(),
@@ -501,7 +504,13 @@ public class NativeLayoutInvoiceService {
         if (looksLikeHeader(text) || SUMMARY_LABEL.matcher(text).find()) {
             return false;
         }
-        return !text.matches(".*\\d{2,}.*");
+        // A line that starts with a serial number (e.g. "32 SFK SABUDANA") is a new item row, not a continuation.
+        // Previously this rejected any line containing 2+ digit numbers, which incorrectly broke tables
+        // at continuation lines like "OIL 13kg", "POWDER 500GM", "680GMS".
+        if (text.matches("^\\d{1,3}\\s+.*")) {
+            return false;
+        }
+        return true;
     }
 
     private NativeLayoutTableRow appendContinuation(

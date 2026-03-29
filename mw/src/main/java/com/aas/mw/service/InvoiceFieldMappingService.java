@@ -37,7 +37,8 @@ public class InvoiceFieldMappingService {
             List<FieldMapping> summaryMappings,
             String notes,
             String generatorType,
-            String generatorModel) {
+            String generatorModel,
+            int totalItemCount) {
     }
 
     public record RowRules(
@@ -106,13 +107,13 @@ public class InvoiceFieldMappingService {
             List<InvoiceTemplateModelProperties.TemplateField> itemFields,
             List<InvoiceTemplateModelProperties.TemplateField> summaryFields) {
         if (!enabled || generatorBaseUrl.isBlank() || generatorModel.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel);
+            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
         }
         if (parserText == null || parserText.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel);
+            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
         }
         if (requiresApiKey() && generatorApiKey.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel);
+            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
         }
         try {
             String prompt = buildPrompt(vendorId, vendorName, parserText, camelotText, itemFields, summaryFields);
@@ -124,9 +125,10 @@ public class InvoiceFieldMappingService {
             List<FieldMapping> itemMappings = normalizeMappings(parsed.get("itemMappings"), itemFields);
             List<FieldMapping> summaryMappings = normalizeMappings(parsed.get("summaryMappings"), summaryFields);
             String notes = asText(parsed.get("notes"));
-            return new MappingResult(itemMappings, summaryMappings, notes, generatorType, generatorModel);
+            int totalItemCount = asInt(parsed.get("totalItemCount"));
+            return new MappingResult(itemMappings, summaryMappings, notes, generatorType, generatorModel, totalItemCount);
         } catch (Exception ex) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel);
+            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
         }
     }
 
@@ -186,6 +188,7 @@ public class InvoiceFieldMappingService {
                 - itemMappings
                 - summaryMappings
                 - notes
+                - totalItemCount
 
                 Each mapping object must contain exactly:
                 - targetField
@@ -208,6 +211,7 @@ public class InvoiceFieldMappingService {
                 - use tax percent columns for gst
                 - use HSN/SAC/item code style columns for item_id
                 - transport_charge is present only if the invoice explicitly shows a transport, freight, cartage, delivery, or shipping charge amount
+                - totalItemCount: count every distinct item/product row visible in the full layout (integer); exclude header rows, total rows, tax rows, blank lines, and continuation lines; use totalTableRows from the payload as a cross-check
 
                 Native layout payload:
                 %s
@@ -634,5 +638,16 @@ public class InvoiceFieldMappingService {
 
     private String asText(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    private int asInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 }

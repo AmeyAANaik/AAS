@@ -425,6 +425,7 @@ public class VendorInvoiceTemplateController {
 
         Map<String, Object> previewMetrics = new LinkedHashMap<>();
         previewMetrics.put("itemsDetected", extraction.items().size());
+        previewMetrics.put("llmItemCount", fieldMapping.totalItemCount());
         previewMetrics.put("itemFieldsMatched", requiredItemFields.size() - missingItemFields.size());
         previewMetrics.put("totalRows", countNonEmptyLines(nativeSample.layoutText()));
         previewMetrics.put("billAmount", extraction.finalAmount());
