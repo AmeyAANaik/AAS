@@ -347,11 +347,16 @@ public class VendorOpsService {
                 .toList();
 
         List<Map<String, Object>> ledgerEntries = buildLedgerEntries(vendorInvoices, vendorPayments);
-        double pendingBillAmount = vendorOrders.stream()
+        double outstandingInvoiceAmount = vendorInvoices.stream()
+                .mapToDouble(invoice -> asDouble(invoice.get("outstanding_amount")))
+                .sum();
+        double preCaptureEstimatedAmount = vendorOrders.stream()
                 .filter(order -> "VENDOR_PDF_RECEIVED".equals(asText(order.get("aas_status")))
-                        || "VENDOR_BILL_CAPTURED".equals(asText(order.get("aas_status"))))
+                        || ("VENDOR_BILL_CAPTURED".equals(asText(order.get("aas_status")))
+                        && !hasText(order.get("aas_pi_vendor"))))
                 .mapToDouble(order -> asDouble(order.get("aas_vendor_bill_total")))
                 .sum();
+        double pendingBillAmount = outstandingInvoiceAmount + preCaptureEstimatedAmount;
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("vendorId", vendorId);

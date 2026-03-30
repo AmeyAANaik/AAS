@@ -324,7 +324,7 @@ public class VendorInvoiceTemplateController {
                 invoiceTemplateModelService.summaryFieldDefinitions());
         String tableHints = nativeSample.tables().isEmpty()
                 ? ""
-                : nativeSample.tables().getFirst().rows().stream().limit(8).map(row -> row.cells().toString()).toList().toString();
+                : nativeSample.tables().getFirst().rows().stream().map(row -> row.cells().toString()).toList().toString();
         InvoiceFieldMappingService.MappingResult fieldMapping = invoiceFieldMappingService.detectMappings(
                 vendorId,
                 vendorName,
@@ -433,6 +433,8 @@ public class VendorInvoiceTemplateController {
         previewMetrics.put("invoiceNumber", extraction.invoiceNumber());
         previewMetrics.put("invoiceDate", extraction.invoiceDate());
         previewMetrics.put("expectedItems", expectedItemCount);
+        previewMetrics.put("extractedItemCount", extraction.items().size());
+        previewMetrics.put("missingItemCount", missingSerials.size());
         previewMetrics.put("itemCountComplete", itemCountComplete);
 
         Map<String, Object> response = new LinkedHashMap<>();
@@ -2098,7 +2100,7 @@ public class VendorInvoiceTemplateController {
         String[] lines = parserText == null ? new String[0] : parserText.replace('\f', '\n').split("\\r?\\n");
         for (String rawLine : lines) {
             String line = asText(rawLine);
-            java.util.regex.Matcher leadingSerial = java.util.regex.Pattern.compile("^\\s*(\\d{1,3})\\s{2,}.*$").matcher(line);
+            java.util.regex.Matcher leadingSerial = java.util.regex.Pattern.compile("^\\s*(\\d{1,3})\\s+\\S.*$").matcher(line);
             int value;
             if (leadingSerial.matches()) {
                 value = parseInt(leadingSerial.group(1));

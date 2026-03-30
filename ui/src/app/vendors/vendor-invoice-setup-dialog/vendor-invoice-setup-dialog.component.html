@@ -151,12 +151,16 @@
 
       <div class="review-metrics">
         <div class="summary-stat emphasis">
-          <span class="summary-label">Items detected</span>
-          <strong>{{ preview.previewMetrics.itemsDetected }}</strong>
+          <span class="summary-label">Items extracted</span>
+          <strong>{{ extractedItemCount }}</strong>
         </div>
         <div class="summary-stat emphasis" *ngIf="expectedItemCount > 0">
           <span class="summary-label">Expected items</span>
           <strong>{{ expectedItemCount }}</strong>
+        </div>
+        <div class="summary-stat emphasis" *ngIf="expectedItemCount > 0">
+          <span class="summary-label">Missing items</span>
+          <strong>{{ missingItemCount }}</strong>
         </div>
         <div class="summary-stat emphasis">
           <span class="summary-label">Parser rows scanned</span>

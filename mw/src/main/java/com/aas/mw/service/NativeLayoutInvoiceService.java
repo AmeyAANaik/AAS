@@ -105,8 +105,8 @@ public class NativeLayoutInvoiceService {
         NativeLayoutTable primaryTable = mergeCompatibleTables(sample.tables(), "");
         List<String> headers = primaryTable == null ? List.of() : primaryTable.headers();
         int totalTableRows = primaryTable == null ? 0 : primaryTable.rows().size();
-        List<NativeLayoutTableRow> rows = primaryTable == null ? List.of() : primaryTable.rows().stream().limit(8).toList();
-        List<String> rawTableLines = primaryTable == null ? List.of() : primaryTable.rawLines().stream().limit(12).toList();
+        List<NativeLayoutTableRow> rows = primaryTable == null ? List.of() : primaryTable.rows();
+        List<String> rawTableLines = primaryTable == null ? List.of() : primaryTable.rawLines();
         return """
                 {
                   "vendorId": "%s",
@@ -147,8 +147,8 @@ public class NativeLayoutInvoiceService {
                     "blockId", table.tableId(),
                     "blockType", "table_candidate",
                     "headers", table.headers(),
-                    "sampleRows", table.rows().stream().limit(8).map(NativeLayoutTableRow::cells).toList(),
-                    "rawPreview", table.rawLines().stream().limit(12).toList()));
+                    "sampleRows", table.rows().stream().map(NativeLayoutTableRow::cells).toList(),
+                    "rawPreview", table.rawLines()));
         }
         candidateBlocks.add(Map.of(
                 "blockId", "summary_1",

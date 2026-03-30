@@ -130,6 +130,10 @@ export class VendorInvoiceSetupDialogComponent implements OnInit {
     return this.profilePreview?.completeness?.extractedItemCount ?? this.profilePreview?.previewMetrics?.itemsDetected ?? 0;
   }
 
+  get missingItemCount(): number {
+    return Math.max(this.expectedItemCount - this.extractedItemCount, 0);
+  }
+
   get itemCountMismatch(): boolean {
     return !!this.profilePreview
       && this.expectedItemCount > 0

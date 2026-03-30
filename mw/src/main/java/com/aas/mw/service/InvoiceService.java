@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import feign.FeignException;
 import java.math.BigDecimal;
 import com.aas.mw.dto.InvoiceRequest;
 import java.time.LocalDate;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 public class InvoiceService {
 
     private static final String DOCTYPE = "Sales Invoice";
+    private static final String PAYMENT_ENTRY = "Payment Entry";
+    private static final String PAYMENT_LEDGER_ENTRY = "Payment Ledger Entry";
 
     private final ErpNextClient erpNextClient;
     private final String gstTemplate;
@@ -214,7 +217,7 @@ public class InvoiceService {
 
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\"]");
+        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (customer != null && !customer.isBlank()) {
@@ -229,7 +232,10 @@ public class InvoiceService {
         if (!filters.isEmpty()) {
             params.put("filters", toJson(filters));
         }
-        return erpNextClient.listResources(DOCTYPE, params);
+        return erpNextClient.listResources(DOCTYPE, params).stream()
+                .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
+                .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
+                .toList();
     }
 
     public byte[] downloadPdf(String invoiceId) {
@@ -243,6 +249,136 @@ public class InvoiceService {
             throw new IllegalStateException("ERPNext did not return a valid PDF for " + invoiceId + ". " + snippet);
         }
         return pdf;
+    }
+
+    public Map<String, Object> deleteInvoice(String invoiceId) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            throw new IllegalArgumentException("Invoice id is required.");
+        }
+        try {
+            Map<String, Object> invoice = unwrap(erpNextClient.getResource(DOCTYPE, invoiceId));
+            if (invoice.isEmpty()) {
+                throw new IllegalArgumentException("Invoice not found.");
+            }
+            int existingDocstatus = asInt(invoice.get("docstatus"));
+            String existingStatus = asText(invoice.get("status"));
+            if (existingDocstatus == 2 || "Cancelled".equalsIgnoreCase(existingStatus)) {
+                return Map.of(
+                        "status", "cancelled",
+                        "message", "Invoice was already cancelled and has been removed from the AAS invoice list.",
+                        "invoiceId", invoiceId);
+            }
+            String customer = asText(invoice.get("customer"));
+            List<Map<String, Object>> linkedPayments = findLinkedPayments(invoiceId, customer);
+            for (Map<String, Object> payment : linkedPayments) {
+                deletePaymentEntry(asText(payment.get("name")), asInt(payment.get("docstatus")));
+            }
+            int docstatus = existingDocstatus;
+            if (docstatus == 1) {
+                erpNextClient.cancelResource(DOCTYPE, invoiceId);
+            }
+            deletePaymentLedgerEntriesForInvoice(invoiceId);
+            try {
+                return erpNextClient.deleteResource(DOCTYPE, invoiceId);
+            } catch (FeignException ex) {
+                String message = summarizeFeignMessage(ex);
+                if (isLedgerRetentionBlock(message)) {
+                    return Map.of(
+                            "status", "cancelled",
+                            "message", "Invoice cancelled and removed from AAS list. ERP kept the cancelled ledger record for audit integrity.",
+                            "invoiceId", invoiceId);
+                }
+                throw ex;
+            }
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            String detail = firstMeaningfulMessage(ex);
+            throw new IllegalStateException(detail.isBlank() ? "Unable to delete invoice." : detail, ex);
+        }
+    }
+
+    private List<Map<String, Object>> findLinkedPayments(String invoiceId, String customer) {
+        if (invoiceId == null || invoiceId.isBlank() || customer == null || customer.isBlank()) {
+            return List.of();
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"docstatus\",\"party\",\"party_type\",\"posting_date\"]");
+        params.put("filters", "[[\"party_type\",\"=\",\"Customer\"],[\"party\",\"=\",\"" + escape(customer) + "\"]]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> payments = erpNextClient.listResources(PAYMENT_ENTRY, params);
+        if (payments == null || payments.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> linked = new ArrayList<>();
+        for (Map<String, Object> payment : payments) {
+            String paymentId = asText(payment.get("name"));
+            if (paymentId.isBlank()) {
+                continue;
+            }
+            Map<String, Object> paymentDoc = unwrap(erpNextClient.getResource(PAYMENT_ENTRY, paymentId));
+            List<Map<String, Object>> references = childItems(paymentDoc.get("references"));
+            boolean matches = references.stream().anyMatch(reference ->
+                    DOCTYPE.equalsIgnoreCase(asText(reference.get("reference_doctype")))
+                            && invoiceId.equals(asText(reference.get("reference_name"))));
+            if (matches) {
+                linked.add(Map.of(
+                        "name", paymentId,
+                        "docstatus", asInt(paymentDoc.get("docstatus"))));
+            }
+        }
+        return linked;
+    }
+
+    private void deletePaymentEntry(String paymentId, int docstatus) {
+        if (paymentId == null || paymentId.isBlank()) {
+            return;
+        }
+        if (docstatus == 1) {
+            erpNextClient.cancelResource(PAYMENT_ENTRY, paymentId);
+        }
+        deletePaymentLedgerEntriesForVoucher(paymentId);
+        erpNextClient.deleteResource(PAYMENT_ENTRY, paymentId);
+    }
+
+    private void deletePaymentLedgerEntriesForVoucher(String voucherNo) {
+        if (voucherNo == null || voucherNo.isBlank()) {
+            return;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"voucher_no\"]");
+        params.put("filters", "[[\"voucher_no\",\"=\",\"" + escape(voucherNo) + "\"]]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> entries = erpNextClient.listResources(PAYMENT_LEDGER_ENTRY, params);
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> entry : entries) {
+            String entryId = asText(entry.get("name"));
+            if (!entryId.isBlank()) {
+                erpNextClient.deleteResource(PAYMENT_LEDGER_ENTRY, entryId);
+            }
+        }
+    }
+
+    private void deletePaymentLedgerEntriesForInvoice(String invoiceId) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"voucher_no\",\"against_voucher_no\"]");
+        params.put("filters", "[[\"against_voucher_no\",\"=\",\"" + escape(invoiceId) + "\"]]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> entries = erpNextClient.listResources(PAYMENT_LEDGER_ENTRY, params);
+        if (entries == null || entries.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> entry : entries) {
+            String entryId = asText(entry.get("name"));
+            if (!entryId.isBlank()) {
+                erpNextClient.deleteResource(PAYMENT_LEDGER_ENTRY, entryId);
+            }
+        }
     }
 
     private String resolveInvoicePrintFormat(String invoiceId) {
@@ -380,6 +516,48 @@ public class InvoiceService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String firstMeaningfulMessage(Exception ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isBlank() && !"Request failed.".equalsIgnoreCase(message.trim())) {
+                return message;
+            }
+            current = current.getCause();
+        }
+        return "";
+    }
+
+    private boolean isLedgerRetentionBlock(String message) {
+        String normalized = message == null ? "" : message.toLowerCase();
+        return normalized.contains("gl entry") || normalized.contains("payment ledger entry");
+    }
+
+    private String summarizeFeignMessage(FeignException ex) {
+        if (ex == null) {
+            return "";
+        }
+        String content = ex.contentUTF8();
+        if (content != null && !content.isBlank()) {
+            return content;
+        }
+        return ex.getMessage() == null ? "" : ex.getMessage();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> childItems(Object value) {
+        if (value instanceof List<?> list) {
+            List<Map<String, Object>> rows = new ArrayList<>();
+            for (Object entry : list) {
+                if (entry instanceof Map<?, ?> map) {
+                    rows.add((Map<String, Object>) map);
+                }
+            }
+            return rows;
+        }
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")

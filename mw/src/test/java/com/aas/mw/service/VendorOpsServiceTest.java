@@ -24,6 +24,54 @@ class VendorOpsServiceTest {
     private VendorOpsService vendorOpsService;
 
     @Test
+    void summaryPendingBillAmountIncludesOutstandingInvoicesAndPreCaptureOrders() {
+        when(erpNextClient.listResources(eq("Supplier"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "VENDOR-1",
+                        "supplier_name", "FreshHarvest Agro Foods",
+                        "disabled", 0)));
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SO-PDF",
+                                "aas_vendor", "VENDOR-1",
+                                "aas_status", "VENDOR_PDF_RECEIVED",
+                                "aas_vendor_bill_total", 250.0,
+                                "modified", "2026-03-03 10:00:00"),
+                        Map.of(
+                                "name", "SO-SELL",
+                                "aas_vendor", "VENDOR-1",
+                                "aas_status", "SELL_ORDER_CREATED",
+                                "aas_vendor_bill_total", 1000.0,
+                                "aas_pi_vendor", "PINV-001",
+                                "modified", "2026-03-04 10:00:00")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-001",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-04",
+                                "outstanding_amount", 1000.0,
+                                "grand_total", 1000.0,
+                                "bill_no", "BILL-001",
+                                "docstatus", 1,
+                                "modified", "2026-03-04 11:00:00")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = vendorOpsService.getSummary();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> vendors = (List<Map<String, Object>>) response.get("vendors");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> totals = (Map<String, Object>) response.get("totals");
+
+        assertThat(vendors).hasSize(1);
+        assertThat(vendors.get(0).get("pendingBillAmount")).isEqualTo(1250.0);
+        assertThat(totals.get("totalPendingBillAmount")).isEqualTo(1250.0);
+    }
+
+    @Test
     void getVendorLedgerTreatsInvoicesAsPositivePayableAndPaymentsAsReductions() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));

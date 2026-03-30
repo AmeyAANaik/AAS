@@ -67,6 +67,13 @@ table {
   width: 100%;
 }
 
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .item-name {
   font-weight: 600;
 }

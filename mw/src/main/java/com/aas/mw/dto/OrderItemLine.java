@@ -1,12 +1,10 @@
 package com.aas.mw.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Positive;
 
 public class OrderItemLine {
 
-    @NotBlank
     private String item_code;
 
     private String item_name;

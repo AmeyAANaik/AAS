@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -173,6 +174,53 @@ class OrderServiceTest {
     }
 
     @Test
+    void updateOrderItemsResolvesManualRecoveryItemCodeFromItemName() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_vendor", "VENDOR-1",
+                "aas_category", "Bakery Inputs",
+                "items", List.of(),
+                "aas_po", ""));
+        when(erpNextClient.listResources(eq("Item"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "ITEM-28", "item_name", "NIRMA YELLOW POWDER 1KG")));
+        when(erpNextClient.getResource(eq("Item"), eq("ITEM-28")))
+                .thenReturn(Map.of("name", "ITEM-28", "disabled", 0, "aas_margin_percent", 7.0));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of(
+                "items", List.of(Map.of(
+                        "item_code", "ITEM-28",
+                        "item_name", "NIRMA YELLOW POWDER 1KG",
+                        "qty", 1.0,
+                        "rate", 60.0,
+                        "amount", 60.0,
+                        "aas_margin_percent", 7.0,
+                        "aas_vendor_rate", 60.0,
+                        "description", "NIRMA YELLOW POWDER 1KG\n[AAS_MANUAL_ENTRY]\n[AAS_PARSE_NOTE] Added manually because invoice row 28 was not parsed."))));
+
+        OrderItemLine line = new OrderItemLine();
+        line.setItem_code("");
+        line.setItem_name("NIRMA YELLOW POWDER 1KG");
+        line.setQty(1);
+        line.setRate(60);
+        line.setAas_margin_percent(7);
+        line.setManual_entry(true);
+        line.setParse_note("Added manually because invoice row 28 was not parsed.");
+
+        Map<String, Object> response = orderService.updateOrderItems("SO-1", List.of(line));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq("SO-1"), payloadCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) payloadCaptor.getValue().get("items");
+        assertEquals("ITEM-28", items.get(0).get("item_code"));
+        assertEquals("ITEM-28", line.getItem_code());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> responseItems = (List<Map<String, Object>>) response.get("items");
+        assertEquals("ITEM-28", responseItems.get(0).get("item_code"));
+        assertTrue((Boolean) responseItems.get(0).get("manual_entry"));
+    }
+
+    @Test
     void deleteOrderAlsoDeletesLinkedDraftPurchaseOrder() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",
@@ -231,6 +279,23 @@ class OrderServiceTest {
     }
 
     @Test
+    void deleteOrderClearsCancelledBranchSalesInvoiceLink() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_si_branch", "SINV-1"));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of(
+                Map.of("name", "SINV-1", "docstatus", 2)));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(List.of("SINV-1"), response.get("deletedSalesInvoices"));
+        assertEquals(List.of(), response.get("retainedSalesInvoices"));
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq("SO-1"), eq(Map.of("aas_si_branch", "")));
+    }
+
+    @Test
     void deleteOrderSoftDeletesWhenLinkedPurchaseInvoiceExists() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",
@@ -248,6 +313,24 @@ class OrderServiceTest {
         assertEquals(false, response.get("purchaseOrderDeleted"));
         verify(erpNextClient, never()).deleteResource(eq("Purchase Order"), anyString());
         verify(erpNextClient, never()).deleteResource(eq("Sales Order"), anyString());
+    }
+
+    @Test
+    void deleteOrderDeletesLinkedDraftPurchaseInvoiceAfterClearingOrderLink() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_pi_vendor", "PINV-1"));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of(
+                Map.of("name", "PINV-1", "docstatus", 0)));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
+        when(erpNextClient.deleteResource(eq("Purchase Invoice"), eq("PINV-1"))).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(List.of("PINV-1"), response.get("deletedPurchaseInvoices"));
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq("SO-1"), eq(Map.of("aas_pi_vendor", "")));
+        verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PINV-1"));
     }
 
     @Test

@@ -29,6 +29,7 @@ export class BillsPageComponent implements OnInit {
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
   statusMessage = '';
   isLoading = false;
+  deletingInvoiceId = '';
 
   constructor(
     private fb: FormBuilder,
@@ -147,6 +148,30 @@ export class BillsPageComponent implements OnInit {
     });
   }
 
+  deleteInvoice(invoice: InvoiceView): void {
+    if (!invoice?.id || !this.canDelete(invoice)) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete invoice "${invoice.id}"? Only draft invoices can be removed.`);
+    if (!confirmed) {
+      return;
+    }
+    this.deletingInvoiceId = invoice.id;
+    this.statusMessage = '';
+    this.billsService
+      .deleteInvoice(invoice.id)
+      .pipe(finalize(() => (this.deletingInvoiceId = '')))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Invoice deleted.';
+          this.loadInvoices();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to delete invoice');
+        }
+      });
+  }
+
   downloadCsv(): void {
     const filters = this.filtersForm.getRawValue() as InvoiceFilters;
     this.billsService.exportInvoices(filters).subscribe({
@@ -173,6 +198,14 @@ export class BillsPageComponent implements OnInit {
 
   onPaymentCreated(): void {
     this.loadInvoices();
+  }
+
+  canDelete(invoice: InvoiceView): boolean {
+    return !!invoice.id;
+  }
+
+  isDeleting(invoice: InvoiceView): boolean {
+    return this.deletingInvoiceId === invoice.id;
   }
 
   getStatusPillClass(invoice: InvoiceView): string {

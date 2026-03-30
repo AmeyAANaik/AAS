@@ -46,6 +46,12 @@ export class BillsService {
     });
   }
 
+  deleteInvoice(invoiceId: string): Observable<Record<string, unknown>> {
+    return this.http.delete<Record<string, unknown>>(`/api/invoices/${invoiceId}`, {
+      headers: this.authHeaders()
+    });
+  }
+
   exportInvoices(filters: InvoiceFilters): Observable<Blob> {
     let params = new HttpParams();
     if (filters.customer) {

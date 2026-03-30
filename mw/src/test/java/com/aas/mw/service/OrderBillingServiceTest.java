@@ -102,6 +102,40 @@ class OrderBillingServiceTest {
     }
 
     @Test
+    void capturesVendorBillWhenLineAmountsAlreadyIncludeGst() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_vendor", "SUP-1",
+                "company", "AAS",
+                "items", List.of(Map.of(
+                        "item_code", "ITEM-1",
+                        "qty", 60,
+                        "rate", 60.17,
+                        "amount", 3610.2,
+                        "aas_gst_percent", 18.0,
+                        "aas_rate_before_tax", 50.99,
+                        "aas_rate_after_tax", 60.17,
+                        "aas_margin_percent", 7.0))));
+        when(erpNextClient.getResource(eq("Item"), eq("AAS-VENDOR-BILL")))
+                .thenReturn(Map.of("name", "AAS-VENDOR-BILL"));
+        when(erpNextClient.createResource(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(Map.of("name", "PINV-1"));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("vendor_bill_total", 3610.2);
+        fields.put("vendor_bill_ref", "VB-INCL-1");
+        fields.put("vendor_bill_date", "2026-03-31");
+
+        Map<String, Object> response = service.captureVendorBill("SO-1", fields);
+
+        assertEquals(3610.2, response.get("vendorBillTotal"));
+        assertEquals(0.0, response.get("roundingAdjustment"));
+        verify(erpNextClient).createResource(eq("Purchase Invoice"), anyMap());
+    }
+
+    @Test
     void capturesVendorBillWithRoundingAdjustmentWhenDiffIsWithinTolerance() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_status", "VENDOR_PDF_RECEIVED",

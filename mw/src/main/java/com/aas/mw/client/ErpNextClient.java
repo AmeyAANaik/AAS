@@ -154,6 +154,13 @@ public class ErpNextClient {
         return feignClient.submit(payload);
     }
 
+    public Map<String, Object> cancelResource(String doctype, String id) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("doctype", doctype);
+        payload.put("name", id);
+        return feignClient.cancel(payload);
+    }
+
     public Map<String, Object> deleteResource(String doctype, String id) {
         return feignClient.deleteResource(doctype, id);
     }

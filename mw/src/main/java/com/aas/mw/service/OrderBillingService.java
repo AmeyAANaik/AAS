@@ -53,7 +53,7 @@ public class OrderBillingService {
         double vendorBillTotal = readRequiredPositive(fields, "vendor_bill_total");
         double transportCharge = readOptionalNonNegative(fields, "transport_charge");
         boolean allowMismatch = asFlag(fields.get("allow_mismatch"));
-        double itemsTotal = sumOrderItemsTotal(orderData);
+        double itemsTotal = sumOrderItemsTotal(orderData, vendorBillTotal, transportCharge);
         double expectedBillTotal = round(itemsTotal + transportCharge);
         double diff = round(vendorBillTotal - expectedBillTotal);
         double roundingAdjustment = Math.abs(diff) < 1.0 ? diff : 0.0;
@@ -639,7 +639,7 @@ public class OrderBillingService {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    private double sumOrderItemsTotal(Map<String, Object> orderData) {
+    private double sumOrderItemsTotal(Map<String, Object> orderData, double referenceBillTotal, double transportCharge) {
         if (orderData == null) {
             return 0.0;
         }
@@ -647,13 +647,14 @@ public class OrderBillingService {
         if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
             return 0.0;
         }
+        boolean gstIncludedInLineAmounts = inferGstIncludedInLineAmounts(list, referenceBillTotal, transportCharge);
         double total = 0.0;
         for (Object rowObj : list) {
             if (rowObj instanceof Map<?, ?> row) {
                 double amount = asDouble(((Map<?, ?>) row).get("amount"));
                 if (amount > 0) {
                     double gstPercent = asDouble(((Map<?, ?>) row).get("aas_gst_percent"));
-                    if (gstPercent > 0) {
+                    if (!gstIncludedInLineAmounts && gstPercent > 0) {
                         amount += amount * (gstPercent / 100.0);
                     }
                     total += amount;
@@ -661,6 +662,53 @@ public class OrderBillingService {
             }
         }
         return round(total);
+    }
+
+    private boolean inferGstIncludedInLineAmounts(List<?> items, double referenceBillTotal, double transportCharge) {
+        if (items == null || items.isEmpty()) {
+            return false;
+        }
+        boolean sawInclusiveRate = false;
+        boolean sawExclusiveRate = false;
+        double subtotal = 0.0;
+        double rawGstOnTopTotal = 0.0;
+        for (Object rowObj : items) {
+            if (!(rowObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            double amount = asDouble(row.get("amount"));
+            if (amount > 0) {
+                subtotal += amount;
+                double gstPercent = asDouble(row.get("aas_gst_percent"));
+                if (gstPercent > 0) {
+                    rawGstOnTopTotal += amount * (gstPercent / 100.0);
+                }
+            }
+            double rate = asDouble(row.get("rate"));
+            double rateBeforeTax = asDouble(row.get("aas_rate_before_tax"));
+            double rateAfterTax = asDouble(row.get("aas_rate_after_tax"));
+            if (rate > 0 && rateBeforeTax > 0 && rateAfterTax > 0 && rateAfterTax > rateBeforeTax) {
+                if (Math.abs(rate - rateAfterTax) < 0.01) {
+                    sawInclusiveRate = true;
+                } else if (Math.abs(rate - rateBeforeTax) < 0.01) {
+                    sawExclusiveRate = true;
+                }
+            }
+        }
+        if (sawInclusiveRate && !sawExclusiveRate) {
+            return true;
+        }
+        if (sawExclusiveRate && !sawInclusiveRate) {
+            return false;
+        }
+        if (referenceBillTotal <= 0 || rawGstOnTopTotal <= 0) {
+            return false;
+        }
+        double subtotalWithTransport = round(subtotal + transportCharge);
+        double totalWithExtraGst = round(subtotalWithTransport + rawGstOnTopTotal);
+        double diffToInclusive = Math.abs(referenceBillTotal - subtotalWithTransport);
+        double diffToExclusive = Math.abs(referenceBillTotal - totalWithExtraGst);
+        return diffToInclusive <= 1.0 && diffToInclusive + 0.01 < diffToExclusive;
     }
 
     private String asText(Object value) {

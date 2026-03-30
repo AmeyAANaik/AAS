@@ -27,9 +27,11 @@ public class OrderService {
     private static final String PARSE_NOTE_PREFIX = "[AAS_PARSE_NOTE]";
 
     private static final String DOCTYPE = "Sales Order";
+    private static final String ITEM = "Item";
     private static final String PURCHASE_ORDER = "Purchase Order";
     private static final String PURCHASE_INVOICE = "Purchase Invoice";
     private static final String SALES_INVOICE = "Sales Invoice";
+    private static final String DEFAULT_MANUAL_ITEM_HSN = "MANUAL";
     private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -285,13 +287,15 @@ public class OrderService {
             throw new IllegalStateException("Order items can only be edited when status is VENDOR_ASSIGNED or VENDOR_PDF_RECEIVED.");
         }
 
+        List<OrderItemLine> resolvedItems = resolveMissingItemCodes(items, orderData);
+
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> existingSoItems =
                 orderData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
         List<Map<String, Object>> updatedSoItems = buildUpdatedChildItems(
                 "Sales Order Item",
                 existingSoItems,
-                items);
+                resolvedItems);
         Map<String, Object> updatedOrder = erpNextClient.updateResource(DOCTYPE, orderId, Map.of("items", updatedSoItems));
 
         String purchaseOrderId = asText(orderData.get("aas_po")).trim();
@@ -305,7 +309,7 @@ public class OrderService {
             List<Map<String, Object>> updatedPoItems = buildUpdatedChildItems(
                     "Purchase Order Item",
                     existingPoItems,
-                    items);
+                    resolvedItems);
             updatedPo = erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of("items", updatedPoItems));
         }
 
@@ -849,6 +853,72 @@ public class OrderService {
         return out;
     }
 
+    private List<OrderItemLine> resolveMissingItemCodes(List<OrderItemLine> items, Map<String, Object> orderData) {
+        CatalogRoutingService.VendorCategoryResolution vendorResolution = null;
+        for (OrderItemLine line : items) {
+            String itemCode = asText(line.getItem_code());
+            if (!itemCode.isBlank()) {
+                continue;
+            }
+            String itemName = asText(line.getItem_name());
+            if (itemName.isBlank()) {
+                throw new IllegalArgumentException("Item name is required when item code is missing.");
+            }
+            itemCode = findItemCodeByName(itemName);
+            if (itemCode == null) {
+                itemCode = findSingleItemCodeByLike(normalizeNameForLookup(itemName));
+            }
+            if ((itemCode == null || itemCode.isBlank()) && line.isManual_entry()) {
+                if (vendorResolution == null) {
+                    vendorResolution = resolveVendorResolutionForOrder(orderData);
+                }
+                itemCode = ensureManualItem(itemName, vendorResolution);
+            }
+            if (itemCode == null || itemCode.isBlank()) {
+                throw new IllegalArgumentException("Unable to resolve item code for \"" + itemName + "\".");
+            }
+            line.setItem_code(itemCode);
+        }
+        return items;
+    }
+
+    private CatalogRoutingService.VendorCategoryResolution resolveVendorResolutionForOrder(Map<String, Object> orderData) {
+        String vendorId = asText(orderData == null ? null : orderData.get("aas_vendor"));
+        String categoryId = asText(orderData == null ? null : orderData.get("aas_category"));
+        if (vendorId.isBlank() || categoryId.isBlank()) {
+            throw new IllegalStateException("Order vendor and category are required to auto-create manual recovery items.");
+        }
+        return catalogRoutingService.resolveVendorForCategory(vendorId, categoryId);
+    }
+
+    private String ensureManualItem(
+            String itemName,
+            CatalogRoutingService.VendorCategoryResolution vendorResolution) {
+        String code = catalogRoutingService.buildParsedItemCode(
+                vendorResolution.vendorCode(),
+                vendorResolution.categoryCode(),
+                DEFAULT_MANUAL_ITEM_HSN,
+                itemName);
+        if (!resourceExists(ITEM, code)) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", code);
+            payload.put("item_name", itemName);
+            payload.put("item_group", vendorResolution.categoryId());
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 1);
+            payload.put("aas_vendor", vendorResolution.vendorId());
+            payload.put("aas_vendor_hsn_code", DEFAULT_MANUAL_ITEM_HSN);
+            payload.put("aas_margin_percent", defaultMarginPercent);
+            Map<String, Object> created = erpNextClient.createResource(ITEM, payload);
+            Object name = created.get("name");
+            if (name != null && !name.toString().isBlank()) {
+                code = name.toString();
+            }
+        }
+        ensureItemEnabled(code);
+        return code;
+    }
+
     private String buildItemDescription(
             String existingDescription,
             String itemName,
@@ -875,6 +945,79 @@ public class OrderService {
             lines.add(PARSE_NOTE_PREFIX + " " + note);
         }
         return String.join("\n", lines).trim();
+    }
+
+    private void ensureItemEnabled(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource(ITEM, itemCode));
+            Object disabled = item.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            }
+        } catch (Exception ignored) {
+            // Best-effort. Save will surface ERP errors if the item is unusable.
+        }
+    }
+
+    private String normalizeNameForLookup(String itemName) {
+        String cleaned = asText(itemName);
+        if (cleaned.isBlank()) {
+            return "";
+        }
+        cleaned = cleaned.replaceAll("\\b\\d{4,10}\\b", " ");
+        cleaned = cleaned.replaceAll("\\b\\d{1,3}(?:\\.\\d+)?\\b\\s*$", " ");
+        cleaned = cleaned.replaceAll("[^A-Za-z0-9]+", " ");
+        return cleaned.replaceAll("\\s+", " ").trim();
+    }
+
+    private String findSingleItemCodeByLike(String cleanedName) {
+        if (cleanedName == null || cleanedName.isBlank() || cleanedName.length() < 4) {
+            return null;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_name\"]");
+        params.put("limit_page_length", "5");
+        params.put("filters", "[[\"item_name\",\"like\",\"%" + escape(cleanedName) + "%\"]]");
+        List<Map<String, Object>> data = erpNextClient.listResources(ITEM, params);
+        if (data.size() != 1) {
+            return null;
+        }
+        Object name = data.get(0).get("name");
+        return name == null ? null : name.toString();
+    }
+
+    private String findItemCodeByName(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return null;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_name\"]");
+        params.put("limit_page_length", "1");
+        params.put("filters", "[[\"item_name\",\"=\",\"" + escape(itemName) + "\"]]");
+        List<Map<String, Object>> data = erpNextClient.listResources(ITEM, params);
+        if (data.isEmpty()) {
+            return null;
+        }
+        Object name = data.get(0).get("name");
+        return name == null ? null : name.toString();
+    }
+
+    private boolean resourceExists(String doctype, String name) {
+        if (doctype == null || doctype.isBlank() || name == null || name.isBlank()) {
+            return false;
+        }
+        try {
+            return !unwrap(erpNextClient.getResource(doctype, name)).isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private String stripAasLineMeta(String description) {
@@ -1038,6 +1181,13 @@ public class OrderService {
                 deleted.add(salesInvoiceId);
                 continue;
             }
+            if (salesInvoiceDocstatus == 2) {
+                if (salesInvoiceId.equals(linkedSalesInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_si_branch", ""));
+                }
+                deleted.add(salesInvoiceId);
+                continue;
+            }
             retained.add(salesInvoiceId);
         }
         return new CascadeCleanupResult(deleted, retained);
@@ -1058,6 +1208,13 @@ public class OrderService {
                     erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_pi_vendor", ""));
                 }
                 erpNextClient.deleteResource(PURCHASE_INVOICE, purchaseInvoiceId);
+                deleted.add(purchaseInvoiceId);
+                continue;
+            }
+            if (purchaseInvoiceDocstatus == 2) {
+                if (purchaseInvoiceId.equals(linkedPurchaseInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_pi_vendor", ""));
+                }
                 deleted.add(purchaseInvoiceId);
                 continue;
             }

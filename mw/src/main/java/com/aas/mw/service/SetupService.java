@@ -12,6 +12,98 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class SetupService {
+    private static final String SALES_INVOICE_PRINT_FORMAT_NAME = "AAS Sales Invoice Print";
+    private static final String SALES_INVOICE_PRINT_FORMAT_HTML = """
+            <style>
+              .print-format { font-size: 12px; color: #111827; }
+              .aas-header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+              .aas-title { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
+              .aas-subtitle { color: #6b7280; margin: 0; }
+              .aas-meta, .aas-items, .aas-summary { width: 100%; border-collapse: collapse; }
+              .aas-meta { margin-bottom: 18px; }
+              .aas-meta td { padding: 4px 8px 4px 0; vertical-align: top; }
+              .aas-meta-label { color: #6b7280; white-space: nowrap; width: 140px; }
+              .aas-items { margin-bottom: 18px; }
+              .aas-items th, .aas-items td { border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: top; }
+              .aas-items th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+              .aas-items .num { text-align: right; white-space: nowrap; }
+              .aas-items .item-name { font-weight: 600; }
+              .aas-summary { width: 320px; margin-left: auto; }
+              .aas-summary td { padding: 6px 0 6px 16px; }
+              .aas-summary .label { color: #6b7280; }
+              .aas-summary .value { text-align: right; white-space: nowrap; }
+              .aas-summary .total td { border-top: 1px solid #111827; font-weight: 700; padding-top: 10px; }
+            </style>
+            <div class="aas-header">
+              <div>
+                <p class="aas-title">Sales Invoice</p>
+                <p class="aas-subtitle">{{ doc.name }}</p>
+              </div>
+              <div style="text-align: right;">
+                <div><strong>{{ doc.company_name or doc.company }}</strong></div>
+                <div>{{ doc.customer }}</div>
+              </div>
+            </div>
+            <table class="aas-meta">
+              <tr>
+                <td class="aas-meta-label">Date</td>
+                <td>{{ frappe.utils.formatdate(doc.posting_date) }}</td>
+                <td class="aas-meta-label">Customer</td>
+                <td>{{ doc.customer }}</td>
+              </tr>
+              <tr>
+                <td class="aas-meta-label">Source Sales Order</td>
+                <td>{{ doc.aas_source_sales_order or '-' }}</td>
+                <td class="aas-meta-label">Payment Due Date</td>
+                <td>{{ frappe.utils.formatdate(doc.due_date) if doc.due_date else '-' }}</td>
+              </tr>
+            </table>
+            <table class="aas-items">
+              <thead>
+                <tr>
+                  <th style="width: 56px;">Sr</th>
+                  <th>Item</th>
+                  <th>Description</th>
+                  <th class="num" style="width: 88px;">Quantity</th>
+                  <th style="width: 88px;">UOM</th>
+                  <th class="num" style="width: 110px;">Rate</th>
+                  <th class="num" style="width: 88px;">GST %</th>
+                  <th class="num" style="width: 130px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in doc.items %}
+                {% set gst_percent = item.aas_gst_percent if item.aas_gst_percent else 0 %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="item-name">{{ item.item_code or item.item_name }}</td>
+                  <td>{{ item.description or item.item_name or item.item_code }}</td>
+                  <td class="num">{{ frappe.utils.flt(item.qty, 0) }}</td>
+                  <td>{{ item.uom or item.stock_uom or '-' }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(item.rate, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.flt(gst_percent, 0) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(item.amount, currency=doc.currency) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <table class="aas-summary">
+              <tr>
+                <td class="label">Net Total</td>
+                <td class="value">{{ frappe.utils.fmt_money(doc.net_total or doc.total, currency=doc.currency) }}</td>
+              </tr>
+              {% if doc.aas_rounding_adjustment %}
+              <tr>
+                <td class="label">Rounding Adjustment</td>
+                <td class="value">{{ frappe.utils.fmt_money(doc.aas_rounding_adjustment, currency=doc.currency) }}</td>
+              </tr>
+              {% endif %}
+              <tr class="total">
+                <td class="label">Grand Total</td>
+                <td class="value">{{ frappe.utils.fmt_money(doc.grand_total, currency=doc.currency) }}</td>
+              </tr>
+            </table>
+            """;
 
     private final ErpNextClient erpNextClient;
     private final CustomFieldProvisioner customFieldProvisioner;
@@ -361,6 +453,7 @@ public class SetupService {
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
         result.put("invoiceRoundingAdjustmentFieldCreated", invoiceRoundingAdjustmentField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
+        result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
         result.put("categoryCodeFieldCreated", categoryCodeField);
         result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
@@ -769,6 +862,71 @@ public class SetupService {
         } catch (FeignException.NotFound ignored) {
             return false;
         }
+    }
+
+    private boolean ensureSalesInvoicePrintFormat() {
+        String printFormatName = ensureSalesInvoicePrintFormatDoc();
+        if (printFormatName.isBlank()) {
+            return false;
+        }
+        boolean changed = false;
+        int start = 0;
+        final int pageSize = 200;
+        while (true) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"aas_sales_invoice_print_format\"]");
+            params.put("limit_page_length", pageSize);
+            params.put("limit_start", start);
+            List<Map<String, Object>> companies = erpNextClient.listResources("Company", params);
+            if (companies == null || companies.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : companies) {
+                String companyName = asText(row.get("name"));
+                if (companyName.isBlank()) {
+                    continue;
+                }
+                if (printFormatName.equals(asText(row.get("aas_sales_invoice_print_format")))) {
+                    continue;
+                }
+                erpNextClient.updateResource("Company", companyName, Map.of("aas_sales_invoice_print_format", printFormatName));
+                changed = true;
+            }
+            if (companies.size() < pageSize) {
+                break;
+            }
+            start += pageSize;
+        }
+        return changed;
+    }
+
+    private String ensureSalesInvoicePrintFormatDoc() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\"]");
+        params.put(
+                "filters",
+                "[[\"name\",\"=\",\"" + escape(SALES_INVOICE_PRINT_FORMAT_NAME) + "\"],[\"doc_type\",\"=\",\"Sales Invoice\"]]");
+        params.put("limit_page_length", 1);
+        List<Map<String, Object>> existing = erpNextClient.listResources("Print Format", params);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", SALES_INVOICE_PRINT_FORMAT_NAME);
+        payload.put("doc_type", "Sales Invoice");
+        payload.put("module", "Accounts");
+        payload.put("custom_format", 1);
+        payload.put("print_format_type", "Jinja");
+        payload.put("raw_printing", 0);
+        payload.put("disabled", 0);
+        payload.put("html", SALES_INVOICE_PRINT_FORMAT_HTML);
+        if (existing != null && !existing.isEmpty()) {
+            erpNextClient.updateResource("Print Format", SALES_INVOICE_PRINT_FORMAT_NAME, payload);
+            return SALES_INVOICE_PRINT_FORMAT_NAME;
+        }
+        Map<String, Object> created = erpNextClient.createResource("Print Format", payload);
+        return asText(unwrap(created).get("name"));
+    }
+
+    private String escape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private boolean ensureCustomField(

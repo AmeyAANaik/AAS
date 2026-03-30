@@ -58,7 +58,7 @@ public class InvoiceFieldMappingService {
             String generatorModel) {
     }
 
-    private static final int MAX_PROMPT_CHARS = 16000;
+    private static final int MAX_PROMPT_CHARS = 64000;
 
     private final InvoiceTemplateGeneratorFeignClient feignClient;
     private final ObjectMapper objectMapper;

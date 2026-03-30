@@ -179,6 +179,7 @@ export interface VendorInvoiceTemplateProfilePreview {
   parserPreview?: string[];
   previewMetrics: {
     itemsDetected: number;
+    llmItemCount?: number;
     itemFieldsMatched: number;
     totalRows: number;
     billAmount: string;
@@ -186,6 +187,8 @@ export interface VendorInvoiceTemplateProfilePreview {
     invoiceNumber?: string;
     invoiceDate?: string;
     expectedItems?: number;
+    extractedItemCount?: number;
+    missingItemCount?: number;
     itemCountComplete?: boolean;
   };
   fieldMapping?: {

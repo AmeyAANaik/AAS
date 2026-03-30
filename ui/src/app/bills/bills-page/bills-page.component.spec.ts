@@ -30,7 +30,7 @@ describe('BillsPageComponent', () => {
   let billsService: jasmine.SpyObj<BillsService>;
 
   beforeEach(async () => {
-    billsService = jasmine.createSpyObj('BillsService', ['listInvoices', 'downloadInvoicePdf', 'exportInvoices']);
+    billsService = jasmine.createSpyObj('BillsService', ['listInvoices', 'downloadInvoicePdf', 'exportInvoices', 'deleteInvoice']);
     billsService.listInvoices.and.returnValue(
       of([
         { name: 'INV-1', customer: 'Sukarta Aundh', posting_date: '2024-01-10', grand_total: 120, status: 'Paid' },
@@ -39,6 +39,7 @@ describe('BillsPageComponent', () => {
     );
     billsService.downloadInvoicePdf.and.returnValue(of(new Blob()));
     billsService.exportInvoices.and.returnValue(of(new Blob()));
+    billsService.deleteInvoice.and.returnValue(of({}));
 
     await TestBed.configureTestingModule({
       declarations: [BillsPageComponent, InvoiceCreateComponent, PaymentFormComponent],
@@ -84,5 +85,10 @@ describe('BillsPageComponent', () => {
   it('classifies paid invoices for summary', () => {
     expect(component.summary.paid).toBe(1);
     expect(component.summary.open).toBe(1);
+  });
+
+  it('only allows draft invoices to be deleted', () => {
+    expect(component.canDelete(component.invoices[0])).toBeTrue();
+    expect(component.canDelete({ ...component.invoices[0], id: '' })).toBeFalse();
   });
 });

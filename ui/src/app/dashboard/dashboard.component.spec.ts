@@ -66,6 +66,7 @@ describe('DashboardComponent', () => {
   it('should render all dashboard widgets', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const titles = Array.from(compiled.querySelectorAll('.card-title')).map(element => element.textContent?.trim());
+    const kpiLabels = Array.from(compiled.querySelectorAll('.kpi-label')).map(element => element.textContent?.trim());
 
     expect(titles).toContain('Order status summary');
     expect(titles).toContain('Bills due per branch');
@@ -73,5 +74,6 @@ describe('DashboardComponent', () => {
     expect(titles).toContain('Vendor Operations');
     expect(titles).toContain('Branch Operations');
     expect(titles).toContain('Sales / revenue summary');
+    expect(kpiLabels).not.toContain('Stock on hand');
   });
 });

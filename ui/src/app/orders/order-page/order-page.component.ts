@@ -30,6 +30,7 @@ type UiOrderStatus =
   | (string & {});
 
 const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
+const DEFAULT_ORDER_MARGIN_PERCENT = 7;
 
 interface UiOrder {
   name: string;
@@ -922,7 +923,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         qty: 1,
         rate: 0,
         amount: 0,
-        aas_margin_percent: 0,
+        aas_margin_percent: this.resolveItemMarginPercent(suggestedName),
         aas_vendor_rate: 0,
         aas_rate_before_tax: null,
         aas_rate_after_tax: null,
@@ -943,11 +944,16 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const gst = Number(line.aas_gst_percent ?? 0);
     line.qty = Number.isFinite(qty) ? qty : 0;
     line.rate = Number.isFinite(rate) ? rate : 0;
-    line.aas_margin_percent = Number.isFinite(margin) && margin >= 0 ? margin : 0;
     line.item_name = String(line.item_name ?? '').trim();
-    line.item_code = line.manual_entry
-      ? this.resolveItemCodeFromName(line.item_name)
-      : String(line.item_code ?? '').trim();
+    if (line.manual_entry) {
+      line.item_code = this.resolveItemCodeFromName(line.item_name);
+      line.aas_margin_percent = Number.isFinite(margin) && margin > 0
+        ? margin
+        : this.resolveItemMarginPercent(line.item_name);
+    } else {
+      line.item_code = String(line.item_code ?? '').trim();
+      line.aas_margin_percent = Number.isFinite(margin) && margin >= 0 ? margin : 0;
+    }
     line.aas_gst_percent = Number.isFinite(gst) && gst >= 0 ? gst : 0;
     line.amount = Math.round(line.qty * line.rate * 100) / 100;
     line.aas_vendor_rate = line.rate;
@@ -1136,6 +1142,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const selectedName = String(event.option.value ?? '').trim();
     line.item_name = selectedName;
     line.item_code = this.resolveItemCodeFromName(selectedName);
+    if (!Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) <= 0) {
+      line.aas_margin_percent = this.resolveItemMarginPercent(selectedName);
+    }
     this.recalcLine(line);
   }
 
@@ -1201,25 +1210,39 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private mapItemOption(item: Item): ItemOption {
     const code = String(item.item_code ?? item.name ?? '').trim();
     const name = String(item.item_name ?? item.item_code ?? item.name ?? '').trim();
+    const marginPercent = Number(item.aas_margin_percent ?? NaN);
     return {
       id: code,
       code,
       name,
       category: String(item.item_group ?? '').trim(),
-      unit: String(item.stock_uom ?? '').trim()
+      unit: String(item.stock_uom ?? '').trim(),
+      marginPercent: Number.isFinite(marginPercent) && marginPercent > 0 ? marginPercent : null
     };
   }
 
   private resolveItemCodeFromName(name: string): string {
+    return this.findItemOption(name)?.code ?? '';
+  }
+
+  private resolveItemMarginPercent(name: string): number {
+    return this.findItemOption(name)?.marginPercent ?? DEFAULT_ORDER_MARGIN_PERCENT;
+  }
+
+  private findItemOption(name: string): ItemOption | null {
     const text = String(name ?? '').trim();
     if (!text) {
-      return '';
+      return null;
     }
     const exact = this.itemOptions.find(option =>
       option.name.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0 ||
       option.code.localeCompare(text, undefined, { sensitivity: 'accent' }) === 0
     );
-    return exact?.code ?? '';
+    if (exact) {
+      return exact;
+    }
+    const matches = this.getManualItemMatches(text);
+    return matches.length === 1 ? matches[0] : null;
   }
 
   getLineRateBeforeTax(line: UiOrderLine): number | null {
@@ -1343,9 +1366,15 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.errorMessage = 'At least one item line is required.';
       return;
     }
-    const invalidCode = this.orderLines.find(line => !String(line.item_code ?? '').trim());
+    const invalidCode = this.orderLines.find(line => {
+      const itemCode = String(line.item_code ?? '').trim();
+      if (itemCode) {
+        return false;
+      }
+      return !line.manual_entry || !String(line.item_name ?? '').trim();
+    });
     if (invalidCode) {
-      this.errorMessage = 'Every item row must include an item code before saving.';
+      this.errorMessage = 'Every row must include an item code or a manual recovery item name before saving.';
       return;
     }
     const invalidMargin = this.orderLines.some(line => !Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) < 0);

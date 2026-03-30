@@ -66,4 +66,7 @@ public interface ErpNextFeignClient {
     @PostMapping("/api/method/frappe.client.submit")
     Map<String, Object> submit(@RequestBody Map<String, Object> payload);
 
+    @PostMapping("/api/method/frappe.client.cancel")
+    Map<String, Object> cancel(@RequestBody Map<String, Object> payload);
+
 }

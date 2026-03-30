@@ -125,4 +125,5 @@ export interface ItemOption {
   code: string;
   category?: string;
   unit?: string;
+  marginPercent?: number | null;
 }

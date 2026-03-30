@@ -79,7 +79,7 @@ describe('OrderPageComponent', () => {
     ]));
     itemService = jasmine.createSpyObj('ItemService', ['listItems']);
     itemService.listItems.and.returnValue(of([
-      { name: 'ITEM-28', item_code: 'ITEM-28', item_name: 'NIRMA YELLOW POWDER 1KG', item_group: 'Bakery Inputs', stock_uom: 'Nos' }
+      { name: 'ITEM-28', item_code: 'ITEM-28', item_name: 'NIRMA YELLOW POWDER 1KG', item_group: 'Bakery Inputs', stock_uom: 'Nos', aas_margin_percent: 7 }
     ]));
 
     await TestBed.configureTestingModule({
@@ -419,6 +419,38 @@ describe('OrderPageComponent', () => {
     ]);
   });
 
+  it('allows a manual recovery row with item name but no item code to be saved', () => {
+    const order = component.orders[0];
+    component.selectedOrder = order as any;
+    component.orderLines = [
+      {
+        source_serial: 28,
+        item_code: '',
+        item_name: 'Manual recovery row',
+        qty: 1,
+        rate: 60,
+        amount: 60,
+        aas_margin_percent: 7,
+        aas_vendor_rate: 60,
+        aas_mrp: null,
+        aas_gst_percent: 0,
+        manual_entry: true,
+        parse_note: 'Added manually because invoice row 28 was not parsed.',
+        mrpApplied: false
+      }
+    ];
+
+    component.saveOrderLines();
+
+    expect(orderService.updateOrderItems).toHaveBeenCalledWith(order.name, [
+      jasmine.objectContaining({
+        item_code: '',
+        item_name: 'Manual recovery row',
+        manual_entry: true
+      })
+    ]);
+  });
+
   it('defaults transport application to on when captured transport exists', () => {
     const order = {
       ...component.orders[0],
@@ -467,6 +499,7 @@ describe('OrderPageComponent', () => {
     expect(component.orderLines.at(-1)).toEqual(
       jasmine.objectContaining({
         item_name: 'Missing invoice row 28',
+        aas_margin_percent: 7,
         manual_entry: true,
         parse_note: 'Added manually because invoice row 28 was not parsed.'
       })
@@ -492,9 +525,33 @@ describe('OrderPageComponent', () => {
       jasmine.objectContaining({
         item_name: 'NIRMA YELLOW POWDER 1KG',
         item_code: 'ITEM-28',
+        aas_margin_percent: 7,
         manual_entry: true
       })
     );
+  });
+
+  it('resolves the ERP item code from a unique partial manual item name', () => {
+    const line = {
+      source_serial: 28,
+      item_code: '',
+      item_name: 'nirma yellow',
+      qty: 1,
+      rate: 0,
+      amount: 0,
+      aas_margin_percent: 0,
+      aas_vendor_rate: 0,
+      aas_mrp: null,
+      aas_gst_percent: null,
+      manual_entry: true,
+      parse_note: null,
+      mrpApplied: false
+    };
+
+    component.recalcLine(line);
+
+    expect(line.item_code).toBe('ITEM-28');
+    expect(line.aas_margin_percent).toBe(7);
   });
 
   it('searches manual recovery item suggestions by partial item text', () => {
