@@ -249,6 +249,21 @@ public class NativeLayoutInvoiceService {
             splitCombinedTaxAndQty(aligned, gstIndex, headers.size());
         }
 
+        int qtyIndex = indexOfHeader(headers, "qty");
+        int taxIndex = indexOfHeader(headers, "tax");
+        if (qtyIndex >= 0 && taxIndex == qtyIndex + 1) {
+            splitCombinedQtyAndTax(aligned, qtyIndex, headers.size());
+        }
+
+        int rateIndex = indexOfHeader(headers, "rate");
+        int perIndex = indexOfHeader(headers, "per");
+        if (rateIndex >= 0 && perIndex == rateIndex + 1) {
+            splitCombinedRateAndUom(aligned, rateIndex, headers.size());
+        }
+        if (aligned.size() < headers.size() && perIndex > 0 && perIndex - 1 < aligned.size()) {
+            splitCombinedRateAndUom(aligned, perIndex - 1, headers.size());
+        }
+
         return aligned;
     }
 
@@ -289,13 +304,49 @@ public class NativeLayoutInvoiceService {
         }
         String combined = blankSafe(cells.get(gstIndex));
         java.util.regex.Matcher matcher = Pattern.compile(
-                        "^([0-9]+(?:\\.[0-9]+)?\\s*%?)\\s+([0-9][0-9,]*\\.?[0-9]*\\s+[A-Za-z]+.*)$")
+                        "^([0-9]+(?:\\.[0-9]+)?(?:\\s*%)?)\\s+([0-9][0-9,]*\\.?[0-9]*\\s+[A-Za-z]+.*)$")
                 .matcher(combined);
         if (!matcher.matches()) {
             return;
         }
         cells.set(gstIndex, matcher.group(1).trim());
         cells.add(gstIndex + 1, matcher.group(2).trim());
+    }
+
+    private void splitCombinedQtyAndTax(List<String> cells, int qtyIndex, int headerCount) {
+        if (qtyIndex < 0 || qtyIndex >= cells.size()) {
+            return;
+        }
+        if (cells.size() >= headerCount) {
+            return;
+        }
+        String combined = blankSafe(cells.get(qtyIndex));
+        java.util.regex.Matcher matcher = Pattern.compile(
+                        "^([0-9][0-9,]*\\.?[0-9]*)\\s+([0-9]+(?:\\.[0-9]+)?(?:\\s*%)?)$")
+                .matcher(combined);
+        if (!matcher.matches()) {
+            return;
+        }
+        cells.set(qtyIndex, matcher.group(1).trim());
+        cells.add(qtyIndex + 1, matcher.group(2).trim());
+    }
+
+    private void splitCombinedRateAndUom(List<String> cells, int rateIndex, int headerCount) {
+        if (rateIndex < 0 || rateIndex >= cells.size()) {
+            return;
+        }
+        if (cells.size() >= headerCount) {
+            return;
+        }
+        String combined = blankSafe(cells.get(rateIndex));
+        java.util.regex.Matcher matcher = Pattern.compile(
+                        "^([0-9][0-9,]*\\.?[0-9]*)\\s+([A-Za-z]+.*)$")
+                .matcher(combined);
+        if (!matcher.matches()) {
+            return;
+        }
+        cells.set(rateIndex, matcher.group(1).trim());
+        cells.add(rateIndex + 1, matcher.group(2).trim());
     }
 
     public String buildProfileJson(
@@ -532,6 +583,22 @@ public class NativeLayoutInvoiceService {
     }
 
     private int descriptionIndex(List<String> headers, List<String> cells) {
+        if (cells != null && !cells.isEmpty()) {
+            int serialIndex = indexOfMatchingHeader(headers, "sl");
+            if (serialIndex < 0) {
+                serialIndex = indexOfMatchingHeader(headers, "sr");
+            }
+            int descriptionHeaderIndex = indexOfMatchingHeader(headers, "description of goods");
+            if (descriptionHeaderIndex < 0) {
+                descriptionHeaderIndex = indexOfMatchingHeader(headers, "particulars");
+            }
+            if (serialIndex == 0
+                    && descriptionHeaderIndex == 1
+                    && cells.size() < (headers == null ? 0 : headers.size())
+                    && blankSafe(cells.getFirst()).trim().matches("^\\d+\\s+.*$")) {
+                return 0;
+            }
+        }
         int particularsIndex = indexOfMatchingHeader(headers, "particulars");
         if (particularsIndex >= 0 && particularsIndex < cells.size()) {
             return particularsIndex;

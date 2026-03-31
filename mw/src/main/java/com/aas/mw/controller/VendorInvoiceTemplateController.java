@@ -2,6 +2,8 @@ package com.aas.mw.controller;
 
 import com.aas.mw.config.InvoiceTemplateModelProperties;
 import com.aas.mw.dto.DownloadedFile;
+import com.aas.mw.dto.NativeLayoutSample;
+import com.aas.mw.dto.NativeLayoutTable;
 import com.aas.mw.dto.UploadedFileInfo;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.VendorInvoiceFieldMapping;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -340,24 +343,19 @@ public class VendorInvoiceTemplateController {
                 fieldMapping.summaryMappings());
         InvoiceFieldMappingService.LayoutRuleResult layoutRules =
                 invoiceFieldMappingService.detectLayoutRules(vendorId, vendorName, deterministicRulePrompt);
-        NativeLayoutInvoiceService.StoredProfile profile = new NativeLayoutInvoiceService.StoredProfile(
+        NativeLayoutInvoiceService.StoredProfile profile = normalizeNativeStoredProfile(
+                nativeSample,
                 generatedTemplate.id(),
                 generatedTemplate.label(),
                 generatedTemplate.vendorName(),
                 generatedTemplate.description(),
-                fieldMapping.itemMappings(),
-                fieldMapping.summaryMappings(),
-                fieldMapping.notes(),
-                fieldMapping.generatorType(),
-                fieldMapping.generatorModel(),
-                layoutRules.primaryItemTableBlockId(),
-                layoutRules.gstSummaryBlockId(),
-                layoutRules.summaryFieldRoles(),
-                layoutRules.parsingHints(),
-                layoutRules.fieldParsingRules(),
-                layoutRules.rowRules().skipLabels(),
-                layoutRules.rowRules().headerContinuationLabels());
+                fieldMapping,
+                layoutRules);
         NativeLayoutInvoiceService.ExtractionResult extraction = nativeLayoutInvoiceService.extract(sample.pdfBytes(), profile);
+        if (extraction.items().isEmpty() && !nativeSample.tables().isEmpty()) {
+            profile = normalizeNativeStoredProfileForRetry(profile, nativeSample);
+            extraction = nativeLayoutInvoiceService.extract(sample.pdfBytes(), profile);
+        }
 
         Set<String> parsedItemFields = new LinkedHashSet<>();
         for (ParsedItem item : extraction.items()) {
@@ -469,22 +467,22 @@ public class VendorInvoiceTemplateController {
         response.put("parserPreview", buildOcrPreview(nativeSample.layoutText()));
         response.put("previewMetrics", previewMetrics);
         response.put("fieldMapping", Map.of(
-                "itemMappings", toFieldMappingMaps(fieldMapping.itemMappings()),
-                "summaryMappings", toFieldMappingMaps(fieldMapping.summaryMappings()),
-                "notes", fieldMapping.notes(),
-                "generatorType", fieldMapping.generatorType(),
-                "generatorModel", fieldMapping.generatorModel()));
+                "itemMappings", toFieldMappingMaps(profile.itemMappings()),
+                "summaryMappings", toFieldMappingMaps(profile.summaryMappings()),
+                "notes", profile.notes(),
+                "generatorType", profile.generatorType(),
+                "generatorModel", profile.generatorModel()));
         response.put("deterministicRules", Map.of(
-                "primaryItemTableBlockId", layoutRules.primaryItemTableBlockId(),
-                "gstSummaryBlockId", layoutRules.gstSummaryBlockId(),
-                "summaryFieldRoles", layoutRules.summaryFieldRoles(),
-                "parsingHints", layoutRules.parsingHints(),
-                "fieldParsingRules", layoutRules.fieldParsingRules(),
-                "skipLabels", layoutRules.rowRules().skipLabels(),
-                "headerContinuationLabels", layoutRules.rowRules().headerContinuationLabels(),
+                "primaryItemTableBlockId", profile.primaryItemTableBlockId(),
+                "gstSummaryBlockId", profile.gstSummaryBlockId(),
+                "summaryFieldRoles", profile.summaryFieldRoles(),
+                "parsingHints", profile.parsingHints(),
+                "fieldParsingRules", profile.fieldParsingRules(),
+                "skipLabels", profile.skipLabels(),
+                "headerContinuationLabels", profile.headerContinuationLabels(),
                 "notes", layoutRules.notes(),
-                "generatorType", layoutRules.generatorType(),
-                "generatorModel", layoutRules.generatorModel()));
+                "generatorType", profile.generatorType(),
+                "generatorModel", profile.generatorModel()));
         response.put("requiredFields", Map.of(
                 "items", requiredItemFields,
                 "summary", requiredSummaryFields));
@@ -508,6 +506,235 @@ public class VendorInvoiceTemplateController {
                 "missingSerialContexts", List.of()));
         response.put("nextStep", "Review the native PDF row mapping, confirm the extracted rows and summary values, then save it for this vendor.");
         return response;
+    }
+
+    NativeLayoutInvoiceService.StoredProfile normalizeNativeStoredProfile(
+            NativeLayoutSample nativeSample,
+            String profileId,
+            String label,
+            String vendorName,
+            String description,
+            InvoiceFieldMappingService.MappingResult fieldMapping,
+            InvoiceFieldMappingService.LayoutRuleResult layoutRules) {
+        NativeLayoutTable primaryTable = resolvePrimaryNativeTable(nativeSample, layoutRules.primaryItemTableBlockId());
+        List<String> headers = primaryTable == null ? List.of() : primaryTable.headers();
+        List<String> headerLines = primaryTable == null ? List.of() : primaryTable.rawLines().stream().limit(4).toList();
+
+        List<InvoiceFieldMappingService.FieldMapping> normalizedItemMappings = normalizeItemMappings(
+                fieldMapping.itemMappings(),
+                headers);
+        Map<String, String> normalizedParsingHints = normalizeParsingHints(
+                layoutRules.parsingHints(),
+                normalizedItemMappings,
+                headers);
+        Map<String, String> normalizedFieldParsingRules = normalizeFieldParsingRules(
+                layoutRules.fieldParsingRules(),
+                normalizedItemMappings);
+        List<String> normalizedHeaderContinuationLabels = normalizeHeaderContinuationLabels(
+                layoutRules.rowRules().headerContinuationLabels(),
+                headerLines);
+        List<String> normalizedSkipLabels = normalizeSkipLabels(layoutRules.rowRules().skipLabels(), nativeSample.summaryLabels());
+
+        return new NativeLayoutInvoiceService.StoredProfile(
+                profileId,
+                label,
+                vendorName,
+                description,
+                normalizedItemMappings,
+                fieldMapping.summaryMappings(),
+                fieldMapping.notes(),
+                fieldMapping.generatorType(),
+                fieldMapping.generatorModel(),
+                layoutRules.primaryItemTableBlockId().isBlank() && primaryTable != null
+                        ? primaryTable.tableId()
+                        : layoutRules.primaryItemTableBlockId(),
+                layoutRules.gstSummaryBlockId(),
+                layoutRules.summaryFieldRoles(),
+                normalizedParsingHints,
+                normalizedFieldParsingRules,
+                normalizedSkipLabels,
+                normalizedHeaderContinuationLabels);
+    }
+
+    NativeLayoutInvoiceService.StoredProfile normalizeNativeStoredProfileForRetry(
+            NativeLayoutInvoiceService.StoredProfile profile,
+            NativeLayoutSample nativeSample) {
+        NativeLayoutTable primaryTable = resolvePrimaryNativeTable(nativeSample, profile.primaryItemTableBlockId());
+        List<String> headerLines = primaryTable == null ? List.of() : primaryTable.rawLines().stream().limit(4).toList();
+        List<String> strengthenedHeaderContinuationLabels = normalizeHeaderContinuationLabels(
+                profile.headerContinuationLabels(),
+                headerLines);
+        return new NativeLayoutInvoiceService.StoredProfile(
+                profile.profileId(),
+                profile.label(),
+                profile.vendorName(),
+                profile.description(),
+                profile.itemMappings(),
+                profile.summaryMappings(),
+                profile.notes(),
+                profile.generatorType(),
+                profile.generatorModel(),
+                profile.primaryItemTableBlockId(),
+                profile.gstSummaryBlockId(),
+                profile.summaryFieldRoles(),
+                profile.parsingHints(),
+                profile.fieldParsingRules(),
+                profile.skipLabels(),
+                strengthenedHeaderContinuationLabels);
+    }
+
+    private NativeLayoutTable resolvePrimaryNativeTable(NativeLayoutSample nativeSample, String requestedTableId) {
+        if (nativeSample == null || nativeSample.tables() == null || nativeSample.tables().isEmpty()) {
+            return null;
+        }
+        if (requestedTableId != null && !requestedTableId.isBlank()) {
+            for (NativeLayoutTable table : nativeSample.tables()) {
+                if (requestedTableId.equals(table.tableId())) {
+                    return table;
+                }
+            }
+        }
+        return nativeSample.tables().getFirst();
+    }
+
+    private List<InvoiceFieldMappingService.FieldMapping> normalizeItemMappings(
+            List<InvoiceFieldMappingService.FieldMapping> currentMappings,
+            List<String> headers) {
+        Map<String, InvoiceFieldMappingService.FieldMapping> currentByTarget = new LinkedHashMap<>();
+        for (InvoiceFieldMappingService.FieldMapping mapping : currentMappings == null ? List.<InvoiceFieldMappingService.FieldMapping>of() : currentMappings) {
+            if (mapping != null && hasText(mapping.targetField())) {
+                currentByTarget.put(mapping.targetField(), mapping);
+            }
+        }
+
+        List<InvoiceFieldMappingService.FieldMapping> normalized = new ArrayList<>();
+        for (InvoiceTemplateModelProperties.TemplateField field : invoiceTemplateModelService.itemFieldDefinitions()) {
+            InvoiceFieldMappingService.FieldMapping current = currentByTarget.get(field.getKey());
+            String inferredHeader = inferHeaderForField(field.getKey(), headers);
+            if (current != null && hasText(current.sourceLabel())) {
+                normalized.add(current);
+                continue;
+            }
+            if (hasText(inferredHeader)) {
+                normalized.add(new InvoiceFieldMappingService.FieldMapping(
+                        field.getKey(),
+                        inferredHeader,
+                        field.isRequired(),
+                        true,
+                        "medium"));
+                continue;
+            }
+            if (current != null) {
+                normalized.add(current);
+                continue;
+            }
+            normalized.add(new InvoiceFieldMappingService.FieldMapping(
+                    field.getKey(),
+                    "",
+                    field.isRequired(),
+                    false,
+                    "low"));
+        }
+        return normalized;
+    }
+
+    private String inferHeaderForField(String targetField, List<String> headers) {
+        List<String> candidates = switch (targetField == null ? "" : targetField.trim().toLowerCase(Locale.ROOT)) {
+            case "item_name" -> List.of("description of goods", "particulars", "description", "item name");
+            case "item_id" -> List.of("hsn/sac", "hsn code", "hsn", "item no", "item code", "sac");
+            case "qty" -> List.of("quantity", "qty");
+            case "uom" -> List.of("per", "uom", "unit");
+            case "rate" -> List.of("rate", "rate(after tax)", "rate after tax");
+            case "mrp" -> List.of("mrp");
+            case "gst" -> List.of("gst", "tax(%)", "tax %", "tax");
+            case "total" -> List.of("amount", "total value", "line total", "value");
+            default -> List.of();
+        };
+        return bestMatchingHeader(headers, candidates);
+    }
+
+    private String bestMatchingHeader(List<String> headers, List<String> candidates) {
+        if (headers == null || headers.isEmpty() || candidates == null || candidates.isEmpty()) {
+            return "";
+        }
+        for (String candidate : candidates) {
+            String normalizedCandidate = normalizeSearchText(candidate);
+            for (String header : headers) {
+                String normalizedHeader = normalizeSearchText(header);
+                if (normalizedHeader.equals(normalizedCandidate)) {
+                    return header;
+                }
+            }
+        }
+        for (String candidate : candidates) {
+            String normalizedCandidate = normalizeSearchText(candidate);
+            for (String header : headers) {
+                String normalizedHeader = normalizeSearchText(header);
+                if (normalizedHeader.contains(normalizedCandidate) || normalizedCandidate.contains(normalizedHeader)) {
+                    return header;
+                }
+            }
+        }
+        return "";
+    }
+
+    private Map<String, String> normalizeParsingHints(
+            Map<String, String> parsingHints,
+            List<InvoiceFieldMappingService.FieldMapping> itemMappings,
+            List<String> headers) {
+        Map<String, String> normalized = new LinkedHashMap<>(parsingHints == null ? Map.of() : parsingHints);
+        Map<String, String> byTarget = new LinkedHashMap<>();
+        for (InvoiceFieldMappingService.FieldMapping mapping : itemMappings) {
+            if (mapping != null && hasText(mapping.targetField()) && hasText(mapping.sourceLabel())) {
+                byTarget.put(mapping.targetField(), mapping.sourceLabel());
+            }
+        }
+        normalized.putIfAbsent("preferredRateColumn", firstNonBlank(byTarget.get("rate"), bestMatchingHeader(headers, List.of("rate"))));
+        normalized.putIfAbsent("amountLabel", byTarget.getOrDefault("total", ""));
+        normalized.putIfAbsent("taxLabel", byTarget.getOrDefault("gst", ""));
+        normalized.putIfAbsent("totalSourceLabel", byTarget.getOrDefault("total", ""));
+        return normalized;
+    }
+
+    private Map<String, String> normalizeFieldParsingRules(
+            Map<String, String> currentRules,
+            List<InvoiceFieldMappingService.FieldMapping> itemMappings) {
+        Map<String, String> normalized = new LinkedHashMap<>(currentRules == null ? Map.of() : currentRules);
+        Map<String, String> defaults = Map.of(
+                "qty", "number_with_uom",
+                "rate", "decimal_amount",
+                "mrp", "decimal_amount",
+                "gst", "percentage",
+                "total", "decimal_amount");
+        for (InvoiceFieldMappingService.FieldMapping mapping : itemMappings) {
+            if (mapping == null || !hasText(mapping.targetField()) || !hasText(mapping.sourceLabel())) {
+                continue;
+            }
+            normalized.putIfAbsent(mapping.targetField(), defaults.getOrDefault(mapping.targetField(), "text"));
+        }
+        return normalized;
+    }
+
+    private List<String> normalizeHeaderContinuationLabels(List<String> currentLabels, List<String> headerLines) {
+        LinkedHashSet<String> labels = new LinkedHashSet<>(currentLabels == null ? List.of() : currentLabels);
+        List<String> genericCandidates = List.of("No.", "Rate", "(Incl. of Tax)", "After Tax", "Before Tax");
+        String headerText = String.join(" ", headerLines == null ? List.of() : headerLines);
+        for (String candidate : genericCandidates) {
+            if (headerText.contains(candidate)) {
+                labels.add(candidate);
+            }
+        }
+        return new ArrayList<>(labels);
+    }
+
+    private List<String> normalizeSkipLabels(List<String> currentLabels, List<String> summaryLabels) {
+        LinkedHashSet<String> labels = new LinkedHashSet<>(currentLabels == null ? List.of() : currentLabels);
+        for (String summaryLabel : summaryLabels == null ? List.<String>of() : summaryLabels) {
+            if (hasText(summaryLabel)) {
+                labels.add(summaryLabel);
+            }
+        }
+        return new ArrayList<>(labels);
     }
 
     private TemplateValidation validateTemplate(String vendorId, String templateJson, String ocrText) {
@@ -1868,6 +2095,15 @@ public class VendorInvoiceTemplateController {
                 .replaceAll("[^a-z0-9/%]+", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private double parseAmount(String raw) {

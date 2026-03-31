@@ -248,11 +248,19 @@
     <div class="workspace-grid review-layout">
       <div class="panel">
         <div class="panel-header">
-          <div>
+          <div class="panel-heading-copy">
             <div class="panel-title">Preview rows</div>
             <div class="status muted">These rows come directly from the native PDF layout preview response.</div>
           </div>
-          <button mat-stroked-button type="button" (click)="openSetupStage()">Edit setup</button>
+          <div class="panel-actions">
+            <button
+              mat-stroked-button
+              class="panel-action-button"
+              type="button"
+              (click)="openSetupStage()">
+              Edit setup
+            </button>
+          </div>
         </div>
 
         <div class="ocr-preview" *ngIf="preview.previewItems?.length; else previewFallback">

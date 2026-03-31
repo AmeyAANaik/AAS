@@ -1,9 +1,15 @@
 .dialog-title-row,
-.panel-header,
 .mapping-topline,
 .mapping-check-row {
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -200,6 +206,22 @@
   align-self: start;
 }
 
+.panel-heading-copy {
+  min-width: 0;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.panel-action-button {
+  white-space: nowrap;
+  min-width: 124px;
+}
+
 .panel {
   display: grid;
   gap: 14px;
@@ -370,5 +392,10 @@
 
   .action-stack {
     display: grid;
+  }
+
+  .panel-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
