@@ -12,6 +12,9 @@ public class ErpNextFeignConfig {
     @Bean
     public RequestInterceptor erpNextAuthInterceptor() {
         return template -> {
+            if (template.headers().containsKey("Cookie") && !template.headers().get("Cookie").isEmpty()) {
+                return;
+            }
             ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attrs == null) {
                 return;

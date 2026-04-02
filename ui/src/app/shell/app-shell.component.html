@@ -36,7 +36,7 @@
             <span class="material-icons" aria-hidden="true">person</span>
             User Details
           </a>
-          <a class="user-menu-link" routerLink="/company-settings" (click)="closeUserMenu()">
+          <a class="user-menu-link" *ngIf="canAccess('company_settings.view')" routerLink="/company-settings" (click)="closeUserMenu()">
             <span class="material-icons" aria-hidden="true">business</span>
             Company Settings
           </a>

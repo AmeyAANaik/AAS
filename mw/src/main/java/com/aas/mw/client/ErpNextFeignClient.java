@@ -38,6 +38,12 @@ public interface ErpNextFeignClient {
             @PathVariable("doctype") String doctype,
             @RequestParam Map<String, Object> params);
 
+    @GetMapping("/api/resource/{doctype}")
+    Map<String, Object> listResourcesWithCookie(
+            @PathVariable("doctype") String doctype,
+            @RequestParam Map<String, Object> params,
+            @RequestHeader("Cookie") String cookie);
+
     @PostMapping("/api/resource/{doctype}")
     Map<String, Object> createResource(
             @PathVariable("doctype") String doctype,
@@ -59,6 +65,11 @@ public interface ErpNextFeignClient {
 
     @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     byte[] downloadPdfWithParams(@RequestParam Map<String, Object> params);
+
+    @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    byte[] downloadPdfWithParamsAndCookie(
+            @RequestParam Map<String, Object> params,
+            @RequestHeader("Cookie") String cookie);
 
     @GetMapping("/api/method/frappe.desk.reportview.get_count")
     Map<String, Object> getCount(@RequestParam Map<String, Object> params);

@@ -55,6 +55,8 @@ export class LoginComponent implements OnInit {
       }
       this.tokenStore.setToken(token);
       this.tokenStore.setRole(data?.role ?? null);
+      this.tokenStore.setFeatures([]);
+      this.tokenStore.setHomeRoute(null);
       this.status = '';
       this.router.navigateByUrl(this.returnUrl);
     } catch (err) {

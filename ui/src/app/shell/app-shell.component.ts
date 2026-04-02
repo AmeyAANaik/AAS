@@ -1,13 +1,13 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { filter, Subscription } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { CompanyContextService } from '../shared/company-context.service';
+import { UserAccessService } from '../shared/user-access.service';
 
 type ShellRouteMeta = { breadcrumbs: string[] };
-type ShellNavLink = { label: string; icon: string; route: string };
+type ShellNavLink = { label: string; icon: string; route: string; feature: string };
 type ShellNavSection = { title: string; links: ShellNavLink[] };
 
 @Component({
@@ -33,44 +33,45 @@ export class AppShellComponent implements OnDestroy {
   userAvatarText = 'U';
   isUserMenuOpen = false;
   isNavOpen = false;
-  readonly navSections: ShellNavSection[] = [
+  readonly allNavSections: ShellNavSection[] = [
     {
       title: 'Home',
-      links: [{ label: 'Dashboard', icon: 'dashboard', route: '/admin/dashboard' }]
+      links: [{ label: 'Dashboard', icon: 'dashboard', route: '/admin/dashboard', feature: 'dashboard.view' }]
     },
     {
       title: 'Procure',
-      links: [{ label: 'Orders', icon: 'receipt_long', route: '/orders' }]
+      links: [{ label: 'Orders', icon: 'receipt_long', route: '/orders', feature: 'orders.view' }]
     },
     {
       title: 'Inventory',
-      links: [{ label: 'Stock', icon: 'inventory_2', route: '/stock' }]
+      links: [{ label: 'Stock', icon: 'inventory_2', route: '/stock', feature: 'stock.view' }]
     },
     {
       title: 'Finance',
-      links: [{ label: 'Bills / Invoices', icon: 'account_balance_wallet', route: '/bills' }]
+      links: [{ label: 'Bills / Invoices', icon: 'account_balance_wallet', route: '/bills', feature: 'bills.view' }]
     },
     {
       title: 'Master Data',
       links: [
-        { label: 'Vendors', icon: 'local_shipping', route: '/vendors' },
-        { label: 'Branches', icon: 'hub', route: '/branches' },
-        { label: 'Categories', icon: 'category', route: '/categories' },
-        { label: 'Items', icon: 'inventory', route: '/items' }
+        { label: 'Vendors', icon: 'local_shipping', route: '/vendors', feature: 'master_data.view' },
+        { label: 'Branches', icon: 'hub', route: '/branches', feature: 'master_data.view' },
+        { label: 'Categories', icon: 'category', route: '/categories', feature: 'master_data.view' },
+        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' }
       ]
     },
     {
       title: 'Reports',
-      links: [{ label: 'Reports', icon: 'query_stats', route: '/reports' }]
+      links: [{ label: 'Reports', icon: 'query_stats', route: '/reports', feature: 'reports.view' }]
     },
     {
       title: 'Operations',
       links: [
-        { label: 'Vendor Operations', icon: 'local_shipping', route: '/vendor-ops' },
-        { label: 'Branch Operations', icon: 'storefront', route: '/branch-ops' }
+        { label: 'Vendor Operations', icon: 'local_shipping', route: '/vendor-ops', feature: 'vendor_ops.view' },
+        { label: 'Branch Operations', icon: 'storefront', route: '/branch-ops', feature: 'branch_ops.view' }
       ]
     }
   ];
+  navSections: ShellNavSection[] = [];
   private readonly routeMap: Record<string, ShellRouteMeta> = {
     '/admin/dashboard': { breadcrumbs: ['Home', 'Dashboard'] },
     '/vendor-ops': { breadcrumbs: ['Home', 'Vendor Operations'] },
@@ -92,7 +93,7 @@ export class AppShellComponent implements OnDestroy {
     private router: Router,
     private tokenStore: AuthTokenService,
     private companyContextService: CompanyContextService,
-    private http: HttpClient
+    private userAccess: UserAccessService
   ) {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -173,23 +174,19 @@ export class AppShellComponent implements OnDestroy {
   }
 
   private loadUserProfile(): void {
-    const token = this.tokenStore.getToken();
-    if (!token) {
-      return;
-    }
-    this.http.get<Record<string, unknown>>('/api/me', {
-      headers: new HttpHeaders({ Authorization: `Bearer ${token}` })
-    }).subscribe({
+    this.userAccess.getProfile(true).subscribe({
       next: profile => {
         this.userName = String(profile['full_name'] ?? profile['name'] ?? profile['email'] ?? 'User').trim() || 'User';
         this.userEmail = String(profile['email'] ?? '').trim();
         this.userRole = this.formatRole(String(profile['role'] ?? this.tokenStore.getRole() ?? '').trim());
         this.userAvatarText = this.initialsFor(this.userName, 'U');
+        this.navSections = this.buildNavSections(Array.isArray(profile['features']) ? profile['features'].map(value => String(value)) : this.tokenStore.getFeatures());
       },
       error: () => {
         const role = this.formatRole(String(this.tokenStore.getRole() ?? '').trim());
         this.userRole = role;
         this.userAvatarText = this.initialsFor(this.userName, 'U');
+        this.navSections = this.buildNavSections(this.tokenStore.getFeatures());
       }
     });
   }
@@ -198,11 +195,27 @@ export class AppShellComponent implements OnDestroy {
     if (!role) {
       return '';
     }
+    if (role.toLowerCase() === 'shop') {
+      return 'Branch';
+    }
     return role
       .split(/[_\s]+/)
       .filter(Boolean)
       .map(part => part[0]?.toUpperCase() + part.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  private buildNavSections(features: string[]): ShellNavSection[] {
+    return this.allNavSections
+      .map(section => ({
+        ...section,
+        links: section.links.filter(link => features.includes(link.feature))
+      }))
+      .filter(section => section.links.length > 0);
+  }
+
+  canAccess(feature: string): boolean {
+    return this.tokenStore.getFeatures().includes(feature);
   }
 
   private initialsFor(value: string, fallback: string): string {

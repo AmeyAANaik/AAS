@@ -1,7 +1,7 @@
 <section class="dashboard">
   <app-page-header
-    title="Admin dashboard"
-    [subtitle]="'Read-only snapshot for ' + ((vm$ | async)?.snapshot?.periodLabel || 'current period')">
+    [title]="title"
+    [subtitle]="subtitlePrefix + ((vm$ | async)?.snapshot?.periodLabel || 'current period')">
     <button mat-flat-button color="primary" routerLink="/orders">View orders</button>
     <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
   </app-page-header>

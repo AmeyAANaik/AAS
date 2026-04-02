@@ -21,7 +21,7 @@ class InvoiceServiceTest {
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        invoiceService = new InvoiceService(erpNextClient, "");
+        invoiceService = new InvoiceService(erpNextClient, "", "Administrator", "admin");
     }
 
     @Test

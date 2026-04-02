@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -89,6 +90,7 @@ class SetupServiceTest {
                 "Supplier",
                 "Customer",
                 "Stock User",
+                "Accounts User,Sales User",
                 "vendor@example.com",
                 "Vendor User",
                 "vendor123",
@@ -123,6 +125,7 @@ class SetupServiceTest {
                 "Supplier",
                 "Customer",
                 "Stock User",
+                "Accounts User,Sales User",
                 "vendor@example.com",
                 "Vendor User",
                 "vendor123",
@@ -143,6 +146,51 @@ class SetupServiceTest {
                 argThat(payload -> "All Supplier Groups".equals(payload.get("supplier_group"))
                         && "FRESHHARVEST_AGRO_FOODS".equals(payload.get("aas_vendor_code"))
                         && "FreshHarvest Agro Foods".equals(payload.get("supplier_name"))));
+    }
+
+    @Test
+    void existingDefaultHelperUserIsSyncedWithConfiguredPasswordAndRole() {
+        when(erpNextClient.getResource(eq("User"), eq("helper@example.com")))
+                .thenReturn(Map.of("data", Map.of("name", "helper@example.com")));
+        when(erpNextClient.updateResource(eq("User"), eq("helper@example.com"), anyMap()))
+                .thenReturn(Map.of("name", "helper@example.com"));
+
+        service = new SetupService(
+                erpNextClient,
+                customFieldProvisioner,
+                vendorFieldRegistry,
+                catalogRoutingService,
+                true,
+                "Supplier",
+                "Customer",
+                "Stock User",
+                "Accounts User,Sales User",
+                "vendor@example.com",
+                "Vendor User",
+                "vendor123",
+                "FreshHarvest Agro Foods",
+                "shop@example.com",
+                "Shop User",
+                "shop123",
+                "Sukarta Aundh",
+                "helper@example.com",
+                "Helper User",
+                "helper123",
+                7.0);
+
+        service.ensureSetup();
+
+        verify(erpNextClient).updateResource(
+                eq("User"),
+                eq("helper@example.com"),
+                argThat(payload -> "helper123".equals(payload.get("new_password"))
+                        && List.of(
+                                Map.of("role", "Stock User"),
+                                Map.of("role", "Accounts User"),
+                                Map.of("role", "Sales User"))
+                                .equals(payload.get("roles"))
+                        && "".equals(payload.get("supplier"))
+                        && "".equals(payload.get("customer"))));
     }
 
     private feign.FeignException.NotFound notFound(String doctype, String name) {

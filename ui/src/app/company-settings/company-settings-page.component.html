@@ -126,4 +126,112 @@
       </div>
     </form>
   </mat-card>
+
+  <mat-card class="settings-card access-card">
+    <div class="access-header">
+      <div>
+        <div class="section-title">UI Access Control</div>
+        <div class="section-subtitle">Adjust sidebar and screen visibility per user without changing their base ERP role.</div>
+      </div>
+      <div class="access-note">Role defaults stay intact. Allow/Deny only adds UI overrides.</div>
+    </div>
+
+    <div class="state" *ngIf="isLoadingAccess">Loading access controls...</div>
+    <div class="state error" *ngIf="accessErrorMessage">{{ accessErrorMessage }}</div>
+    <div class="state success" *ngIf="accessMessage">{{ accessMessage }}</div>
+
+    <div class="access-layout" *ngIf="!isLoadingAccess">
+      <section class="user-list">
+        <button
+          type="button"
+          class="user-list-item"
+          *ngFor="let user of managedUsers"
+          [class.active]="user.id === selectedUserId"
+          (click)="selectManagedUser(user.id)">
+          <div class="user-list-item__title">{{ user.full_name || user.name }}</div>
+          <div class="user-list-item__meta">
+            <span>{{ user.email || user.name }}</span>
+            <span class="role-chip">{{ labelForRole(user.role) }}</span>
+          </div>
+        </button>
+      </section>
+
+      <section class="access-editor" *ngIf="selectedUser as user">
+        <div class="editor-identity">
+          <div>
+            <div class="identity-kicker">Selected user</div>
+            <div class="identity-title small">{{ user.full_name || user.name }}</div>
+            <div class="identity-subtitle">{{ user.email || user.name }}</div>
+          </div>
+          <div class="identity-meta">
+            <div class="meta-chip">
+              <span class="meta-label">Base role</span>
+              <strong>{{ selectedRoleLabel }}</strong>
+            </div>
+            <div class="meta-chip">
+              <span class="meta-label">Overrides</span>
+              <strong>{{ allowOverrides.size + denyOverrides.size }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="default-feature-strip">
+          <span class="meta-label">Default visibility</span>
+          <div class="feature-pill-wrap">
+            <span class="feature-pill" *ngFor="let feature of selectedDefaultFeatures">{{ feature }}</span>
+          </div>
+        </div>
+
+        <div class="feature-groups">
+          <section class="feature-group" *ngFor="let group of featureGroups">
+            <div class="group-title">{{ group.name }}</div>
+            <div class="feature-row" *ngFor="let feature of group.features">
+              <div class="feature-copy">
+                <div class="feature-title">{{ feature.label }}</div>
+                <div class="feature-subtitle">{{ feature.description }}</div>
+              </div>
+              <div class="feature-state">
+                <span class="feature-effective" [class.disabled]="!isEffective(feature.key)">
+                  {{ isEffective(feature.key) ? 'Visible' : 'Hidden' }}
+                </span>
+                <div class="override-toggle">
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'default'"
+                    (click)="setOverride(feature.key, 'default')">
+                    Default
+                  </button>
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'allow'"
+                    (click)="setOverride(feature.key, 'allow')">
+                    Allow
+                  </button>
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'deny'"
+                    (click)="setOverride(feature.key, 'deny')">
+                    Deny
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="actions settings-actions">
+          <div class="save-note">These overrides affect shell navigation and guarded screens after the next profile refresh.</div>
+          <div class="access-actions">
+            <button mat-stroked-button type="button" (click)="resetAccessOverrides()" [disabled]="isSavingAccess">Reset overrides</button>
+            <button mat-flat-button color="primary" type="button" (click)="saveAccess()" [disabled]="isSavingAccess">
+              {{ isSavingAccess ? 'Saving...' : 'Save Access Rules' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </mat-card>
 </section>

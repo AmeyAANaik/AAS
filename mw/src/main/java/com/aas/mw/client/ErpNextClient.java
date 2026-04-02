@@ -44,7 +44,7 @@ public class ErpNextClient {
     }
 
     public List<String> getUserRoles(String sessionCookie, String username) {
-        Map<String, Object> user = getResourceWithSession("User", username, sessionCookie);
+        Map<String, Object> user = unwrapResource(getResourceWithSession("User", username, sessionCookie));
         Object roles = user == null ? null : user.get("roles");
         if (roles instanceof List<?> list) {
             return list.stream()
@@ -56,17 +56,39 @@ public class ErpNextClient {
         return Collections.emptyList();
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapResource(Map<String, Object> response) {
+        if (response == null) {
+            return null;
+        }
+        Object data = response.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return response;
+    }
+
     public Map<String, Object> getResource(String doctype, String id) {
         return feignClient.getResource(doctype, id);
     }
 
     public List<Map<String, Object>> listResources(String doctype, Map<String, Object> params) {
+        return listResourcesInternal(doctype, params, null);
+    }
+
+    public List<Map<String, Object>> listResourcesWithSession(String doctype, Map<String, Object> params, String sessionCookie) {
+        return listResourcesInternal(doctype, params, sessionCookie);
+    }
+
+    private List<Map<String, Object>> listResourcesInternal(String doctype, Map<String, Object> params, String sessionCookie) {
         Map<String, Object> safeParams = params == null ? Collections.emptyMap() : params;
         Map<String, Object> body = null;
         Map<String, Object> currentParams = safeParams;
         while (true) {
             try {
-                body = feignClient.listResources(doctype, currentParams);
+                body = sessionCookie == null || sessionCookie.isBlank()
+                        ? feignClient.listResources(doctype, currentParams)
+                        : feignClient.listResourcesWithCookie(doctype, currentParams, sessionCookie);
                 break;
             } catch (FeignException ex) {
                 Map<String, Object> fallbackParams = removeUnsupportedOptionalField(currentParams, ex);
@@ -170,13 +192,19 @@ public class ErpNextClient {
     }
 
     public byte[] downloadPdf(String doctype, String name, Map<String, Object> params) {
+        return downloadPdfWithSession(doctype, name, params, null);
+    }
+
+    public byte[] downloadPdfWithSession(String doctype, String name, Map<String, Object> params, String sessionCookie) {
         Map<String, Object> query = new HashMap<>();
         query.put("doctype", doctype);
         query.put("name", name);
         if (params != null && !params.isEmpty()) {
             query.putAll(params);
         }
-        return feignClient.downloadPdfWithParams(query);
+        return sessionCookie == null || sessionCookie.isBlank()
+                ? feignClient.downloadPdfWithParams(query)
+                : feignClient.downloadPdfWithParamsAndCookie(query, sessionCookie);
     }
 
     public long getCount(String doctype, Map<String, Object> params) {

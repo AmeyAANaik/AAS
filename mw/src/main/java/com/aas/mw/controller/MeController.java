@@ -1,6 +1,7 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.service.UserService;
+import com.aas.mw.service.UserFeatureService;
 import com.aas.mw.dto.FieldsRequest;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MeController {
 
     private final UserService userService;
+    private final UserFeatureService userFeatureService;
 
-    public MeController(UserService userService) {
+    public MeController(UserService userService, UserFeatureService userFeatureService) {
         this.userService = userService;
+        this.userFeatureService = userFeatureService;
     }
 
     @GetMapping("/me")
@@ -35,6 +38,12 @@ public class MeController {
                 .orElse("admin");
         Map<String, Object> profile = userService.getUserProfile(username);
         profile.put("role", role);
+        profile.put("default_features", userFeatureService.featuresForRole(role));
+        profile.put("features", userFeatureService.resolveFeatures(
+                role,
+                userFeatureService.parseFeatureOverrides(profile.get("allow_features")),
+                userFeatureService.parseFeatureOverrides(profile.get("deny_features"))));
+        profile.put("homeRoute", userFeatureService.homeRouteForRole(role));
         return ResponseEntity.ok(profile);
     }
 
@@ -50,6 +59,12 @@ public class MeController {
                 .findFirst()
                 .orElse("admin");
         profile.put("role", role);
+        profile.put("default_features", userFeatureService.featuresForRole(role));
+        profile.put("features", userFeatureService.resolveFeatures(
+                role,
+                userFeatureService.parseFeatureOverrides(profile.get("allow_features")),
+                userFeatureService.parseFeatureOverrides(profile.get("deny_features"))));
+        profile.put("homeRoute", userFeatureService.homeRouteForRole(role));
         return ResponseEntity.ok(profile);
     }
 }

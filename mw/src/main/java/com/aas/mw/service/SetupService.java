@@ -3,6 +3,7 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.aas.mw.meta.VendorFieldSpec;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,6 +114,7 @@ public class SetupService {
     private final String vendorRole;
     private final String shopRole;
     private final String helperRole;
+    private final List<String> helperAdditionalRoles;
     private final String defaultVendorEmail;
     private final String defaultVendorName;
     private final String defaultVendorPassword;
@@ -135,6 +137,7 @@ public class SetupService {
             @Value("${app.role.vendor:Supplier}") String vendorRole,
             @Value("${app.role.shop:Customer}") String shopRole,
             @Value("${app.role.helper:Stock User}") String helperRole,
+            @Value("${app.roles.helper-extra:Accounts User,Sales User}") String helperAdditionalRoles,
             @Value("${app.defaults.vendor.email:}") String defaultVendorEmail,
             @Value("${app.defaults.vendor.name:Vendor User}") String defaultVendorName,
             @Value("${app.defaults.vendor.password:vendor123}") String defaultVendorPassword,
@@ -155,6 +158,7 @@ public class SetupService {
         this.vendorRole = vendorRole;
         this.shopRole = shopRole;
         this.helperRole = helperRole;
+        this.helperAdditionalRoles = parseRoles(helperAdditionalRoles);
         this.defaultVendorEmail = defaultVendorEmail;
         this.defaultVendorName = defaultVendorName;
         this.defaultVendorPassword = defaultVendorPassword;
@@ -338,6 +342,20 @@ public class SetupService {
                 "Link",
                 "Print Format",
                 "default_currency");
+        boolean userFeatureAllowField = ensureCustomField(
+                "User",
+                UserFeatureService.FEATURE_ALLOW_FIELD,
+                "AAS Feature Allow JSON",
+                "Small Text",
+                null,
+                "location");
+        boolean userFeatureDenyField = ensureCustomField(
+                "User",
+                UserFeatureService.FEATURE_DENY_FIELD,
+                "AAS Feature Deny JSON",
+                "Small Text",
+                null,
+                UserFeatureService.FEATURE_ALLOW_FIELD);
         boolean salesOrderCategoryField = ensureCustomField(
                 "Sales Order",
                 "aas_category",
@@ -453,6 +471,8 @@ public class SetupService {
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
         result.put("invoiceRoundingAdjustmentFieldCreated", invoiceRoundingAdjustmentField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
+        result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
+        result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
         result.put("categoryCodeFieldCreated", categoryCodeField);
@@ -718,7 +738,7 @@ public class SetupService {
                 defaultHelperEmail,
                 defaultHelperName,
                 defaultHelperPassword,
-                helperRole,
+                helperRoles(),
                 null,
                 null);
         result.put("vendorSupplierCreated", vendorSupplierCreated);
@@ -821,7 +841,54 @@ public class SetupService {
         if (email == null || email.isBlank()) {
             return false;
         }
+        String resolvedName = fullName == null || fullName.isBlank() ? email : fullName.trim();
+        String firstName = resolvedName;
+        String lastName = "";
+        int space = resolvedName.indexOf(' ');
+        if (space > 0) {
+            firstName = resolvedName.substring(0, space).trim();
+            lastName = resolvedName.substring(space + 1).trim();
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("email", email);
+        payload.put("first_name", firstName);
+        if (!lastName.isBlank()) {
+            payload.put("last_name", lastName);
+        }
+        payload.put("enabled", 1);
+        payload.put("send_welcome_email", 0);
+        payload.put("new_password", password);
+        payload.put("user_type", "System User");
+        if (supplier != null && !supplier.isBlank()) {
+            payload.put("supplier", supplier);
+        }
+        if (customer != null && !customer.isBlank()) {
+            payload.put("customer", customer);
+        } else {
+            payload.put("customer", "");
+        }
+        if (supplier == null || supplier.isBlank()) {
+            payload.put("supplier", "");
+        }
+        if (role != null && !role.isBlank()) {
+            payload.put("roles", List.of(Map.of("role", role)));
+        }
         if (resourceExists("User", email)) {
+            erpNextClient.updateResource("User", email, payload);
+            return true;
+        }
+        erpNextClient.createResource("User", payload);
+        return true;
+    }
+
+    private boolean ensureUser(
+            String email,
+            String fullName,
+            String password,
+            List<String> roles,
+            String supplier,
+            String customer) {
+        if (email == null || email.isBlank()) {
             return false;
         }
         String resolvedName = fullName == null || fullName.isBlank() ? email : fullName.trim();
@@ -847,12 +914,45 @@ public class SetupService {
         }
         if (customer != null && !customer.isBlank()) {
             payload.put("customer", customer);
+        } else {
+            payload.put("customer", "");
         }
-        if (role != null && !role.isBlank()) {
-            payload.put("roles", List.of(Map.of("role", role)));
+        if (supplier == null || supplier.isBlank()) {
+            payload.put("supplier", "");
+        }
+        if (roles != null && !roles.isEmpty()) {
+            payload.put("roles", roles.stream()
+                    .filter(role -> role != null && !role.isBlank())
+                    .distinct()
+                    .map(role -> Map.of("role", role))
+                    .toList());
+        }
+        if (resourceExists("User", email)) {
+            erpNextClient.updateResource("User", email, payload);
+            return true;
         }
         erpNextClient.createResource("User", payload);
         return true;
+    }
+
+    private List<String> helperRoles() {
+        return Arrays.stream(
+                        (helperRole + "," + String.join(",", helperAdditionalRoles)).split(","))
+                .map(String::trim)
+                .filter(role -> !role.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private List<String> parseRoles(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(role -> !role.isBlank())
+                .distinct()
+                .toList();
     }
 
     private boolean resourceExists(String doctype, String name) {

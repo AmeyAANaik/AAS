@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,12 +24,18 @@ public class InvoiceService {
 
     private final ErpNextClient erpNextClient;
     private final String gstTemplate;
+    private final String erpSetupUsername;
+    private final String erpSetupPassword;
 
     public InvoiceService(
             ErpNextClient erpNextClient,
-            @Value("${app.billing.gst-template:}") String gstTemplate) {
+            @Value("${app.billing.gst-template:}") String gstTemplate,
+            @Value("${erp.setup.full-name:Administrator}") String erpSetupUsername,
+            @Value("${erp.setup.password:admin}") String erpSetupPassword) {
         this.erpNextClient = erpNextClient;
         this.gstTemplate = gstTemplate == null ? "" : gstTemplate.trim();
+        this.erpSetupUsername = erpSetupUsername;
+        this.erpSetupPassword = erpSetupPassword;
     }
 
     public Map<String, Object> createInvoice(InvoiceRequest request) {
@@ -232,7 +240,7 @@ public class InvoiceService {
         if (!filters.isEmpty()) {
             params.put("filters", toJson(filters));
         }
-        return erpNextClient.listResources(DOCTYPE, params).stream()
+        return listInvoicesResource(params).stream()
                 .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
                 .toList();
@@ -240,15 +248,44 @@ public class InvoiceService {
 
     public byte[] downloadPdf(String invoiceId) {
         String printFormat = resolveInvoicePrintFormat(invoiceId);
+        String privilegedSession = operationalReadSession();
         byte[] pdf = printFormat.isBlank()
-                ? erpNextClient.downloadPdf(DOCTYPE, invoiceId)
-                : erpNextClient.downloadPdf(DOCTYPE, invoiceId, Map.of("format", printFormat));
+                ? (privilegedSession == null
+                        ? erpNextClient.downloadPdf(DOCTYPE, invoiceId)
+                        : erpNextClient.downloadPdfWithSession(DOCTYPE, invoiceId, Map.of(), privilegedSession))
+                : erpNextClient.downloadPdfWithSession(DOCTYPE, invoiceId, Map.of("format", printFormat), privilegedSession);
         // Guard: ERPNext may return an HTML/JSON error payload (still 200) if print format fails.
         if (pdf == null || pdf.length < 4 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F') {
             String snippet = pdf == null ? "" : new String(pdf, 0, Math.min(pdf.length, 240));
             throw new IllegalStateException("ERPNext did not return a valid PDF for " + invoiceId + ". " + snippet);
         }
         return pdf;
+    }
+
+    private List<Map<String, Object>> listInvoicesResource(Map<String, Object> params) {
+        String privilegedSession = operationalReadSession();
+        return privilegedSession == null
+                ? erpNextClient.listResources(DOCTYPE, params)
+                : erpNextClient.listResourcesWithSession(DOCTYPE, params, privilegedSession);
+    }
+
+    private String operationalReadSession() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String role = authentication == null
+                ? ""
+                : authentication.getAuthorities().stream()
+                        .map(Object::toString)
+                        .filter(authority -> authority.startsWith("ROLE_"))
+                        .map(authority -> authority.substring("ROLE_".length()))
+                        .findFirst()
+                        .orElse("");
+        if (!"HELPER".equalsIgnoreCase(role)) {
+            return null;
+        }
+        if (erpSetupUsername == null || erpSetupUsername.isBlank() || erpSetupPassword == null || erpSetupPassword.isBlank()) {
+            return null;
+        }
+        return erpNextClient.login(erpSetupUsername, erpSetupPassword);
     }
 
     public Map<String, Object> deleteInvoice(String invoiceId) {
