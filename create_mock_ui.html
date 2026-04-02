@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAS - Mock UI Screens</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; }
+
+        .screen { display: none; width: 1280px; height: 720px; background: white; padding: 20px; }
+        .screen.active { display: block; }
+        .screen { overflow: hidden; }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+        .header h1 { color: #003366; font-size: 24px; }
+        .header .user { color: #666; font-size: 12px; }
+
+        .sidebar { width: 200px; float: left; margin-right: 20px; }
+        .sidebar-item { padding: 10px; margin: 5px 0; background: #f0f0f0; cursor: pointer; border-radius: 4px; }
+        .sidebar-item.active { background: #003366; color: white; }
+
+        .content { margin-left: 220px; }
+
+        .card { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; }
+        .card h3 { color: #003366; margin-bottom: 10px; font-size: 14px; }
+        .card p { color: #666; font-size: 12px; line-height: 1.6; }
+
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 15px 0; }
+        .kpi { background: white; border: 1px solid #ddd; padding: 15px; text-align: center; border-radius: 4px; }
+        .kpi .value { font-size: 24px; font-weight: bold; color: #003366; }
+        .kpi .label { font-size: 12px; color: #666; margin-top: 5px; }
+
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px; }
+        th { background: #003366; color: white; padding: 10px; text-align: left; }
+        td { padding: 8px 10px; border-bottom: 1px solid #ddd; }
+        tr:hover { background: #f5f5f5; }
+
+        .form-group { margin: 10px 0; }
+        .form-group label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #333; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; }
+
+        .button { background: #006699; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin: 5px; }
+        .button:hover { background: #004d73; }
+
+        .list-item { background: white; border: 1px solid #ddd; padding: 12px; margin: 8px 0; border-radius: 4px; display: flex; justify-content: space-between; }
+        .list-item .status { padding: 4px 8px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+        .status.draft { background: #f0f0f0; color: #333; }
+        .status.assigned { background: #e3f2fd; color: #1976d2; }
+        .status.invoiced { background: #e8f5e9; color: #388e3c; }
+    </style>
+</head>
+<body>
+
+<!-- DASHBOARD -->
+<div class="screen active" id="dashboard">
+    <div class="header">
+        <h1>Dashboard - AAS Ops Console</h1>
+        <div class="user">Admin User | Test Company</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <h2 style="color: #003366; margin-bottom: 20px; font-size: 18px;">Current Month Overview</h2>
+
+        <div class="grid">
+            <div class="kpi">
+                <div class="value">24</div>
+                <div class="label">Total Orders</div>
+            </div>
+            <div class="kpi">
+                <div class="value">$45,200</div>
+                <div class="label">Total Revenue</div>
+            </div>
+            <div class="kpi">
+                <div class="value">1,250</div>
+                <div class="label">Inventory Items</div>
+            </div>
+            <div class="kpi">
+                <div class="value">5</div>
+                <div class="label">Pending Orders</div>
+            </div>
+            <div class="kpi">
+                <div class="value">$8,500</div>
+                <div class="label">Outstanding Receivables</div>
+            </div>
+            <div class="kpi">
+                <div class="value">12</div>
+                <div class="label">Low Stock Items</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <h3 style="color: #003366; margin-bottom: 15px;">Order Status Breakdown</h3>
+            <table>
+                <tr>
+                    <th>Status</th>
+                    <th>Count</th>
+                    <th>Percentage</th>
+                </tr>
+                <tr>
+                    <td>DRAFT</td>
+                    <td>3</td>
+                    <td>12.5%</td>
+                </tr>
+                <tr>
+                    <td>VENDOR_ASSIGNED</td>
+                    <td>8</td>
+                    <td>33.3%</td>
+                </tr>
+                <tr>
+                    <td>VENDOR_PDF_RECEIVED</td>
+                    <td>5</td>
+                    <td>20.8%</td>
+                </tr>
+                <tr>
+                    <td>INVOICED</td>
+                    <td>8</td>
+                    <td>33.3%</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ORDERS LIST -->
+<div class="screen" id="orders">
+    <div class="header">
+        <h1>Orders Management</h1>
+        <div class="user">Branch: Main Branch | View All Orders</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <div style="margin-bottom: 20px;">
+            <input type="text" placeholder="Search orders..." style="width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <button class="button">+ Create Order</button>
+        </div>
+
+        <table>
+            <tr>
+                <th>Order ID</th>
+                <th>Date</th>
+                <th>Branch</th>
+                <th>Vendor</th>
+                <th>Status</th>
+                <th>Total</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>ORD-001</td>
+                <td>2026-03-28</td>
+                <td>Main Branch</td>
+                <td>Vendor A</td>
+                <td><span class="status assigned">ASSIGNED</span></td>
+                <td>$5,200</td>
+                <td><button class="button" style="padding: 4px 8px; margin: 0;">Manage</button></td>
+            </tr>
+            <tr>
+                <td>ORD-002</td>
+                <td>2026-03-27</td>
+                <td>Downtown</td>
+                <td>Vendor B</td>
+                <td><span class="status invoiced">INVOICED</span></td>
+                <td>$3,100</td>
+                <td><button class="button" style="padding: 4px 8px; margin: 0;">View</button></td>
+            </tr>
+            <tr>
+                <td>ORD-003</td>
+                <td>2026-03-26</td>
+                <td>Main Branch</td>
+                <td>-</td>
+                <td><span class="status draft">DRAFT</span></td>
+                <td>$2,450</td>
+                <td><button class="button" style="padding: 4px 8px; margin: 0;">Edit</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- ORDER CREATE -->
+<div class="screen" id="create">
+    <div class="header">
+        <h1>Create New Order</h1>
+        <div class="user">Step 1 of 2 - Order Details</div>
+    </div>
+
+    <div style="margin-left: 20px; max-width: 500px;">
+        <div class="form-group">
+            <label>Branch (Customer) *</label>
+            <select>
+                <option>-- Select Branch --</option>
+                <option selected>Main Branch</option>
+                <option>Downtown Branch</option>
+                <option>North Location</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Company *</label>
+            <select>
+                <option selected>Test Company</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Category *</label>
+            <select>
+                <option>-- Select Category --</option>
+                <option>Electronics</option>
+                <option>Accessories</option>
+                <option>Software</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Order Date *</label>
+            <input type="date" value="2026-04-02">
+        </div>
+
+        <div class="form-group">
+            <label>Delivery Date *</label>
+            <input type="date" value="2026-04-10">
+        </div>
+
+        <div class="form-group">
+            <label>Upload Images or Select Items</label>
+            <div style="border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 4px; background: #fafafa;">
+                <p style="color: #666; font-size: 14px;">Drag and drop images here or click to browse</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button class="button">Next Step</button>
+            <button class="button" style="background: #999;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- VENDOR OPS -->
+<div class="screen" id="vendors">
+    <div class="header">
+        <h1>Vendor Operations</h1>
+        <div class="user">Vendor Summary & Performance</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <table>
+            <tr>
+                <th>Vendor Name</th>
+                <th>Pending Orders</th>
+                <th>Awaiting PDF</th>
+                <th>Awaiting Bill</th>
+                <th>Pending Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>Vendor A</td>
+                <td>3</td>
+                <td>1</td>
+                <td>0</td>
+                <td>$5,200</td>
+                <td><span class="status assigned">OPEN</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View</button></td>
+            </tr>
+            <tr>
+                <td>Vendor B</td>
+                <td>2</td>
+                <td>0</td>
+                <td>0</td>
+                <td>$3,100</td>
+                <td><span class="status invoiced">SETTLED</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View</button></td>
+            </tr>
+            <tr>
+                <td>Vendor C</td>
+                <td>4</td>
+                <td>2</td>
+                <td>1</td>
+                <td>$7,800</td>
+                <td><span class="status draft">OVERDUE</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- BRANCH OPS -->
+<div class="screen" id="branches">
+    <div class="header">
+        <h1>Branch Operations</h1>
+        <div class="user">Branch Summary & Receivables</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <table>
+            <tr>
+                <th>Branch Name</th>
+                <th>Pending Orders</th>
+                <th>Open Receivables</th>
+                <th>Payment Rate</th>
+                <th>Last Activity</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>Main Branch</td>
+                <td>5</td>
+                <td>$8,200</td>
+                <td>85%</td>
+                <td>2026-04-02 10:30 AM</td>
+                <td><span class="status assigned">OPEN</span></td>
+                <td><button class="button" style="padding: 4px 8px;">Details</button></td>
+            </tr>
+            <tr>
+                <td>Downtown Branch</td>
+                <td>2</td>
+                <td>$2,100</td>
+                <td>92%</td>
+                <td>2026-04-01 2:15 PM</td>
+                <td><span class="status invoiced">SETTLED</span></td>
+                <td><button class="button" style="padding: 4px 8px;">Details</button></td>
+            </tr>
+            <tr>
+                <td>North Location</td>
+                <td>3</td>
+                <td>$5,400</td>
+                <td>78%</td>
+                <td>2026-03-31 5:45 PM</td>
+                <td><span class="status draft">OVERDUE</span></td>
+                <td><button class="button" style="padding: 4px 8px;">Details</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- BILLS -->
+<div class="screen" id="bills">
+    <div class="header">
+        <h1>Bills & Invoicing</h1>
+        <div class="user">Invoice Management & Payments</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <div style="margin-bottom: 20px;">
+            <button class="button">+ Create Invoice</button>
+            <button class="button">+ Record Payment</button>
+        </div>
+
+        <table>
+            <tr>
+                <th>Invoice ID</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Outstanding</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>INV-001</td>
+                <td>Main Branch</td>
+                <td>$5,200</td>
+                <td>$0</td>
+                <td>2026-03-15</td>
+                <td><span class="status invoiced">PAID</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View PDF</button></td>
+            </tr>
+            <tr>
+                <td>INV-002</td>
+                <td>Downtown</td>
+                <td>$3,100</td>
+                <td>$3,100</td>
+                <td>2026-04-10</td>
+                <td><span class="status assigned">PENDING</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View PDF</button></td>
+            </tr>
+            <tr>
+                <td>INV-003</td>
+                <td>Main Branch</td>
+                <td>$2,450</td>
+                <td>$1,225</td>
+                <td>2026-04-05</td>
+                <td><span class="status draft">PARTIAL</span></td>
+                <td><button class="button" style="padding: 4px 8px;">View PDF</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- STOCK -->
+<div class="screen" id="stock">
+    <div class="header">
+        <h1>Stock Management</h1>
+        <div class="user">Inventory Monitoring & Thresholds</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <div class="grid">
+            <div class="kpi">
+                <div class="value">45</div>
+                <div class="label">Total Items</div>
+            </div>
+            <div class="kpi">
+                <div class="value">1,250</div>
+                <div class="label">Total Quantity</div>
+            </div>
+            <div class="kpi">
+                <div class="value">12</div>
+                <div class="label">Low Stock Items</div>
+            </div>
+        </div>
+
+        <table>
+            <tr>
+                <th>Item Code</th>
+                <th>Item Name</th>
+                <th>Vendor</th>
+                <th>Quantity</th>
+                <th>Threshold</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td>ITM-001</td>
+                <td>Laptop Computer</td>
+                <td>Vendor A</td>
+                <td>25</td>
+                <td>20</td>
+                <td><span class="status invoiced">OK</span></td>
+            </tr>
+            <tr>
+                <td>ITM-002</td>
+                <td>Wireless Mouse</td>
+                <td>Vendor B</td>
+                <td>8</td>
+                <td>50</td>
+                <td><span class="status draft">LOW</span></td>
+            </tr>
+            <tr>
+                <td>ITM-003</td>
+                <td>USB Cable</td>
+                <td>Vendor C</td>
+                <td>150</td>
+                <td>100</td>
+                <td><span class="status invoiced">OK</span></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- VENDORS MASTER -->
+<div class="screen" id="master-vendors">
+    <div class="header">
+        <h1>Vendors Master Data</h1>
+        <div class="user">Supplier Management</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <button class="button">+ Add Vendor</button>
+
+        <table style="margin-top: 20px;">
+            <tr>
+                <th>Vendor Code</th>
+                <th>Vendor Name</th>
+                <th>City</th>
+                <th>Contact Person</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>VEN-001</td>
+                <td>Vendor A</td>
+                <td>Chicago, IL</td>
+                <td>John Smith</td>
+                <td>john@vendora.com</td>
+                <td>+1-555-0101</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+            <tr>
+                <td>VEN-002</td>
+                <td>Vendor B</td>
+                <td>Dallas, TX</td>
+                <td>Sarah Johnson</td>
+                <td>sarah@vendorb.com</td>
+                <td>+1-555-0102</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+            <tr>
+                <td>VEN-003</td>
+                <td>Vendor C</td>
+                <td>Boston, MA</td>
+                <td>Mike Davis</td>
+                <td>mike@vendorc.com</td>
+                <td>+1-555-0103</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<!-- ITEMS MASTER -->
+<div class="screen" id="master-items">
+    <div class="header">
+        <h1>Items Catalog</h1>
+        <div class="user">Product Master Data</div>
+    </div>
+
+    <div style="margin-left: 20px;">
+        <button class="button">+ Add Item</button>
+
+        <table style="margin-top: 20px;">
+            <tr>
+                <th>Item Code</th>
+                <th>Item Name</th>
+                <th>Category</th>
+                <th>Cost Rate</th>
+                <th>Sell Rate</th>
+                <th>GST Rate</th>
+                <th>Actions</th>
+            </tr>
+            <tr>
+                <td>ITM-001</td>
+                <td>Laptop Computer</td>
+                <td>Electronics</td>
+                <td>$800</td>
+                <td>$1,000</td>
+                <td>18%</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+            <tr>
+                <td>ITM-002</td>
+                <td>Wireless Mouse</td>
+                <td>Accessories</td>
+                <td>$15</td>
+                <td>$25</td>
+                <td>5%</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+            <tr>
+                <td>ITM-003</td>
+                <td>USB Cable</td>
+                <td>Accessories</td>
+                <td>$5</td>
+                <td>$8</td>
+                <td>5%</td>
+                <td><button class="button" style="padding: 4px 8px;">Edit</button></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<script>
+    const screens = {
+        'dashboard': 'Dashboard',
+        'orders': 'Orders',
+        'create': 'Order Create',
+        'vendors': 'Vendor Ops',
+        'branches': 'Branch Ops',
+        'bills': 'Bills',
+        'stock': 'Stock',
+        'master-vendors': 'Vendors',
+        'master-items': 'Items'
+    };
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    // Create menu
+    const body = document.body;
+    const menu = document.createElement('div');
+    menu.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; background: #003366; color: white; padding: 15px; z-index: 100; text-align: center;';
+    menu.innerHTML = '<h2 style="margin: 0; margin-bottom: 10px;">AAS UI Mockup Screens</h2><div>' +
+        Object.entries(screens).map(([id, name]) =>
+            `<button onclick="showScreen('${id}')" style="background: #005588; color: white; padding: 8px 12px; border: none; margin: 5px; cursor: pointer; border-radius: 3px;">${name}</button>`
+        ).join('') +
+        '</div>';
+    body.insertBefore(menu, body.firstChild);
+
+    // Add space for menu
+    document.querySelectorAll('.screen').forEach(s => s.style.marginTop = '150px');
+</script>
+
+</body>
+</html>
