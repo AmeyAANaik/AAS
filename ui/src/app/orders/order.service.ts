@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import {
   CreateSellOrderPayload,
+  DirectOrderCreatePayload,
   OrderCreatePayload,
   OrderFilters,
   OrderItemPayload,
@@ -50,6 +51,14 @@ export class OrderService {
   createOrder(payload: OrderCreatePayload): Observable<Record<string, unknown>> {
     return this.http.post<Record<string, unknown>>(
       '/api/orders',
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createDirectOrderFromItems(payload: DirectOrderCreatePayload): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      '/api/orders/direct-item-flow',
       { fields: payload },
       { headers: this.authHeaders() }
     );

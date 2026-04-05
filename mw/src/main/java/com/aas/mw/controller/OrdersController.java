@@ -61,6 +61,11 @@ public class OrdersController {
         return ResponseEntity.ok(orderService.createOrder(request));
     }
 
+    @PostMapping("/direct-item-flow")
+    public ResponseEntity<Map<String, Object>> createOrderFromSelectedItems(@Valid @RequestBody OrderRequest request) {
+        return ResponseEntity.ok(orderService.createOrderFromSelectedItems(request));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<Map<String, Object>> getOrder(@PathVariable String id) {
         return ResponseEntity.ok(orderService.getOrder(id));

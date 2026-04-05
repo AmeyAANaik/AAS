@@ -40,6 +40,7 @@ public class OrderService {
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final CatalogRoutingService catalogRoutingService;
     private final OrderPricingService orderPricingService;
+    private final OrderBillingService orderBillingService;
     private final String erpPublicBaseUrl;
     private final double defaultMarginPercent;
 
@@ -49,6 +50,7 @@ public class OrderService {
             OrderFlowStateMachine orderFlowStateMachine,
             CatalogRoutingService catalogRoutingService,
             OrderPricingService orderPricingService,
+            OrderBillingService orderBillingService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
@@ -56,6 +58,7 @@ public class OrderService {
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.catalogRoutingService = catalogRoutingService;
         this.orderPricingService = orderPricingService;
+        this.orderBillingService = orderBillingService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
         this.defaultMarginPercent = defaultMarginPercent;
     }
@@ -67,6 +70,131 @@ public class OrderService {
         applySalesOrderDefaults(fields);
         applyOrderDisplayTitle(fields);
         return erpNextClient.createResource(DOCTYPE, fields);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createOrderFromSelectedItems(OrderRequest request) {
+        Map<String, Object> input = request == null || request.getFields() == null
+                ? new HashMap<>()
+                : new HashMap<>(request.getFields());
+        String customer = asText(input.get("customer"));
+        String company = asText(input.get("company"));
+        String category = asText(input.get("aas_category"));
+        String vendor = asText(input.get("aas_vendor"));
+        if (customer.isBlank()) {
+            throw new IllegalArgumentException("Customer is required.");
+        }
+        if (company.isBlank()) {
+            throw new IllegalArgumentException("Company is required.");
+        }
+        if (category.isBlank()) {
+            throw new IllegalArgumentException("Category is required.");
+        }
+        if (vendor.isBlank()) {
+            throw new IllegalArgumentException("Vendor is required.");
+        }
+        catalogRoutingService.resolveVendorForCategory(vendor, category);
+
+        boolean applyGst = asFlag(input.remove("apply_gst"));
+        if (input.containsKey("applyGst")) {
+            applyGst = asFlag(input.remove("applyGst"));
+        }
+
+        Object rawItems = input.get("items");
+        if (!(rawItems instanceof List<?> rawList) || rawList.isEmpty()) {
+            throw new IllegalArgumentException("At least one item is required.");
+        }
+
+        List<Map<String, Object>> orderItems = new ArrayList<>();
+        for (Object rowObj : rawList) {
+            if (!(rowObj instanceof Map<?, ?> rawRow)) {
+                continue;
+            }
+            Map<String, Object> row = new HashMap<>();
+            String itemCode = asText(rawRow.get("item_code"));
+            if (itemCode.isBlank()) {
+                throw new IllegalArgumentException("Item code is required for every selected item.");
+            }
+            double qty = asDouble(rawRow.get("qty"));
+            if (qty <= 0) {
+                throw new IllegalArgumentException("Quantity must be greater than zero for " + itemCode + ".");
+            }
+            double rate = round(asDouble(rawRow.get("rate")));
+            if (rate < 0) {
+                throw new IllegalArgumentException("Rate must be non-negative for " + itemCode + ".");
+            }
+            double gstPercent = applyGst ? Math.max(0.0, round(asDouble(rawRow.get("aas_gst_percent")))) : 0.0;
+            row.put("item_code", itemCode);
+            if (hasText(asText(rawRow.get("item_name")))) {
+                row.put("item_name", asText(rawRow.get("item_name")));
+            }
+            row.put("qty", qty);
+            row.put("rate", rate);
+            row.put("amount", round(qty * rate));
+            row.put("aas_vendor_rate", rate);
+            row.put("aas_margin_percent", resolveMarginPercent(rawRow.get("aas_margin_percent"), itemCode));
+            row.put("aas_gst_percent", gstPercent);
+            orderItems.add(row);
+        }
+        if (orderItems.isEmpty()) {
+            throw new IllegalArgumentException("At least one valid item is required.");
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("customer", customer);
+        payload.put("company", company);
+        payload.put("aas_category", category);
+        payload.put("aas_vendor", vendor);
+        payload.put("transaction_date", resolveDate(asText(input.get("transaction_date"))));
+        payload.put("delivery_date", resolveDate(asText(input.get("delivery_date")), asText(input.get("transaction_date"))));
+        payload.put("items", orderItems);
+        payload.put("aas_status", "VENDOR_ASSIGNED");
+        payload.put("aas_margin_percent", calculateDerivedMarginPercent(orderItems));
+
+        ensureSalesOrderPricingDefaults(payload, company);
+        applySalesOrderDefaults(payload);
+        applyOrderDisplayTitle(payload);
+
+        Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
+        String orderId = extractDocName(order);
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalStateException("Order created but id was missing.");
+        }
+
+        double subtotal = 0.0;
+        double gstTotal = 0.0;
+        for (Map<String, Object> item : orderItems) {
+            double amount = asDouble(item.get("amount"));
+            double gstPercent = asDouble(item.get("aas_gst_percent"));
+            subtotal += amount;
+            if (applyGst && gstPercent > 0) {
+                gstTotal += amount * (gstPercent / 100.0);
+            }
+        }
+        subtotal = round(subtotal);
+        gstTotal = round(gstTotal);
+        double vendorBillTotal = round(subtotal + gstTotal);
+        String billDate = resolveDate(asText(payload.get("transaction_date")));
+
+        Map<String, Object> billCapture = orderBillingService.captureVendorBill(orderId, Map.of(
+                "vendor_bill_total", vendorBillTotal,
+                "vendor_bill_ref", orderId,
+                "vendor_bill_date", billDate,
+                "transport_charge", 0.0,
+                "allow_mismatch", false));
+        Map<String, Object> sellPreview = orderBillingService.getSellPreview(orderId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("order", order);
+        response.put("orderId", orderId);
+        response.put("vendorBill", billCapture);
+        response.put("sellPreview", sellPreview);
+        response.put("pricing", Map.of(
+                "applyGst", applyGst,
+                "subtotal", subtotal,
+                "gstTotal", gstTotal,
+                "vendorBillTotal", vendorBillTotal));
+        return response;
     }
 
     public Map<String, Object> createOrderWithImage(
@@ -1144,6 +1272,39 @@ public class OrderService {
             return itemMargin;
         }
         return defaultMarginPercent;
+    }
+
+    private double calculateDerivedMarginPercent(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return defaultMarginPercent;
+        }
+        double vendorTotal = 0.0;
+        double sellTotal = 0.0;
+        for (Map<String, Object> row : items) {
+            if (row == null) {
+                continue;
+            }
+            double qty = asDouble(row.get("qty"));
+            if (qty <= 0) {
+                qty = 1.0;
+            }
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            if (vendorRate <= 0) {
+                vendorRate = asDouble(row.get("rate"));
+            }
+            double marginPercent = asDouble(row.get("aas_margin_percent"));
+            if (marginPercent <= 0) {
+                marginPercent = defaultMarginPercent;
+            }
+            vendorTotal += vendorRate * qty;
+            sellTotal += vendorRate * (1 + marginPercent / 100.0) * qty;
+        }
+        vendorTotal = round(vendorTotal);
+        sellTotal = round(sellTotal);
+        if (vendorTotal <= 0) {
+            return defaultMarginPercent;
+        }
+        return round(((sellTotal - vendorTotal) / vendorTotal) * 100.0);
     }
 
     private boolean deleteLinkedDraftPurchaseOrder(String orderId, String purchaseOrderId, List<String> retainedPurchaseInvoiceIds) {

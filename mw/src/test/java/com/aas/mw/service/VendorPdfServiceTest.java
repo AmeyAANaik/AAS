@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,28 @@ class VendorPdfServiceTest {
         nativeLayoutInvoiceService = mock(NativeLayoutInvoiceService.class);
         orderFlowStateMachine = new OrderFlowStateMachine();
         catalogRoutingService = mock(CatalogRoutingService.class);
-        when(catalogRoutingService.normalizeCodeSegment(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(catalogRoutingService.normalizeCodeSegment(any())).thenAnswer(invocation -> {
+            Object raw = invocation.getArgument(0);
+            String value = raw == null ? "" : raw.toString().trim().toUpperCase(Locale.ROOT);
+            value = value.replaceAll("[^A-Z0-9]+", "_");
+            value = value.replaceAll("_+", "_");
+            value = value.replaceAll("^_+", "").replaceAll("_+$", "");
+            return value;
+        });
+        when(catalogRoutingService.buildItemCode(any(), any(), any())).thenAnswer(invocation -> {
+            String vendorCode = catalogRoutingService.normalizeCodeSegment(invocation.getArgument(0));
+            String categoryCode = catalogRoutingService.normalizeCodeSegment(invocation.getArgument(1));
+            String vendorHsnCode = catalogRoutingService.normalizeCodeSegment(invocation.getArgument(2));
+            return vendorCode + "_" + categoryCode + "_" + vendorHsnCode;
+        });
+        when(catalogRoutingService.buildParsedItemCode(any(), any(), any(), any())).thenAnswer(invocation -> {
+            String base = catalogRoutingService.buildItemCode(
+                    invocation.getArgument(0),
+                    invocation.getArgument(1),
+                    invocation.getArgument(2));
+            String itemName = catalogRoutingService.normalizeCodeSegment(invocation.getArgument(3));
+            return itemName.isBlank() ? base : base + "_" + itemName;
+        });
         when(fileService.uploadOrderPdf(any(), any(), any()))
                 .thenReturn(new UploadedFileInfo("vendor_order.pdf", "/files/vendor_order.pdf", "FILE-0001"));
         service = new VendorPdfService(
@@ -314,6 +336,122 @@ class VendorPdfServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class, () -> service.processVendorPdf("SO-0001", pdf, "sid=abc"));
 
         assertEquals("Configured vendor template did not extract required summary fields: final_bill_amount.", ex.getMessage());
+    }
+
+    @Test
+    void usesParsedItemCodeDuringVendorPdfProcessing() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "90.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES")))
+                .thenReturn(Map.of(
+                        "name", "VEND_A_GROCERY_11010000_TOMATOES",
+                        "item_code", "VEND_A_GROCERY_11010000_TOMATOES",
+                        "disabled", 0,
+                        "aas_margin_percent", 12.5));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        verify(erpNextClient, never()).createResource(eq("Item"), any());
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient, Mockito.atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) updateCaptor.getValue().get("items");
+        assertEquals("VEND_A_GROCERY_11010000_TOMATOES", updatedItems.get(0).get("item_code"));
+        assertEquals(12.5, updatedItems.get(0).get("aas_margin_percent"));
+    }
+
+    @Test
+    void marksNoSpaceInvoiceSerialAsMissingWhenParserSkipsThatRow() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        String parserText = """
+                109, Market Yard, Pune 411037
+                200ML BOTTLES
+                500GM PACKS
+                65LIJJAT PAPAD SMALL 3,400.00 KG340.00 340.00 0 10.00 KG0 % 19059040
+                66LIJJAT PAPAD BIG 1,700.00 KG340.00 340.00 0 5.00 KG0 % 19059040
+                67KHAJUR SEEDLESS 1,523.80 KG152.38 160.00 0 10.00 KG5 %
+                68KAJUKANI BHARI 2,999.99 KG428.57 450.00 0 7.00 KG5 % 08013210
+                """;
+        List<String> rawTableLines = List.of(
+                "65LIJJAT PAPAD SMALL 3,400.00 KG340.00 340.00 0 10.00 KG0 % 19059040",
+                "66LIJJAT PAPAD BIG 1,700.00 KG340.00 340.00 0 5.00 KG0 % 19059040",
+                "67KHAJUR SEEDLESS 1,523.80 KG152.38 160.00 0 10.00 KG5 %",
+                "68KAJUKANI BHARI 2,999.99 KG428.57 450.00 0 7.00 KG5 % 08013210");
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(
+                                new ParsedItem("LIJJAT PAPAD SMALL", 10, 340, 3400, "19059040", 0.0, "KG", null),
+                                new ParsedItem("LIJJAT PAPAD BIG", 5, 340, 1700, "19059040", 0.0, "KG", null),
+                                new ParsedItem("KAJUKANI BHARI", 7, 428.57, 2999.99, "08013210", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "8099.99",
+                        "",
+                        parserText,
+                        rawTableLines,
+                        java.util.stream.IntStream.concat(
+                                        java.util.stream.IntStream.rangeClosed(1, 66),
+                                        java.util.stream.IntStream.of(68))
+                                .boxed()
+                                .toList()));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> completeness = (Map<String, Object>) response.get("completeness");
+        assertNotNull(completeness);
+        assertEquals(List.of(67), completeness.get("missingSerials"));
+    }
+
+    @Test
+    void fallsBackToExtractedSerialRangeWhenRawExpectedSequenceCollapsesToOne() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        String parserText = """
+                109, Market Yard, Pune 411037
+                200ML BOTTLES
+                500GM PACKS
+                1 FIRST ITEM
+                """;
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(
+                                new ParsedItem("FIRST ITEM", 1, 10, 10, "11010000", 5.0, "KG", null),
+                                new ParsedItem("SECOND ITEM", 1, 10, 10, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "20.00",
+                        "",
+                        parserText,
+                        List.of("1 FIRST ITEM"),
+                        List.of(1, 2, 4)));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> completeness = (Map<String, Object>) response.get("completeness");
+        assertNotNull(completeness);
+        assertEquals(List.of(1, 2, 3, 4), completeness.get("expectedSerials"));
+        assertEquals(List.of(3), completeness.get("missingSerials"));
     }
 
     private void mockOrderContext() {

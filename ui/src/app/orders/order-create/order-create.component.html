@@ -129,15 +129,15 @@
       <div class="section-heading">
         <div>
           <p class="label">Select items</p>
-          <p class="muted">See all vendors for the selected category, then choose one or more items from that same category. Images can be uploaded later from Manage order.</p>
+          <p class="muted">Choose a vendor, set quantities, and generate the vendor invoice directly from the selected catalog lines.</p>
         </div>
       </div>
       <div class="items-step" *ngIf="detailsGroup.get('category')?.value; else chooseCategoryFirst">
         <div class="vendor-summary-panel">
           <div class="vendor-summary-header">
             <div>
-              <p class="label">Vendors in this category</p>
-              <p class="muted">All active vendors mapped to the selected category are shown here.</p>
+              <p class="label">Vendor & tax mode</p>
+              <p class="muted">Pick the vendor for this order and decide whether the generated vendor invoice should apply GST.</p>
             </div>
             <span class="vendor-summary-count">{{ categoryVendors.length }} vendors</span>
           </div>
@@ -146,14 +146,37 @@
           <p class="hint" *ngIf="!isVendorsLoading && !vendorsError && !categoryVendors.length">
             No vendors are currently mapped to this category.
           </p>
+          <div class="vendor-config-grid" formGroupName="details" *ngIf="categoryVendors.length">
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor</mat-label>
+              <mat-select formControlName="vendor">
+                <mat-option value="">Select vendor</mat-option>
+                <mat-option *ngFor="let vendor of categoryVendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <div class="gst-switch-card">
+              <p class="label">Vendor invoice tax</p>
+              <mat-slide-toggle [checked]="applyGst" (change)="toggleApplyGst($event.checked)">
+                {{ applyGst ? 'Apply GST' : 'Do not apply GST' }}
+              </mat-slide-toggle>
+            </div>
+          </div>
           <div class="vendor-chip-list" *ngIf="categoryVendors.length">
-            <span class="vendor-chip" *ngFor="let vendor of categoryVendors">{{ vendor.name }}</span>
+            <span
+              class="vendor-chip"
+              [class.vendor-chip-active]="vendor.id === detailsGroup.get('vendor')?.value"
+              *ngFor="let vendor of categoryVendors">
+              {{ vendor.name }}
+            </span>
           </div>
         </div>
         <p class="hint" *ngIf="isItemsLoading">Loading items for this category...</p>
+        <p class="hint" *ngIf="!isItemsLoading && !itemsError && categoryVendors.length && !detailsGroup.get('vendor')?.value">
+          Select a vendor to see only that vendor's catalog items.
+        </p>
         <p class="hint" *ngIf="itemsError">{{ itemsError }}</p>
-        <p class="hint" *ngIf="!isItemsLoading && !itemsError && !categoryItems.length">
-          No active items are available in this category yet.
+        <p class="hint" *ngIf="!isItemsLoading && !itemsError && detailsGroup.get('vendor')?.value && !categoryItems.length">
+          No active items are available for this vendor in the selected category yet.
         </p>
         <div class="items-layout" *ngIf="categoryItems.length">
           <div class="catalog-panel">
@@ -192,6 +215,41 @@
                   <p class="item-meta">
                     {{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span>
                   </p>
+                  <div class="item-tags">
+                    <span>Line total {{ (item.qty * item.rate) | number: '1.0-2' }}</span>
+                    <span *ngIf="applyGst">GST value {{ ((item.qty * item.rate * item.gstPercent) / 100) | number: '1.0-2' }}</span>
+                  </div>
+                </div>
+                <div class="item-edit-grid">
+                  <div class="item-edit-box">
+                    <label [attr.for]="'rate-' + item.id">Rate</label>
+                    <input
+                      [id]="'rate-' + item.id"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [value]="item.rate"
+                      (input)="updateItemRate(item.id, +$any($event.target).value)" />
+                  </div>
+                  <div class="item-edit-box" *ngIf="applyGst">
+                    <label [attr.for]="'gst-' + item.id">GST %</label>
+                    <input
+                      [id]="'gst-' + item.id"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [value]="item.gstPercent"
+                      (input)="updateItemGst(item.id, +$any($event.target).value)" />
+                  </div>
+                </div>
+                <div class="item-qty-box">
+                  <label [attr.for]="'qty-' + item.id">Qty</label>
+                  <input
+                    [id]="'qty-' + item.id"
+                    type="number"
+                    min="1"
+                    [value]="item.qty"
+                    (input)="updateItemQty(item.id, +$any($event.target).value)" />
                 </div>
                 <span class="selection-state" [class.active]="item.selected">
                   {{ item.selected ? 'Selected' : 'Tap to add' }}
@@ -202,11 +260,29 @@
 
           <aside class="checkout-panel">
             <p class="checkout-title">Order checkout</p>
-            <p class="checkout-copy">Review the selected items, create the order, and continue in Manage Order.</p>
+            <p class="checkout-copy">Review the generated vendor invoice totals and create the order directly in preview-ready state.</p>
             <div class="checkout-metrics">
               <div>
                 <p class="label">Selected items</p>
                 <p class="checkout-value">{{ selectedItemsCount }}</p>
+              </div>
+              <div>
+                <p class="label">Vendor</p>
+                <p class="checkout-value checkout-value-small">{{ selectedVendorName || '-' }}</p>
+              </div>
+            </div>
+            <div class="summary-stack">
+              <div class="summary-row">
+                <span>Vendor subtotal</span>
+                <strong>{{ vendorSubtotal | number: '1.0-2' }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>GST total</span>
+                <strong>{{ gstTotal | number: '1.0-2' }}</strong>
+              </div>
+              <div class="summary-row total">
+                <span>Vendor invoice total</span>
+                <strong>{{ vendorInvoiceTotal | number: '1.0-2' }}</strong>
               </div>
             </div>
             <div class="checkout-items scroll-shell" *ngIf="selectedOrderItems.length; else noSelectedItems">
@@ -214,7 +290,9 @@
                 <div>
                   <p class="checkout-item-name">{{ item.name }}</p>
                   <p class="checkout-item-meta">{{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span></p>
+                  <p class="checkout-item-meta">Qty {{ item.qty }} · Rate {{ item.rate | number: '1.0-2' }} · GST {{ applyGst ? (item.gstPercent | number: '1.0-2') : 0 }}%</p>
                 </div>
+                <strong>{{ ((item.qty * item.rate) + (applyGst ? (item.qty * item.rate * item.gstPercent / 100) : 0)) | number: '1.0-2' }}</strong>
               </div>
             </div>
           </aside>
@@ -224,7 +302,7 @@
         <p class="hint">Choose a category first to see items available for direct order creation.</p>
       </ng-template>
       <ng-template #noItemMatches>
-        <p class="hint">No items match your search in this category.</p>
+        <p class="hint">No items match your search for the selected vendor in this category.</p>
       </ng-template>
       <ng-template #noSelectedItems>
         <p class="hint">Pick items from the catalog to build the order.</p>
@@ -251,6 +329,10 @@
           <p class="label">Category</p>
           <p class="value">{{ detailsGroup.get('category')?.value || '-' }}</p>
         </div>
+        <div *ngIf="createMode === 'items'">
+          <p class="label">Vendor</p>
+          <p class="value">{{ selectedVendorName || '-' }}</p>
+        </div>
         <div>
           <p class="label">Order date</p>
           <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
@@ -268,6 +350,10 @@
                 : (selectedItemsCount ? selectedItemsCount + ' items selected' : 'No items selected')
             }}
           </p>
+        </div>
+        <div *ngIf="createMode === 'items'">
+          <p class="label">Vendor invoice total</p>
+          <p class="value">{{ vendorInvoiceTotal | number: '1.0-2' }}</p>
         </div>
       </div>
       <div class="step-actions">

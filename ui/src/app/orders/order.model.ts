@@ -63,6 +63,7 @@ export interface OrderCreateLine {
   item_code: string;
   qty: number;
   rate: number;
+  item_name?: string;
   aas_gst_percent?: number;
 }
 
@@ -70,9 +71,17 @@ export interface OrderCreatePayload {
   customer: string;
   company: string;
   aas_category?: string;
+  aas_vendor?: string;
   transaction_date: string;
   delivery_date: string;
   items?: OrderCreateLine[];
+}
+
+export interface DirectOrderCreatePayload extends OrderCreatePayload {
+  aas_category: string;
+  aas_vendor: string;
+  items: OrderCreateLine[];
+  apply_gst: boolean;
 }
 
 export interface OrderCreateResult {

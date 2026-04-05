@@ -48,6 +48,12 @@ export type BillingRow = {
   total: number;
 };
 
+export type RevenuePoint = {
+  label: string;
+  shortLabel: string;
+  value: number;
+};
+
 export type StockSnapshot = {
   totalItems: number;
   totalQuantity: number;
@@ -57,6 +63,9 @@ export type SalesSummary = {
   invoiceCount: number;
   totalRevenue: number;
   dateRangeLabel: string;
+  averageDailyRevenue: number;
+  peakRevenue: number;
+  peakRevenueLabel: string;
 };
 
 export type VendorOperationsSnapshot = {
@@ -83,6 +92,7 @@ export type DashboardSnapshot = {
   billsByVendor: BillingRow[];
   stockSnapshot: StockSnapshot;
   salesSummary: SalesSummary;
+  revenueSeries: RevenuePoint[];
   vendorOperations: VendorOperationsSnapshot;
   branchOperations: BranchOperationsSnapshot;
   periodLabel: string;

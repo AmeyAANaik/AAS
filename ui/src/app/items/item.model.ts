@@ -9,6 +9,7 @@ export interface Item {
   aas_vendor_rate?: number;
   aas_vendor?: string;
   aas_vendor_hsn_code?: string;
+  aas_gst_percent?: number;
 }
 
 export interface ItemMetadata {

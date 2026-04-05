@@ -16,14 +16,15 @@
 .mini-kpi,
 .exception-card,
 .analytics-card {
-  padding: 16px;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f7fafc, #edf2f7);
+  padding: 18px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 255, 0.96));
+  border: 1px solid var(--border);
 }
 
 .kpi-label,
 .label {
-  color: #5b6472;
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
@@ -31,17 +32,18 @@
 .value {
   font-size: 1.6rem;
   font-weight: 700;
-  color: #102a43;
+  color: var(--ink);
 }
 
 .summary-card,
 .detail-card {
-  padding: 20px;
+  padding: 22px;
+  border-radius: 22px;
 }
 
 .active-detail-card {
-  border: 1px solid rgba(16, 42, 67, 0.18);
-  box-shadow: inset 4px 0 0 #486581;
+  border: 1px solid rgba(91, 107, 255, 0.24);
+  box-shadow: inset 4px 0 0 var(--accent);
 }
 
 .detail-grid {
@@ -83,7 +85,7 @@
 .subsection-title {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #102a43;
+  color: var(--ink);
 }
 
 .detail-title-row {
@@ -130,7 +132,7 @@
 }
 
 .card-subtitle {
-  color: #5b6472;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
@@ -190,11 +192,11 @@
 
 .active-summary-row {
   position: relative;
-  background: rgba(72, 101, 129, 0.08);
+  background: rgba(91, 107, 255, 0.08);
 }
 
 .active-summary-row td:first-child {
-  border-left: 4px solid #486581;
+  border-left: 4px solid var(--accent);
 }
 
 .state.error {

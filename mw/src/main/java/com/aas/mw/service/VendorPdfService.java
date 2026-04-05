@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.function.Supplier;
@@ -30,6 +31,8 @@ public class VendorPdfService {
     private static final String WAREHOUSE = "Warehouse";
     private static final String COMPANY = "Company";
     private static final Pattern NON_ALNUM_PATTERN = Pattern.compile("[^a-zA-Z0-9]+");
+    private static final Pattern LEADING_SERIAL_PATTERN =
+            Pattern.compile("^\\s*(\\d{1,3})(?:(?:\\s{2,})|(?=[A-Z(]))");
     private static final String TEMPLATE_REQUIRED_ERROR =
             "Vendor native invoice mapping is required before uploading vendor PDF.";
 
@@ -114,7 +117,10 @@ public class VendorPdfService {
         invoiceDate = extractionResult.invoiceDate();
         parserText = extractionResult.layoutText();
         transportChargeText = extractionResult.transportCharge();
-        List<Integer> expectedSerials = detectExpectedSerials(parserText);
+        List<Integer> expectedSerials = detectExpectedSerials(
+                extractionResult.rawTableLines(),
+                parserText,
+                extractionResult.extractedSerials());
         List<Integer> missingSerials = detectMissingSerials(expectedSerials, extractionResult.extractedSerials());
 
         List<Map<String, Object>> baseItems = runErpStep(
@@ -875,16 +881,40 @@ public class VendorPdfService {
         return null;
     }
 
-    private List<Integer> detectExpectedSerials(String parserText) {
-        List<Integer> numbers = new ArrayList<>();
-        if (parserText == null || parserText.isBlank()) {
-            return List.of();
+    private List<Integer> detectExpectedSerials(
+            List<String> rawTableLines,
+            String parserText,
+            List<Integer> extractedSerials) {
+        List<Integer> rawNumbers = detectSerialCandidates(rawTableLines, parserText);
+        List<Integer> extractedNumbers = normalizePositiveSerials(extractedSerials);
+
+        List<Integer> rawExpected = expectedRangeFromObserved(rawNumbers);
+        List<Integer> extractedExpected = expectedRangeFromExtracted(extractedNumbers);
+
+        if (!rawExpected.isEmpty() && rawExpected.size() > 1) {
+            return rawExpected;
         }
-        for (String rawLine : parserText.replace('\f', '\n').split("\\r?\\n")) {
+        if (!extractedExpected.isEmpty() && extractedExpected.size() > 1) {
+            return extractedExpected;
+        }
+        return rawExpected.isEmpty() ? extractedExpected : rawExpected;
+    }
+
+    private List<Integer> detectSerialCandidates(List<String> rawTableLines, String parserText) {
+        List<Integer> numbers = new ArrayList<>();
+        List<String> sourceLines = new ArrayList<>();
+        if (rawTableLines != null && !rawTableLines.isEmpty()) {
+            sourceLines.addAll(rawTableLines);
+        } else if (parserText != null && !parserText.isBlank()) {
+            for (String line : parserText.replace('\f', '\n').split("\\r?\\n")) {
+                sourceLines.add(line);
+            }
+        }
+        for (String rawLine : sourceLines) {
             String line = asText(rawLine);
-            java.util.regex.Matcher leadingSerial = java.util.regex.Pattern.compile("^\\s*(\\d{1,3})\\s{2,}.*$").matcher(line);
+            java.util.regex.Matcher leadingSerial = LEADING_SERIAL_PATTERN.matcher(line);
             int value;
-            if (leadingSerial.matches()) {
+            if (leadingSerial.find()) {
                 value = parseInteger(leadingSerial.group(1));
             } else if (line.matches("^\\d{1,3}$")) {
                 value = parseInteger(line);
@@ -895,7 +925,24 @@ public class VendorPdfService {
                 numbers.add(value);
             }
         }
-        if (numbers.isEmpty()) {
+        return numbers;
+    }
+
+    private List<Integer> normalizePositiveSerials(List<Integer> serials) {
+        if (serials == null || serials.isEmpty()) {
+            return List.of();
+        }
+        return serials.stream()
+                .filter(Objects::nonNull)
+                .map(Integer::intValue)
+                .filter(value -> value > 0 && value <= 500)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private List<Integer> expectedRangeFromObserved(List<Integer> numbers) {
+        if (numbers == null || numbers.isEmpty()) {
             return List.of();
         }
         List<Integer> bestRun = new ArrayList<>();
@@ -927,6 +974,21 @@ public class VendorPdfService {
         }
         List<Integer> expected = new ArrayList<>();
         for (int value = 1; value <= bestRun.get(bestRun.size() - 1); value++) {
+            expected.add(value);
+        }
+        return expected;
+    }
+
+    private List<Integer> expectedRangeFromExtracted(List<Integer> extractedSerials) {
+        if (extractedSerials == null || extractedSerials.isEmpty()) {
+            return List.of();
+        }
+        if (extractedSerials.getFirst() != 1) {
+            return List.of();
+        }
+        int max = extractedSerials.getLast();
+        List<Integer> expected = new ArrayList<>();
+        for (int value = 1; value <= max; value++) {
             expected.add(value);
         }
         return expected;

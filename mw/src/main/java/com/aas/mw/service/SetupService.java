@@ -67,14 +67,20 @@ public class SetupService {
                   <th>Description</th>
                   <th class="num" style="width: 88px;">Quantity</th>
                   <th style="width: 88px;">UOM</th>
-                  <th class="num" style="width: 110px;">Rate</th>
+                  <th class="num" style="width: 110px;">Taxable Rate</th>
                   <th class="num" style="width: 88px;">GST %</th>
-                  <th class="num" style="width: 130px;">Amount</th>
+                  <th class="num" style="width: 120px;">GST Amt</th>
+                  <th class="num" style="width: 130px;">Taxable Amt</th>
                 </tr>
               </thead>
               <tbody>
+                {% set totals = namespace(taxable=0.0, gst=0.0) %}
                 {% for item in doc.items %}
                 {% set gst_percent = item.aas_gst_percent if item.aas_gst_percent else 0 %}
+                {% set taxable_amount = frappe.utils.flt(item.amount, 2) %}
+                {% set gst_amount = frappe.utils.flt(taxable_amount * gst_percent / 100, 2) %}
+                {% set totals.taxable = totals.taxable + taxable_amount %}
+                {% set totals.gst = totals.gst + gst_amount %}
                 <tr>
                   <td>{{ loop.index }}</td>
                   <td class="item-name">{{ item.item_code or item.item_name }}</td>
@@ -83,15 +89,20 @@ public class SetupService {
                   <td>{{ item.uom or item.stock_uom or '-' }}</td>
                   <td class="num">{{ frappe.utils.fmt_money(item.rate, currency=doc.currency) }}</td>
                   <td class="num">{{ frappe.utils.flt(gst_percent, 0) }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(item.amount, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(gst_amount, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(taxable_amount, currency=doc.currency) }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
             <table class="aas-summary">
               <tr>
-                <td class="label">Net Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(doc.net_total or doc.total, currency=doc.currency) }}</td>
+                <td class="label">Taxable Total</td>
+                <td class="value">{{ frappe.utils.fmt_money(totals.taxable, currency=doc.currency) }}</td>
+              </tr>
+              <tr>
+                <td class="label">GST Total</td>
+                <td class="value">{{ frappe.utils.fmt_money(totals.gst, currency=doc.currency) }}</td>
               </tr>
               {% if doc.aas_rounding_adjustment %}
               <tr>

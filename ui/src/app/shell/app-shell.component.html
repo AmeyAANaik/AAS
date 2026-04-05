@@ -14,6 +14,10 @@
       </div>
     </div>
     <div class="header-right">
+      <button class="header-chip theme-chip" type="button" (click)="toggleTheme()" [title]="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <span class="material-icons" aria-hidden="true">{{ currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+        <span>{{ currentTheme === 'dark' ? 'Light mode' : 'Dark mode' }}</span>
+      </button>
       <div class="user-menu-shell">
         <button class="header-chip user-chip" type="button" (click)="toggleUserMenu()" title="User menu">
           <span class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</span>
@@ -53,9 +57,10 @@
     <div class="shell-sidebar-backdrop" *ngIf="isNavOpen" (click)="closeNav()"></div>
     <aside class="shell-sidebar" [class.shell-sidebar-open]="isNavOpen">
       <div class="sidebar-head">
-        <div>
+        <div class="sidebar-head-copy">
           <div class="sidebar-kicker">Workspace</div>
           <div class="sidebar-current">{{ breadcrumbs }}</div>
+          <div class="sidebar-meta">{{ companyName }} · {{ userRole || 'AAS user' }}</div>
         </div>
       </div>
 
@@ -74,8 +79,11 @@
 
     <main class="shell-content">
       <div class="breadcrumbs-shell">
-        <div class="breadcrumbs">{{ breadcrumbs }}</div>
-        <div class="breadcrumbs-note">Operational workspace</div>
+        <div>
+          <div class="breadcrumbs">{{ breadcrumbs }}</div>
+          <div class="breadcrumbs-note">Operational workspace</div>
+        </div>
+        <div class="workspace-pill">{{ companySubline }}</div>
       </div>
       <div class="page-body">
         <router-outlet></router-outlet>

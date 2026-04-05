@@ -61,7 +61,7 @@ public class MasterDataService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\"]");
+                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\",\"aas_gst_percent\"]");
         params.put("filters", activeItemFiltersJson());
         params.put("limit_page_length", 1000);
         return erpNextClient.listResources("Item", params);
@@ -76,7 +76,7 @@ public class MasterDataService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\"]");
+                "[\"name\",\"item_name\",\"item_code\",\"item_group\",\"stock_uom\",\"aas_margin_percent\",\"aas_vendor_rate\",\"aas_packaging_unit\",\"aas_vendor\",\"aas_vendor_hsn_code\",\"aas_gst_percent\"]");
         params.put("limit_start", (safePage - 1) * safeSize);
         params.put("limit_page_length", safeSize);
         params.put("order_by", orderBy);

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Components Creation - Berry AAS Integration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Roboto', sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .header h1 { color: #5E35B1; font-size: 28px; margin-bottom: 10px; }
+        .header p { color: #666; font-size: 14px; }
+        .phase-section { background: white; border-radius: 8px; margin-bottom: 30px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .phase-header { background: linear-gradient(135deg, #5E35B1, #7E57C2); color: white; padding: 20px; font-size: 18px; font-weight: 600; }
+        .phase-content { padding: 30px; }
+        .file-section { margin-bottom: 30px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .file-header { background: #f9f9f9; padding: 15px; border-bottom: 1px solid #e0e0e0; font-weight: 600; font-family: 'Courier New', monospace; color: #5E35B1; }
+        .code-block { background: #1e1e1e; color: #d4d4d4; padding: 20px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; }
+        .code-block .keyword { color: #569cd6; }
+        .code-block .string { color: #ce9178; }
+        .code-block .function { color: #dcdcaa; }
+        .code-block .variable { color: #9cdcfe; }
+        .code-block .comment { color: #6a9955; }
+        .code-block .type { color: #4ec9b0; }
+        .step-number { display: inline-block; background: #5E35B1; color: white; width: 30px; height: 30px; border-radius: 50%; text-align: center; line-height: 30px; font-weight: 700; margin-right: 10px; }
+        .step-title { font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 15px; display: flex; align-items: center; }
+        .description { color: #666; line-height: 1.6; margin-bottom: 15px; }
+        .note { background: #e3f2fd; border-left: 4px solid #0288D1; padding: 15px; border-radius: 4px; margin: 15px 0; font-size: 13px; color: #1565c0; }
+        .visual-demo { background: #f5f7fa; padding: 20px; border-top: 1px solid #e0e0e0; margin-top: 15px; }
+        .component-preview { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin: 15px 0; }
+        .stat-card { background: white; border-left: 4px solid #5E35B1; padding: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .stat-icon { font-size: 28px; margin-bottom: 12px; }
+        .stat-label { font-size: 11px; font-weight: 700; color: #8F92A6; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-value { font-size: 24px; font-weight: 700; color: #3F3F3F; margin-bottom: 8px; }
+        .stat-change { font-size: 12px; color: #43A047; }
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .comparison-table thead { background: #f5f7fa; border-bottom: 2px solid #e0e0e0; }
+        .comparison-table th, .comparison-table td { padding: 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+        .comparison-table th { font-weight: 600; color: #666; }
+        .button-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.3s; }
+        .button.primary { background: #5E35B1; color: white; }
+        .button.primary:hover { background: #4a2a85; }
+        .button.secondary { background: #e0e0e0; color: #333; }
+        @media (max-width: 768px) { .phase-content { padding: 15px; } .code-block { font-size: 11px; padding: 15px; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🧩 Building Berry-Styled Components</h1>
+        <p>Phase 2 - Create reusable, Berry-styled components for statistics, charts, and theming</p>
+    </div>
+
+    <!-- STEP 1: Statistics Card Component -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">1</span>
+            Create Statistics Card Component
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Build a reusable statistics card component that displays KPIs with icons, values, and trending information. This component will be used throughout the dashboard.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/app/shared/components/berry-stat-card/berry-stat-card.component.ts</div>
+                <div class="code-block">
+<span class="keyword">import</span> { <span class="type">Component</span>, <span class="type">Input</span> } <span class="keyword">from</span> <span class="string">'@angular/core'</span>;
+<span class="keyword">import</span> { <span class="type">CommonModule</span> } <span class="keyword">from</span> <span class="string">'@angular/common'</span>;
+<span class="keyword">import</span> { <span class="type">MatCardModule</span> } <span class="keyword">from</span> <span class="string">'@angular/material/card'</span>;
+
+<span class="keyword">export type</span> <span class="type">CardType</span> = <span class="string">'primary'</span> | <span class="string">'success'</span> | <span class="string">'warning'</span> | <span class="string">'danger'</span>;
+
+@<span class="function">Component</span>({
+  <span class="variable">selector</span>: <span class="string">'app-berry-stat-card'</span>,
+  <span class="variable">standalone</span>: <span class="keyword">true</span>,
+  <span class="variable">imports</span>: [<span class="type">CommonModule</span>, <span class="type">MatCardModule</span>],
+  <span class="variable">template</span>: `
+    &lt;mat-card class="stat-card" [<span class="variable">class</span>]="'stat-card-' + type"&gt;
+      &lt;div class="stat-icon"&gt;{{ icon }}&lt;/div&gt;
+      &lt;div class="stat-label"&gt;{{ label }}&lt;/div&gt;
+      &lt;div class="stat-value"&gt;{{ value }}&lt;/div&gt;
+      &lt;div class="stat-change" [<span class="variable">class.positive</span>]="isPositive" [<span class="variable">class.negative</span>]="!isPositive"&gt;
+        &lt;span&gt;{{ isPositive ? '📈' : '📉' }}&lt;/span&gt;
+        &lt;span&gt;{{ changeText }}&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/mat-card&gt;
+  `,
+  <span class="variable">styles</span>: [`...]
+})
+<span class="keyword">export class</span> <span class="type">BerryStatCardComponent</span> {
+  @<span class="function">Input</span>() <span class="variable">label</span>: <span class="keyword">string</span> = <span class="string">''</span>;
+  @<span class="function">Input</span>() <span class="variable">value</span>: <span class="keyword">string</span> = <span class="string">''</span>;
+  @<span class="function">Input</span>() <span class="variable">icon</span>: <span class="keyword">string</span> = <span class="string">''</span>;
+  @<span class="function">Input</span>() <span class="variable">type</span>: <span class="type">CardType</span> = <span class="string">'primary'</span>;
+  @<span class="function">Input</span>() <span class="variable">changeText</span>: <span class="keyword">string</span> = <span class="string">''</span>;
+  @<span class="function">Input</span>() <span class="variable">isPositive</span>: <span class="keyword">boolean</span> = <span class="keyword">true</span>;
+}
+                </div>
+            </div>
+
+            <div class="file-section">
+                <div class="file-header">🎨 berry-stat-card.component.css (Styling)</div>
+                <div class="code-block">
+.<span class="variable">stat-card</span> {
+  <span class="variable">padding</span>: <span class="string">24px</span>;
+  <span class="variable">transition</span>: all <span class="string">250ms</span> ease-in-out;
+  <span class="variable">border-left</span>: <span class="string">4px</span> solid;
+  <span class="variable">cursor</span>: pointer;
+}
+
+.<span class="variable">stat-card</span>:<span class="keyword">hover</span> {
+  <span class="variable">transform</span>: translateY(<span class="string">-4px</span>);
+  <span class="variable">box-shadow</span>: var(--shadow-md);
+}
+
+.<span class="variable">stat-card-primary</span> { <span class="variable">border-left-color</span>: var(--color-primary); }
+.<span class="variable">stat-card-success</span> { <span class="variable">border-left-color</span>: var(--color-success); }
+.<span class="variable">stat-card-warning</span> { <span class="variable">border-left-color</span>: var(--color-warning); }
+.<span class="variable">stat-card-danger</span> { <span class="variable">border-left-color</span>: var(--color-danger); }
+
+.<span class="variable">stat-icon</span> { <span class="variable">font-size</span>: <span class="string">32px</span>; <span class="variable">margin-bottom</span>: <span class="string">16px</span>; }
+.<span class="variable">stat-label</span> { <span class="variable">font-size</span>: var(--font-size-xs); <span class="variable">font-weight</span>: <span class="string">700</span>; <span class="variable">color</span>: var(--text-secondary); }
+.<span class="variable">stat-value</span> { <span class="variable">font-size</span>: <span class="string">28px</span>; <span class="variable">font-weight</span>: <span class="string">700</span>; <span class="variable">margin</span>: <span class="string">8px 0</span>; }
+.<span class="variable">stat-change</span> { <span class="variable">font-size</span>: var(--font-size-xs); <span class="variable">display</span>: flex; <span class="variable">gap</span>: <span class="string">4px</span>; }
+.<span class="variable">stat-change</span>.<span class="variable">positive</span> { <span class="variable">color</span>: var(--color-success); }
+.<span class="variable">stat-change</span>.<span class="variable">negative</span> { <span class="variable">color</span>: var(--color-danger); }
+                </div>
+            </div>
+
+            <div class="visual-demo">
+                <h3 style="margin-bottom: 15px; color: #1a1a1a;">Component Preview</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div class="stat-card" style="border-left-color: #5E35B1;">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-label">Total Sales</div>
+                        <div class="stat-value">$12.5K</div>
+                        <div class="stat-change" style="color: #43A047;">📈 12% vs last month</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #43A047;">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-label">Total Revenue</div>
+                        <div class="stat-value">$45.2K</div>
+                        <div class="stat-change" style="color: #43A047;">📈 23% vs last month</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #FFA726;">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-label">Total Orders</div>
+                        <div class="stat-value">127</div>
+                        <div class="stat-change" style="color: #43A047;">📈 8% vs last month</div>
+                    </div>
+                    <div class="stat-card" style="border-left-color: #E53935;">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-label">Total Users</div>
+                        <div class="stat-value">1,245</div>
+                        <div class="stat-change" style="color: #43A047;">📈 5% vs last month</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="note">
+                ✅ Component uses CSS variables, so colors change automatically with the theme!
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2: Chart Card Component -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">2</span>
+            Create Chart Card Component
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Build a container component for charts. It provides a consistent card layout with title, footer stats, and content projection for Chart.js integration.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/app/shared/components/berry-chart-card/berry-chart-card.component.ts</div>
+                <div class="code-block">
+<span class="keyword">import</span> { <span class="type">Component</span>, <span class="type">Input</span> } <span class="keyword">from</span> <span class="string">'@angular/core'</span>;
+<span class="keyword">import</span> { <span class="type">CommonModule</span> } <span class="keyword">from</span> <span class="string">'@angular/common'</span>;
+<span class="keyword">import</span> { <span class="type">MatCardModule</span> } <span class="keyword">from</span> <span class="string">'@angular/material/card'</span>;
+
+@<span class="function">Component</span>({
+  <span class="variable">selector</span>: <span class="string">'app-berry-chart-card'</span>,
+  <span class="variable">standalone</span>: <span class="keyword">true</span>,
+  <span class="variable">imports</span>: [<span class="type">CommonModule</span>, <span class="type">MatCardModule</span>],
+  <span class="variable">template</span>: `
+    &lt;mat-card class="chart-card"&gt;
+      &lt;div class="chart-header"&gt;
+        &lt;h3 class="chart-title"&gt;{{ title }}&lt;/h3&gt;
+        &lt;button class="chart-menu"&gt;⋮&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;ng-content&gt;&lt;/ng-content&gt;
+      &lt;div class="chart-footer" *ngIf="stats && stats.length"&gt;
+        &lt;div class="chart-stat" *ngFor="let stat of stats"&gt;
+          &lt;div class="chart-stat-value"&gt;{{ stat.value }}&lt;/div&gt;
+          &lt;div class="chart-stat-label"&gt;{{ stat.label }}&lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/mat-card&gt;
+  `,
+  <span class="variable">styles</span>: [`...]
+})
+<span class="keyword">export class</span> <span class="type">BerryChartCardComponent</span> {
+  @<span class="function">Input</span>() <span class="variable">title</span>: <span class="keyword">string</span> = <span class="string">''</span>;
+  @<span class="function">Input</span>() <span class="variable">stats</span>: <span class="type">Array</span>&lt;{<span class="variable">value</span>: <span class="keyword">string</span>; <span class="variable">label</span>: <span class="keyword">string</span>}&gt; = [];
+}
+                </div>
+            </div>
+
+            <div class="note">
+                ℹ️ This component uses ng-content for flexible content projection - perfect for different chart libraries!
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 3: Theme Service -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">3</span>
+            Create Theme Service
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Build a service to manage theme switching. This allows users to toggle between light and dark modes with automatic persistence.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/app/shared/services/berry-theme.service.ts</div>
+                <div class="code-block">
+<span class="keyword">import</span> { <span class="type">Injectable</span> } <span class="keyword">from</span> <span class="string">'@angular/core'</span>;
+<span class="keyword">import</span> { <span class="type">BehaviorSubject</span>, <span class="type">Observable</span> } <span class="keyword">from</span> <span class="string">'rxjs'</span>;
+
+@<span class="function">Injectable</span>({ <span class="variable">providedIn</span>: <span class="string">'root'</span> })
+<span class="keyword">export class</span> <span class="type">BerryThemeService</span> {
+  <span class="keyword">private</span> <span class="variable">isDarkMode$</span> = <span class="keyword">new</span> <span class="type">BehaviorSubject</span>&lt;<span class="keyword">boolean</span>&gt;(
+    localStorage.<span class="function">getItem</span>(<span class="string">'berry-aas-dark-mode'</span>) === <span class="string">'true'</span>
+  );
+
+  <span class="keyword">constructor</span>() {
+    <span class="keyword">this</span>.<span class="function">applyTheme</span>(<span class="keyword">this</span>.<span class="variable">isDarkMode$</span>.<span class="function">value</span>);
+  }
+
+  <span class="keyword">get</span> <span class="variable">isDarkMode</span>(): <span class="type">Observable</span>&lt;<span class="keyword">boolean</span>&gt; {
+    <span class="keyword">return</span> <span class="keyword">this</span>.<span class="variable">isDarkMode$</span>.<span class="function">asObservable</span>();
+  }
+
+  <span class="function">toggleDarkMode</span>(): <span class="keyword">void</span> {
+    <span class="keyword">const</span> <span class="variable">newValue</span> = !<span class="keyword">this</span>.<span class="variable">isDarkMode$</span>.<span class="function">value</span>;
+    <span class="keyword">this</span>.<span class="variable">isDarkMode$</span>.<span class="function">next</span>(<span class="variable">newValue</span>);
+    localStorage.<span class="function">setItem</span>(<span class="string">'berry-aas-dark-mode'</span>, <span class="variable">newValue</span>.<span class="function">toString</span>());
+    <span class="keyword">this</span>.<span class="function">applyTheme</span>(<span class="variable">newValue</span>);
+  }
+
+  <span class="keyword">private</span> <span class="function">applyTheme</span>(<span class="variable">isDark</span>: <span class="keyword">boolean</span>): <span class="keyword">void</span> {
+    <span class="keyword">if</span> (<span class="variable">isDark</span>) {
+      document.documentElement.<span class="function">setAttribute</span>(<span class="string">'data-theme'</span>, <span class="string">'dark'</span>);
+    } <span class="keyword">else</span> {
+      document.documentElement.<span class="function">removeAttribute</span>(<span class="string">'data-theme'</span>);
+    }
+  }
+}
+                </div>
+            </div>
+
+            <div class="note">
+                ✅ Theme preference persists in localStorage, so users' choice is remembered!
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 4: Component Summary -->
+    <div class="phase-section">
+        <div class="phase-header">
+            📋 Phase 2 Summary - Components Created
+        </div>
+        <div class="phase-content">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Purpose</th>
+                        <th>Inputs</th>
+                        <th>Reusable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>BerryStatCardComponent</strong></td>
+                        <td>Display KPI statistics with icons and trending</td>
+                        <td>label, value, icon, type, changeText, isPositive</td>
+                        <td>✅ Yes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>BerryChartCardComponent</strong></td>
+                        <td>Container for chart visualization</td>
+                        <td>title, stats, (ng-content)</td>
+                        <td>✅ Yes</td>
+                    </tr>
+                    <tr>
+                        <td><strong>BerryThemeService</strong></td>
+                        <td>Manage light/dark theme switching</td>
+                        <td>N/A (Service)</td>
+                        <td>✅ Yes</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="button primary">✅ Phase 2 Complete</button>
+                <button class="button secondary">📄 Next: Phase 3 - Dashboard Integration</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Benefits Section -->
+    <div class="phase-section">
+        <div class="phase-header">
+            🎯 Key Benefits of Component Architecture
+        </div>
+        <div class="phase-content">
+            <ul style="line-height: 2; color: #333;">
+                <li><strong>Reusability:</strong> Use stat-card component on every page</li>
+                <li><strong>Consistency:</strong> All cards styled identically using CSS variables</li>
+                <li><strong>Maintainability:</strong> Change styling in one place, applies everywhere</li>
+                <li><strong>Type Safety:</strong> TypeScript ensures correct input types</li>
+                <li><strong>Flexibility:</strong> Content projection allows different content types</li>
+                <li><strong>Testing:</strong> Isolated components are easier to test</li>
+                <li><strong>Performance:</strong> Standalone components, optimal bundling</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Setup - Berry AAS Integration</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #5E35B1;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .phase-section {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .phase-header {
+            background: linear-gradient(135deg, #5E35B1, #7E57C2);
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .phase-content {
+            padding: 30px;
+        }
+
+        .file-section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .file-header {
+            background: #f9f9f9;
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            color: #5E35B1;
+        }
+
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .code-block .keyword { color: #569cd6; }
+        .code-block .string { color: #ce9178; }
+        .code-block .function { color: #dcdcaa; }
+        .code-block .variable { color: #9cdcfe; }
+        .code-block .comment { color: #6a9955; }
+
+        .visual-demo {
+            background: #f5f7fa;
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .color-box {
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .color-box.primary { background: #5E35B1; }
+        .color-box.secondary { background: #0288D1; }
+        .color-box.success { background: #43A047; }
+        .color-box.warning { background: #FFA726; }
+        .color-box.danger { background: #E53935; }
+        .color-box.info { background: #29B6F6; }
+
+        .color-code {
+            font-size: 11px;
+            font-family: 'Courier New', monospace;
+            margin-top: 8px;
+            opacity: 0.8;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #5E35B1;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: 700;
+            margin-right: 10px;
+        }
+
+        .step-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .file-tree {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            color: #333;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .file-tree .folder { color: #0288D1; font-weight: 600; }
+        .file-tree .file { color: #5E35B1; }
+        .file-tree .indent-1 { margin-left: 20px; }
+        .file-tree .indent-2 { margin-left: 40px; }
+        .file-tree .indent-3 { margin-left: 60px; }
+
+        .note {
+            background: #e3f2fd;
+            border-left: 4px solid #0288D1;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-size: 13px;
+            color: #1565c0;
+        }
+
+        .warning-note {
+            background: #fff3e0;
+            border-left-color: #FFA726;
+            color: #e65100;
+        }
+
+        .success-note {
+            background: #e8f5e9;
+            border-left-color: #43A047;
+            color: #2e7d32;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .button.primary {
+            background: #5E35B1;
+            color: white;
+        }
+
+        .button.primary:hover {
+            background: #4a2a85;
+        }
+
+        .button.secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .button.secondary:hover {
+            background: #d0d0d0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        thead {
+            background: #f5f7fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            font-size: 12px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #333;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        @media (max-width: 768px) {
+            .phase-content {
+                padding: 15px;
+            }
+
+            .code-block {
+                font-size: 11px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🎨 Theme Setup & Configuration</h1>
+        <p>Phase 1 - Berry AAS Integration: Create theme files, CSS variables, and configuration</p>
+    </div>
+
+    <!-- STEP 1 -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">1</span>
+            Install Dependencies
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Install Chart.js and ng2-charts for data visualization support. These libraries will enable chart rendering on the dashboard.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">Terminal Command</div>
+                <div class="code-block">
+<span class="keyword">$</span> cd /Users/roshninaik/Projects/AAS/ui
+<span class="keyword">$</span> npm install chart.js ng2-charts --save
+                </div>
+            </div>
+
+            <div class="note success-note">
+                ✅ This adds ~500KB to bundle (minimal impact). Chart.js is tree-shakeable, so unused features won't be included.
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">2</span>
+            Create Theme Configuration File
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Create the theme configuration file that defines all Berry AAS colors, typography, and spacing tokens.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/app/theme/berry-aas.config.ts</div>
+                <div class="code-block">
+<span class="keyword">export const</span> <span class="function">BerryAASThemeConfig</span> = {
+  <span class="variable">light</span>: {
+    <span class="variable">name</span>: <span class="string">'Berry AAS Light'</span>,
+    <span class="variable">palette</span>: {
+      <span class="variable">primary</span>: <span class="string">'#5E35B1'</span>,
+      <span class="variable">secondary</span>: <span class="string">'#0288D1'</span>,
+      <span class="variable">success</span>: <span class="string">'#43A047'</span>,
+      <span class="variable">warning</span>: <span class="string">'#FFA726'</span>,
+      <span class="variable">danger</span>: <span class="string">'#E53935'</span>,
+      <span class="variable">info</span>: <span class="string">'#29B6F6'</span>,
+      <span class="variable">background</span>: <span class="string">'#F5F7FA'</span>,
+      <span class="variable">surface</span>: <span class="string">'#FFFFFF'</span>,
+      <span class="variable">text</span>: {
+        <span class="variable">primary</span>: <span class="string">'#3F3F3F'</span>,
+        <span class="variable">secondary</span>: <span class="string">'#8F92A6'</span>,
+      },
+      <span class="variable">border</span>: <span class="string">'#E8EAED'</span>,
+    },
+  },
+  <span class="variable">dark</span>: {
+    <span class="variable">name</span>: <span class="string">'Berry AAS Dark'</span>,
+    <span class="variable">palette</span>: {
+      <span class="variable">primary</span>: <span class="string">'#7E57C2'</span>,
+      <span class="variable">secondary</span>: <span class="string">'#42A5F5'</span>,
+      <span class="variable">success</span>: <span class="string">'#66BB6A'</span>,
+      <span class="variable">warning</span>: <span class="string">'#FFB74D'</span>,
+      <span class="variable">danger</span>: <span class="string">'#EF5350'</span>,
+      <span class="variable">info</span>: <span class="string">'#42A5F5'</span>,
+      <span class="variable">background</span>: <span class="string">'#1a2332'</span>,
+      <span class="variable">surface</span>: <span class="string">'#263449'</span>,
+      <span class="variable">text</span>: {
+        <span class="variable">primary</span>: <span class="string">'#FFFFFF'</span>,
+        <span class="variable">secondary</span>: <span class="string">'#B0BEC5'</span>,
+      },
+      <span class="variable">border</span>: <span class="string">'#37474F'</span>,
+    },
+  },
+};
+                </div>
+            </div>
+
+            <div class="note">
+                ℹ️ This file is the single source of truth for all theme colors. Update it once and it applies everywhere!
+            </div>
+
+            <div class="visual-demo">
+                <h3 style="margin-bottom: 15px; color: #1a1a1a;">Color Palette Preview</h3>
+                <div class="color-palette">
+                    <div class="color-box primary">
+                        Primary
+                        <div class="color-code">#5E35B1</div>
+                    </div>
+                    <div class="color-box secondary">
+                        Secondary
+                        <div class="color-code">#0288D1</div>
+                    </div>
+                    <div class="color-box success">
+                        Success
+                        <div class="color-code">#43A047</div>
+                    </div>
+                    <div class="color-box warning">
+                        Warning
+                        <div class="color-code">#FFA726</div>
+                    </div>
+                    <div class="color-box danger">
+                        Danger
+                        <div class="color-code">#E53935</div>
+                    </div>
+                    <div class="color-box info">
+                        Info
+                        <div class="color-code">#29B6F6</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">3</span>
+            Create CSS Variables File
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Create the CSS variables file that will be used throughout the application. This enables dynamic theming and easy maintenance.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/styles/themes/berry-aas-theme.css (First 80 lines)</div>
+                <div class="code-block">
+<span class="comment">/* Light Theme (Default) */</span>
+:<span class="keyword">root</span> {
+  <span class="comment">/* Primary Colors */</span>
+  --<span class="variable">color-primary</span>: <span class="string">#5E35B1</span>;
+  --<span class="variable">color-secondary</span>: <span class="string">#0288D1</span>;
+  --<span class="variable">color-success</span>: <span class="string">#43A047</span>;
+  --<span class="variable">color-warning</span>: <span class="string">#FFA726</span>;
+  --<span class="variable">color-danger</span>: <span class="string">#E53935</span>;
+  --<span class="variable">color-info</span>: <span class="string">#29B6F6</span>;
+
+  <span class="comment">/* Backgrounds */</span>
+  --<span class="variable">bg-primary</span>: <span class="string">#F5F7FA</span>;
+  --<span class="variable">bg-surface</span>: <span class="string">#FFFFFF</span>;
+  --<span class="variable">bg-hover</span>: <span class="string">#F9F9FB</span>;
+
+  <span class="comment">/* Text Colors */</span>
+  --<span class="variable">text-primary</span>: <span class="string">#3F3F3F</span>;
+  --<span class="variable">text-secondary</span>: <span class="string">#8F92A6</span>;
+
+  <span class="comment">/* Shadows */</span>
+  --<span class="variable">shadow-sm</span>: <span class="string">0 1px 3px rgba(0, 0, 0, 0.08)</span>;
+  --<span class="variable">shadow-md</span>: <span class="string">0 4px 12px rgba(0, 0, 0, 0.12)</span>;
+
+  <span class="comment">/* Spacing */</span>
+  --<span class="variable">spacing-md</span>: <span class="string">16px</span>;
+  --<span class="variable">spacing-lg</span>: <span class="string">24px</span>;
+}
+
+<span class="comment">/* Dark Theme */</span>
+<span class="keyword">html[data-theme="dark"]</span> {
+  --<span class="variable">color-primary</span>: <span class="string">#7E57C2</span>;
+  --<span class="variable">bg-primary</span>: <span class="string">#1a2332</span>;
+  --<span class="variable">text-primary</span>: <span class="string">#FFFFFF</span>;
+}
+                </div>
+            </div>
+
+            <div class="note success-note">
+                ✅ CSS variables can be changed at runtime without recompiling. Perfect for dark mode toggling!
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">4</span>
+            Create Material Overrides
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Add Material Design component overrides to apply Berry theme colors to Angular Material components.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">📄 ui/src/styles/themes/berry-aas-theme.css (Material Overrides)</div>
+                <div class="code-block">
+<span class="comment">/* Material Overrides */</span>
+.<span class="variable">mat-toolbar</span> {
+  background-color: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.<span class="variable">mat-card</span> {
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-surface);
+}
+
+.<span class="variable">mat-card</span>:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.<span class="variable">mat-raised-button</span>.<span class="variable">mat-primary</span> {
+  background-color: var(--color-primary) !important;
+}
+
+<span class="variable">table</span> {
+  background-color: var(--bg-surface);
+}
+
+<span class="variable">thead</span> {
+  background-color: var(--bg-hover);
+}
+
+<span class="variable">tbody tr</span>:hover {
+  background-color: var(--bg-hover);
+}
+                </div>
+            </div>
+
+            <div class="note">
+                ℹ️ All Material components automatically inherit the new theme colors from CSS variables.
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 5 -->
+    <div class="phase-section">
+        <div class="phase-header">
+            <span class="step-number">5</span>
+            Create Directory Structure
+        </div>
+        <div class="phase-content">
+            <p class="description">
+                Create the new directories for theme files and components. Use these commands to set up the folder structure.
+            </p>
+
+            <div class="file-section">
+                <div class="file-header">Terminal Commands</div>
+                <div class="code-block">
+<span class="keyword">$</span> mkdir -p ui/src/app/theme
+<span class="keyword">$</span> mkdir -p ui/src/styles/themes
+<span class="keyword">$</span> mkdir -p ui/src/app/shared/services
+                </div>
+            </div>
+
+            <div class="file-tree">
+                <div><span class="folder">ui/src/app/</span></div>
+                <div class="indent-1"><span class="folder">theme/</span> ← New folder</div>
+                <div class="indent-2"><span class="file">berry-aas.config.ts</span> ← New file</div>
+                <div class="indent-2"><span class="file">berry-aas.module.ts</span> ← New file</div>
+                <div class="indent-1"><span class="folder">shared/</span></div>
+                <div class="indent-2"><span class="folder">services/</span></div>
+                <div class="indent-3"><span class="file">berry-theme.service.ts</span> ← New file</div>
+                <div><span class="folder">ui/src/styles/</span></div>
+                <div class="indent-1"><span class="folder">themes/</span> ← New folder</div>
+                <div class="indent-2"><span class="file">berry-aas-theme.css</span> ← New file</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Table -->
+    <div class="phase-section">
+        <div class="phase-header">
+            📋 Phase 1 Summary - Files Created
+        </div>
+        <div class="phase-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Purpose</th>
+                        <th>Size</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>berry-aas.config.ts</code></td>
+                        <td>TypeScript</td>
+                        <td>Theme configuration with color palette</td>
+                        <td>~1.2 KB</td>
+                    </tr>
+                    <tr>
+                        <td><code>berry-aas-theme.css</code></td>
+                        <td>CSS</td>
+                        <td>CSS variables and Material overrides</td>
+                        <td>~2.5 KB</td>
+                    </tr>
+                    <tr>
+                        <td><code>berry-theme.service.ts</code></td>
+                        <td>TypeScript</td>
+                        <td>Theme switching service for dark mode</td>
+                        <td>~1.8 KB</td>
+                    </tr>
+                    <tr>
+                        <td><code>styles.css</code></td>
+                        <td>CSS</td>
+                        <td>Updated to import theme CSS</td>
+                        <td>Updated</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="button-group">
+                <button class="button primary">✅ Phase 1 Complete</button>
+                <button class="button secondary">📄 Next: Phase 2 - Components</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div style="margin-top: 40px; text-align: center;">
+        <p style="color: #666; margin-bottom: 20px;">
+            <strong>Navigation:</strong> Phase 1 Setup → Phase 2 Components → Phase 3 Dashboard → Phase 4 Pages → Phase 5 Polish
+        </p>
+    </div>
+
+</div>
+
+</body>
+</html>

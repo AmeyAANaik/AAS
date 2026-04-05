@@ -1,7 +1,10 @@
 .item-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--spacing-lg, 24px);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  padding: var(--spacing-lg);
 }
 
 .list-card {

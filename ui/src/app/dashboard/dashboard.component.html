@@ -1,222 +1,328 @@
-<section class="dashboard">
+<section class="dashboard berry-page">
   <app-page-header
+    kicker="Overview"
     [title]="title"
     [subtitle]="subtitlePrefix + ((vm$ | async)?.snapshot?.periodLabel || 'current period')">
-    <button mat-flat-button color="primary" routerLink="/orders">View orders</button>
-    <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
   </app-page-header>
 
   <ng-container *ngIf="vm$ | async as vm">
-    <div class="state" *ngIf="vm.loading">Loading dashboard snapshot...</div>
+    <div class="state loading" *ngIf="vm.loading">Loading dashboard snapshot...</div>
     <div class="state error" *ngIf="vm.error">{{ vm.error }}</div>
 
-    <div class="kpi-grid" *ngIf="!vm.loading && vm.snapshot">
-      <mat-card class="kpi-card">
-        <div class="kpi-label">Invoices</div>
-        <div class="kpi-value">{{ vm.snapshot.salesSummary.invoiceCount }}</div>
-        <div class="kpi-meta">{{ vm.snapshot.salesSummary.dateRangeLabel }}</div>
-      </mat-card>
-      <mat-card class="kpi-card">
-        <div class="kpi-label">Branches with dues</div>
-        <div class="kpi-value">{{ vm.snapshot.billsByBranch.length }}</div>
-        <div class="kpi-meta">Open invoice exposure</div>
-      </mat-card>
-      <mat-card class="kpi-card">
-        <div class="kpi-label">Vendors with dues</div>
-        <div class="kpi-value">{{ vm.snapshot.billsByVendor.length }}</div>
-        <div class="kpi-meta">Payables tracking</div>
-      </mat-card>
-    </div>
-
-    <mat-card class="overview-card" *ngIf="!vm.loading && vm.snapshot">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Operational overview</div>
-          <div class="card-subtitle">Use this page as the morning checkpoint before jumping into orders, billing, or exception queues.</div>
-        </div>
-      </div>
-    </mat-card>
-
-    <mat-card class="card vendor-ops-card" *ngIf="!vm.loading && vm.snapshot">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Vendor Operations</div>
-          <div class="card-subtitle">Follow pending vendor orders, bill capture, and payable movement.</div>
-        </div>
-      </div>
-      <mat-card-content class="vendor-ops-summary">
-        <div class="metric">
-          <div>
-            <p class="metric-label">Vendors with pending orders</p>
-            <p class="metric-value">{{ vm.snapshot.vendorOperations.vendorsWithPendingOrders }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Pending orders</p>
-            <p class="metric-value">{{ vm.snapshot.vendorOperations.totalPendingOrders }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Awaiting PDF</p>
-            <p class="metric-value">{{ vm.snapshot.vendorOperations.awaitingPdf }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Awaiting bill capture</p>
-            <p class="metric-value">{{ vm.snapshot.vendorOperations.awaitingBillCapture }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Pending bill amount</p>
-            <p class="metric-value">{{ vm.snapshot.vendorOperations.totalPendingBillAmount | number: '1.0-2' }}</p>
-          </div>
-          <div class="metric metric-action">
-            <p class="metric-label">Action</p>
-            <button mat-icon-button color="primary" class="dashboard-view-action" routerLink="/vendor-ops" aria-label="View vendor operations">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </div>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card class="card vendor-ops-card" *ngIf="!vm.loading && vm.snapshot">
-      <div class="card-header">
-        <div>
-          <div class="card-title">Branch Operations</div>
-          <div class="card-subtitle">Track branch order backlog, invoice exposure, and collections.</div>
-        </div>
-      </div>
-      <mat-card-content class="vendor-ops-summary">
-        <div class="metric">
-          <div>
-            <p class="metric-label">Branches with pending orders</p>
-            <p class="metric-value">{{ vm.snapshot.branchOperations.branchesWithPendingOrders }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Pending orders</p>
-            <p class="metric-value">{{ vm.snapshot.branchOperations.totalPendingOrders }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Awaiting vendor assignment</p>
-            <p class="metric-value">{{ vm.snapshot.branchOperations.awaitingVendorAssignment }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Awaiting vendor response</p>
-            <p class="metric-value">{{ vm.snapshot.branchOperations.awaitingVendorResponse }}</p>
-          </div>
-          <div>
-            <p class="metric-label">Open receivable amount</p>
-            <p class="metric-value">{{ vm.snapshot.branchOperations.openReceivableAmount | number: '1.0-2' }}</p>
-          </div>
-          <div class="metric metric-action">
-            <p class="metric-label">Action</p>
-            <button mat-icon-button color="primary" class="dashboard-view-action" routerLink="/branch-ops" aria-label="View branch operations">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </div>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <div class="dashboard-grid" *ngIf="!vm.loading && vm.snapshot">
-      <mat-card class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Order status summary</div>
-            <div class="card-subtitle">Live snapshot by fulfillment state</div>
-          </div>
-        </div>
-        <mat-card-content>
-          <table mat-table [dataSource]="vm.snapshot.orderStatus" class="data-table pro-table">
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Status</th>
-              <td mat-cell *matCellDef="let row">
-                <span [class]="getStatusPillClass(row.status)">{{ row.status }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="count">
-              <th mat-header-cell *matHeaderCellDef>Orders</th>
-              <td mat-cell *matCellDef="let row">{{ row.count }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="orderStatusColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: orderStatusColumns"></tr>
-          </table>
-          <p class="muted" *ngIf="!vm.snapshot.orderStatus.length">
-            No orders found in this period. Create an order to see status totals here.
+    <ng-container *ngIf="!vm.loading && vm.snapshot as snapshot">
+      <mat-card class="berry-hero-card hero-card">
+        <div class="hero-copy">
+          <div class="hero-kicker">Live command center</div>
+          <h2 class="hero-title">Today’s operations</h2>
+          <p class="hero-subtitle">
+            Monitor procurement, vendor execution, branch collections, and revenue signals from one focused workspace.
           </p>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Bills due per branch</div>
-            <div class="card-subtitle">Outstanding branch liabilities</div>
+          <div class="hero-actions">
+            <button mat-flat-button color="primary" routerLink="/orders">Open orders workflow</button>
+            <button mat-stroked-button color="primary" routerLink="/bills">Open finance workspace</button>
           </div>
         </div>
-        <mat-card-content>
-          <table mat-table [dataSource]="vm.snapshot.billsByBranch" class="data-table pro-table">
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Branch</th>
-              <td mat-cell *matCellDef="let row">{{ row.name }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total">
-              <th mat-header-cell *matHeaderCellDef>Amount due</th>
-              <td mat-cell *matCellDef="let row">{{ row.total | number: '1.0-2' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="billingColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: billingColumns"></tr>
-          </table>
-          <p class="muted" *ngIf="!vm.snapshot.billsByBranch.length">
-            No branch bills due. Invoices will appear once created.
-          </p>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Bills due per vendor</div>
-            <div class="card-subtitle">Open payables by supplier</div>
+        <div class="hero-metrics">
+          <div class="hero-metric">
+            <div class="summary-label">Vendors engaged</div>
+            <div class="summary-value">{{ snapshot.vendorOperations.vendorsWithPendingOrders }}</div>
+          </div>
+          <div class="hero-metric">
+            <div class="summary-label">Invoices this period</div>
+            <div class="summary-value">{{ snapshot.salesSummary.invoiceCount }}</div>
+          </div>
+          <div class="hero-metric">
+            <div class="summary-label">Revenue snapshot</div>
+            <div class="summary-value">{{ snapshot.salesSummary.totalRevenue | number: '1.0-0' }}</div>
           </div>
         </div>
-        <mat-card-content>
-          <table mat-table [dataSource]="vm.snapshot.billsByVendor" class="data-table pro-table">
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>Vendor</th>
-              <td mat-cell *matCellDef="let row">{{ row.name }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total">
-              <th mat-header-cell *matHeaderCellDef>Amount due</th>
-              <td mat-cell *matCellDef="let row">{{ row.total | number: '1.0-2' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="billingColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: billingColumns"></tr>
-          </table>
-          <p class="muted" *ngIf="!vm.snapshot.billsByVendor.length">
-            No vendor bills due. Assign vendors on orders to track totals.
-          </p>
-        </mat-card-content>
       </mat-card>
 
-      <mat-card class="card">
-        <div class="card-header">
-          <div>
-            <div class="card-title">Sales / revenue summary</div>
-            <div class="card-subtitle">Period performance snapshot</div>
-          </div>
-        </div>
-        <mat-card-content>
-          <div class="metric">
+      <div class="berry-grid-4">
+        <app-berry-stat-card
+          label="Total invoices"
+          [value]="(snapshot.salesSummary.invoiceCount || 0) + ''"
+          icon="receipt_long"
+          type="primary"
+          changeText="This period"
+          [isPositive]="true">
+        </app-berry-stat-card>
+
+        <app-berry-stat-card
+          label="Total revenue"
+          [value]="'₹' + ((snapshot.salesSummary.totalRevenue || 0) | number: '1.0-0')"
+          icon="payments"
+          type="success"
+          changeText="This period"
+          [isPositive]="true">
+        </app-berry-stat-card>
+
+        <app-berry-stat-card
+          label="Branches with dues"
+          [value]="snapshot.billsByBranch.length + ''"
+          icon="storefront"
+          type="warning"
+          changeText="Receivable exposure"
+          [isPositive]="false">
+        </app-berry-stat-card>
+
+        <app-berry-stat-card
+          label="Vendors with dues"
+          [value]="snapshot.billsByVendor.length + ''"
+          icon="local_shipping"
+          type="danger"
+          changeText="Payables tracking"
+          [isPositive]="false">
+        </app-berry-stat-card>
+      </div>
+
+      <div class="berry-grid-2">
+        <mat-card class="berry-panel ops-highlight">
+          <div class="berry-panel-header">
             <div>
-              <p class="metric-label">Invoices</p>
-              <p class="metric-value">{{ vm.snapshot.salesSummary.invoiceCount }}</p>
+              <div class="berry-panel-title">Vendor operations</div>
+              <div class="berry-panel-subtitle">Prioritize vendor follow-up by PDF delays, bill capture backlog, and pending bill amount.</div>
             </div>
-            <div>
-              <p class="metric-label">Total revenue</p>
-              <p class="metric-value">{{ vm.snapshot.salesSummary.totalRevenue | number: '1.0-2' }}</p>
+            <button mat-stroked-button color="primary" routerLink="/vendor-ops" class="ops-link-btn">Open vendor ops</button>
+          </div>
+          <div class="ops-metrics">
+            <div class="ops-metric">
+              <span class="metric-label">Pending orders</span>
+              <strong>{{ snapshot.vendorOperations.totalPendingOrders }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Awaiting PDF</span>
+              <strong>{{ snapshot.vendorOperations.awaitingPdf }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Awaiting bill capture</span>
+              <strong>{{ snapshot.vendorOperations.awaitingBillCapture }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Pending bill total</span>
+              <strong>{{ snapshot.vendorOperations.totalPendingBillAmount | number: '1.0-2' }}</strong>
             </div>
           </div>
-          <p class="muted">Period: {{ vm.snapshot.salesSummary.dateRangeLabel }}</p>
-        </mat-card-content>
-      </mat-card>
-    </div>
+        </mat-card>
+
+        <mat-card class="berry-panel ops-highlight secondary">
+          <div class="berry-panel-header">
+            <div>
+              <div class="berry-panel-title">Branch operations</div>
+              <div class="berry-panel-subtitle">Track assignment delays, vendor response lag, and branch-side receivable pressure.</div>
+            </div>
+            <button mat-stroked-button color="primary" routerLink="/branch-ops" class="ops-link-btn">Open branch ops</button>
+          </div>
+          <div class="ops-metrics">
+            <div class="ops-metric">
+              <span class="metric-label">Pending orders</span>
+              <strong>{{ snapshot.branchOperations.totalPendingOrders }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Awaiting vendor assignment</span>
+              <strong>{{ snapshot.branchOperations.awaitingVendorAssignment }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Awaiting vendor response</span>
+              <strong>{{ snapshot.branchOperations.awaitingVendorResponse }}</strong>
+            </div>
+            <div class="ops-metric">
+              <span class="metric-label">Open receivable</span>
+              <strong>{{ snapshot.branchOperations.openReceivableAmount | number: '1.0-2' }}</strong>
+            </div>
+          </div>
+        </mat-card>
+      </div>
+
+      <div class="berry-grid-2 charts-grid">
+        <app-berry-chart-card
+          title="Sales / revenue trend"
+          [stats]="[
+            { label: 'Invoices', value: (snapshot.salesSummary.invoiceCount || 0).toString() },
+            { label: 'Average / day', value: '₹' + ((snapshot.salesSummary.averageDailyRevenue || 0) | number: '1.0-0') },
+            { label: 'Peak day', value: snapshot.salesSummary.peakRevenueLabel }
+          ]">
+          <div class="chart-body revenue-chart">
+            <div class="chart-copy">
+              <div class="chart-kicker">Period wise</div>
+              <h3>Revenue movement</h3>
+              <p>{{ snapshot.salesSummary.dateRangeLabel }}</p>
+            </div>
+            <div class="revenue-chart-shell" *ngIf="snapshot.revenueSeries.length; else emptyRevenueChart">
+              <svg viewBox="0 0 320 120" preserveAspectRatio="none" class="revenue-svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="revenueFill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(91,107,255,0.28)"></stop>
+                    <stop offset="100%" stop-color="rgba(91,107,255,0.02)"></stop>
+                  </linearGradient>
+                </defs>
+                <path class="revenue-area" [attr.d]="revenueAreaPath(snapshot.revenueSeries)"></path>
+                <path class="revenue-line" [attr.d]="revenuePath(snapshot.revenueSeries)"></path>
+                <circle
+                  *ngFor="let dot of revenueDots(snapshot.revenueSeries); trackBy: trackByLabel"
+                  class="revenue-dot"
+                  [attr.cx]="dot.x"
+                  [attr.cy]="dot.y"
+                  r="3.2">
+                </circle>
+              </svg>
+              <div class="revenue-axis">
+                <span *ngFor="let point of snapshot.revenueSeries; trackBy: trackByLabel">{{ point.shortLabel }}</span>
+              </div>
+            </div>
+            <ng-template #emptyRevenueChart>
+              <div class="compact-empty chart-empty">
+                <div class="compact-empty-value">0</div>
+                <p class="muted">Revenue trend will appear as invoices are created.</p>
+              </div>
+            </ng-template>
+          </div>
+        </app-berry-chart-card>
+
+        <app-berry-chart-card
+          title="Bills per branch"
+          [stats]="[
+            { label: 'Branches', value: snapshot.billsByBranch.length.toString() },
+            { label: 'Top branch', value: snapshot.billsByBranch.length ? snapshot.billsByBranch[0].name : 'None' },
+            { label: 'Total due', value: '₹' + (((snapshot.billsByBranch.length ? snapshot.billsByBranch[0].total : 0)) | number: '1.0-0') }
+          ]">
+          <div class="chart-body branch-chart">
+            <div class="chart-copy">
+              <div class="chart-kicker">Outstanding dues</div>
+              <h3>Branch billing exposure</h3>
+              <p>Compare receivable concentration across branches.</p>
+            </div>
+            <div *ngIf="snapshot.billsByBranch.length; else emptyBranchChart" class="branch-bars">
+              <div class="branch-bar-row" *ngFor="let row of branchBillingChart(snapshot.billsByBranch)">
+                <div class="branch-bar-head">
+                  <span class="branch-name">{{ row.name }}</span>
+                  <strong>{{ row.total | number: '1.0-2' }}</strong>
+                </div>
+                <div class="branch-bar-track">
+                  <div class="branch-bar-fill" [style.width.%]="row.width"></div>
+                </div>
+              </div>
+            </div>
+            <ng-template #emptyBranchChart>
+              <div class="compact-empty chart-empty">
+                <div class="compact-empty-value">0</div>
+                <p class="muted">No branch billing dues in this period.</p>
+              </div>
+            </ng-template>
+          </div>
+        </app-berry-chart-card>
+      </div>
+
+      <div class="dashboard-grid compact-grid dashboard-lower-grid">
+        <mat-card class="berry-panel pulse-panel">
+          <div class="berry-panel-header">
+            <div>
+              <div class="berry-panel-title">Order workflow pulse</div>
+              <div class="berry-panel-subtitle">How current orders are distributed across execution stages.</div>
+            </div>
+            <span class="berry-badge">{{ totalOrderCount(snapshot.orderStatus) }} live orders</span>
+          </div>
+          <ng-container *ngIf="snapshot.orderStatus.length; else emptyOrdersStatus">
+            <div class="status-stack">
+              <div class="status-row" *ngFor="let row of orderStatusRows(snapshot.orderStatus)">
+                <div class="status-row-head">
+                  <span [class]="getStatusPillClass(row.status)">{{ row.status }}</span>
+                  <strong>{{ row.count }}</strong>
+                </div>
+                <div class="status-bar-track">
+                  <div class="status-bar-fill" [style.width.%]="row.percent"></div>
+                </div>
+                <div class="status-row-meta">{{ row.percent | number:'1.0-0' }}% of current workload</div>
+              </div>
+            </div>
+          </ng-container>
+          <ng-template #emptyOrdersStatus>
+            <div class="compact-empty">
+              <div class="compact-empty-value">0</div>
+              <p class="muted">No orders found in this period.</p>
+            </div>
+          </ng-template>
+        </mat-card>
+
+        <mat-card class="berry-panel spotlight-panel">
+          <div class="berry-panel-header">
+            <div>
+              <div class="berry-panel-title">Collections and payables spotlight</div>
+              <div class="berry-panel-subtitle">Highest branch receivables and vendor payables at a glance.</div>
+            </div>
+          </div>
+          <div class="spotlight-grid">
+            <div class="spotlight-column">
+              <div class="spotlight-label">Top branch dues</div>
+              <ng-container *ngIf="snapshot.billsByBranch.length; else emptyBranchBills">
+                <div class="spotlight-list">
+                  <div class="spotlight-row" *ngFor="let row of topBillingRows(snapshot.billsByBranch)">
+                    <div>
+                      <strong>{{ row.name }}</strong>
+                      <div class="spotlight-note">Branch receivable</div>
+                    </div>
+                    <span>{{ formatCompactCurrency(row.total) }}</span>
+                  </div>
+                </div>
+              </ng-container>
+            </div>
+            <div class="spotlight-column">
+              <div class="spotlight-label">Top vendor dues</div>
+              <ng-container *ngIf="snapshot.billsByVendor.length; else emptyVendorBills">
+                <div class="spotlight-list">
+                  <div class="spotlight-row" *ngFor="let row of topBillingRows(snapshot.billsByVendor)">
+                    <div>
+                      <strong>{{ row.name }}</strong>
+                      <div class="spotlight-note">Vendor payable</div>
+                    </div>
+                    <span>{{ formatCompactCurrency(row.total) }}</span>
+                  </div>
+                </div>
+              </ng-container>
+            </div>
+          </div>
+          <ng-template #emptyBranchBills>
+            <div class="compact-empty compact-empty-small">
+              <div class="compact-empty-value">0</div>
+              <p class="muted">No branch bills due.</p>
+            </div>
+          </ng-template>
+          <ng-template #emptyVendorBills>
+            <div class="compact-empty compact-empty-small">
+              <div class="compact-empty-value">0</div>
+              <p class="muted">No vendor bills due.</p>
+            </div>
+          </ng-template>
+        </mat-card>
+
+        <mat-card class="berry-panel revenue-panel lower-span">
+          <div class="berry-panel-header">
+            <div>
+              <div class="berry-panel-title">Sales / revenue summary</div>
+              <div class="berry-panel-subtitle">Period performance snapshot.</div>
+            </div>
+            <span class="berry-badge">{{ snapshot.salesSummary.dateRangeLabel }}</span>
+          </div>
+          <div class="revenue-grid">
+            <div class="revenue-item">
+              <span class="metric-label">Invoices</span>
+              <strong>{{ snapshot.salesSummary.invoiceCount }}</strong>
+            </div>
+            <div class="revenue-item">
+              <span class="metric-label">Total revenue</span>
+              <strong>{{ snapshot.salesSummary.totalRevenue | number: '1.0-2' }}</strong>
+            </div>
+            <div class="revenue-item">
+              <span class="metric-label">Average / day</span>
+              <strong>{{ snapshot.salesSummary.averageDailyRevenue | number: '1.0-2' }}</strong>
+            </div>
+            <div class="revenue-item">
+              <span class="metric-label">Peak day revenue</span>
+              <strong>{{ snapshot.salesSummary.peakRevenue | number: '1.0-2' }}</strong>
+            </div>
+          </div>
+        </mat-card>
+      </div>
+    </ng-container>
   </ng-container>
 </section>

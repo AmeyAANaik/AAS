@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Items Management - AAS UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .header-content p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .header-action {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-action:hover {
+            background: #1976D2;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header-info h3 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .header-info p {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-field {
+            flex: 1;
+            min-width: 250px;
+            padding: 10px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-field input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .toolbar-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-button {
+            background: #f5f7fa;
+            border: 1px solid #e0e0e0;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #2196F3;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .icon-button:hover {
+            background: #e0e0e0;
+        }
+
+        .card-content {
+            padding: 20px 30px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f5f7fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 16px;
+            color: #1a1a1a;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .category-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .category-name {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .category-meta {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        .stat-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .price-cell {
+            font-weight: 700;
+            color: #2196F3;
+        }
+
+        .health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+        }
+
+        .indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .indicator-good {
+            background: #4CAF50;
+        }
+
+        .indicator-warning {
+            background: #FF9800;
+        }
+
+        .indicator-critical {
+            background: #F44336;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            color: #2196F3;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #e3f2fd;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .pagination-buttons button {
+            background: #f5f7fa;
+            border: 1px solid #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .pagination-buttons button:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        .pagination-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 2px;
+            background: #f5f7fa;
+        }
+
+        .view-toggle button {
+            background: none;
+            border: none;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .view-toggle button.active {
+            background: white;
+            border-radius: 2px;
+            color: #2196F3;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stat-icon {
+            font-size: 24px;
+            opacity: 0.7;
+        }
+
+        .stat-content h4 {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .stat-content p {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            .toolbar {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .search-field {
+                min-width: 100%;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            td, th {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-content">
+        <h1>📦 Items Management</h1>
+        <p>Manage items category by category with pricing, vendors, and stock tracking</p>
+    </div>
+    <button class="header-action">
+        <span class="material-icons">add</span>
+        Create Item
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="header-info">
+            <h3>Category Inventory View</h3>
+            <p>Open a category to manage items, pricing, and linked vendor configurations</p>
+        </div>
+        <div class="toolbar">
+            <div class="search-field">
+                <span class="material-icons" style="font-size: 18px; color: #999;">search</span>
+                <input type="text" placeholder="Search categories...">
+            </div>
+            <div class="toolbar-buttons">
+                <div class="view-toggle">
+                    <button class="active">📊</button>
+                    <button>📇</button>
+                </div>
+                <button class="icon-button" title="Refresh">🔄</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-content">
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon">🏷️</div>
+                <div class="stat-content">
+                    <h4>Total Categories</h4>
+                    <p>4</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📦</div>
+                <div class="stat-content">
+                    <h4>Active Items</h4>
+                    <p>169</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-content">
+                    <h4>Total Inventory Value</h4>
+                    <p>$49,850</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏢</div>
+                <div class="stat-content">
+                    <h4>Active Vendors</h4>
+                    <p>28</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Items</th>
+                        <th>Inventory Value</th>
+                        <th>Stock Health</th>
+                        <th>Suppliers</th>
+                        <th style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <span class="category-icon">📱</span>
+                                <div>
+                                    <div class="category-name">Electronics</div>
+                                    <div class="category-meta">Last updated: 2 days ago</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">45</span>
+                                <span class="stat-label">active items</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="price-cell">$12,450</span>
+                                <span class="stat-label">total value</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="health-indicator">
+                                <span class="indicator-dot indicator-good"></span>
+                                <span>Good (92%)</span>
+                            </div>
+                            <div class="stat-label">Avg stock level</div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">8</span>
+                                <span class="stat-label">suppliers</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <span class="category-icon">🪑</span>
+                                <div>
+                                    <div class="category-name">Furniture</div>
+                                    <div class="category-meta">Last updated: Today</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">23</span>
+                                <span class="stat-label">active items</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="price-cell">$8,320</span>
+                                <span class="stat-label">total value</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="health-indicator">
+                                <span class="indicator-dot indicator-warning"></span>
+                                <span>Warning (68%)</span>
+                            </div>
+                            <div class="stat-label">Below target</div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">3</span>
+                                <span class="stat-label">suppliers</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <span class="category-icon">🖇️</span>
+                                <div>
+                                    <div class="category-name">Office Supplies</div>
+                                    <div class="category-meta">Last updated: 1 day ago</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">67</span>
+                                <span class="stat-label">active items</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="price-cell">$23,100</span>
+                                <span class="stat-label">total value</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="health-indicator">
+                                <span class="indicator-dot indicator-good"></span>
+                                <span>Good (85%)</span>
+                            </div>
+                            <div class="stat-label">Healthy levels</div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">12</span>
+                                <span class="stat-label">suppliers</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center;">
+                                <span class="category-icon">📋</span>
+                                <div>
+                                    <div class="category-name">Documents & Forms</div>
+                                    <div class="category-meta">Last updated: 3 days ago</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">34</span>
+                                <span class="stat-label">active items</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="price-cell">$5,680</span>
+                                <span class="stat-label">total value</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="health-indicator">
+                                <span class="indicator-dot indicator-critical"></span>
+                                <span>Critical (42%)</span>
+                            </div>
+                            <div class="stat-label">Reorder needed</div>
+                        </td>
+                        <td>
+                            <div class="stat-cell">
+                                <span class="stat-value">6</span>
+                                <span class="stat-label">suppliers</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <div>
+                <span style="color: #1a1a1a;"><strong>Showing 4 categories</strong> • 169 items total</span>
+            </div>
+            <div class="pagination-buttons">
+                <button disabled>← Previous</button>
+                <button disabled>Next →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

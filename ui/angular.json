@@ -57,7 +57,7 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
             "allowedHosts": [
-              "extended-advantage-strengthening-patterns.trycloudflare.com"
+              "derby-exercise-method-laws.trycloudflare.com"
             ]
           },
           "configurations": {

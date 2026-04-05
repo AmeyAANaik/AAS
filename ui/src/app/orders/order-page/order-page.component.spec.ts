@@ -506,6 +506,50 @@ describe('OrderPageComponent', () => {
     );
   });
 
+  it('treats a missing parser serial as resolved once a manual recovery row covers it', () => {
+    component.pdfData = {
+      completeness: {
+        missingSerials: [28]
+      }
+    };
+
+    expect(component.hasMissingParsedRows).toBeTrue();
+    expect(component.unresolvedMissingParserSerials).toEqual([28]);
+
+    component.addManualOrderLine();
+
+    expect(component.unresolvedMissingParserSerials).toEqual([]);
+    expect(component.hasMissingParsedRows).toBeFalse();
+  });
+
+  it('surfaces a strong validation message when parser serials are still missing', () => {
+    component.pdfData = {
+      completeness: {
+        missingSerials: [67]
+      }
+    };
+    component.orderLines = [
+      {
+        source_serial: 1,
+        item_code: 'ITEM-1',
+        item_name: 'Item 1',
+        qty: 1,
+        rate: 100,
+        amount: 100,
+        aas_margin_percent: 7,
+        aas_vendor_rate: 100,
+        aas_mrp: null,
+        aas_gst_percent: 0,
+        manual_entry: false,
+        parse_note: null,
+        mrpApplied: false
+      }
+    ];
+
+    expect(component.billValidationMessage).toContain('Invoice parser missed serial row(s): 67');
+    expect(component.isBillFormValid()).toBeFalse();
+  });
+
   it('uses parser context to suggest the missing item name for a manual recovery row', () => {
     component.pdfData = {
       completeness: {

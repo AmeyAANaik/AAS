@@ -3,8 +3,8 @@ import { Location } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Subscription, from, of } from 'rxjs';
-import { concatMap, finalize, map, switchMap, toArray } from 'rxjs/operators';
-import { OrderCreateResult, OrderOption } from '../order.model';
+import { catchError, concatMap, finalize, map, switchMap, toArray } from 'rxjs/operators';
+import { DirectOrderCreatePayload, OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
 import { CategoryService } from '../../categories/category.service';
 import { formatUiError } from '../../shared/error-message.util';
@@ -15,13 +15,13 @@ import { Vendor } from '../../vendors/vendor.model';
 import { CompanyContextService } from '../../shared/company-context.service';
 
 type CreateMode = 'images' | 'items';
-const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
 
 interface CategoryOrderItemOption {
   id: string;
   code: string;
   name: string;
   category: string;
+  vendorId: string;
   unit: string;
   packagingUnit: string;
   rate: number;
@@ -65,6 +65,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   categoryItems: CategoryOrderItemOption[] = [];
   categoryVendors: CategoryVendorOption[] = [];
   itemSearchTerm = '';
+  applyGst = true;
   isItemsLoading = false;
   isVendorsLoading = false;
   itemsError = '';
@@ -74,6 +75,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
     category: ['', Validators.required],
+    vendor: [''],
     company: ['', Validators.required],
     orderDate: ['', Validators.required],
     deliveryDate: ['', Validators.required]
@@ -111,11 +113,20 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.loadVendors();
     const categorySub = this.detailsGroup.get('category')?.valueChanges.subscribe(value => {
       const categoryId = String(value ?? '');
+      this.clearSelectedItems();
+      this.detailsGroup.patchValue({ vendor: '' }, { emitEvent: false });
       this.updateCategoryItems(categoryId);
       this.updateCategoryVendors(categoryId);
     });
     if (categorySub) {
       this.subscriptions.add(categorySub);
+    }
+    const vendorSub = this.detailsGroup.get('vendor')?.valueChanges.subscribe(() => {
+      this.clearSelectedItems();
+      this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+    });
+    if (vendorSub) {
+      this.subscriptions.add(vendorSub);
     }
   }
 
@@ -133,6 +144,14 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       this.statusMessage = 'Select at least one item from the chosen category before creating the order.';
       return;
     }
+    if (this.createMode === 'items' && !String(this.detailsGroup.get('vendor')?.value ?? '').trim()) {
+      this.statusMessage = 'Choose a vendor before creating the order.';
+      return;
+    }
+    if (this.createMode === 'items' && this.vendorInvoiceTotal <= 0) {
+      this.statusMessage = 'Enter a valid rate for the selected items so the vendor invoice total is greater than zero.';
+      return;
+    }
 
     this.isSubmitting = true;
     this.statusMessage = this.createMode === 'items'
@@ -142,26 +161,32 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     const details = this.detailsGroup.getRawValue();
 
     if (this.createMode === 'items') {
-      this.orderService.createOrder({
+      const payload: DirectOrderCreatePayload = {
         customer: String(details.customer ?? '').trim(),
         company: String(details.company ?? '').trim(),
         aas_category: String(details.category ?? '').trim(),
+        aas_vendor: String(details.vendor ?? '').trim(),
         transaction_date: String(details.orderDate ?? ''),
         delivery_date: String(details.deliveryDate ?? ''),
-        items: [{
-          item_code: BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE,
-          qty: 1,
-          rate: 0
-        }]
-      })
+        apply_gst: this.applyGst,
+        items: this.selectedOrderItems.map(item => ({
+          item_code: item.code,
+          item_name: item.name,
+          qty: Math.max(1, Number(item.qty || 1)),
+          rate: Math.max(0, Number(item.rate || 0)),
+          aas_gst_percent: this.applyGst ? Math.max(0, Number(item.gstPercent || 0)) : 0
+        }))
+      };
+      this.createDirectItemFlow(payload)
       .pipe(finalize(() => (this.isSubmitting = false)))
       .subscribe({
         next: response => {
-          const id = this.extractOrderId(response);
-          const displayId = this.extractOrderDisplayId(response);
+          const orderPayload = (response as { order?: unknown } | null)?.order ?? response;
+          const id = this.extractOrderId(orderPayload);
+          const displayId = this.extractOrderDisplayId(orderPayload);
           if (id) {
             this.createdOrderId = id;
-            this.statusMessage = `Order created. Continue in Manage Order to upload the vendor PDF and parse the item list: ${id}`;
+            this.statusMessage = `Order created, vendor invoice generated, and preview is ready: ${id}`;
             this.created.emit({
               id,
               customer: String(details.customer ?? '').trim(),
@@ -264,7 +289,9 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   get canSubmit(): boolean {
     const hasModeInput = this.createMode === 'images'
       ? this.imageSelected
-      : this.selectedOrderItems.length > 0;
+      : this.selectedOrderItems.length > 0
+        && !!String(this.detailsGroup.get('vendor')?.value ?? '').trim()
+        && this.vendorInvoiceTotal > 0;
     return this.form.valid && hasModeInput && !this.isSubmitting;
   }
 
@@ -285,6 +312,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.detailsGroup.reset({
       customer: '',
       category: '',
+      vendor: '',
       company: this.currentCompanyId,
       orderDate: this.formatDate(new Date()),
       deliveryDate: this.formatDate(new Date())
@@ -462,8 +490,32 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     return this.categoryItems.filter(item => item.selected);
   }
 
+  get selectedVendorName(): string {
+    const vendorId = String(this.detailsGroup.get('vendor')?.value ?? '').trim();
+    const match = this.categoryVendors.find(vendor => vendor.id === vendorId);
+    return match?.name ?? vendorId;
+  }
+
   get selectedItemsCount(): number {
     return this.selectedOrderItems.length;
+  }
+
+  get vendorSubtotal(): number {
+    return this.selectedOrderItems.reduce((sum, item) => sum + (item.qty * item.rate), 0);
+  }
+
+  get gstTotal(): number {
+    if (!this.applyGst) {
+      return 0;
+    }
+    return this.selectedOrderItems.reduce((sum, item) => {
+      const lineBase = item.qty * item.rate;
+      return sum + (lineBase * item.gstPercent / 100);
+    }, 0);
+  }
+
+  get vendorInvoiceTotal(): number {
+    return this.vendorSubtotal + this.gstTotal;
   }
 
   get filteredCategoryItems(): CategoryOrderItemOption[] {
@@ -485,6 +537,74 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   clearItemSearch(): void {
     this.itemSearchTerm = '';
+  }
+
+  updateItemQty(itemId: string, value: number): void {
+    const qty = Math.max(1, Number(value || 1));
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, qty, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  updateItemRate(itemId: string, value: number): void {
+    const rate = Math.max(0, Number(value || 0));
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, rate, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  updateItemGst(itemId: string, value: number): void {
+    const gstPercent = Math.max(0, Number(value || 0));
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, gstPercent, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  toggleApplyGst(checked: boolean): void {
+    this.applyGst = checked;
+  }
+
+  private createDirectItemFlow(payload: DirectOrderCreatePayload) {
+    return this.orderService.createDirectOrderFromItems(payload).pipe(
+      catchError(err => {
+        const status = Number((err as { status?: number } | null)?.status ?? 0);
+        if (status !== 405) {
+          throw err;
+        }
+        return this.createDirectItemFlowFallback(payload);
+      })
+    );
+  }
+
+  private createDirectItemFlowFallback(payload: DirectOrderCreatePayload) {
+    return this.orderService.createOrder({
+      customer: payload.customer,
+      company: payload.company,
+      aas_category: payload.aas_category,
+      aas_vendor: payload.aas_vendor,
+      transaction_date: payload.transaction_date,
+      delivery_date: payload.delivery_date,
+      items: payload.items
+    }).pipe(
+      switchMap(orderResponse => {
+        const id = this.extractOrderId(orderResponse);
+        if (!id) {
+          throw new Error('Order created but ID missing.');
+        }
+        return this.orderService.captureVendorBill(id, {
+          vendor_bill_total: this.vendorInvoiceTotal,
+          vendor_bill_ref: id,
+          vendor_bill_date: payload.transaction_date,
+          transport_charge: 0,
+          allow_mismatch: false
+        }).pipe(
+          map(vendorBill => ({ order: orderResponse, vendorBill, orderId: id }))
+        );
+      })
+    );
   }
 
   onImageSelected(event: Event): void {
@@ -608,10 +728,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       code: String(item.item_code ?? '').trim(),
       name: String(item.item_name ?? item.item_code ?? '').trim(),
       category: String(item.item_group ?? '').trim(),
+      vendorId: String(item.aas_vendor ?? '').trim(),
       unit: String(item.stock_uom ?? 'Nos').trim() || 'Nos',
       packagingUnit: String(item.aas_packaging_unit ?? '').trim(),
       rate: Math.max(0, this.asNumber(item.aas_vendor_rate) ?? 0),
-      gstPercent: 0,
+      gstPercent: Math.max(0, this.asNumber(item.aas_gst_percent) ?? 0),
       selected: false,
       qty: 1
     };
@@ -628,9 +749,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   private updateCategoryItems(categoryId: string): void {
     const normalized = this.normalizeCategory(categoryId);
+    const vendorId = String(this.detailsGroup.get('vendor')?.value ?? '').trim();
     this.itemSearchTerm = '';
     this.categoryItems = this.allItems
       .filter(item => normalized ? this.normalizeCategory(item.category) === normalized : false)
+      .filter(item => vendorId ? item.vendorId === vendorId : false)
       .map(item => ({ ...item }))
       .sort((left, right) => left.name.localeCompare(right.name));
   }

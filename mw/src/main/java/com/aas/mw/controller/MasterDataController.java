@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,8 +19,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import com.aas.mw.service.ItemMarginImportService;
 
 @RestController
 @RequestMapping("/api")
@@ -27,10 +31,15 @@ public class MasterDataController {
 
     private final MasterDataService masterDataService;
     private final UserService userService;
+    private final ItemMarginImportService itemMarginImportService;
 
-    public MasterDataController(MasterDataService masterDataService, UserService userService) {
+    public MasterDataController(
+            MasterDataService masterDataService,
+            UserService userService,
+            ItemMarginImportService itemMarginImportService) {
         this.masterDataService = masterDataService;
         this.userService = userService;
+        this.itemMarginImportService = itemMarginImportService;
     }
 
     @GetMapping("/items")
@@ -151,6 +160,13 @@ public class MasterDataController {
     @PostMapping("/items")
     public ResponseEntity<Map<String, Object>> createItem(@Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.createItem(request));
+    }
+
+    @PostMapping(value = "/items/import-margins", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> importItemMargins(
+            @RequestPart("file") MultipartFile file,
+            @RequestPart("categoryId") String categoryId) {
+        return ResponseEntity.ok(itemMarginImportService.importMargins(file, categoryId));
     }
 
     @PutMapping("/items/{id}")

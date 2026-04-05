@@ -5,6 +5,7 @@ import { filter, Subscription } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { CompanyContextService } from '../shared/company-context.service';
 import { UserAccessService } from '../shared/user-access.service';
+import { BerryThemeService } from '../shared/services/berry-theme.service';
 
 type ShellRouteMeta = { breadcrumbs: string[] };
 type ShellNavLink = { label: string; icon: string; route: string; feature: string };
@@ -33,6 +34,7 @@ export class AppShellComponent implements OnDestroy {
   userAvatarText = 'U';
   isUserMenuOpen = false;
   isNavOpen = false;
+  currentTheme: 'light' | 'dark' = 'light';
   readonly allNavSections: ShellNavSection[] = [
     {
       title: 'Home',
@@ -88,12 +90,14 @@ export class AppShellComponent implements OnDestroy {
     '/reports': { breadcrumbs: ['Reports'] }
   };
   private readonly subscription: Subscription;
+  private readonly themeSubscription: Subscription;
 
   constructor(
     private router: Router,
     private tokenStore: AuthTokenService,
     private companyContextService: CompanyContextService,
-    private userAccess: UserAccessService
+    private userAccess: UserAccessService,
+    private themeService: BerryThemeService
   ) {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -106,6 +110,10 @@ export class AppShellComponent implements OnDestroy {
     });
     this.loadCompanyContext();
     this.loadUserProfile();
+    this.currentTheme = this.themeService.getCurrentTheme();
+    this.themeSubscription = this.themeService.theme$.subscribe(theme => {
+      this.currentTheme = theme;
+    });
   }
 
   private metaForUrl(url: string): ShellRouteMeta {
@@ -143,8 +151,13 @@ export class AppShellComponent implements OnDestroy {
     this.isNavOpen = false;
   }
 
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
+  }
+
   ngOnDestroy(): void {
     this.subscription.unsubscribe();
+    this.themeSubscription.unsubscribe();
   }
 
   private loadCompanyContext(): void {

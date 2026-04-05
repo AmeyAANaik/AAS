@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -32,12 +33,16 @@ describe('OrderCreateComponent', () => {
   beforeEach(async () => {
     orderService = jasmine.createSpyObj('OrderService', [
       'createOrder',
+      'createDirectOrderFromItems',
       'createOrderFromBranchImage',
+      'captureVendorBill',
       'uploadOrderImage',
       'listBranches'
     ]);
     orderService.createOrder.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
+    orderService.createDirectOrderFromItems.and.returnValue(of({ order: { name: 'Shop_A_Grocery_20260315' } }));
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
+    orderService.captureVendorBill.and.returnValue(of({}));
     orderService.uploadOrderImage.and.returnValue(of({}));
     orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }]));
 
@@ -46,7 +51,8 @@ describe('OrderCreateComponent', () => {
 
     itemService = jasmine.createSpyObj('ItemService', ['listItems']);
     itemService.listItems.and.returnValue(of([
-      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos' },
+      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-1', aas_vendor_rate: 42, aas_gst_percent: 5 },
+      { name: 'ITEM-1B', item_code: 'ITEM-1B', item_name: 'Dal', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-2', aas_vendor_rate: 50, aas_gst_percent: 12 },
       { name: 'ITEM-2', item_code: 'ITEM-2', item_name: 'Soap', item_group: 'Cleaning', stock_uom: 'Nos' }
     ]));
 
@@ -80,6 +86,7 @@ describe('OrderCreateComponent', () => {
         MatIconModule,
         MatInputModule,
         MatSelectModule,
+        MatSlideToggleModule,
         NoopAnimationsModule
       ],
       providers: [
@@ -120,7 +127,27 @@ describe('OrderCreateComponent', () => {
     component.detailsGroup.patchValue({ category: 'Grocery' });
 
     expect(component.categoryVendors.map(vendor => vendor.name)).toEqual(['Daily Staples', 'Fresh Harvest']);
+    expect(component.categoryItems).toEqual([]);
+  });
+
+  it('filters items by selected vendor and updates checkout totals when qty, rate, and gst change', () => {
+    component.detailsGroup.patchValue({ category: 'Grocery', vendor: 'SUP-1' });
+
     expect(component.categoryItems.map(item => item.name)).toEqual(['Rice']);
+
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.updateItemQty(item.id, 3);
+    component.updateItemRate(item.id, 100);
+    component.updateItemGst(item.id, 18);
+
+    expect(component.selectedOrderItems.length).toBe(1);
+    expect(component.selectedOrderItems[0].qty).toBe(3);
+    expect(component.selectedOrderItems[0].rate).toBe(100);
+    expect(component.selectedOrderItems[0].gstPercent).toBe(18);
+    expect(component.vendorSubtotal).toBe(300);
+    expect(component.gstTotal).toBe(54);
+    expect(component.vendorInvoiceTotal).toBe(354);
   });
 
   it('keeps the source switch working between upload images and select items', () => {

@@ -9,6 +9,7 @@ import { Component, Input } from '@angular/core';
   styleUrl: './page-header.component.css'
 })
 export class PageHeaderComponent {
+  @Input() kicker = 'Workspace';
   @Input() title = '';
   @Input() subtitle = '';
 }

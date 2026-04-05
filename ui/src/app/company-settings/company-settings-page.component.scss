@@ -1,7 +1,7 @@
 .company-settings-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .settings-card {
@@ -9,7 +9,8 @@
   margin: 0 auto;
   padding: 24px;
   display: grid;
-  gap: 20px;
+  gap: 22px;
+  border-radius: 24px;
 }
 
 .identity {
@@ -21,7 +22,7 @@
   padding: 20px;
   border-radius: 18px;
   border: 1px solid var(--border);
-  background: linear-gradient(135deg, rgba(255, 250, 242, 0.95), rgba(247, 249, 250, 0.98));
+  background: linear-gradient(135deg, rgba(248, 250, 255, 0.98), rgba(245, 248, 255, 0.95));
 }
 
 .identity-main {
@@ -46,7 +47,7 @@
   place-items: center;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #102a43, #1d6f7a);
+  background: linear-gradient(135deg, var(--accent), var(--color-secondary));
 }
 
 .identity-kicker {
@@ -111,9 +112,9 @@
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   gap: 20px;
   padding: 20px;
-  border-radius: 18px;
+  border-radius: 20px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 255, 0.94));
 }
 
 .section-copy {
@@ -233,8 +234,8 @@
 }
 
 .user-list-item.active {
-  border-color: rgba(29, 111, 122, 0.4);
-  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.08);
+  border-color: rgba(91, 107, 255, 0.36);
+  box-shadow: 0 10px 24px rgba(91, 107, 255, 0.14);
 }
 
 .user-list-item__title {

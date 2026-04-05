@@ -1,5 +1,5 @@
-<div class="bills-page">
-  <app-page-header title="Billing & finance" subtitle="Track invoice throughput, outstanding collections, and branch billing windows in one place.">
+<div class="bills-page berry-page">
+  <app-page-header kicker="Finance" title="Billing & finance" subtitle="Track invoice throughput, outstanding collections, and branch billing windows in one place.">
     <button mat-stroked-button color="primary" routerLink="/orders">Orders</button>
     <button mat-flat-button color="primary" (click)="loadInvoices()" [disabled]="isLoading">Refresh</button>
   </app-page-header>

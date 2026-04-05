@@ -16,7 +16,19 @@ const snapshotStub: DashboardSnapshot = {
   billsByBranch: [{ name: 'Branch A', total: 1200 }],
   billsByVendor: [{ name: 'Vendor X', total: 900 }],
   stockSnapshot: { totalItems: 4, totalQuantity: 150 },
-  salesSummary: { invoiceCount: 3, totalRevenue: 4500, dateRangeLabel: '2025-01-01 to 2025-01-31' },
+  salesSummary: {
+    invoiceCount: 3,
+    totalRevenue: 4500,
+    dateRangeLabel: '2025-01-01 to 2025-01-31',
+    averageDailyRevenue: 145.16,
+    peakRevenue: 2200,
+    peakRevenueLabel: '2025-01-08'
+  },
+  revenueSeries: [
+    { label: '2025-01-01', shortLabel: '01 Jan', value: 1200 },
+    { label: '2025-01-02', shortLabel: '02 Jan', value: 800 },
+    { label: '2025-01-03', shortLabel: '03 Jan', value: 2500 }
+  ],
   vendorOperations: {
     totalVendors: 4,
     vendorsWithPendingOrders: 2,
@@ -65,15 +77,16 @@ describe('DashboardComponent', () => {
 
   it('should render all dashboard widgets', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const titles = Array.from(compiled.querySelectorAll('.card-title')).map(element => element.textContent?.trim());
-    const kpiLabels = Array.from(compiled.querySelectorAll('.kpi-label')).map(element => element.textContent?.trim());
+    const text = compiled.textContent ?? '';
 
-    expect(titles).toContain('Order status summary');
-    expect(titles).toContain('Bills due per branch');
-    expect(titles).toContain('Bills due per vendor');
-    expect(titles).toContain('Vendor Operations');
-    expect(titles).toContain('Branch Operations');
-    expect(titles).toContain('Sales / revenue summary');
-    expect(kpiLabels).not.toContain('Stock on hand');
+    expect(text).toContain('Order status summary');
+    expect(text).toContain('Bills due per branch');
+    expect(text).toContain('Bills due per vendor');
+    expect(text).toContain('Vendor operations');
+    expect(text).toContain('Branch operations');
+    expect(text).toContain('Sales / revenue summary');
+    expect(text).toContain('Sales / revenue trend');
+    expect(text).toContain('Bills per branch');
+    expect(text).not.toContain('Stock on hand');
   });
 });

@@ -1098,12 +1098,31 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       : [];
   }
 
+  get unresolvedMissingParserSerials(): number[] {
+    if (!this.missingParserSerials.length) {
+      return [];
+    }
+    const covered = new Set<number>();
+    for (const line of this.orderLines) {
+      const explicit = Number(line.source_serial ?? NaN);
+      if (Number.isFinite(explicit) && explicit > 0) {
+        covered.add(Math.round(explicit));
+        continue;
+      }
+      const fromNote = this.extractMissingSerialFromParseNote(line.parse_note);
+      if (fromNote !== null) {
+        covered.add(fromNote);
+      }
+    }
+    return this.missingParserSerials.filter(serial => !covered.has(serial));
+  }
+
   get hasMissingParsedRows(): boolean {
-    return this.missingParserSerials.length > 0;
+    return this.unresolvedMissingParserSerials.length > 0;
   }
 
   get parserMissingRowsSummary(): string {
-    return this.missingParserSerials.join(', ');
+    return this.unresolvedMissingParserSerials.join(', ');
   }
 
   getOrderLineSerial(line: UiOrderLine, index: number): string {
@@ -1333,6 +1352,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.orderLines.length) {
       return '';
     }
+    if (this.hasMissingParsedRows) {
+      return `Invoice parser missed serial row(s): ${this.parserMissingRowsSummary}. Add a manual recovery row or re-upload before bill capture.`;
+    }
     const total = this.billTotal;
     if (total <= 0) {
       return '';
@@ -1428,6 +1450,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const ref = this.billRefControl.value.trim();
     const date = this.billDateControl.value;
     return (
+      !this.hasMissingParsedRows &&
       total > 0 &&
       Boolean(ref) &&
       Boolean(date) &&
@@ -1437,6 +1460,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   captureBill(): void {
     if (!this.selectedOrder) {
+      return;
+    }
+    if (this.hasMissingParsedRows) {
+      this.errorMessage = this.billValidationMessage;
       return;
     }
     if (!this.billMatchesItems && !(this.canProceedAsMismatchBill && this.mismatchOverrideControl.value)) {
@@ -1483,16 +1510,22 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     const mismatch = shouldValidate
       && !this.billMatchesItems
       && !(this.canProceedAsMismatchBill && this.mismatchOverrideControl.value);
+    const missingSequence = this.hasMissingParsedRows;
 
     const current = ctrl.errors ?? {};
+    const nextErrors: Record<string, true> = {};
     if (mismatch) {
-      if (!current['mismatch']) {
-        ctrl.setErrors({ ...current, mismatch: true });
-      }
+      nextErrors['mismatch'] = true;
+    }
+    if (missingSequence) {
+      nextErrors['missingSequence'] = true;
+    }
+    if (Object.keys(nextErrors).length) {
+      ctrl.setErrors({ ...current, ...nextErrors });
       return;
     }
-    if (current['mismatch']) {
-      const { mismatch: _ignored, ...rest } = current as any;
+    if (current['mismatch'] || current['missingSequence']) {
+      const { mismatch: _ignored, missingSequence: _ignoredSequence, ...rest } = current as any;
       ctrl.setErrors(Object.keys(rest).length ? rest : null);
     }
   }
