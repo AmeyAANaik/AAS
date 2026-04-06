@@ -276,8 +276,8 @@
 
 .item-selection-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
+  grid-template-columns: auto minmax(280px, 1fr) minmax(210px, 240px) 88px auto;
+  align-items: start;
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -293,12 +293,14 @@
 .item-name {
   margin: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .item-meta {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 .item-tags {
@@ -323,6 +325,7 @@
   grid-template-columns: repeat(2, minmax(86px, 1fr));
   gap: 8px;
   min-width: 190px;
+  align-self: start;
 }
 
 .item-edit-box {
@@ -350,6 +353,7 @@
   display: grid;
   gap: 6px;
   width: 88px;
+  align-self: start;
 }
 
 .item-qty-box label {

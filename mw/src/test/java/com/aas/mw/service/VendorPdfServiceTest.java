@@ -17,6 +17,7 @@ import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -128,6 +129,36 @@ class VendorPdfServiceTest {
         verify(erpNextClient, Mockito.atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
         assertEquals("VENDOR_PDF_RECEIVED", updateCaptor.getValue().get("aas_status"));
         verify(nativeLayoutInvoiceService).extract(any(), any());
+    }
+
+    @Test
+    void marksAutoCreatedItemsForAdminReview() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "90.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        ArgumentCaptor<Map<String, Object>> createCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Item"), createCaptor.capture());
+        assertEquals("PENDING_REVIEW", createCaptor.getValue().get("aas_review_status"));
+        assertEquals("SO-0001", createCaptor.getValue().get("aas_review_source_order"));
+        assertEquals("sample.pdf", createCaptor.getValue().get("aas_review_source_invoice_ref"));
+        assertEquals(1, createCaptor.getValue().get("aas_review_default_margin_used"));
+        assertEquals(7.0, createCaptor.getValue().get("aas_margin_percent"));
+        assertTrue(String.valueOf(createCaptor.getValue().get("aas_review_created_at")).startsWith("20"));
     }
 
     @Test

@@ -332,6 +332,20 @@ public class SetupService {
                 "Link",
                 "Sales Order",
                 "supplier");
+        boolean purchaseInvoiceVersionStatusField = ensureCustomField(
+                "Purchase Invoice",
+                "aas_invoice_version_status",
+                "Invoice Version Status",
+                "Select",
+                "CURRENT\nOLD",
+                "aas_source_sales_order");
+        boolean purchaseInvoiceReplacedByField = ensureCustomField(
+                "Purchase Invoice",
+                "aas_replaced_by",
+                "Replaced By",
+                "Data",
+                null,
+                "aas_invoice_version_status");
         boolean invoiceSourceOrderField = ensureCustomField(
                 "Sales Invoice",
                 "aas_source_sales_order",
@@ -339,6 +353,20 @@ public class SetupService {
                 "Link",
                 "Sales Order",
                 "customer");
+        boolean invoiceVersionStatusField = ensureCustomField(
+                "Sales Invoice",
+                "aas_invoice_version_status",
+                "Invoice Version Status",
+                "Select",
+                "CURRENT\nOLD",
+                "aas_source_sales_order");
+        boolean invoiceReplacedByField = ensureCustomField(
+                "Sales Invoice",
+                "aas_replaced_by",
+                "Replaced By",
+                "Data",
+                null,
+                "aas_invoice_version_status");
         boolean invoiceRoundingAdjustmentField = ensureCustomField(
                 "Sales Invoice",
                 "aas_rounding_adjustment",
@@ -416,6 +444,62 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_vendor");
+        boolean itemGstField = ensureCustomField(
+                "Item",
+                "aas_gst_percent",
+                "GST %",
+                "Float",
+                null,
+                "aas_vendor_hsn_code");
+        boolean itemReviewStatusField = ensureCustomField(
+                "Item",
+                "aas_review_status",
+                "Review Status",
+                "Select",
+                "PENDING_REVIEW\nAPPROVED\nMERGED\nREJECTED",
+                "aas_gst_percent");
+        boolean itemReviewSourceOrderField = ensureCustomField(
+                "Item",
+                "aas_review_source_order",
+                "Review Source Order",
+                "Link",
+                "Sales Order",
+                "aas_review_status");
+        boolean itemReviewSourceInvoiceField = ensureCustomField(
+                "Item",
+                "aas_review_source_invoice_ref",
+                "Review Source Invoice Ref",
+                "Data",
+                null,
+                "aas_review_source_order");
+        boolean itemReviewCreatedAtField = ensureCustomField(
+                "Item",
+                "aas_review_created_at",
+                "Review Created At",
+                "Datetime",
+                null,
+                "aas_review_source_invoice_ref");
+        boolean itemReviewCreatedByField = ensureCustomField(
+                "Item",
+                "aas_review_created_by",
+                "Review Created By",
+                "Data",
+                null,
+                "aas_review_created_at");
+        boolean itemReviewNotesField = ensureCustomField(
+                "Item",
+                "aas_review_notes",
+                "Review Notes",
+                "Small Text",
+                null,
+                "aas_review_created_by");
+        boolean itemReviewDefaultMarginField = ensureCustomField(
+                "Item",
+                "aas_review_default_margin_used",
+                "Review Default Margin Used",
+                "Check",
+                null,
+                "aas_review_notes");
         boolean soItemMarginField = ensureCustomField(
                 "Sales Order Item",
                 "aas_margin_percent",
@@ -479,7 +563,11 @@ public class SetupService {
         result.put("branchCreditDaysFieldCreated", branchCreditDaysField);
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
+        result.put("purchaseInvoiceVersionStatusFieldCreated", purchaseInvoiceVersionStatusField);
+        result.put("purchaseInvoiceReplacedByFieldCreated", purchaseInvoiceReplacedByField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
+        result.put("invoiceVersionStatusFieldCreated", invoiceVersionStatusField);
+        result.put("invoiceReplacedByFieldCreated", invoiceReplacedByField);
         result.put("invoiceRoundingAdjustmentFieldCreated", invoiceRoundingAdjustmentField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
@@ -491,6 +579,14 @@ public class SetupService {
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());
         result.put("itemVendorFieldCreated", itemVendorField);
         result.put("itemVendorHsnFieldCreated", itemVendorHsnField);
+        result.put("itemGstFieldCreated", itemGstField);
+        result.put("itemReviewStatusFieldCreated", itemReviewStatusField);
+        result.put("itemReviewSourceOrderFieldCreated", itemReviewSourceOrderField);
+        result.put("itemReviewSourceInvoiceFieldCreated", itemReviewSourceInvoiceField);
+        result.put("itemReviewCreatedAtFieldCreated", itemReviewCreatedAtField);
+        result.put("itemReviewCreatedByFieldCreated", itemReviewCreatedByField);
+        result.put("itemReviewNotesFieldCreated", itemReviewNotesField);
+        result.put("itemReviewDefaultMarginFieldCreated", itemReviewDefaultMarginField);
         result.put("categoryCodesBackfilled", backfillCategoryCodes());
         MarginBackfillResult salesOrderBackfill = backfillSalesOrdersAndItems();
         result.put("salesOrdersMarginBackfilled", salesOrderBackfill.documentCount());

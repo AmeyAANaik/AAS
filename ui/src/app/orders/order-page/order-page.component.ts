@@ -5,8 +5,8 @@ import { ActivatedRoute } from '@angular/router';
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Subscription } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Observable, of, Subscription } from 'rxjs';
+import { finalize, switchMap } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
 import { ItemService } from '../../items/item.service';
 import { Item } from '../../items/item.model';
@@ -31,6 +31,7 @@ type UiOrderStatus =
 
 const BRANCH_IMAGE_PLACEHOLDER_ITEM_CODE = 'AAS-SYSTEM-BRANCH-IMAGE';
 const DEFAULT_ORDER_MARGIN_PERCENT = 7;
+const ORDER_DESCRIPTION_CLEANUP_TOKENS = ['SFK', 'PRAVIN', 'AMBARI'] as const;
 
 interface UiOrder {
   name: string;
@@ -107,6 +108,7 @@ interface UiOrderLine {
   source_serial?: number | null;
   item_code: string;
   item_name: string;
+  display_description?: string;
   qty: number;
   rate: number;
   amount: number;
@@ -183,6 +185,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   pdfData: PdfParseResult | null = null;
   orderLines: UiOrderLine[] = [];
   isItemsSaving = false;
+  selectedDescriptionCleanupTokens = new Set<string>();
+  descriptionBulkRemoveText = '';
+  descriptionReplaceFrom = '';
+  descriptionReplaceTo = '';
 
   sellPreview: UiSellPreview | null = null;
   errorMessage = '';
@@ -920,6 +926,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         source_serial: Number.isFinite(nextMissing) ? Number(nextMissing) : null,
         item_code: this.resolveItemCodeFromName(suggestedName),
         item_name: suggestedName,
+        display_description: suggestedName,
         qty: 1,
         rate: 0,
         amount: 0,
@@ -1384,42 +1391,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!this.selectedOrder) {
       return;
     }
-    if (!this.orderLines.length) {
-      this.errorMessage = 'At least one item line is required.';
+    const payload = this.buildOrderItemsPayload();
+    if (!payload) {
       return;
     }
-    const invalidCode = this.orderLines.find(line => {
-      const itemCode = String(line.item_code ?? '').trim();
-      if (itemCode) {
-        return false;
-      }
-      return !line.manual_entry || !String(line.item_name ?? '').trim();
-    });
-    if (invalidCode) {
-      this.errorMessage = 'Every row must include an item code or a manual recovery item name before saving.';
-      return;
-    }
-    const invalidMargin = this.orderLines.some(line => !Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) < 0);
-    if (invalidMargin) {
-      this.errorMessage = 'Margin must be a non-negative number for every item.';
-      return;
-    }
-    const invalidMrp = this.orderLines.find(line => this.hasMrpViolation(line));
-    if (invalidMrp) {
-      this.errorMessage = `Vendor rate exceeds MRP for ${invalidMrp.item_name || invalidMrp.item_code}.`;
-      return;
-    }
-    const payload: OrderItemPayload[] = this.orderLines.map(line => ({
-      item_code: line.item_code,
-      item_name: String(line.item_name ?? '').trim() || undefined,
-      qty: Number(line.qty ?? 0),
-      rate: Number(line.rate ?? 0),
-      aas_margin_percent: Number(line.aas_margin_percent ?? 0),
-      aas_mrp: Number(line.aas_mrp ?? 0) || undefined,
-      aas_gst_percent: Number(line.aas_gst_percent ?? 0) || undefined,
-      manual_entry: !!line.manual_entry,
-      parse_note: String(line.parse_note ?? '').trim() || undefined
-    }));
     this.isItemsSaving = true;
     this.errorMessage = '';
     this.orderService
@@ -1427,16 +1402,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .pipe(finalize(() => (this.isItemsSaving = false)))
       .subscribe({
         next: res => {
-          const items = (res as any)?.items ?? [];
-          if (Array.isArray(items) && items.length) {
-            this.orderLines = this.hydrateOrderLines(items);
-          }
-          this.updateBillMismatchError();
-          this.snackBar.open('Order items updated.', 'Dismiss', { duration: 2500 });
-          // Keep bill total aligned unless user explicitly changed it after editing.
-          if (this.billTotalControl.value === null || this.billTotalControl.value === 0 || this.billMatchesItems) {
-            this.applyItemsTotalToBill();
-          }
+          this.applySavedOrderLines(res, true);
           this.loadOrders();
         },
         error: err => {
@@ -1552,17 +1518,99 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.errorMessage = '';
-    this.orderService
-      .createSellOrder(this.selectedOrder.name, {
-        apply_transport_to_invoice: this.shouldApplyTransportToInvoice
-      })
-      .pipe(finalize(() => this.loadOrders()))
+    const saveRequest: Observable<Record<string, unknown> | null> = this.orderLines.length
+      ? this.persistOrderLinesBeforeSellOrder()
+      : of(null);
+    saveRequest
+      .pipe(
+        switchMap(() =>
+          this.orderService.createSellOrder(this.selectedOrder!.name, {
+            apply_transport_to_invoice: this.shouldApplyTransportToInvoice
+          })
+        ),
+        finalize(() => {
+          this.isItemsSaving = false;
+          this.loadOrders();
+        })
+      )
       .subscribe({
         next: () => {
           this.selectedOrder = { ...this.selectedOrder!, status: 'SELL_ORDER_CREATED' };
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to create sell order'))
       });
+  }
+
+  private persistOrderLinesBeforeSellOrder(): Observable<Record<string, unknown>> {
+    if (!this.selectedOrder) {
+      return of({});
+    }
+    const payload = this.buildOrderItemsPayload();
+    if (!payload) {
+      throw new Error(this.errorMessage || 'Unable to save review changes before creating sell order.');
+    }
+    this.isItemsSaving = true;
+    return this.orderService.updateOrderItems(this.selectedOrder.name, payload).pipe(
+      finalize(() => (this.isItemsSaving = false)),
+      switchMap(res => {
+        this.applySavedOrderLines(res, false);
+        return of(res);
+      })
+    );
+  }
+
+  private buildOrderItemsPayload(): OrderItemPayload[] | null {
+    if (!this.orderLines.length) {
+      this.errorMessage = 'At least one item line is required.';
+      return null;
+    }
+    const invalidCode = this.orderLines.find(line => {
+      const itemCode = String(line.item_code ?? '').trim();
+      if (itemCode) {
+        return false;
+      }
+      return !line.manual_entry || !String(line.item_name ?? '').trim();
+    });
+    if (invalidCode) {
+      this.errorMessage = 'Every row must include an item code or a manual recovery item name before saving.';
+      return null;
+    }
+    const invalidMargin = this.orderLines.some(line => !Number.isFinite(Number(line.aas_margin_percent)) || Number(line.aas_margin_percent) < 0);
+    if (invalidMargin) {
+      this.errorMessage = 'Margin must be a non-negative number for every item.';
+      return null;
+    }
+    const invalidMrp = this.orderLines.find(line => this.hasMrpViolation(line));
+    if (invalidMrp) {
+      this.errorMessage = `Vendor rate exceeds MRP for ${invalidMrp.item_name || invalidMrp.item_code}.`;
+      return null;
+    }
+    return this.orderLines.map(line => ({
+      item_code: line.item_code,
+      item_name: String(line.item_name ?? '').trim() || undefined,
+      display_description: String(line.display_description ?? '').trim() || undefined,
+      qty: Number(line.qty ?? 0),
+      rate: Number(line.rate ?? 0),
+      aas_margin_percent: Number(line.aas_margin_percent ?? 0),
+      aas_mrp: Number(line.aas_mrp ?? 0) || undefined,
+      aas_gst_percent: Number(line.aas_gst_percent ?? 0) || undefined,
+      manual_entry: !!line.manual_entry,
+      parse_note: String(line.parse_note ?? '').trim() || undefined
+    }));
+  }
+
+  private applySavedOrderLines(res: Record<string, unknown>, showSuccessMessage: boolean): void {
+    const items = (res as any)?.items ?? [];
+    if (Array.isArray(items) && items.length) {
+      this.orderLines = this.hydrateOrderLines(items);
+    }
+    this.updateBillMismatchError();
+    if (showSuccessMessage) {
+      this.snackBar.open('Order review updated.', 'Dismiss', { duration: 2500 });
+    }
+    if (this.billTotalControl.value === null || this.billTotalControl.value === 0 || this.billMatchesItems) {
+      this.applyItemsTotalToBill();
+    }
   }
 
   private refreshSelection(): void {
@@ -1629,25 +1677,29 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private toUiOrderLine(row: any): UiOrderLine {
     const qty = Number(row?.qty ?? 0);
-    const rate = Number(row?.rate ?? 0);
-    const amount = Number(row?.amount ?? qty * rate);
+    const sourceRate = Number(row?.rate ?? 0);
+    const vendorRate = Number(row?.aas_vendor_rate ?? sourceRate);
+    const effectiveRate = Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : sourceRate;
+    const amount = Number(row?.amount ?? qty * effectiveRate);
     const margin = Number(row?.aas_margin_percent ?? 0);
-    const vendorRate = Number(row?.aas_vendor_rate ?? rate);
+    const normalizedVendorRate = Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : effectiveRate;
     const rateBeforeTax = Number(row?.aas_rate_before_tax ?? NaN);
     const rateAfterTax = Number(row?.aas_rate_after_tax ?? NaN);
     const mrp = Number(row?.aas_mrp ?? 0);
     const gst = Number(row?.aas_gst_percent ?? 0);
     const description = String(row?.description ?? '').trim();
+    const displayDescription = String(row?.display_description ?? this.stripAasLineMeta(description)).trim();
     const parseNote = String(row?.parse_note ?? this.extractParseNote(description)).trim() || null;
     const line: UiOrderLine = {
       source_serial: null,
       item_code: String(row?.item_code ?? '').trim(),
       item_name: String(row?.item_name ?? row?.item_code ?? '').trim(),
+      display_description: displayDescription || String(row?.item_name ?? row?.item_code ?? '').trim(),
       qty: Number.isFinite(qty) ? qty : 0,
-      rate: Number.isFinite(rate) ? rate : 0,
+      rate: Number.isFinite(effectiveRate) ? effectiveRate : 0,
       amount: Number.isFinite(amount) ? amount : 0,
       aas_margin_percent: Number.isFinite(margin) && margin >= 0 ? margin : 0,
-      aas_vendor_rate: Number.isFinite(vendorRate) && vendorRate > 0 ? vendorRate : null,
+      aas_vendor_rate: Number.isFinite(normalizedVendorRate) && normalizedVendorRate > 0 ? normalizedVendorRate : null,
       aas_rate_before_tax: Number.isFinite(rateBeforeTax) && rateBeforeTax >= 0 ? rateBeforeTax : null,
       aas_rate_after_tax: Number.isFinite(rateAfterTax) && rateAfterTax >= 0 ? rateAfterTax : null,
       aas_mrp: Number.isFinite(mrp) && mrp > 0 ? mrp : null,
@@ -1660,6 +1712,97 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     line.aas_rate_after_tax = this.deriveLineRateAfterTax(line);
     line.mrpApplied = this.isMrpCapApplied(line);
     return line;
+  }
+
+  get availableDescriptionCleanupTokens(): readonly string[] {
+    return ORDER_DESCRIPTION_CLEANUP_TOKENS;
+  }
+
+  get activeDescriptionRuleLabels(): string[] {
+    const rules: string[] = [];
+    this.selectedDescriptionCleanupTokens.forEach(token => rules.push(`Remove ${token}`));
+    const bulkTerms = this.getBulkRemoveTerms();
+    if (bulkTerms.length) {
+      rules.push(`Remove: ${bulkTerms.join(', ')}`);
+    }
+    const replaceFrom = this.descriptionReplaceFrom.trim();
+    if (replaceFrom) {
+      rules.push(`Replace "${replaceFrom}" with "${this.descriptionReplaceTo.trim()}"`);
+    }
+    return rules;
+  }
+
+  isDescriptionCleanupTokenSelected(token: string): boolean {
+    return this.selectedDescriptionCleanupTokens.has(token);
+  }
+
+  toggleDescriptionCleanupToken(token: string): void {
+    if (this.selectedDescriptionCleanupTokens.has(token)) {
+      this.selectedDescriptionCleanupTokens.delete(token);
+      return;
+    }
+    this.selectedDescriptionCleanupTokens.add(token);
+  }
+
+  applyDescriptionToolsToAll(): void {
+    const selectedTokens = Array.from(this.selectedDescriptionCleanupTokens);
+    const bulkTerms = this.getBulkRemoveTerms();
+    const replaceFrom = this.descriptionReplaceFrom.trim();
+    const replaceTo = this.descriptionReplaceTo.trim();
+
+    this.orderLines = this.orderLines.map(line => {
+      let text = String(line.display_description ?? line.item_name ?? '').trim();
+      selectedTokens.forEach(token => {
+        text = this.removeTokenFromText(text, token);
+      });
+      bulkTerms.forEach(term => {
+        text = this.removeTokenFromText(text, term);
+      });
+      if (replaceFrom) {
+        text = text.replace(new RegExp(this.escapeRegExp(replaceFrom), 'gi'), replaceTo);
+      }
+      text = this.normalizeDescriptionText(text);
+      return {
+        ...line,
+        display_description: text || line.item_name
+      };
+    });
+  }
+
+  applyTitleCaseToAllDescriptions(): void {
+    this.orderLines = this.orderLines.map(line => {
+      const text = this.toTitleCase(String(line.display_description ?? line.item_name ?? '').trim());
+      return {
+        ...line,
+        display_description: text || line.item_name
+      };
+    });
+  }
+
+  private getBulkRemoveTerms(): string[] {
+    return this.descriptionBulkRemoveText
+      .split(/[,\n]/)
+      .map(term => term.trim())
+      .filter(Boolean);
+  }
+
+  private removeTokenFromText(text: string, token: string): string {
+    const pattern = new RegExp(`(^|\\s+)${this.escapeRegExp(token)}(?=\\s+|$)`, 'gi');
+    return String(text ?? '').replace(pattern, ' ');
+  }
+
+  private normalizeDescriptionText(text: string): string {
+    return String(text ?? '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+([,./-])/g, '$1')
+      .trim();
+  }
+
+  private toTitleCase(text: string): string {
+    return String(text ?? '')
+      .toLowerCase()
+      .replace(/\b([a-z])/g, (_, char: string) => char.toUpperCase())
+      .trim();
   }
 
   private isMrpCapApplied(line: UiOrderLine): boolean {
@@ -1691,6 +1834,19 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   private extractParseNote(description: string): string {
     const match = description.match(/\[AAS_PARSE_NOTE\]\s*(.+)$/m);
     return match?.[1]?.trim() ?? '';
+  }
+
+  private stripAasLineMeta(description: string): string {
+    return String(description ?? '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('[AAS_MANUAL_ENTRY]') && !line.startsWith('[AAS_PARSE_NOTE]'))
+      .join(' ')
+      .trim();
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   get hasBranchImages(): boolean {

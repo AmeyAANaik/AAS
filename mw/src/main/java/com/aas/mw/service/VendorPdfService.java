@@ -5,6 +5,8 @@ import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.UploadedFileInfo;
 import feign.FeignException;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,6 +23,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 public class VendorPdfService {
@@ -35,6 +39,7 @@ public class VendorPdfService {
             Pattern.compile("^\\s*(\\d{1,3})(?:(?:\\s{2,})|(?=[A-Z(]))");
     private static final String TEMPLATE_REQUIRED_ERROR =
             "Vendor native invoice mapping is required before uploading vendor PDF.";
+    private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService fileService;
@@ -96,6 +101,8 @@ public class VendorPdfService {
         }
         CatalogRoutingService.VendorCategoryResolution vendorResolution =
                 catalogRoutingService.resolveVendorForCategory(vendor, category);
+        String reviewSourceInvoiceRef = asText(pdfFile.getOriginalFilename());
+        String reviewCreatedBy = currentUsername();
 
         var resolvedJson = templateResolver.loadTemplateJson(vendor);
         if (resolvedJson.isEmpty()) {
@@ -125,7 +132,7 @@ public class VendorPdfService {
 
         List<Map<String, Object>> baseItems = runErpStep(
                 "resolve vendor items",
-                () -> resolveItems(parsedItems, vendorResolution));
+                () -> resolveItems(parsedItems, vendorResolution, orderId, reviewSourceInvoiceRef, reviewCreatedBy));
         List<Map<String, Object>> sourceOrderItems = withVendorRate(baseItems);
         List<Map<String, Object>> sellItems = withSellMargin(baseItems);
         double marginPercent = calculateDerivedMarginPercent(sourceOrderItems);
@@ -382,7 +389,10 @@ public class VendorPdfService {
 
     private List<Map<String, Object>> resolveItems(
             List<ParsedItem> parsedItems,
-            CatalogRoutingService.VendorCategoryResolution vendorResolution) {
+            CatalogRoutingService.VendorCategoryResolution vendorResolution,
+            String sourceOrderId,
+            String sourceInvoiceRef,
+            String reviewCreatedBy) {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
@@ -403,7 +413,7 @@ public class VendorPdfService {
                     vendorHsnCode,
                     itemName);
             if (!resourceExists(itemCode)) {
-                itemCode = createItem(itemName, vendorResolution, vendorHsnCode, uom);
+                itemCode = createItem(itemName, vendorResolution, vendorHsnCode, uom, sourceOrderId, sourceInvoiceRef, reviewCreatedBy);
             }
             ensureItemEnabled(itemCode);
             Map<String, Object> row = new HashMap<>();
@@ -587,7 +597,10 @@ public class VendorPdfService {
             String itemName,
             CatalogRoutingService.VendorCategoryResolution vendorResolution,
             String vendorHsnCode,
-            String uom) {
+            String uom,
+            String sourceOrderId,
+            String sourceInvoiceRef,
+            String reviewCreatedBy) {
         Map<String, Object> payload = new HashMap<>();
         String code = catalogRoutingService.buildParsedItemCode(
                 vendorResolution.vendorCode(),
@@ -601,9 +614,24 @@ public class VendorPdfService {
         payload.put("is_stock_item", 1);
         payload.put("aas_vendor", vendorResolution.vendorId());
         payload.put("aas_vendor_hsn_code", vendorHsnCode);
+        payload.put("aas_margin_percent", defaultMarginPercent);
+        payload.put("aas_review_status", "PENDING_REVIEW");
+        payload.put("aas_review_source_order", asText(sourceOrderId));
+        payload.put("aas_review_source_invoice_ref", asText(sourceInvoiceRef));
+        payload.put("aas_review_created_at", LocalDateTime.now().format(ERP_DATE_TIME));
+        payload.put("aas_review_created_by", asText(reviewCreatedBy));
+        payload.put("aas_review_default_margin_used", 1);
         Map<String, Object> created = erpNextClient.createResource(ITEM, payload);
         Object name = created.get("name");
         return name == null ? code : name.toString();
+    }
+
+    private String currentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication.getName() == null) {
+            return "";
+        }
+        return authentication.getName().trim();
     }
 
     private String normalizeUom(String raw) {

@@ -7,6 +7,8 @@ import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.UploadedFileInfo;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,6 +20,12 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +41,8 @@ public class OrderService {
     private static final String SALES_INVOICE = "Sales Invoice";
     private static final String DEFAULT_MANUAL_ITEM_HSN = "MANUAL";
     private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
+    private static final String INVOICE_VERSION_OLD = "OLD";
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final ErpNextClient erpNextClient;
@@ -72,8 +82,12 @@ public class OrderService {
         return erpNextClient.createResource(DOCTYPE, fields);
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> createOrderFromSelectedItems(OrderRequest request) {
+        return createOrderFromSelectedItems(request, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createOrderFromSelectedItems(OrderRequest request, String sessionCookie) {
         Map<String, Object> input = request == null || request.getFields() == null
                 ? new HashMap<>()
                 : new HashMap<>(request.getFields());
@@ -160,6 +174,7 @@ public class OrderService {
         if (orderId == null || orderId.isBlank()) {
             throw new IllegalStateException("Order created but id was missing.");
         }
+        erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_status", "VENDOR_ASSIGNED"));
 
         double subtotal = 0.0;
         double gstTotal = 0.0;
@@ -175,19 +190,38 @@ public class OrderService {
         gstTotal = round(gstTotal);
         double vendorBillTotal = round(subtotal + gstTotal);
         String billDate = resolveDate(asText(payload.get("transaction_date")));
-
-        Map<String, Object> billCapture = orderBillingService.captureVendorBill(orderId, Map.of(
+        Map<String, Object> billCapture = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
                 "vendor_bill_total", vendorBillTotal,
                 "vendor_bill_ref", orderId,
                 "vendor_bill_date", billDate,
                 "transport_charge", 0.0,
-                "allow_mismatch", false));
+                "rounding_adjustment", 0.0));
+        UploadedFileInfo generatedInvoiceFile = attachGeneratedVendorInvoicePdf(
+                orderId,
+                asText(payload.get("customer")),
+                vendor,
+                category,
+                billDate,
+                orderItems,
+                subtotal,
+                gstTotal,
+                vendorBillTotal,
+                sessionCookie);
+        if (generatedInvoiceFile != null && generatedInvoiceFile.fileUrl() != null && !generatedInvoiceFile.fileUrl().isBlank()) {
+            erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_vendor_pdf", generatedInvoiceFile.fileUrl()));
+        }
         Map<String, Object> sellPreview = orderBillingService.getSellPreview(orderId);
 
         Map<String, Object> response = new HashMap<>();
         response.put("order", order);
         response.put("orderId", orderId);
         response.put("vendorBill", billCapture);
+        if (generatedInvoiceFile != null) {
+            response.put("vendorInvoiceFile", Map.of(
+                    "fileName", generatedInvoiceFile.fileName(),
+                    "fileUrl", generatedInvoiceFile.fileUrl() == null ? "" : generatedInvoiceFile.fileUrl(),
+                    "fileId", generatedInvoiceFile.fileId() == null ? "" : generatedInvoiceFile.fileId()));
+        }
         response.put("sellPreview", sellPreview);
         response.put("pricing", Map.of(
                 "applyGst", applyGst,
@@ -230,6 +264,185 @@ public class OrderService {
             erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
         }
         return order;
+    }
+
+    private UploadedFileInfo attachGeneratedVendorInvoicePdf(
+            String orderId,
+            String customer,
+            String vendor,
+            String category,
+            String invoiceDate,
+            List<Map<String, Object>> orderItems,
+            double subtotal,
+            double gstTotal,
+            double vendorBillTotal,
+            String sessionCookie) {
+        if (sessionCookie == null || sessionCookie.isBlank()) {
+            return null;
+        }
+        try {
+            byte[] pdfBytes = buildGeneratedVendorInvoicePdf(
+                    orderId,
+                    customer,
+                    vendor,
+                    category,
+                    invoiceDate,
+                    orderItems,
+                    subtotal,
+                    gstTotal,
+                    vendorBillTotal);
+            return erpNextFileService.uploadOrderPdf(
+                    orderId,
+                    orderId + "-generated-vendor-invoice.pdf",
+                    pdfBytes,
+                    "application/pdf",
+                    sessionCookie);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private byte[] buildGeneratedVendorInvoicePdf(
+            String orderId,
+            String customer,
+            String vendor,
+            String category,
+            String invoiceDate,
+            List<Map<String, Object>> orderItems,
+            double subtotal,
+            double gstTotal,
+            double vendorBillTotal) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            PDPageContentStream content = new PDPageContentStream(document, page);
+            float margin = 44f;
+            float y = page.getMediaBox().getHeight() - margin;
+
+            y = writeLine(content, bold, 16f, margin, y, "AAS Generated Vendor Invoice");
+            y = writeLine(content, regular, 9f, margin, y - 4f, "This is a computer generated invoice based on selected order items.");
+            y = writeLine(content, regular, 10f, margin, y - 12f, "Order: " + safeText(orderId));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Vendor: " + safeText(vendor));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Branch: " + safeText(customer));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Category: " + safeText(category));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Invoice date: " + safeText(invoiceDate));
+
+            y -= 16f;
+            y = drawInvoiceTableHeader(content, bold, margin, y);
+            for (Map<String, Object> item : orderItems) {
+                if (y < 80f) {
+                    content.close();
+                    page = new PDPage(PDRectangle.A4);
+                    document.addPage(page);
+                    content = new PDPageContentStream(document, page);
+                    y = page.getMediaBox().getHeight() - margin;
+                    y = drawInvoiceTableHeader(content, bold, margin, y);
+                }
+                double qty = asDouble(item.get("qty"));
+                double rate = asDouble(item.get("aas_vendor_rate"));
+                if (rate <= 0) {
+                    rate = asDouble(item.get("rate"));
+                }
+                double lineSubtotal = round(qty * rate);
+                double gstPercent = asDouble(item.get("aas_gst_percent"));
+                double lineGst = round(lineSubtotal * (gstPercent / 100.0));
+                double lineTotal = round(lineSubtotal + lineGst);
+                String itemLabel = safeText(asText(item.get("item_name")).isBlank() ? asText(item.get("item_code")) : asText(item.get("item_name")));
+                y = drawInvoiceTableRow(
+                        content,
+                        regular,
+                        margin,
+                        y,
+                        itemLabel,
+                        formatMoney(qty),
+                        formatMoney(rate),
+                        formatMoney(gstPercent) + "%",
+                        formatMoney(lineSubtotal),
+                        formatMoney(lineGst),
+                        formatMoney(lineTotal));
+            }
+
+            y -= 8f;
+            y = writeLine(content, bold, 10f, 330f, y, "Subtotal: " + formatMoney(subtotal));
+            y = writeLine(content, bold, 10f, 330f, y - 2f, "GST total: " + formatMoney(gstTotal));
+            y = writeLine(content, bold, 11f, 330f, y - 4f, "Vendor invoice total: " + formatMoney(vendorBillTotal));
+
+            content.close();
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private float drawInvoiceTableHeader(PDPageContentStream content, PDType1Font bold, float margin, float y) throws IOException {
+        y = writeLine(content, bold, 10f, margin, y, "Item");
+        y += 0f;
+        writeText(content, bold, 10f, 265f, y + 12f, "Qty");
+        writeText(content, bold, 10f, 315f, y + 12f, "Rate");
+        writeText(content, bold, 10f, 375f, y + 12f, "GST %");
+        writeText(content, bold, 10f, 430f, y + 12f, "Taxable");
+        writeText(content, bold, 10f, 495f, y + 12f, "GST");
+        writeText(content, bold, 10f, 540f, y + 12f, "Total");
+        return y - 8f;
+    }
+
+    private float drawInvoiceTableRow(
+            PDPageContentStream content,
+            PDType1Font regular,
+            float margin,
+            float y,
+            String item,
+            String qty,
+            String rate,
+            String gst,
+            String taxable,
+            String gstAmount,
+            String total) throws IOException {
+        writeText(content, regular, 9f, margin, y, truncate(item, 34));
+        writeText(content, regular, 9f, 265f, y, qty);
+        writeText(content, regular, 9f, 315f, y, rate);
+        writeText(content, regular, 9f, 375f, y, gst);
+        writeText(content, regular, 9f, 430f, y, taxable);
+        writeText(content, regular, 9f, 495f, y, gstAmount);
+        writeText(content, regular, 9f, 540f, y, total);
+        return y - 18f;
+    }
+
+    private float writeLine(PDPageContentStream content, PDType1Font font, float size, float x, float y, String text)
+            throws IOException {
+        writeText(content, font, size, x, y, text);
+        return y - (size + 4f);
+    }
+
+    private void writeText(PDPageContentStream content, PDType1Font font, float size, float x, float y, String text)
+            throws IOException {
+        content.beginText();
+        content.setFont(font, size);
+        content.newLineAtOffset(x, y);
+        content.showText(safeText(text));
+        content.endText();
+    }
+
+    private String truncate(String value, int maxLength) {
+        String text = safeText(value);
+        if (text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private String safeText(String value) {
+        return (value == null ? "" : value)
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replace('\t', ' ')
+                .trim();
+    }
+
+    private String formatMoney(double value) {
+        BigDecimal decimal = BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros();
+        return decimal.scale() <= 0 ? decimal.toPlainString() : decimal.toPlainString();
     }
 
     private void ensureSalesOrderPricingDefaults(Map<String, Object> payload, String company) {
@@ -411,8 +624,13 @@ public class OrderService {
         Map<String, Object> orderData = unwrap(order);
         String status = asText(orderData.get("aas_status"));
         String normalized = orderFlowStateMachine.normalize(status);
-        if (!"VENDOR_ASSIGNED".equals(normalized) && !"VENDOR_PDF_RECEIVED".equals(normalized)) {
-            throw new IllegalStateException("Order items can only be edited when status is VENDOR_ASSIGNED or VENDOR_PDF_RECEIVED.");
+        if (!"VENDOR_ASSIGNED".equals(normalized)
+                && !"VENDOR_PDF_RECEIVED".equals(normalized)
+                && !"VENDOR_BILL_CAPTURED".equals(normalized)
+                && !"SELL_ORDER_CREATED".equals(normalized)) {
+            throw new IllegalStateException(
+                    "Order items can only be edited when status is VENDOR_ASSIGNED, VENDOR_PDF_RECEIVED, "
+                            + "VENDOR_BILL_CAPTURED, or SELL_ORDER_CREATED.");
         }
 
         List<OrderItemLine> resolvedItems = resolveMissingItemCodes(items, orderData);
@@ -441,6 +659,10 @@ public class OrderService {
             updatedPo = erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of("items", updatedPoItems));
         }
 
+        if ("VENDOR_BILL_CAPTURED".equals(normalized) || "SELL_ORDER_CREATED".equals(normalized)) {
+            updatedOrder = regenerateCurrentInvoices(orderId, orderData, unwrap(updatedOrder), normalized);
+        }
+
         Map<String, Object> response = new HashMap<>();
         response.put("orderId", orderId);
         response.put("order", updatedOrder);
@@ -450,6 +672,115 @@ public class OrderService {
         }
         response.put("items", extractSimpleItems(unwrap(updatedOrder)));
         return response;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> regenerateCurrentInvoices(
+            String orderId,
+            Map<String, Object> previousOrderData,
+            Map<String, Object> updatedOrderData,
+            String previousStatus) {
+        String previousPurchaseInvoiceId = asText(previousOrderData.get("aas_pi_vendor"));
+        String previousSalesInvoiceId = asText(previousOrderData.get("aas_si_branch"));
+        double transportCharge = asDouble(previousOrderData.get("aas_transport_charge"));
+
+        if (hasText(previousPurchaseInvoiceId)) {
+            ensureDraftInvoiceCanBeReplaced(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
+        }
+        if ("SELL_ORDER_CREATED".equals(previousStatus) && hasText(previousSalesInvoiceId)) {
+            ensureDraftInvoiceCanBeReplaced(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
+        }
+
+        double itemsSubtotal = calculateItemsSubtotal(updatedOrderData);
+        double gstTotal = calculateItemsGstTotal(updatedOrderData);
+        double newVendorBillTotal = round(itemsSubtotal + gstTotal + transportCharge);
+        String billRef = hasText(asText(previousOrderData.get("aas_vendor_bill_ref")))
+                ? asText(previousOrderData.get("aas_vendor_bill_ref"))
+                : orderId;
+        String billDate = hasText(asText(previousOrderData.get("aas_vendor_bill_date")))
+                ? asText(previousOrderData.get("aas_vendor_bill_date"))
+                : resolveDate(asText(updatedOrderData.get("transaction_date")));
+
+        Map<String, Object> vendorBill = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
+                "vendor_bill_total", newVendorBillTotal,
+                "vendor_bill_ref", billRef,
+                "vendor_bill_date", billDate,
+                "transport_charge", transportCharge,
+                "rounding_adjustment", 0.0));
+        String replacementPurchaseInvoiceId = extractDocName((Map<String, Object>) vendorBill.get("purchaseInvoice"));
+        archiveReplacedInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, replacementPurchaseInvoiceId);
+
+        if ("SELL_ORDER_CREATED".equals(previousStatus)) {
+            boolean applyTransportToInvoice = shouldApplyTransportToReplacementInvoice(previousSalesInvoiceId);
+            Map<String, Object> sellOrder = orderBillingService.createSellOrder(orderId, Map.of(
+                    "apply_transport_to_invoice", applyTransportToInvoice));
+            String replacementSalesInvoiceId = extractDocName((Map<String, Object>) sellOrder.get("salesInvoice"));
+            archiveReplacedInvoice(SALES_INVOICE, previousSalesInvoiceId, replacementSalesInvoiceId);
+        }
+
+        return erpNextClient.getResource(DOCTYPE, orderId);
+    }
+
+    public boolean applyReviewedMarginToOrderItem(String orderId, String itemCode, double marginPercent) {
+        if (orderId == null || orderId.isBlank() || itemCode == null || itemCode.isBlank()) {
+            return false;
+        }
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
+        String status = orderFlowStateMachine.normalize(asText(orderData.get("aas_status")));
+        if (!"VENDOR_ASSIGNED".equals(status) && !"VENDOR_PDF_RECEIVED".equals(status)) {
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> existingSoItems =
+                orderData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        if (existingSoItems.isEmpty()) {
+            return false;
+        }
+
+        List<OrderItemLine> desiredItems = new ArrayList<>();
+        boolean matched = false;
+        for (Map<String, Object> row : existingSoItems) {
+            String existingCode = asText(row.get("item_code"));
+            if (existingCode.isBlank() || BRANCH_IMAGE_ITEM_CODE.equals(existingCode)) {
+                continue;
+            }
+            OrderItemLine line = new OrderItemLine();
+            line.setItem_code(existingCode);
+            line.setItem_name(asText(row.get("item_name")));
+            line.setQty(asDouble(row.get("qty")));
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            line.setRate(vendorRate > 0 ? vendorRate : asDouble(row.get("rate")));
+            line.setAas_margin_percent(existingCode.equalsIgnoreCase(itemCode)
+                    ? marginPercent
+                    : asDouble(row.get("aas_margin_percent")));
+            line.setAas_mrp(asNullableDouble(row.get("aas_mrp")));
+            line.setAas_gst_percent(asNullableDouble(row.get("aas_gst_percent")));
+            desiredItems.add(line);
+            if (existingCode.equalsIgnoreCase(itemCode)) {
+                matched = true;
+            }
+        }
+        if (!matched || desiredItems.isEmpty()) {
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> poExistingItems;
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("items", buildUpdatedChildItems("Sales Order Item", existingSoItems, desiredItems));
+        erpNextClient.updateResource(DOCTYPE, orderId, payload);
+
+        if (!purchaseOrderId.isBlank()) {
+            Map<String, Object> po = erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId);
+            Map<String, Object> poData = unwrap(po);
+            poExistingItems = poData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+            erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of(
+                    "items", buildUpdatedChildItems("Purchase Order Item", poExistingItems, desiredItems)));
+        }
+        return true;
     }
 
     private Map<String, Object> buildBranchImageItem(String warehouse) {
@@ -970,6 +1301,7 @@ public class OrderService {
             }
             String description = buildItemDescription(
                     asText(existingRow.get("description")),
+                    hasText(line.getDisplay_description()) ? line.getDisplay_description().trim() : "",
                     hasText(line.getItem_name()) ? line.getItem_name().trim() : itemCode,
                     line.isManual_entry(),
                     line.getParse_note());
@@ -1049,12 +1381,15 @@ public class OrderService {
 
     private String buildItemDescription(
             String existingDescription,
+            String displayDescription,
             String itemName,
             boolean manualEntry,
             String parseNote) {
         boolean hadMeta = hasText(existingDescription)
                 && (existingDescription.contains(MANUAL_ENTRY_MARKER) || existingDescription.contains(PARSE_NOTE_PREFIX));
-        String baseDescription = stripAasLineMeta(existingDescription).trim();
+        String baseDescription = hasText(displayDescription)
+                ? displayDescription.trim()
+                : stripAasLineMeta(existingDescription).trim();
         if (baseDescription.isBlank() && (manualEntry || hasText(parseNote) || hadMeta)) {
             baseDescription = asText(itemName).trim();
         }
@@ -1160,6 +1495,89 @@ public class OrderService {
                 .orElse("");
     }
 
+    private void ensureDraftInvoiceCanBeReplaced(String doctype, String invoiceId, String label) {
+        if (!hasText(invoiceId)) {
+            return;
+        }
+        Map<String, Object> invoice = unwrap(erpNextClient.getResource(doctype, invoiceId));
+        int docstatus = (int) Math.round(asDouble(invoice.get("docstatus")));
+        if (docstatus != 0) {
+            throw new IllegalStateException(
+                    "Order updates are only supported while the current " + label + " is draft. "
+                            + "Create a new order revision flow for submitted invoices.");
+        }
+    }
+
+    private void archiveReplacedInvoice(String doctype, String oldInvoiceId, String newInvoiceId) {
+        if (!hasText(oldInvoiceId) || oldInvoiceId.equals(newInvoiceId)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_invoice_version_status", INVOICE_VERSION_OLD);
+        payload.put("aas_replaced_by", asText(newInvoiceId));
+        erpNextClient.updateResource(doctype, oldInvoiceId, payload);
+    }
+
+    private boolean shouldApplyTransportToReplacementInvoice(String salesInvoiceId) {
+        if (!hasText(salesInvoiceId)) {
+            return false;
+        }
+        try {
+            Map<String, Object> salesInvoice = unwrap(erpNextClient.getResource(SALES_INVOICE, salesInvoiceId));
+            Object itemsObj = salesInvoice.get("items");
+            if (!(itemsObj instanceof List<?> list)) {
+                return false;
+            }
+            for (Object rowObj : list) {
+                if (rowObj instanceof Map<?, ?> row && TRANSPORT_ITEM_CODE.equals(asText(row.get("item_code")))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            return false;
+        }
+        return false;
+    }
+
+    private double calculateItemsSubtotal(Map<String, Object> orderData) {
+        if (orderData == null) {
+            return 0.0;
+        }
+        Object itemsObj = orderData.get("items");
+        if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Object rowObj : list) {
+            if (rowObj instanceof Map<?, ?> row) {
+                total += asDouble(row.get("amount"));
+            }
+        }
+        return round(total);
+    }
+
+    private double calculateItemsGstTotal(Map<String, Object> orderData) {
+        if (orderData == null) {
+            return 0.0;
+        }
+        Object itemsObj = orderData.get("items");
+        if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Object rowObj : list) {
+            if (!(rowObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            double amount = asDouble(row.get("amount"));
+            double gstPercent = asDouble(row.get("aas_gst_percent"));
+            if (amount > 0 && gstPercent > 0) {
+                total += amount * (gstPercent / 100.0);
+            }
+        }
+        return round(total);
+    }
+
     private void copyIfPresent(Map<String, Object> from, Map<String, Object> to, String key) {
         if (from == null || to == null || key == null) {
             return;
@@ -1198,6 +1616,7 @@ public class OrderService {
                 simple.put("aas_mrp", row.get("aas_mrp"));
                 simple.put("aas_gst_percent", row.get("aas_gst_percent"));
                 simple.put("description", row.get("description"));
+                simple.put("display_description", stripAasLineMeta(asText(row.get("description"))));
                 simple.put("manual_entry", isManualEntry(row.get("description")));
                 simple.put("parse_note", extractParseNote(row.get("description")));
                 out.add(simple);

@@ -21,6 +21,7 @@ public class InvoiceService {
     private static final String DOCTYPE = "Sales Invoice";
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String PAYMENT_LEDGER_ENTRY = "Payment Ledger Entry";
+    private static final String INVOICE_VERSION_OLD = "OLD";
 
     private final ErpNextClient erpNextClient;
     private final String gstTemplate;
@@ -225,7 +226,7 @@ public class InvoiceService {
 
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (customer != null && !customer.isBlank()) {
@@ -243,6 +244,7 @@ public class InvoiceService {
         return listInvoicesResource(params).stream()
                 .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
+                .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
                 .toList();
     }
 

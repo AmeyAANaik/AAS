@@ -99,4 +99,19 @@ class InvoiceServiceTest {
         verify(erpNextClient, never()).cancelResource("Payment Entry", "PAY-2");
         verify(erpNextClient, never()).deleteResource("Payment Entry", "PAY-2");
     }
+
+    @Test
+    void listInvoicesExcludesOldVersionInvoices() {
+        when(erpNextClient.listResources("Sales Invoice", Map.of(
+                "fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"aas_invoice_version_status\"]",
+                "order_by", "posting_date desc")))
+                .thenReturn(List.of(
+                        Map.of("name", "SINV-CURRENT", "docstatus", 1, "status", "Unpaid", "aas_invoice_version_status", "CURRENT"),
+                        Map.of("name", "SINV-OLD", "docstatus", 1, "status", "Unpaid", "aas_invoice_version_status", "OLD")));
+
+        List<Map<String, Object>> invoices = invoiceService.listInvoices(null, null, null);
+
+        assertEquals(1, invoices.size());
+        assertEquals("SINV-CURRENT", invoices.get(0).get("name"));
+    }
 }

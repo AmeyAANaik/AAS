@@ -24,6 +24,7 @@ class OrderServiceTest {
 
     private ErpNextClient erpNextClient;
     private CatalogRoutingService catalogRoutingService;
+    private OrderBillingService orderBillingService;
     private OrderService orderService;
 
     @BeforeEach
@@ -31,12 +32,14 @@ class OrderServiceTest {
         erpNextClient = mock(ErpNextClient.class);
         ErpNextFileService fileService = mock(ErpNextFileService.class);
         catalogRoutingService = mock(CatalogRoutingService.class);
+        orderBillingService = mock(OrderBillingService.class);
         orderService = new OrderService(
                 erpNextClient,
                 fileService,
                 new OrderFlowStateMachine(),
                 catalogRoutingService,
                 new OrderPricingService(),
+                orderBillingService,
                 "http://localhost:8080",
                 7.0);
     }
@@ -152,6 +155,91 @@ class OrderServiceTest {
         List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
         assertEquals(10.0, items.get(0).get("aas_margin_percent"));
         assertEquals(55.0, items.get(0).get("aas_mrp"));
+    }
+
+    @Test
+    void updateOrderItemsReplacesDraftInvoicesAndMarksPreviousOnesOld() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(
+                Map.of(
+                        "aas_status", "SELL_ORDER_CREATED",
+                        "aas_vendor_bill_ref", "SO-1",
+                        "aas_vendor_bill_date", "2026-04-05",
+                        "aas_transport_charge", 10.0,
+                        "aas_pi_vendor", "PINV-OLD",
+                        "aas_si_branch", "SINV-OLD",
+                        "transaction_date", "2026-04-05",
+                        "items", List.of(Map.of(
+                                "name", "SO-ITEM-1",
+                                "item_code", "ITEM-1",
+                                "item_name", "SFK ATTA",
+                                "qty", 2.0,
+                                "rate", 100.0,
+                                "amount", 200.0,
+                                "description", "ATTA",
+                                "aas_vendor_rate", 100.0,
+                                "aas_gst_percent", 5.0,
+                                "aas_mrp", 250.0)),
+                        "aas_po", "PO-1"),
+                Map.of(
+                        "aas_status", "SELL_ORDER_CREATED",
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_name", "SFK ATTA",
+                                "qty", 2.0,
+                                "rate", 110.0,
+                                "amount", 220.0,
+                                "description", "ATTA",
+                                "aas_vendor_rate", 100.0,
+                                "aas_gst_percent", 5.0,
+                                "aas_margin_percent", 10.0))));
+        when(erpNextClient.getResource(eq("Purchase Order"), eq("PO-1"))).thenReturn(Map.of(
+                "items", List.of(Map.of("name", "PO-ITEM-1", "item_code", "ITEM-1", "aas_vendor_rate", 100.0))));
+        when(erpNextClient.getResource(eq("Purchase Invoice"), eq("PINV-OLD")))
+                .thenReturn(Map.of("docstatus", 0));
+        when(erpNextClient.getResource(eq("Sales Invoice"), eq("SINV-OLD")))
+                .thenReturn(Map.of("docstatus", 0, "items", List.of(Map.of("item_code", "AAS-TRANSPORT-CHARGE"))));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of(
+                        "name", "SO-1",
+                        "transaction_date", "2026-04-05",
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_name", "SFK ATTA",
+                                "qty", 2.0,
+                                "rate", 100.0,
+                                "amount", 200.0,
+                                "description", "ATTA",
+                                "aas_vendor_rate", 100.0,
+                                "aas_gst_percent", 5.0,
+                                "aas_margin_percent", 10.0))));
+        when(erpNextClient.updateResource(eq("Purchase Order"), eq("PO-1"), anyMap())).thenReturn(Map.of("name", "PO-1"));
+        when(orderBillingService.recordGeneratedVendorBill(eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("purchaseInvoice", Map.of("name", "PINV-NEW")));
+        when(orderBillingService.createSellOrder(eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("salesInvoice", Map.of("name", "SINV-NEW")));
+
+        OrderItemLine line = new OrderItemLine();
+        line.setItem_code("ITEM-1");
+        line.setQty(2);
+        line.setRate(100);
+        line.setAas_margin_percent(10);
+        line.setAas_gst_percent(5.0);
+        line.setDisplay_description("ATTA");
+
+        Map<String, Object> response = orderService.updateOrderItems("SO-1", List.of(line));
+
+        verify(orderBillingService).recordGeneratedVendorBill(eq("SO-1"), anyMap());
+        verify(orderBillingService).createSellOrder(eq("SO-1"), eq(Map.of("apply_transport_to_invoice", true)));
+        verify(erpNextClient).updateResource(eq("Purchase Invoice"), eq("PINV-OLD"), eq(Map.of(
+                "aas_invoice_version_status", "OLD",
+                "aas_replaced_by", "PINV-NEW")));
+        verify(erpNextClient).updateResource(eq("Sales Invoice"), eq("SINV-OLD"), eq(Map.of(
+                "aas_invoice_version_status", "OLD",
+                "aas_replaced_by", "SINV-NEW")));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
+        assertEquals("ATTA", items.get(0).get("display_description"));
     }
 
     @Test

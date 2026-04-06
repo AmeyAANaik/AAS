@@ -21,6 +21,7 @@ public class UserFeatureService {
     public static final String VENDOR_OPS_VIEW = "vendor_ops.view";
     public static final String BRANCH_OPS_VIEW = "branch_ops.view";
     public static final String MASTER_DATA_VIEW = "master_data.view";
+    public static final String MASTER_DATA_REVIEW_VIEW = "master_data_review.view";
     public static final String COMPANY_SETTINGS_VIEW = "company_settings.view";
     public static final String USER_SETTINGS_VIEW = "user_settings.view";
     public static final String FEATURE_ALLOW_FIELD = "aas_feature_allow_json";
@@ -35,6 +36,7 @@ public class UserFeatureService {
             new FeatureDefinition(VENDOR_OPS_VIEW, "Vendor Operations", "Operations", "Open vendor operations queues."),
             new FeatureDefinition(BRANCH_OPS_VIEW, "Branch Operations", "Operations", "Open branch operations queues."),
             new FeatureDefinition(MASTER_DATA_VIEW, "Master Data", "Administration", "Open vendors, branches, categories, and items."),
+            new FeatureDefinition(MASTER_DATA_REVIEW_VIEW, "Master Data Review", "Administration", "Open the master data review queue."),
             new FeatureDefinition(COMPANY_SETTINGS_VIEW, "Company Settings", "Administration", "Open company settings and admin controls."),
             new FeatureDefinition(USER_SETTINGS_VIEW, "User Settings", "Profile", "Open the personal user details screen."));
 
@@ -55,6 +57,7 @@ public class UserFeatureService {
                 features.add(VENDOR_OPS_VIEW);
                 features.add(BRANCH_OPS_VIEW);
                 features.add(MASTER_DATA_VIEW);
+                features.add(MASTER_DATA_REVIEW_VIEW);
                 features.add(COMPANY_SETTINGS_VIEW);
             }
             case HELPER -> {

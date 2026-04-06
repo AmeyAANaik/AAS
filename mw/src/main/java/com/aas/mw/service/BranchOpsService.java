@@ -28,6 +28,7 @@ public class BranchOpsService {
     private static final String SALES_INVOICE = "Sales Invoice";
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String PLACEHOLDER_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final String INVOICE_VERSION_OLD = "OLD";
     private static final Set<String> OPEN_STATUSES = Set.of("DRAFT", "VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED", "SELL_ORDER_CREATED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 
@@ -355,7 +356,7 @@ public class BranchOpsService {
 
     private List<Map<String, Object>> fetchSalesInvoices(String branchId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("docstatus", "!=", "2"));
@@ -363,7 +364,9 @@ public class BranchOpsService {
             filters.add(List.of("customer", "=", branchId));
         }
         params.put("filters", toJson(filters));
-        return listResourcesPaged(SALES_INVOICE, params);
+        return listResourcesPaged(SALES_INVOICE, params).stream()
+                .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
+                .toList();
     }
 
     private List<Map<String, Object>> fetchCustomerPayments(String branchId, List<Map<String, Object>> invoices) {

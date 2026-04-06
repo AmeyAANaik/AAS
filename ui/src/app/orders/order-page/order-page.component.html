@@ -570,7 +570,7 @@
                 color="primary"
                 type="button"
                 (click)="saveOrderLines()"
-                [disabled]="isItemsSaving || selectedOrder.status === 'VENDOR_BILL_CAPTURED' || selectedOrder.status === 'SELL_ORDER_CREATED' || selectedOrder.status === 'INVOICED'">
+                [disabled]="isItemsSaving || selectedOrder.status === 'INVOICED'">
                 {{ isItemsSaving ? 'Saving...' : 'Update order items' }}
               </button>
             </div>
@@ -655,7 +655,102 @@
               <p><strong>Estimated invoice total:</strong> {{ previewInvoiceTotal | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
               <p><strong>Invoice line count:</strong> {{ previewItemsCount }}</p>
             </div>
-            <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview" class="full-width">Create Sell Order</button>
+            <div *ngIf="sellPreview" class="review-descriptions">
+              <div class="review-descriptions__header">
+                <h4>Review invoice descriptions</h4>
+                <p>Apply a few common cleanup rules once, then edit any line inline before creating the branch invoice.</p>
+              </div>
+              <div class="description-tools">
+                <div class="description-tools__group">
+                  <span class="description-tools__label">Common remove text</span>
+                  <div class="description-tools__chips">
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="cleanup-chip"
+                      *ngFor="let token of availableDescriptionCleanupTokens"
+                      [class.cleanup-chip--active]="isDescriptionCleanupTokenSelected(token)"
+                      (click)="toggleDescriptionCleanupToken(token)">
+                      {{ token }}
+                    </button>
+                  </div>
+                </div>
+                <div class="description-tools__row">
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Custom remove text</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionBulkRemoveText"
+                      placeholder="Comma-separated words, for example SAMRAT, 50KG" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Find text</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionReplaceFrom"
+                      placeholder="Text to replace in all descriptions" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Replace with</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionReplaceTo"
+                      placeholder="Replacement text" />
+                  </mat-form-field>
+                </div>
+                <div class="description-tools__actions">
+                  <button mat-flat-button color="primary" type="button" (click)="applyDescriptionToolsToAll()">
+                    Apply to all descriptions
+                  </button>
+                  <button mat-stroked-button type="button" (click)="applyTitleCaseToAllDescriptions()">
+                    Title Case All
+                  </button>
+                </div>
+                <div class="description-tools__rules" *ngIf="activeDescriptionRuleLabels.length">
+                  <span class="description-tools__label">Active rules</span>
+                  <div class="description-tools__chips">
+                    <span class="rule-chip" *ngFor="let rule of activeDescriptionRuleLabels">{{ rule }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="table-wrapper review-descriptions__table">
+                <table class="description-review-table">
+                  <thead>
+                    <tr>
+                      <th>Sr no</th>
+                      <th>Item</th>
+                      <th>ERP item code</th>
+                      <th>Invoice description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let line of orderLines; let i = index">
+                      <td class="description-review-table__serial">{{ getOrderLineSerial(line, i) }}</td>
+                      <td class="description-review-table__item">{{ line.item_name }}</td>
+                      <td class="description-review-table__code">{{ line.item_code }}</td>
+                      <td class="description-review-table__description">
+                        <mat-form-field appearance="outline" class="description-field">
+                          <mat-label>Description</mat-label>
+                          <input
+                            matInput
+                            [(ngModel)]="line.display_description"
+                            placeholder="Clean description for this order only" />
+                        </mat-form-field>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <button
+                mat-stroked-button
+                type="button"
+                class="full-width mb-2"
+                (click)="saveOrderLines()"
+                [disabled]="isItemsSaving">
+                {{ isItemsSaving ? 'Saving review...' : 'Save review changes' }}
+              </button>
+            </div>
+            <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview || isItemsSaving" class="full-width">Create Sell Order</button>
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">
             <mat-icon class="success-icon">check_circle</mat-icon>

@@ -18,6 +18,7 @@ import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderCreateComponent } from './order-create.component';
 import { CompanyContextService } from '../../shared/company-context.service';
+import { ItemVendorPricingService } from '../../items/item-vendor-pricing.service';
 
 describe('OrderCreateComponent', () => {
   let component: OrderCreateComponent;
@@ -27,6 +28,7 @@ describe('OrderCreateComponent', () => {
   let itemService: jasmine.SpyObj<ItemService>;
   let vendorService: jasmine.SpyObj<VendorService>;
   let companyContextService: jasmine.SpyObj<CompanyContextService>;
+  let itemVendorPricingService: jasmine.SpyObj<ItemVendorPricingService>;
   let location: jasmine.SpyObj<Location>;
   let router: jasmine.SpyObj<Router>;
 
@@ -71,6 +73,9 @@ describe('OrderCreateComponent', () => {
       branches: []
     }));
 
+    itemVendorPricingService = jasmine.createSpyObj('ItemVendorPricingService', ['listPricing']);
+    itemVendorPricingService.listPricing.and.returnValue([]);
+
     location = jasmine.createSpyObj('Location', ['back']);
     router = jasmine.createSpyObj('Router', ['navigate']);
     router.navigate.and.returnValue(Promise.resolve(true));
@@ -95,6 +100,7 @@ describe('OrderCreateComponent', () => {
         { provide: ItemService, useValue: itemService },
         { provide: VendorService, useValue: vendorService },
         { provide: CompanyContextService, useValue: companyContextService },
+        { provide: ItemVendorPricingService, useValue: itemVendorPricingService },
         { provide: Location, useValue: location },
         { provide: Router, useValue: router }
       ]
@@ -137,9 +143,9 @@ describe('OrderCreateComponent', () => {
 
     const item = component.categoryItems[0];
     component.toggleItemSelection(item.id, true);
-    component.updateItemQty(item.id, 3);
-    component.updateItemRate(item.id, 100);
-    component.updateItemGst(item.id, 18);
+    component.onQtyInput(item.id, '3');
+    component.onRateInput(item.id, '100');
+    component.onGstInput(item.id, '18');
 
     expect(component.selectedOrderItems.length).toBe(1);
     expect(component.selectedOrderItems[0].qty).toBe(3);

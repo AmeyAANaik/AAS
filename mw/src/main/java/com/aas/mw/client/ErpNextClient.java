@@ -19,11 +19,21 @@ public class ErpNextClient {
             "aas_category",
             "aas_category_code",
             "aas_margin_percent",
+            "aas_gst_percent",
+            "aas_invoice_version_status",
+            "aas_replaced_by",
             "aas_vendor_code",
             "aas_is_deleted",
             "aas_deleted_at",
             "aas_transport_charge",
-            "aas_rounding_adjustment");
+            "aas_rounding_adjustment",
+            "aas_review_status",
+            "aas_review_source_order",
+            "aas_review_source_invoice_ref",
+            "aas_review_created_at",
+            "aas_review_created_by",
+            "aas_review_notes",
+            "aas_review_default_margin_used");
 
     private final ErpNextFeignClient feignClient;
 

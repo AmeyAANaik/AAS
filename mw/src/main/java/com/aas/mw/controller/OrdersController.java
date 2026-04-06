@@ -62,8 +62,12 @@ public class OrdersController {
     }
 
     @PostMapping("/direct-item-flow")
-    public ResponseEntity<Map<String, Object>> createOrderFromSelectedItems(@Valid @RequestBody OrderRequest request) {
-        return ResponseEntity.ok(orderService.createOrderFromSelectedItems(request));
+    public ResponseEntity<Map<String, Object>> createOrderFromSelectedItems(
+            @Valid @RequestBody OrderRequest request,
+            HttpServletRequest httpRequest) {
+        Object session = httpRequest.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        String sessionCookie = session instanceof String cookie && !cookie.isBlank() ? cookie : null;
+        return ResponseEntity.ok(orderService.createOrderFromSelectedItems(request, sessionCookie));
     }
 
     @GetMapping("/{id}")

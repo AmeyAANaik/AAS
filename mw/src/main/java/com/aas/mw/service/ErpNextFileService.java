@@ -45,6 +45,16 @@ public class ErpNextFileService {
         return uploadFile("Sales Order", orderId, filename, file, sessionCookie);
     }
 
+    public UploadedFileInfo uploadOrderPdf(
+            String orderId,
+            String filename,
+            byte[] bytes,
+            String contentType,
+            String sessionCookie) {
+        String safeFilename = normalizeFilename(filename, "vendor_order");
+        return uploadBytes("Sales Order", orderId, safeFilename, bytes, contentType, sessionCookie);
+    }
+
     public DownloadedFile downloadFile(String fileUrl) {
         String resolvedUrl = resolveInternalFileUrl(fileUrl);
         ResponseEntity<byte[]> response = restTemplate.exchange(
@@ -71,6 +81,19 @@ public class ErpNextFileService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is required.");
         }
+        return uploadBytes(doctype, docname, filename, toBytes(file), file.getContentType(), sessionCookie);
+    }
+
+    public UploadedFileInfo uploadBytes(
+            String doctype,
+            String docname,
+            String filename,
+            byte[] bytes,
+            String contentType,
+            String sessionCookie) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("File content is required.");
+        }
         if (sessionCookie == null || sessionCookie.isBlank()) {
             throw new IllegalStateException("Missing ERPNext session cookie.");
         }
@@ -79,10 +102,15 @@ public class ErpNextFileService {
         body.add("docname", docname);
         body.add("file_name", filename);
         body.add("is_private", "0");
-        body.add("file", new ByteArrayResource(toBytes(file)) {
+        body.add("file", new ByteArrayResource(bytes) {
             @Override
             public String getFilename() {
                 return filename;
+            }
+
+            @Override
+            public long contentLength() {
+                return bytes.length;
             }
         });
 

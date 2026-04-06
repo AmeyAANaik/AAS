@@ -9,7 +9,8 @@ import { OrderService } from '../order.service';
 import { CategoryService } from '../../categories/category.service';
 import { formatUiError } from '../../shared/error-message.util';
 import { ItemService } from '../../items/item.service';
-import { Item } from '../../items/item.model';
+import { Item, ItemVendorPricingEntry } from '../../items/item.model';
+import { ItemVendorPricingService } from '../../items/item-vendor-pricing.service';
 import { VendorService } from '../../vendors/vendor.service';
 import { Vendor } from '../../vendors/vendor.model';
 import { CompanyContextService } from '../../shared/company-context.service';
@@ -70,6 +71,10 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   isVendorsLoading = false;
   itemsError = '';
   vendorsError = '';
+  private vendorPricing = new Map<string, ItemVendorPricingEntry>();
+  private rateDrafts = new Map<string, string>();
+  private gstDrafts = new Map<string, string>();
+  private qtyDrafts = new Map<string, string>();
   private subscriptions = new Subscription();
 
   detailsGroup: FormGroup = this.fb.group({
@@ -95,6 +100,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     private orderService: OrderService,
     private categoryService: CategoryService,
     private itemService: ItemService,
+    private itemVendorPricingService: ItemVendorPricingService,
     private vendorService: VendorService,
     private companyContextService: CompanyContextService,
     private location: Location,
@@ -108,6 +114,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     if (!this.shops?.length) {
       this.loadShops();
     }
+    this.loadVendorPricing();
     this.loadCategories();
     this.loadItems();
     this.loadVendors();
@@ -448,6 +455,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.subscriptions.add(sub);
   }
 
+  private loadVendorPricing(): void {
+    const pricing = this.itemVendorPricingService.listPricing();
+    this.vendorPricing = new Map(pricing.map(entry => [`${entry.itemId}::${entry.vendorId}`, entry]));
+  }
+
   private loadVendors(): void {
     this.isVendorsLoading = true;
     this.vendorsError = '';
@@ -539,32 +551,74 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.itemSearchTerm = '';
   }
 
-  updateItemQty(itemId: string, value: number): void {
-    const qty = Math.max(1, Number(value || 1));
+  onQtyInput(itemId: string, rawValue: string): void {
+    this.qtyDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const qty = Math.max(1, parsed);
     this.categoryItems = this.categoryItems.map(item => item.id === itemId
       ? { ...item, qty, selected: true }
       : item);
     this.syncItemsToMasterList();
   }
 
-  updateItemRate(itemId: string, value: number): void {
-    const rate = Math.max(0, Number(value || 0));
+  commitQtyDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.qtyDrafts.set(itemId, String(item?.qty ?? 1));
+  }
+
+  onRateInput(itemId: string, rawValue: string): void {
+    this.rateDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const rate = Math.max(0, parsed);
     this.categoryItems = this.categoryItems.map(item => item.id === itemId
       ? { ...item, rate, selected: true }
       : item);
     this.syncItemsToMasterList();
   }
 
-  updateItemGst(itemId: string, value: number): void {
-    const gstPercent = Math.max(0, Number(value || 0));
+  commitRateDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.rateDrafts.set(itemId, String(item?.rate ?? 0));
+  }
+
+  onGstInput(itemId: string, rawValue: string): void {
+    this.gstDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const gstPercent = Math.max(0, parsed);
     this.categoryItems = this.categoryItems.map(item => item.id === itemId
       ? { ...item, gstPercent, selected: true }
       : item);
     this.syncItemsToMasterList();
   }
 
+  commitGstDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.gstDrafts.set(itemId, String(item?.gstPercent ?? 0));
+  }
+
   toggleApplyGst(checked: boolean): void {
     this.applyGst = checked;
+  }
+
+  displayQty(item: CategoryOrderItemOption): string {
+    return this.qtyDrafts.get(item.id) ?? String(item.qty);
+  }
+
+  displayRate(item: CategoryOrderItemOption): string {
+    return this.rateDrafts.get(item.id) ?? String(item.rate);
+  }
+
+  displayGst(item: CategoryOrderItemOption): string {
+    return this.gstDrafts.get(item.id) ?? String(item.gstPercent);
   }
 
   private createDirectItemFlow(payload: DirectOrderCreatePayload) {
@@ -594,13 +648,14 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         if (!id) {
           throw new Error('Order created but ID missing.');
         }
-        return this.orderService.captureVendorBill(id, {
+        return this.orderService.updateStatus(id, 'VENDOR_ASSIGNED').pipe(
+          switchMap(() => this.orderService.captureVendorBill(id, {
           vendor_bill_total: this.vendorInvoiceTotal,
           vendor_bill_ref: id,
           vendor_bill_date: payload.transaction_date,
           transport_charge: 0,
           allow_mismatch: false
-        }).pipe(
+          })),
           map(vendorBill => ({ order: orderResponse, vendorBill, orderId: id }))
         );
       })
@@ -723,15 +778,23 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   private mapItemOption(item: Item): CategoryOrderItemOption {
     const id = String(item.name ?? item.item_code ?? '').trim();
+    const vendorId = String(item.aas_vendor ?? '').trim();
+    const pricing = this.vendorPricing.get(`${id}::${vendorId}`);
+    const backendRate = this.asNumber(item.aas_vendor_rate) ?? 0;
     return {
       id,
       code: String(item.item_code ?? '').trim(),
       name: String(item.item_name ?? item.item_code ?? '').trim(),
       category: String(item.item_group ?? '').trim(),
-      vendorId: String(item.aas_vendor ?? '').trim(),
+      vendorId,
       unit: String(item.stock_uom ?? 'Nos').trim() || 'Nos',
       packagingUnit: String(item.aas_packaging_unit ?? '').trim(),
-      rate: Math.max(0, this.asNumber(item.aas_vendor_rate) ?? 0),
+      rate: Math.max(
+        0,
+        backendRate > 0
+          ? backendRate
+          : (pricing?.finalRate ?? pricing?.originalRate ?? 0)
+      ),
       gstPercent: Math.max(0, this.asNumber(item.aas_gst_percent) ?? 0),
       selected: false,
       qty: 1
@@ -773,6 +836,9 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   private clearSelectedItems(): void {
     this.allItems = this.allItems.map(item => ({ ...item, selected: false, qty: 1 }));
+    this.rateDrafts.clear();
+    this.gstDrafts.clear();
+    this.qtyDrafts.clear();
     this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
   }
 

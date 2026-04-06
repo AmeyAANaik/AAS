@@ -33,6 +33,12 @@ export const routes: Routes = [
         data: { feature: 'branch_ops.view' }
       },
       {
+        path: 'master-data-review',
+        loadChildren: () => import('./master-data-review/master-data-review.module').then(m => m.MasterDataReviewModule),
+        canMatch: [featureGuard],
+        data: { feature: 'master_data_review.view' }
+      },
+      {
         path: 'company-settings',
         loadChildren: () => import('./company-settings/company-settings.module').then(m => m.CompanySettingsModule),
         canMatch: [featureGuard],

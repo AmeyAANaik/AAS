@@ -29,6 +29,7 @@ public class VendorOpsService {
     private static final String SUPPLIER = "Supplier";
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String PLACEHOLDER_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final String INVOICE_VERSION_OLD = "OLD";
     private static final Set<String> PENDING_STATUSES = Set.of("VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 
@@ -453,7 +454,7 @@ public class VendorOpsService {
         params.put(
                 "fields",
                 "[\"name\",\"supplier\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"bill_no\","
-                        + "\"aas_source_sales_order\",\"modified\",\"creation\",\"docstatus\"]");
+                        + "\"aas_source_sales_order\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("docstatus", "!=", "2"));
@@ -461,7 +462,9 @@ public class VendorOpsService {
             filters.add(List.of("supplier", "=", vendorId));
         }
         params.put("filters", toJson(filters));
-        return listResourcesPaged(PURCHASE_INVOICE, params);
+        return listResourcesPaged(PURCHASE_INVOICE, params).stream()
+                .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
+                .toList();
     }
 
     private List<Map<String, Object>> fetchSupplierPayments(String vendorId, List<Map<String, Object>> purchaseInvoices) {

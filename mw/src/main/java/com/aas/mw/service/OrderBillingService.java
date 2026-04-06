@@ -18,6 +18,7 @@ public class OrderBillingService {
     private static final String PURCHASE_INVOICE = "Purchase Invoice";
     private static final String BILL_ITEM_CODE = "AAS-VENDOR-BILL";
     private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
+    private static final String INVOICE_VERSION_CURRENT = "CURRENT";
 
     private final ErpNextClient erpNextClient;
     private final OrderFlowStateMachine orderFlowStateMachine;
@@ -73,6 +74,57 @@ public class OrderBillingService {
         String billRef = asText(fields.get("vendor_bill_ref"));
         if (billRef.isBlank()) {
             billRef = asText(orderData.get("aas_po"));
+        }
+        String billDate = asText(fields.get("vendor_bill_date"));
+        if (billDate.isBlank()) {
+            billDate = LocalDate.now().toString();
+        }
+        double marginPercent = deriveOrderMarginPercent(orderData);
+
+        ensureBillItem();
+        Map<String, Object> purchaseInvoice = createPurchaseInvoice(
+                orderId, vendor, company, vendorBillTotal, billRef, billDate, roundingAdjustment);
+
+        Map<String, Object> update = new HashMap<>();
+        update.put("aas_vendor_bill_total", vendorBillTotal);
+        update.put("aas_vendor_bill_ref", billRef);
+        update.put("aas_vendor_bill_date", billDate);
+        update.put("aas_transport_charge", transportCharge);
+        update.put("aas_rounding_adjustment", roundingAdjustment);
+        update.put("aas_margin_percent", marginPercent);
+        update.put("aas_pi_vendor", extractDocName(purchaseInvoice));
+        update.put("aas_status", "VENDOR_BILL_CAPTURED");
+        erpNextClient.updateResource(SALES_ORDER, orderId, update);
+
+        return Map.of(
+                "orderId", orderId,
+                "vendorBillTotal", vendorBillTotal,
+                "transportCharge", transportCharge,
+                "roundingAdjustment", roundingAdjustment,
+                "marginPercent", marginPercent,
+                "purchaseInvoice", purchaseInvoice);
+    }
+
+    public Map<String, Object> recordGeneratedVendorBill(String orderId, Map<String, Object> fields) {
+        Map<String, Object> orderData = unwrap(erpNextClient.getResource(SALES_ORDER, orderId));
+        String vendor = asText(orderData.get("aas_vendor"));
+        String company = asText(orderData.get("company"));
+        if (vendor.isBlank()) {
+            throw new IllegalStateException("Vendor must be assigned before creating generated vendor bill.");
+        }
+        if (company.isBlank()) {
+            throw new IllegalStateException("Order company is required before creating generated vendor bill.");
+        }
+
+        double vendorBillTotal = readRequiredPositive(fields, "vendor_bill_total");
+        double transportCharge = readOptionalNonNegative(fields, "transport_charge");
+        double roundingAdjustment = round(asDouble(fields.get("rounding_adjustment")));
+        String billRef = asText(fields.get("vendor_bill_ref"));
+        if (billRef.isBlank()) {
+            billRef = asText(orderData.get("aas_po"));
+        }
+        if (billRef.isBlank()) {
+            billRef = orderId;
         }
         String billDate = asText(fields.get("vendor_bill_date"));
         if (billDate.isBlank()) {
@@ -190,6 +242,7 @@ public class OrderBillingService {
                 "rate", vendorBillTotal,
                 "amount", vendorBillTotal)));
         payload.put("aas_source_sales_order", sourceOrderId);
+        payload.put("aas_invoice_version_status", INVOICE_VERSION_CURRENT);
         if (Math.abs(roundingAdjustment) > 0.0001) {
             payload.put("rounding_adjustment", roundingAdjustment);
             payload.put("disable_rounded_total", 0);
@@ -226,6 +279,7 @@ public class OrderBillingService {
         payload.put("items", items);
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
+        payload.put("aas_invoice_version_status", INVOICE_VERSION_CURRENT);
         double roundingAdjustment = asDouble(sourceOrder.get("aas_rounding_adjustment"));
         if (Math.abs(roundingAdjustment) > 0.0001) {
             payload.put("aas_rounding_adjustment", roundingAdjustment);
@@ -331,6 +385,10 @@ public class OrderBillingService {
             double gstPercent = asDouble(row.get("aas_gst_percent"));
             if (gstPercent > 0) {
                 item.put("aas_gst_percent", gstPercent);
+            }
+            String description = stripAasLineMeta(asText(row.get("description")));
+            if (!description.isBlank()) {
+                item.put("description", description);
             }
             if (asNullableDouble(row.get("aas_mrp")) != null) {
                 item.put("aas_mrp", asNullableDouble(row.get("aas_mrp")));
@@ -637,6 +695,18 @@ public class OrderBillingService {
 
     private String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String stripAasLineMeta(String description) {
+        if (description == null || description.isBlank()) {
+            return "";
+        }
+        return description.lines()
+                .map(String::trim)
+                .filter(line -> !line.startsWith("[AAS_MANUAL_ENTRY]"))
+                .filter(line -> !line.startsWith("[AAS_PARSE_NOTE]"))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
     }
 
     private double sumOrderItemsTotal(Map<String, Object> orderData, double referenceBillTotal, double transportCharge) {

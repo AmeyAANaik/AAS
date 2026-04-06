@@ -27,6 +27,8 @@ public class OrderItemLine {
 
     private String parse_note;
 
+    private String display_description;
+
     public String getItem_code() {
         return item_code;
     }
@@ -97,5 +99,13 @@ public class OrderItemLine {
 
     public void setParse_note(String parse_note) {
         this.parse_note = parse_note;
+    }
+
+    public String getDisplay_description() {
+        return display_description;
+    }
+
+    public void setDisplay_description(String display_description) {
+        this.display_description = display_description;
     }
 }

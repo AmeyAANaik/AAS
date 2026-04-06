@@ -322,4 +322,35 @@ class VendorOpsServiceTest {
 
         assertThat(response.get("balance")).isEqualTo(600.0);
     }
+
+    @Test
+    void getVendorLedgerIgnoresOldVersionInvoices() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-OLD",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "bill_no", "BILL-OLD",
+                                "docstatus", 1,
+                                "aas_invoice_version_status", "OLD"),
+                        Map.of(
+                                "name", "PINV-CURRENT",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-02",
+                                "grand_total", 500.0,
+                                "outstanding_amount", 500.0,
+                                "bill_no", "BILL-CURRENT",
+                                "docstatus", 1,
+                                "aas_invoice_version_status", "CURRENT")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap())).thenReturn(List.of());
+
+        Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
+
+        assertThat(response.get("balance")).isEqualTo(500.0);
+    }
 }

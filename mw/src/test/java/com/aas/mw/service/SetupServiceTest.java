@@ -7,6 +7,7 @@ import static org.mockito.Mockito.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.atLeastOnce;
 
 import com.aas.mw.client.ErpNextClient;
 import feign.Request;
@@ -112,6 +113,42 @@ class SetupServiceTest {
         assertEquals(2, result.get("salesOrdersMarginBackfilled"));
         assertEquals(2, result.get("salesOrderItemsMarginBackfilled"));
         assertEquals(2, result.get("itemsMarginBackfilled"));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Item"),
+                eq("aas_review_status"),
+                eq("Review Status"),
+                eq("Select"),
+                eq("PENDING_REVIEW\nAPPROVED\nMERGED\nREJECTED"),
+                eq("aas_gst_percent"),
+                eq(true),
+                eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Item"),
+                eq("aas_review_default_margin_used"),
+                eq("Review Default Margin Used"),
+                eq("Check"),
+                eq(null),
+                eq("aas_review_notes"),
+                eq(true),
+                eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Sales Invoice"),
+                eq("aas_invoice_version_status"),
+                eq("Invoice Version Status"),
+                eq("Select"),
+                eq("CURRENT\nOLD"),
+                eq("aas_source_sales_order"),
+                eq(true),
+                eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Purchase Invoice"),
+                eq("aas_invoice_version_status"),
+                eq("Invoice Version Status"),
+                eq("Select"),
+                eq("CURRENT\nOLD"),
+                eq("aas_source_sales_order"),
+                eq(true),
+                eq(false));
     }
 
     @Test

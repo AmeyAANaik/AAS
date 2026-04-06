@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -67,6 +68,60 @@ class OrderBillingServiceTest {
         assertEquals(250.0, response.get("vendorBillTotal"));
         assertEquals(12.0, response.get("marginPercent"));
         verify(erpNextClient).createResource(eq("Purchase Invoice"), anyMap());
+    }
+
+    @Test
+    void generatedInvoicesAreMarkedCurrentAndUseCleanDescriptions() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_BILL_CAPTURED",
+                "aas_vendor_bill_total", 105.0,
+                "aas_vendor", "SUP-1",
+                "aas_margin_percent", 7.0,
+                "customer", "BRANCH-1",
+                "company", "AAS",
+                "transaction_date", "2026-04-05",
+                "items", List.of(Map.of(
+                        "item_code", "ITEM-1",
+                        "item_name", "SFK ATTA",
+                        "description", "ATTA\n[AAS_MANUAL_ENTRY]",
+                        "qty", 1,
+                        "rate", 100.0,
+                        "amount", 100.0,
+                        "aas_vendor_rate", 100.0,
+                        "aas_gst_percent", 5.0,
+                        "aas_margin_percent", 7.0))));
+        when(erpNextClient.getResource(eq("Item"), eq("AAS-VENDOR-BILL")))
+                .thenReturn(Map.of("name", "AAS-VENDOR-BILL"));
+        when(erpNextClient.getResource(eq("Company"), eq("AAS")))
+                .thenReturn(Map.of("default_currency", "INR"));
+        when(erpNextClient.listResources(eq("Warehouse"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "Stores - AAS", "company", "AAS", "is_group", 0, "disabled", 0)));
+        when(erpNextClient.createResource(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(Map.of("name", "PINV-NEW"));
+        when(erpNextClient.createResource(eq("Sales Invoice"), anyMap()))
+                .thenReturn(Map.of("name", "SINV-NEW"));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+
+        service.recordGeneratedVendorBill("SO-1", Map.of(
+                "vendor_bill_total", 105.0,
+                "vendor_bill_ref", "SO-1",
+                "vendor_bill_date", "2026-04-05"));
+        service.createSellOrder("SO-1");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> purchaseInvoiceCaptor = ArgumentCaptor.forClass(Map.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> salesInvoiceCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Purchase Invoice"), purchaseInvoiceCaptor.capture());
+        verify(erpNextClient).createResource(eq("Sales Invoice"), salesInvoiceCaptor.capture());
+
+        assertEquals("CURRENT", purchaseInvoiceCaptor.getValue().get("aas_invoice_version_status"));
+        assertEquals("CURRENT", salesInvoiceCaptor.getValue().get("aas_invoice_version_status"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> invoiceItems = (List<Map<String, Object>>) salesInvoiceCaptor.getValue().get("items");
+        assertEquals("ATTA", invoiceItems.get(0).get("description"));
+        assertTrue(invoiceItems.get(0).containsKey("warehouse"));
     }
 
     @Test

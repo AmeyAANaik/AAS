@@ -205,4 +205,33 @@ class BranchOpsServiceTest {
 
         assertThat(response.get("balance")).isEqualTo(600.0);
     }
+
+    @Test
+    void getBranchLedgerIgnoresOldVersionInvoices() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-OLD",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "docstatus", 1,
+                                "aas_invoice_version_status", "OLD"),
+                        Map.of(
+                                "name", "SINV-CURRENT",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-03-02",
+                                "grand_total", 500.0,
+                                "outstanding_amount", 500.0,
+                                "docstatus", 1,
+                                "aas_invoice_version_status", "CURRENT")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap())).thenReturn(List.of());
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        assertThat(response.get("balance")).isEqualTo(500.0);
+    }
 }

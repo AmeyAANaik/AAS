@@ -246,6 +246,84 @@ describe('OrderPageComponent', () => {
     ]);
   });
 
+  it('saves cleaned order description without changing item name', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_PDF_RECEIVED' as const,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_PDF_RECEIVED' }
+    };
+    orderService.getOrder.and.returnValue(of({
+      data: {
+        items: [
+          {
+            item_code: 'ITEM-1',
+            item_name: 'ATTA',
+            description: 'SFK ATTA',
+            qty: 1,
+            rate: 50,
+            amount: 50,
+            aas_margin_percent: 12,
+            aas_gst_percent: 5
+          }
+        ]
+      }
+    }));
+
+    component.selectOrder(order);
+    component.orderLines[0].display_description = 'ATTA';
+    component.saveOrderLines();
+
+    expect(orderService.updateOrderItems).toHaveBeenCalledWith(order.name, [
+      jasmine.objectContaining({
+        item_code: 'ITEM-1',
+        item_name: 'ATTA',
+        display_description: 'ATTA'
+      })
+    ]);
+  });
+
+  it('applies bulk description cleanup tools to all visible lines', () => {
+    component.orderLines = [
+      {
+        item_code: 'ITEM-1',
+        item_name: 'SFK SAMRAT ATTA',
+        display_description: 'SFK SAMRAT ATTA',
+        qty: 1,
+        rate: 10,
+        amount: 10,
+        aas_margin_percent: 7,
+        aas_gst_percent: 5,
+        mrpApplied: false
+      },
+      {
+        item_code: 'ITEM-2',
+        item_name: 'SFK MAIDA SAMRAT',
+        display_description: 'SFK MAIDA SAMRAT',
+        qty: 1,
+        rate: 10,
+        amount: 10,
+        aas_margin_percent: 7,
+        aas_gst_percent: 5,
+        mrpApplied: false
+      }
+    ];
+
+    component.toggleDescriptionCleanupToken('SFK');
+    component.descriptionBulkRemoveText = 'SAMRAT';
+    component.descriptionReplaceFrom = 'MAIDA';
+    component.descriptionReplaceTo = 'FLOUR';
+
+    component.applyDescriptionToolsToAll();
+
+    expect(component.orderLines[0].display_description).toBe('ATTA');
+    expect(component.orderLines[1].display_description).toBe('FLOUR');
+    expect(component.activeDescriptionRuleLabels).toEqual([
+      'Remove SFK',
+      'Remove: SAMRAT',
+      'Replace "MAIDA" with "FLOUR"'
+    ]);
+  });
+
   it('includes transport charge in bill validation and capture payload', () => {
     const order = {
       ...component.orders[0],

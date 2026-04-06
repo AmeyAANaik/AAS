@@ -6,6 +6,7 @@ import { AuthTokenService } from '../shared/auth-token.service';
 import { CompanyContextService } from '../shared/company-context.service';
 import { UserAccessService } from '../shared/user-access.service';
 import { BerryThemeService } from '../shared/services/berry-theme.service';
+import { MasterDataReviewService } from '../master-data-review/master-data-review.service';
 
 type ShellRouteMeta = { breadcrumbs: string[] };
 type ShellNavLink = { label: string; icon: string; route: string; feature: string };
@@ -35,6 +36,8 @@ export class AppShellComponent implements OnDestroy {
   isUserMenuOpen = false;
   isNavOpen = false;
   currentTheme: 'light' | 'dark' = 'light';
+  masterDataReviewCount = 0;
+  readonly masterDataReviewFeature = 'master_data_review.view';
   readonly allNavSections: ShellNavSection[] = [
     {
       title: 'Home',
@@ -58,7 +61,8 @@ export class AppShellComponent implements OnDestroy {
         { label: 'Vendors', icon: 'local_shipping', route: '/vendors', feature: 'master_data.view' },
         { label: 'Branches', icon: 'hub', route: '/branches', feature: 'master_data.view' },
         { label: 'Categories', icon: 'category', route: '/categories', feature: 'master_data.view' },
-        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' }
+        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' },
+        { label: 'Master Data Review', icon: 'notifications_active', route: '/master-data-review', feature: 'master_data_review.view' }
       ]
     },
     {
@@ -82,6 +86,7 @@ export class AppShellComponent implements OnDestroy {
     '/stock': { breadcrumbs: ['Inventory', 'Stock'] },
     '/bills': { breadcrumbs: ['Finance', 'Bills / Invoices'] },
     '/user-settings': { breadcrumbs: ['Home', 'User Details'] },
+    '/master-data-review': { breadcrumbs: ['Administration', 'Master Data Review'] },
     '/vendors': { breadcrumbs: ['Master Data', 'Vendors'] },
     '/branches': { breadcrumbs: ['Master Data', 'Branches'] },
     '/company-settings': { breadcrumbs: ['Home', 'Company Settings'] },
@@ -91,13 +96,15 @@ export class AppShellComponent implements OnDestroy {
   };
   private readonly subscription: Subscription;
   private readonly themeSubscription: Subscription;
+  private readonly masterDataReviewSubscription: Subscription;
 
   constructor(
     private router: Router,
     private tokenStore: AuthTokenService,
     private companyContextService: CompanyContextService,
     private userAccess: UserAccessService,
-    private themeService: BerryThemeService
+    private themeService: BerryThemeService,
+    private masterDataReviewService: MasterDataReviewService
   ) {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -113,6 +120,11 @@ export class AppShellComponent implements OnDestroy {
     this.currentTheme = this.themeService.getCurrentTheme();
     this.themeSubscription = this.themeService.theme$.subscribe(theme => {
       this.currentTheme = theme;
+    });
+    this.masterDataReviewSubscription = this.masterDataReviewService.refresh$.subscribe(() => {
+      if (this.canAccess(this.masterDataReviewFeature)) {
+        this.loadMasterDataReviewCount();
+      }
     });
   }
 
@@ -158,6 +170,7 @@ export class AppShellComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.subscription.unsubscribe();
     this.themeSubscription.unsubscribe();
+    this.masterDataReviewSubscription.unsubscribe();
   }
 
   private loadCompanyContext(): void {
@@ -193,13 +206,17 @@ export class AppShellComponent implements OnDestroy {
         this.userEmail = String(profile['email'] ?? '').trim();
         this.userRole = this.formatRole(String(profile['role'] ?? this.tokenStore.getRole() ?? '').trim());
         this.userAvatarText = this.initialsFor(this.userName, 'U');
-        this.navSections = this.buildNavSections(Array.isArray(profile['features']) ? profile['features'].map(value => String(value)) : this.tokenStore.getFeatures());
+        const features = Array.isArray(profile['features']) ? profile['features'].map(value => String(value)) : this.tokenStore.getFeatures();
+        this.navSections = this.buildNavSections(features);
+        this.loadMasterDataReviewCount(features);
       },
       error: () => {
         const role = this.formatRole(String(this.tokenStore.getRole() ?? '').trim());
         this.userRole = role;
         this.userAvatarText = this.initialsFor(this.userName, 'U');
-        this.navSections = this.buildNavSections(this.tokenStore.getFeatures());
+        const features = this.tokenStore.getFeatures();
+        this.navSections = this.buildNavSections(features);
+        this.loadMasterDataReviewCount(features);
       }
     });
   }
@@ -229,6 +246,21 @@ export class AppShellComponent implements OnDestroy {
 
   canAccess(feature: string): boolean {
     return this.tokenStore.getFeatures().includes(feature);
+  }
+
+  private loadMasterDataReviewCount(features: string[] = this.tokenStore.getFeatures()): void {
+    if (!features.includes(this.masterDataReviewFeature)) {
+      this.masterDataReviewCount = 0;
+      return;
+    }
+    this.masterDataReviewService.getPendingCount().subscribe({
+      next: result => {
+        this.masterDataReviewCount = Number(result?.pendingCount ?? 0);
+      },
+      error: () => {
+        this.masterDataReviewCount = 0;
+      }
+    });
   }
 
   private initialsFor(value: string, fallback: string): string {

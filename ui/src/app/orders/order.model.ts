@@ -113,6 +113,7 @@ export interface CreateSellOrderPayload {
 export interface OrderItemPayload {
   item_code: string;
   item_name?: string;
+  display_description?: string;
   qty: number;
   rate: number;
   aas_margin_percent: number;
