@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -63,9 +64,10 @@ describe('BillsPageComponent', () => {
       ],
       providers: [
         { provide: BillsService, useValue: billsService },
-        { provide: BranchService, useValue: { listBranches: () => of([]) } },
+        { provide: BranchService, useValue: { listBranches: () => of([{ name: 'Sukarta Aundh', customer_name: 'Sukarta Aundh', aas_invoice_email: 'billing@example.com', aas_whatsapp_number: '+919999999999' }]) } },
         { provide: ItemService, useValue: { listItems: () => of([]) } },
-        { provide: OrderService, useValue: { listOrders: () => of([]) } }
+        { provide: OrderService, useValue: { listOrders: () => of([]) } },
+        { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } }
       ]
     }).compileComponents();
 
@@ -90,5 +92,10 @@ describe('BillsPageComponent', () => {
   it('only allows draft invoices to be deleted', () => {
     expect(component.canDelete(component.invoices[0])).toBeTrue();
     expect(component.canDelete({ ...component.invoices[0], id: '' })).toBeFalse();
+  });
+
+  it('enables send actions when branch delivery details exist', () => {
+    expect(component.canSendEmail(component.invoices[0])).toBeTrue();
+    expect(component.canSendWhatsApp(component.invoices[0])).toBeTrue();
   });
 });

@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { InvoiceCreatePayload, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload } from './bills.model';
+import { InvoiceCreatePayload, InvoiceDeliveryPreview, InvoiceDeliveryRequest, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload } from './bills.model';
 
 @Injectable({
   providedIn: 'root'
@@ -48,6 +48,24 @@ export class BillsService {
 
   deleteInvoice(invoiceId: string): Observable<Record<string, unknown>> {
     return this.http.delete<Record<string, unknown>>(`/api/invoices/${invoiceId}`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  getInvoiceDeliveryPreview(invoiceId: string): Observable<InvoiceDeliveryPreview> {
+    return this.http.get<InvoiceDeliveryPreview>(`/api/invoices/${invoiceId}/delivery-preview`, {
+      headers: this.authHeaders()
+    });
+  }
+
+  sendInvoiceEmail(invoiceId: string, payload: InvoiceDeliveryRequest): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(`/api/invoices/${invoiceId}/send-email`, payload, {
+      headers: this.authHeaders()
+    });
+  }
+
+  sendInvoiceWhatsApp(invoiceId: string, payload: InvoiceDeliveryRequest): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(`/api/invoices/${invoiceId}/send-whatsapp`, payload, {
       headers: this.authHeaders()
     });
   }

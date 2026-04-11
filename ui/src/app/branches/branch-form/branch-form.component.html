@@ -18,6 +18,20 @@
         </div>
 
         <div class="form-section">
+          <div class="section-title">Billing recipients</div>
+          <mat-form-field appearance="outline">
+            <mat-label>Invoice email</mat-label>
+            <input matInput formControlName="invoiceEmail" />
+            <mat-hint>Used as the default billing recipient.</mat-hint>
+            <mat-error *ngIf="form.get('invoiceEmail')?.hasError('email')">Enter a valid email address.</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>WhatsApp number</mat-label>
+            <input matInput formControlName="whatsappNumber" />
+            <mat-hint>Include country code, for example +919405925917.</mat-hint>
+          </mat-form-field>
+
           <div class="section-title">Operations</div>
           <mat-form-field appearance="outline">
             <mat-label>WhatsApp Group Name</mat-label>

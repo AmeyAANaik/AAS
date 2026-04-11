@@ -1,0 +1,68 @@
+.dialog-content {
+  min-width: min(560px, 88vw);
+  display: grid;
+  gap: 18px;
+  padding-top: 8px;
+}
+
+.invoice-summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(244, 247, 255, 0.98), rgba(255, 255, 255, 0.98));
+}
+
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.summary-value {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.summary-meta {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.summary-chip {
+  min-width: 120px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--border);
+}
+
+.channel-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(228, 244, 238, 0.6);
+  color: var(--ink);
+}
+
+.channel-state mat-icon {
+  color: var(--accent-strong);
+}
+
+.channel-state-muted {
+  background: rgba(244, 245, 248, 0.95);
+  color: var(--muted);
+}
+
+.delivery-form {
+  display: grid;
+  gap: 14px;
+}

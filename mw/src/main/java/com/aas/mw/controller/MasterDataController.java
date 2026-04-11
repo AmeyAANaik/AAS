@@ -150,6 +150,21 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.uploadCompanyLogo(id, file, sessionCookie));
     }
 
+    @PostMapping(value = "/companies/{id}/signature", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadCompanySignature(
+            @PathVariable String id,
+            @RequestPart("file") MultipartFile file,
+            HttpServletRequest request) {
+        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of(
+                            "error", "Session expired. Please log out and log in again.",
+                            "errorCode", "ERP_SESSION_MISSING"));
+        }
+        return ResponseEntity.ok(masterDataService.uploadCompanySignature(id, file, sessionCookie));
+    }
+
     @GetMapping("/users/{id}")
     public ResponseEntity<Map<String, Object>> getUser(@PathVariable String id) {
         return ResponseEntity.ok(userService.getUserProfileById(id));

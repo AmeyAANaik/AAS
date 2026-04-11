@@ -1,10 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
+import { Branch } from '../../branches/branch.model';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
 import { formatUiError } from '../../shared/error-message.util';
+import { InvoiceDeliveryDialogComponent, InvoiceDeliveryDialogResult } from '../invoice-delivery-dialog/invoice-delivery-dialog.component';
 import { BillsService } from '../bills.service';
 import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
 
@@ -26,17 +29,20 @@ export class BillsPageComponent implements OnInit {
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
   private customerCompanies = new Map<string, string>();
+  private branchDirectory = new Map<string, Branch>();
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
   statusMessage = '';
   isLoading = false;
   deletingInvoiceId = '';
+  private actionFeedback = new Map<string, { tone: 'success' | 'error'; message: string }>();
 
   constructor(
     private fb: FormBuilder,
     private billsService: BillsService,
     private branchService: BranchService,
     private itemService: ItemService,
-    private orderService: OrderService
+    private orderService: OrderService,
+    private readonly dialog: MatDialog
   ) {
     const today = this.formatDate(new Date());
     this.filtersForm.patchValue({ from: today, to: today });
@@ -50,6 +56,7 @@ export class BillsPageComponent implements OnInit {
   loadReferenceData(): void {
     this.branchService.listBranches().subscribe({
       next: branches => {
+        this.branchDirectory = this.buildBranchDirectory(branches ?? []);
         this.customers = (branches ?? []).map(branch => {
           const name = String(branch.customer_name ?? branch.name ?? '').trim();
           const id = String(branch.name ?? name);
@@ -59,6 +66,7 @@ export class BillsPageComponent implements OnInit {
             company: this.customerCompanies.get(id) || undefined
           };
         });
+        this.invoices = this.invoices.map(invoice => this.withDeliveryConfig(invoice));
       }
     });
 
@@ -163,13 +171,37 @@ export class BillsPageComponent implements OnInit {
       .pipe(finalize(() => (this.deletingInvoiceId = '')))
       .subscribe({
         next: () => {
+          this.setActionFeedback(invoice.id, 'success', 'Invoice deleted.');
           this.statusMessage = 'Invoice deleted.';
           this.loadInvoices();
         },
         error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to delete invoice');
+          const message = this.formatError(err, 'Unable to delete invoice');
+          this.setActionFeedback(invoice.id, 'error', message);
+          this.statusMessage = message;
         }
       });
+  }
+
+  openDeliveryDialog(invoice: InvoiceView, channel: 'email' | 'whatsapp'): void {
+    if ((channel === 'email' && !invoice.emailConfigured) || (channel === 'whatsapp' && !invoice.whatsappConfigured)) {
+      return;
+    }
+    const dialogRef = this.dialog.open<InvoiceDeliveryDialogComponent, { invoice: InvoiceView; channel: 'email' | 'whatsapp' }, InvoiceDeliveryDialogResult>(
+      InvoiceDeliveryDialogComponent,
+      {
+        width: '640px',
+        maxWidth: '92vw',
+        data: { invoice, channel },
+        autoFocus: false
+      }
+    );
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result?.sent) {
+        return;
+      }
+      this.setActionFeedback(invoice.id, 'success', result.message || `${channel === 'email' ? 'Email' : 'WhatsApp'} sent.`);
+    });
   }
 
   downloadCsv(): void {
@@ -208,6 +240,18 @@ export class BillsPageComponent implements OnInit {
     return this.deletingInvoiceId === invoice.id;
   }
 
+  canSendEmail(invoice: InvoiceView): boolean {
+    return invoice.emailConfigured;
+  }
+
+  canSendWhatsApp(invoice: InvoiceView): boolean {
+    return invoice.whatsappConfigured;
+  }
+
+  getActionFeedback(invoice: InvoiceView): { tone: 'success' | 'error'; message: string } | null {
+    return this.actionFeedback.get(invoice.id) ?? null;
+  }
+
   getStatusPillClass(invoice: InvoiceView): string {
     if (invoice.statusTone === 'success') {
       return 'pill pill-success';
@@ -223,7 +267,7 @@ export class BillsPageComponent implements OnInit {
 
   private toViewModel(invoice: InvoiceSummary): InvoiceView {
     const status = String(invoice.status ?? '').trim() || 'Pending';
-    return {
+    return this.withDeliveryConfig({
       id: String(invoice.name ?? '').trim(),
       customer: String(invoice.customer ?? '').trim() || 'Unknown',
       company: String(invoice.company ?? '').trim(),
@@ -231,8 +275,12 @@ export class BillsPageComponent implements OnInit {
       totalLabel: this.resolveTotalLabel(invoice.grand_total),
       status,
       statusTone: this.resolveStatusTone(status),
+      emailConfigured: false,
+      emailRecipient: '',
+      whatsappConfigured: false,
+      whatsappRecipient: '',
       raw: invoice
-    };
+    });
   }
 
   private resolveTotalLabel(total: number | undefined): string {
@@ -257,6 +305,39 @@ export class BillsPageComponent implements OnInit {
       return 'info';
     }
     return 'neutral';
+  }
+
+  private setActionFeedback(invoiceId: string, tone: 'success' | 'error', message: string): void {
+    if (!invoiceId || !message) {
+      return;
+    }
+    this.actionFeedback.set(invoiceId, { tone, message });
+  }
+
+  private buildBranchDirectory(branches: Branch[]): Map<string, Branch> {
+    const directory = new Map<string, Branch>();
+    for (const branch of branches) {
+      const keys = [String(branch.name ?? '').trim(), String(branch.customer_name ?? '').trim()].filter(Boolean);
+      for (const key of keys) {
+        if (!directory.has(key)) {
+          directory.set(key, branch);
+        }
+      }
+    }
+    return directory;
+  }
+
+  private withDeliveryConfig(invoice: InvoiceView): InvoiceView {
+    const branch = this.branchDirectory.get(invoice.customer) ?? this.branchDirectory.get(String(invoice.raw.customer ?? '').trim());
+    const emailRecipient = String(branch?.aas_invoice_email ?? '').trim();
+    const whatsappRecipient = String(branch?.aas_whatsapp_number ?? branch?.aas_whatsapp_group_name ?? '').trim();
+    return {
+      ...invoice,
+      emailConfigured: !!emailRecipient,
+      emailRecipient,
+      whatsappConfigured: !!whatsappRecipient,
+      whatsappRecipient
+    };
   }
 
   private buildSummary(invoices: InvoiceView[]): { total: number; paid: number; open: number; totalAmount: number } {

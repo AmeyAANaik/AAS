@@ -1,6 +1,8 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.dto.InvoiceRequest;
+import com.aas.mw.dto.InvoiceDeliveryRequest;
+import com.aas.mw.service.InvoiceDeliveryService;
 import com.aas.mw.service.InvoiceService;
 import com.aas.mw.util.CsvUtil;
 import jakarta.validation.Valid;
@@ -23,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class InvoiceController {
 
     private final InvoiceService invoiceService;
+    private final InvoiceDeliveryService invoiceDeliveryService;
 
-    public InvoiceController(InvoiceService invoiceService) {
+    public InvoiceController(InvoiceService invoiceService, InvoiceDeliveryService invoiceDeliveryService) {
         this.invoiceService = invoiceService;
+        this.invoiceDeliveryService = invoiceDeliveryService;
     }
 
     @PostMapping
@@ -65,5 +69,24 @@ public class InvoiceController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteInvoice(@PathVariable String id) {
         return ResponseEntity.ok(invoiceService.deleteInvoice(id));
+    }
+
+    @GetMapping("/{id}/delivery-preview")
+    public ResponseEntity<Map<String, Object>> deliveryPreview(@PathVariable String id) {
+        return ResponseEntity.ok(invoiceDeliveryService.preview(id));
+    }
+
+    @PostMapping("/{id}/send-email")
+    public ResponseEntity<Map<String, Object>> sendEmail(
+            @PathVariable String id,
+            @RequestBody(required = false) InvoiceDeliveryRequest request) {
+        return ResponseEntity.ok(invoiceDeliveryService.sendEmail(id, request));
+    }
+
+    @PostMapping("/{id}/send-whatsapp")
+    public ResponseEntity<Map<String, Object>> sendWhatsApp(
+            @PathVariable String id,
+            @RequestBody(required = false) InvoiceDeliveryRequest request) {
+        return ResponseEntity.ok(invoiceDeliveryService.sendWhatsApp(id, request));
     }
 }

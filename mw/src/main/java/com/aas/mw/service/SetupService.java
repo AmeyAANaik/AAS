@@ -22,10 +22,10 @@ public class SetupService {
               .aas-title-row td { vertical-align: top; }
               .aas-brand { width: 58%; }
               .aas-invoice-meta { width: 42%; }
-              .aas-brand-wrap { display: flex; align-items: flex-start; gap: 14px; }
-              .aas-logo-box { width: 82px; }
-              .aas-logo { max-width: 82px; max-height: 82px; object-fit: contain; }
-              .aas-company-name { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+              .aas-brand-wrap { display: block; }
+              .aas-logo-box { width: 198px; margin: 10px 0 12px; }
+              .aas-logo { max-width: 198px; max-height: 198px; object-fit: contain; }
+              .aas-company-name { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: 0.01em; }
               .aas-company-line, .aas-bank-line, .aas-bill-line { margin: 0 0 2px; color: #374151; }
               .aas-gst-line { margin: 6px 0 0; font-weight: 600; }
               .aas-invoice-card { border: 1px solid #111827; padding: 10px 12px; }
@@ -41,11 +41,23 @@ public class SetupService {
               .aas-items .num { text-align: right; white-space: nowrap; }
               .aas-items .center { text-align: center; }
               .aas-item-name { font-weight: 600; }
-              .aas-summary { width: 360px; margin-left: auto; }
-              .aas-summary td { border: 1px solid #111827; padding: 7px 10px; }
-              .aas-summary .label { font-weight: 600; }
-              .aas-summary .value { text-align: right; white-space: nowrap; }
-              .aas-summary .grand td { font-weight: 700; }
+              .aas-summary { width: 500px; margin: 12px 0 24px auto; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; }
+              .aas-summary td { border-top: 1px solid #d1d5db; padding: 10px 14px; line-height: 1.35; vertical-align: middle; }
+              .aas-summary .aas-summary-heading td { border-top: 0; border-bottom: 1px solid #111827; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; }
+              .aas-summary .aas-summary-label-cell { font-weight: 600; width: 60%; color: #111827; }
+              .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; width: 40%; font-variant-numeric: tabular-nums; }
+              .aas-summary .aas-summary-grand td { border-top: 1px solid #111827; font-weight: 700; background: #eef2ff; font-size: 13px; }
+              .aas-footer-grid { width: 100%; margin-top: 20px; border-collapse: separate; border-spacing: 0; border-top: 1px solid #111827; padding-top: 14px; }
+              .aas-footer-grid td { vertical-align: top; }
+              .aas-footer-left { width: 62%; padding-right: 18px; }
+              .aas-footer-right { width: 38%; padding-left: 18px; border-left: 1px solid #d1d5db; }
+              .aas-footer-heading { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #4b5563; }
+              .aas-inwords { font-weight: 600; color: #111827; }
+              .aas-signatory-block { min-height: 116px; text-align: center; display: flex; flex-direction: column; justify-content: flex-end; }
+              .aas-signature-image { max-width: 180px; max-height: 64px; object-fit: contain; margin: 0 auto 10px; }
+              .aas-signatory-line { border-top: 1px solid #111827; margin: 0 20px 8px; }
+              .aas-signatory-label { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5563; }
+              .aas-signatory-name { margin: 6px 0 0; font-weight: 700; color: #111827; }
               .aas-empty { color: #6b7280; }
             </style>
             {% set company_doc = frappe.get_doc("Company", doc.company) if doc.company else None %}
@@ -56,10 +68,26 @@ public class SetupService {
             {% if company_logo %}
             {% set company_logo = company_logo.replace(" ", "%20") %}
             {% endif %}
+            {% set company_signature = company_doc.aas_authorized_signature if company_doc and company_doc.aas_authorized_signature else "" %}
+            {% if company_signature and company_signature.startswith("http://localhost:8080") %}
+            {% set company_signature = company_signature.replace("http://localhost:8080", "http://frontend:8080") %}
+            {% endif %}
+            {% if company_signature %}
+            {% set company_signature = company_signature.replace(" ", "%20") %}
+            {% endif %}
             {% set company_tax_id = (company_doc.tax_id or company_doc.gstin) if company_doc else "" %}
+            {% set customer_doc = frappe.get_doc("Customer", doc.customer) if doc.customer else None %}
             {% set company_address = [company_doc.address_line_1, company_doc.address_line_2, company_doc.city, company_doc.state, company_doc.pincode] if company_doc else [] %}
+            {% set branch_lines = [] %}
+            {% if customer_doc and customer_doc.aas_branch_location %}{% set _ = branch_lines.append(customer_doc.aas_branch_location) %}{% endif %}
+            {% if doc.customer_address %}{% set _ = branch_lines.append(doc.customer_address) %}{% endif %}
+            {% if doc.contact_display %}{% set _ = branch_lines.append(doc.contact_display) %}{% endif %}
+            {% if customer_doc and customer_doc.aas_invoice_email %}{% set _ = branch_lines.append("Invoice Email: " ~ customer_doc.aas_invoice_email) %}{% endif %}
+            {% if customer_doc and customer_doc.aas_whatsapp_number %}{% set _ = branch_lines.append("WhatsApp: " ~ customer_doc.aas_whatsapp_number) %}{% endif %}
+            {% if customer_doc and (not customer_doc.aas_whatsapp_number) and customer_doc.aas_whatsapp_group_name %}{% set _ = branch_lines.append("WhatsApp Group: " ~ customer_doc.aas_whatsapp_group_name) %}{% endif %}
             {% set rounding_adjustment = frappe.utils.flt(doc.aas_rounding_adjustment if doc.aas_rounding_adjustment else doc.rounding_adjustment, 2) %}
             {% set invoice_total = frappe.utils.flt(doc.grand_total if doc.grand_total else 0, 2) %}
+            {% set grand_total = frappe.utils.flt(invoice_total + rounding_adjustment, 2) %}
             {% set bank_lines = [] %}
             {% if company_doc and company_doc.aas_bank_beneficiary_name %}{% set _ = bank_lines.append("A/C Name: " ~ company_doc.aas_bank_beneficiary_name) %}{% endif %}
             {% if company_doc and company_doc.aas_bank_name %}{% set _ = bank_lines.append("Bank: " ~ company_doc.aas_bank_name) %}{% endif %}
@@ -75,8 +103,8 @@ public class SetupService {
                       <img class="aas-logo" src="{{ company_logo }}" alt="{{ doc.company }}" />
                     </div>
                     {% endif %}
+                    <p class="aas-company-name">{{ doc.company_name or doc.company }}</p>
                     <div>
-                      <p class="aas-company-name">{{ doc.company_name or doc.company }}</p>
                       {% for address_part in company_address %}
                       {% if address_part %}
                       <p class="aas-company-line">{{ address_part }}</p>
@@ -106,8 +134,11 @@ public class SetupService {
                 <td>
                   <p class="aas-section-title">Bill To</p>
                   <p class="aas-bill-line"><strong>{{ doc.customer_name or doc.customer }}</strong></p>
-                  {% if doc.customer_address %}<p class="aas-bill-line">{{ doc.customer_address }}</p>{% endif %}
-                  {% if doc.contact_display %}<p class="aas-bill-line">{{ doc.contact_display }}</p>{% endif %}
+                  {% for branch_line in branch_lines %}
+                  {% if branch_line %}
+                  <p class="aas-bill-line">{{ branch_line }}</p>
+                  {% endif %}
+                  {% endfor %}
                 </td>
                 <td>
                   <p class="aas-section-title">Bank Details</p>
@@ -171,37 +202,63 @@ public class SetupService {
               </tbody>
             </table>
             <table class="aas-summary">
+              <tbody>
+              <tr class="aas-summary-heading">
+                <td class="aas-summary-label-cell">Summary</td>
+                <td class="aas-summary-value-cell">Amount</td>
+              </tr>
               <tr>
-                <td class="label">Goods Total Before Tax</td>
-                <td class="value">{{ frappe.utils.fmt_money(totals.goods_taxable, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">Goods Total Before Tax</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.goods_taxable, currency=doc.currency) }}</td>
               </tr>
               {% if totals.transport %}
               <tr>
-                <td class="label">Transport / Additional Spend</td>
-                <td class="value">{{ frappe.utils.fmt_money(totals.transport, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">Transport / Additional Spend</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.transport, currency=doc.currency) }}</td>
               </tr>
               {% endif %}
               <tr>
-                <td class="label">Taxable Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(totals.taxable, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">Taxable Total</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.taxable, currency=doc.currency) }}</td>
               </tr>
               <tr>
-                <td class="label">GST Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(totals.gst, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">GST Total</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.gst, currency=doc.currency) }}</td>
               </tr>
               <tr>
-                <td class="label">Invoice Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(invoice_total, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">Invoice Total</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(invoice_total, currency=doc.currency) }}</td>
               </tr>
               {% if rounding_adjustment %}
               <tr>
-                <td class="label">Rounding Adjustment</td>
-                <td class="value">{{ frappe.utils.fmt_money(rounding_adjustment, currency=doc.currency) }}</td>
+                <td class="aas-summary-label-cell">Rounding Adjustment</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(rounding_adjustment, currency=doc.currency) }}</td>
               </tr>
               {% endif %}
-              <tr class="grand">
-                <td class="label">Grand Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(invoice_total + rounding_adjustment, currency=doc.currency) }}</td>
+              <tr class="aas-summary-grand">
+                <td class="aas-summary-label-cell">Grand Total</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
+              </tr>
+              </tbody>
+            </table>
+            <table class="aas-footer-grid">
+              <tr>
+                <td class="aas-footer-left">
+                  <div class="aas-footer-section">
+                    <p class="aas-footer-heading">Amount In Words</p>
+                    <div class="aas-inwords">{{ doc.in_words or frappe.utils.money_in_words(grand_total, doc.currency) }}</div>
+                  </div>
+                </td>
+                <td class="aas-footer-right">
+                  <div class="aas-signatory-block">
+                    {% if company_signature %}
+                    <img class="aas-signature-image" src="{{ company_signature }}" alt="Authorized signature" />
+                    {% endif %}
+                    <div class="aas-signatory-line"></div>
+                    <p class="aas-signatory-label">Authorized Signatory</p>
+                    <p class="aas-signatory-name">For {{ doc.company_name or doc.company }}</p>
+                  </div>
+                </td>
               </tr>
             </table>
             """;
@@ -407,6 +464,20 @@ public class SetupService {
                 "Int",
                 null,
                 "aas_whatsapp_group_name");
+        boolean branchInvoiceEmailField = ensureCustomField(
+                "Customer",
+                "aas_invoice_email",
+                "Invoice Email",
+                "Data",
+                null,
+                "aas_credit_days");
+        boolean branchWhatsappNumberField = ensureCustomField(
+                "Customer",
+                "aas_whatsapp_number",
+                "WhatsApp Number",
+                "Data",
+                null,
+                "aas_invoice_email");
         boolean poSourceOrderField = ensureCustomField(
                 "Purchase Order",
                 "aas_source_sales_order",
@@ -505,6 +576,13 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_bank_ifsc_code");
+        boolean companyAuthorizedSignatureField = ensureCustomField(
+                "Company",
+                "aas_authorized_signature",
+                "Authorized Signature",
+                "Data",
+                null,
+                "aas_bank_branch");
         boolean userFeatureAllowField = ensureCustomField(
                 "User",
                 UserFeatureService.FEATURE_ALLOW_FIELD,
@@ -699,6 +777,7 @@ public class SetupService {
         result.put("companyBankAccountNumberFieldCreated", companyBankAccountNumberField);
         result.put("companyBankIfscFieldCreated", companyBankIfscField);
         result.put("companyBankBranchFieldCreated", companyBankBranchField);
+        result.put("companyAuthorizedSignatureFieldCreated", companyAuthorizedSignatureField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());

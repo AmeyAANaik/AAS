@@ -30,12 +30,15 @@ export class CompanySettingsPageComponent implements OnInit {
 
   companyId = '';
   companyLogoUrl = '';
+  companySignatureUrl = '';
   selectedLogoFileName = '';
+  selectedSignatureFileName = '';
   branchName = '';
   branchLocation = '';
   isLoading = false;
   isSaving = false;
   isUploadingLogo = false;
+  isUploadingSignature = false;
   isLoadingAccess = false;
   isSavingAccess = false;
   message = '';
@@ -126,6 +129,39 @@ export class CompanySettingsPageComponent implements OnInit {
       });
   }
 
+  onSignatureSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file || !this.companyId) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.errorMessage = 'Please choose an image file for the company signature.';
+      input.value = '';
+      return;
+    }
+    this.isUploadingSignature = true;
+    this.errorMessage = '';
+    this.message = '';
+    this.selectedSignatureFileName = file.name;
+    this.companyContextService.uploadCompanySignature(this.companyId, file)
+      .pipe(finalize(() => {
+        this.isUploadingSignature = false;
+        if (input) {
+          input.value = '';
+        }
+      }))
+      .subscribe({
+        next: company => {
+          this.applyCompany(company);
+          this.message = 'Company signature updated.';
+        },
+        error: () => {
+          this.errorMessage = 'Unable to upload company signature.';
+        }
+      });
+  }
+
   private loadContext(): void {
     this.isLoading = true;
     this.companyContextService.getContext()
@@ -147,8 +183,12 @@ export class CompanySettingsPageComponent implements OnInit {
   private applyCompany(company: CompanyIdentity): void {
     this.companyId = company.id;
     this.companyLogoUrl = company.logo_url ?? '';
+    this.companySignatureUrl = company.signature_url ?? '';
     this.selectedLogoFileName = this.companyLogoUrl
       ? this.companyLogoUrl.split('/').pop()?.split('?')[0] ?? ''
+      : '';
+    this.selectedSignatureFileName = this.companySignatureUrl
+      ? this.companySignatureUrl.split('/').pop()?.split('?')[0] ?? ''
       : '';
     this.form.patchValue({
       name: company.name ?? '',

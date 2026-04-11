@@ -10,6 +10,32 @@ export interface InvoiceSummary {
   status?: string;
 }
 
+export interface InvoiceDeliveryChannelPreview {
+  channel: 'email' | 'whatsapp' | string;
+  recipient: string;
+  configured: boolean;
+  missingRecipient: boolean;
+  hint: string;
+}
+
+export interface InvoiceDeliveryPreview {
+  invoiceId: string;
+  customer: string;
+  customerDisplayName: string;
+  postingDate: string;
+  grandTotal: number;
+  outstandingAmount: number;
+  email: InvoiceDeliveryChannelPreview;
+  whatsapp: InvoiceDeliveryChannelPreview;
+  defaultEmailMessage: string;
+  defaultWhatsAppMessage: string;
+}
+
+export interface InvoiceDeliveryRequest {
+  recipient?: string;
+  message?: string;
+}
+
 export interface InvoiceView {
   id: string;
   customer: string;
@@ -18,6 +44,10 @@ export interface InvoiceView {
   totalLabel: string;
   status: InvoiceStatus;
   statusTone: 'neutral' | 'success' | 'warning' | 'info';
+  emailConfigured: boolean;
+  emailRecipient: string;
+  whatsappConfigured: boolean;
+  whatsappRecipient: string;
   raw: InvoiceSummary;
 }
 

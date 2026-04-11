@@ -18,6 +18,8 @@ export class BranchFormComponent implements OnChanges {
     branchName: ['', [Validators.required, Validators.maxLength(140)]],
     location: [''],
     whatsappGroupName: [''],
+    invoiceEmail: ['', [Validators.email]],
+    whatsappNumber: [''],
     creditDays: [0, [Validators.min(0)]]
   });
 
@@ -29,6 +31,8 @@ export class BranchFormComponent implements OnChanges {
         branchName: this.branch.name,
         location: this.branch.location,
         whatsappGroupName: this.branch.whatsappGroupName,
+        invoiceEmail: this.branch.invoiceEmail,
+        whatsappNumber: this.branch.whatsappNumber,
         creditDays: this.branch.creditDays ?? 0
       });
       this.form.get('branchName')?.disable({ emitEvent: false });
@@ -36,7 +40,7 @@ export class BranchFormComponent implements OnChanges {
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', creditDays: 0 });
+    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', invoiceEmail: '', whatsappNumber: '', creditDays: 0 });
   }
 
   submit(): void {
@@ -49,7 +53,7 @@ export class BranchFormComponent implements OnChanges {
 
   clear(): void {
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', creditDays: 0 });
+    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', invoiceEmail: '', whatsappNumber: '', creditDays: 0 });
     this.reset.emit();
   }
 }

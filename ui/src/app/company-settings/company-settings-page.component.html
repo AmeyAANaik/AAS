@@ -37,7 +37,7 @@
       <section class="form-section">
         <div class="section-copy">
           <div class="section-title">Company logo</div>
-          <div class="section-subtitle">Upload the logo once and the same branding will be used across the shell and GST invoice PDFs.</div>
+          <div class="section-subtitle">Upload the logo and optional signature used across the shell and GST invoice PDFs.</div>
         </div>
         <div class="logo-uploader">
           <div class="logo-preview-panel">
@@ -59,6 +59,27 @@
               {{ isUploadingLogo ? 'Uploading...' : (companyLogoUrl ? 'Replace Logo' : 'Upload Logo') }}
             </button>
             <div class="logo-upload-note">Recommended: square or landscape PNG/JPG with a clean background.</div>
+          </div>
+
+          <div class="logo-preview-panel signature-panel">
+            <img *ngIf="companySignatureUrl" class="signature-preview-image" [src]="companySignatureUrl" alt="Company signature preview" />
+            <div *ngIf="!companySignatureUrl" class="signature-preview-fallback">
+              Optional
+            </div>
+            <div class="logo-preview-copy">
+              <div class="logo-preview-title">Authorized signature</div>
+              <div class="logo-preview-subtitle">
+                {{ selectedSignatureFileName || 'Optional. Upload a signature image to show it in the invoice footer signatory section.' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="logo-upload-actions">
+            <input #signatureInput type="file" accept="image/*" hidden (change)="onSignatureSelected($event)" />
+            <button mat-stroked-button color="primary" type="button" (click)="signatureInput.click()" [disabled]="isUploadingSignature || isLoading">
+              {{ isUploadingSignature ? 'Uploading...' : (companySignatureUrl ? 'Replace Signature' : 'Upload Signature') }}
+            </button>
+            <div class="logo-upload-note">Optional. Best with transparent PNG and a wide signature crop.</div>
           </div>
         </div>
       </section>

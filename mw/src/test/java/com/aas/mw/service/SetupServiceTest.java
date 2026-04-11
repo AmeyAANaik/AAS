@@ -168,6 +168,24 @@ class SetupServiceTest {
                 eq("aas_bank_name"),
                 eq(true),
                 eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Customer"),
+                eq("aas_invoice_email"),
+                eq("Invoice Email"),
+                eq("Data"),
+                eq(null),
+                eq("aas_credit_days"),
+                eq(true),
+                eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Customer"),
+                eq("aas_whatsapp_number"),
+                eq("WhatsApp Number"),
+                eq("Data"),
+                eq(null),
+                eq("aas_invoice_email"),
+                eq(true),
+                eq(false));
     }
 
     @Test
@@ -266,6 +284,12 @@ class SetupServiceTest {
                     assertTrue(html.contains("{% if not is_transport %}"));
                     assertTrue(html.contains("{% set totals.visible_rows = totals.visible_rows + 1 %}"));
                     assertTrue(html.contains("<td class=\"center\">{{ totals.visible_rows }}</td>"));
+                    assertTrue(html.contains("class=\"aas-summary-label-cell\""));
+                    assertTrue(html.contains("class=\"aas-summary-value-cell\""));
+                    assertTrue(html.contains("class=\"aas-summary-grand\""));
+                    assertTrue(html.contains("<tbody>"));
+                    assertTrue(!html.contains("class=\"label\""));
+                    assertTrue(!html.contains("class=\"value\""));
                     return true;
                 }));
     }

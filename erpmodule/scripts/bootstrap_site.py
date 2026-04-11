@@ -63,6 +63,18 @@ def ensure_customer_fields() -> None:
                     "fieldtype": "Int",
                     "insert_after": "aas_whatsapp_group_name",
                 },
+                {
+                    "fieldname": "aas_invoice_email",
+                    "label": "Invoice Email",
+                    "fieldtype": "Data",
+                    "insert_after": "aas_credit_days",
+                },
+                {
+                    "fieldname": "aas_whatsapp_number",
+                    "label": "WhatsApp Number",
+                    "fieldtype": "Data",
+                    "insert_after": "aas_invoice_email",
+                },
             ]
         },
         ignore_validate=True,

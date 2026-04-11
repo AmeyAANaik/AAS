@@ -99,6 +99,8 @@ The ERPNext site initializes AAS-specific Customer fields used by the Branch tab
 
 - `Customer.aas_branch_location` (Data)
 - `Customer.aas_whatsapp_group_name` (Data)
+- `Customer.aas_invoice_email` (Data)
+- `Customer.aas_whatsapp_number` (Data)
 
 These are applied automatically in `pwd.yml` during the `create-site` step. If you need to re-apply them manually, run:
 
@@ -118,6 +120,41 @@ Why this matters:
 - initializes the site with explicit `sites_path`
 - creates required log directories before `frappe.connect()`
 - applies AAS customer custom fields idempotently
+
+## Optional Twilio Integration
+
+To make the ERP environment reproducible when WhatsApp delivery is enabled, `pwd.yml` now supports an optional app install path.
+
+Set:
+
+```bash
+export AAS_TWILIO_INTEGRATION_REPO=https://github.com/frappe/twilio-integration.git
+```
+
+Then rerun:
+
+```bash
+cd erpmodule
+docker compose -f pwd.yml run --rm create-site
+```
+
+This will:
+- fetch the Twilio integration app if it is missing
+- refresh `sites/apps.txt`
+- install `twilio_integration` on `aas.core.local` if it is not already installed
+
+After install, configure `Twilio Settings` in ERPNext before using WhatsApp delivery.
+
+## Outgoing Email Setup
+
+Invoice email delivery uses ERPNext outgoing mail. Before sending live invoice emails:
+
+1. Open ERPNext at `http://localhost:8080`
+2. Create an outgoing `Email Account`
+3. Mark it as the default outgoing account
+4. Verify the account can send mail successfully from ERPNext
+
+If no outgoing email account is configured, the middleware invoice send action will return a configuration error instead of silently failing.
 
 ## Common Bootstrap Failures
 

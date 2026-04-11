@@ -12,6 +12,7 @@ export type CompanyIdentity = {
   default_letter_head?: string;
   tax_id?: string;
   logo_url?: string;
+  signature_url?: string;
   bank_beneficiary_name?: string;
   bank_name?: string;
   bank_account_number?: string;
@@ -24,6 +25,8 @@ export type BranchIdentity = {
   name: string;
   location?: string;
   whatsapp_group?: string;
+  invoice_email?: string;
+  whatsapp_number?: string;
   credit_days?: number;
   logo_url?: string;
 };
@@ -60,6 +63,16 @@ export class CompanyContextService {
     formData.append('file', file);
     return this.http.post<CompanyIdentity>(
       `/api/companies/${encodeURIComponent(id)}/logo`,
+      formData,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  uploadCompanySignature(id: string, file: File): Observable<CompanyIdentity> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<CompanyIdentity>(
+      `/api/companies/${encodeURIComponent(id)}/signature`,
       formData,
       { headers: this.authHeaders() }
     );

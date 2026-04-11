@@ -1,7 +1,10 @@
 services:
   backend:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -18,7 +21,10 @@ services:
 
   configurator:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -51,7 +57,10 @@ services:
 
   create-site:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -121,6 +130,15 @@ services:
         if [ -z "$$ERP_SETUP_FY_START_DATE" ]; then ERP_SETUP_FY_START_DATE="2026-01-01"; fi;
         if [ -z "$$ERP_SETUP_FY_END_DATE" ]; then ERP_SETUP_FY_END_DATE="2026-12-31"; fi;
         if [ -z "$$ERP_SETUP_CHART_OF_ACCOUNTS" ]; then ERP_SETUP_CHART_OF_ACCOUNTS="Standard"; fi;
+        if [ -n "$$AAS_TWILIO_INTEGRATION_REPO" ] && [ ! -d apps/twilio_integration ]; then
+          bench get-app "$$AAS_TWILIO_INTEGRATION_REPO";
+          ls -1 apps > sites/apps.txt;
+        fi;
+        if [ -n "$$AAS_TWILIO_INTEGRATION_REPO" ]; then
+          if ! bench --site aas.core.local list-apps | grep -q '^twilio_integration'; then
+            bench --site aas.core.local install-app twilio_integration;
+          fi;
+        fi;
         cd /home/frappe/frappe-bench && ./env/bin/python /config/bootstrap_site.py;
 
   db:
@@ -147,7 +165,10 @@ services:
 
   frontend:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     depends_on:
@@ -174,7 +195,10 @@ services:
 
   queue-long:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -194,7 +218,10 @@ services:
 
   queue-short:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -232,7 +259,10 @@ services:
 
   scheduler:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:
@@ -247,7 +277,10 @@ services:
 
   websocket:
     image: aas-erpnext
-    build: .
+    build:
+      context: .
+      args:
+        AAS_TWILIO_INTEGRATION_REPO: ${AAS_TWILIO_INTEGRATION_REPO:-}
     networks:
       - frappe_network
     deploy:

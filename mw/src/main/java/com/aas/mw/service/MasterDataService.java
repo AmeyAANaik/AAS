@@ -128,7 +128,8 @@ public class MasterDataService {
         params.put(
                 "fields",
                 "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
-                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\",\"disabled\"]");
+                        + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\","
+                        + "\"aas_invoice_email\",\"aas_whatsapp_number\",\"disabled\"]");
         return erpNextClient.listResources("Customer", params);
     }
 
@@ -177,6 +178,7 @@ public class MasterDataService {
         profile.put("default_letter_head", asText(company.get("default_letter_head")));
         profile.put("tax_id", firstText(company.get("tax_id"), company.get("gstin")));
         profile.put("logo_url", firstText(company.get("company_logo"), company.get("logo"), company.get("letter_head_image")));
+        profile.put("signature_url", asText(company.get("aas_authorized_signature")));
         profile.put("bank_beneficiary_name", asText(company.get("aas_bank_beneficiary_name")));
         profile.put("bank_name", asText(company.get("aas_bank_name")));
         profile.put("bank_account_number", asText(company.get("aas_bank_account_number")));
@@ -198,6 +200,7 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "tax_id");
         copyIfPresent(fields, payload, "company_logo");
         copyIfPresent(fields, payload, "logo");
+        copyIfPresent(fields, payload, "aas_authorized_signature", "signature_url");
         copyIfPresent(fields, payload, "aas_bank_beneficiary_name", "bank_beneficiary_name");
         copyIfPresent(fields, payload, "aas_bank_name", "bank_name");
         copyIfPresent(fields, payload, "aas_bank_account_number", "bank_account_number");
@@ -230,6 +233,26 @@ public class MasterDataService {
         return getCompanyProfile(id);
     }
 
+    public Map<String, Object> uploadCompanySignature(String id, MultipartFile file, String sessionCookie) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Company id is required.");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Signature file is required.");
+        }
+        UploadedFileInfo uploaded = erpNextFileService.uploadFile(
+                "Company",
+                id,
+                resolveCompanySignatureFilename(file.getOriginalFilename()),
+                file,
+                sessionCookie);
+        if (uploaded.fileUrl() == null || uploaded.fileUrl().isBlank()) {
+            throw new IllegalStateException("Unable to upload company signature.");
+        }
+        erpNextClient.updateResource("Company", id, Map.of("aas_authorized_signature", uploaded.fileUrl()));
+        return getCompanyProfile(id);
+    }
+
     public Map<String, Object> getBranchProfile(String id) {
         if (id == null || id.isBlank()) {
             return Map.of();
@@ -243,6 +266,8 @@ public class MasterDataService {
         profile.put("name", asText(branch.get("customer_name")).isBlank() ? asText(branch.get("name")) : asText(branch.get("customer_name")));
         profile.put("location", asText(branch.get("aas_branch_location")));
         profile.put("whatsapp_group", asText(branch.get("aas_whatsapp_group_name")));
+        profile.put("invoice_email", asText(branch.get("aas_invoice_email")));
+        profile.put("whatsapp_number", asText(branch.get("aas_whatsapp_number")));
         profile.put("credit_days", branch.getOrDefault("aas_credit_days", 0));
         profile.put("logo_url", firstText(branch.get("image"), branch.get("logo")));
         return profile;
@@ -754,6 +779,14 @@ public class MasterDataService {
     }
 
     private String resolveCompanyLogoFilename(String originalFilename) {
+        return resolveCompanyAssetFilename("company_logo", originalFilename);
+    }
+
+    private String resolveCompanySignatureFilename(String originalFilename) {
+        return resolveCompanyAssetFilename("company_signature", originalFilename);
+    }
+
+    private String resolveCompanyAssetFilename(String basename, String originalFilename) {
         String extension = ".png";
         if (originalFilename != null && !originalFilename.isBlank()) {
             int dot = originalFilename.lastIndexOf('.');
@@ -761,7 +794,7 @@ public class MasterDataService {
                 extension = originalFilename.substring(dot);
             }
         }
-        return "company_logo" + extension;
+        return basename + extension;
     }
 
     private Map<String, Object> resolveVendorTemplateFileUrl(Map<String, Object> vendor) {

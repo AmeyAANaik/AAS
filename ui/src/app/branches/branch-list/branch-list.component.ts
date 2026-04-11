@@ -11,7 +11,7 @@ import { formatUiError } from '../../shared/error-message.util';
   styleUrl: './branch-list.component.scss'
 })
 export class BranchListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'location', 'whatsapp', 'creditDays', 'actions'];
+  displayedColumns: string[] = ['name', 'location', 'contacts', 'creditDays', 'actions'];
   branches: BranchView[] = [];
   selectedBranch: BranchView | null = null;
   isFormOpen = false;
@@ -67,6 +67,8 @@ export class BranchListComponent implements OnInit {
       const payload = {
         aas_branch_location: formValue.location,
         aas_whatsapp_group_name: formValue.whatsappGroupName,
+        aas_invoice_email: formValue.invoiceEmail,
+        aas_whatsapp_number: formValue.whatsappNumber,
         aas_credit_days: formValue.creditDays ?? 0
       };
       this.branchService
@@ -91,6 +93,8 @@ export class BranchListComponent implements OnInit {
       customer_name: formValue.branchName.trim(),
       aas_branch_location: formValue.location,
       aas_whatsapp_group_name: formValue.whatsappGroupName,
+      aas_invoice_email: formValue.invoiceEmail,
+      aas_whatsapp_number: formValue.whatsappNumber,
       aas_credit_days: formValue.creditDays ?? 0
     };
     this.branchService
@@ -118,6 +122,8 @@ export class BranchListComponent implements OnInit {
       name: name || String(branch.name ?? ''),
       location: branch.aas_branch_location ?? branch.location ?? '',
       whatsappGroupName: branch.aas_whatsapp_group_name ?? branch.whatsappGroupName ?? '',
+      invoiceEmail: branch.aas_invoice_email ?? '',
+      whatsappNumber: branch.aas_whatsapp_number ?? '',
       creditDays:
         typeof branch.aas_credit_days === 'number' ? branch.aas_credit_days : null,
       raw: branch

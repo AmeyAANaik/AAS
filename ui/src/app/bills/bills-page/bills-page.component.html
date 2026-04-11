@@ -67,7 +67,7 @@
     <div class="section-header">
       <div>
         <div class="section-title">Invoice list</div>
-        <div class="section-subtitle">Latest invoices, status, and downloadable PDFs for finance follow-up.</div>
+        <div class="section-subtitle">Latest invoices with delivery actions for finance follow-up, customer sharing, and collections.</div>
       </div>
     </div>
     <mat-card-content>
@@ -106,17 +106,47 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let invoice">
-              <div class="table-actions">
-                <button mat-button class="table-action" color="primary" (click)="downloadPdf(invoice)">Download PDF</button>
+              <div class="table-actions table-actions-rich table-actions-row">
+                <button
+                  type="button"
+                  class="row-action-button pdf-icon-button"
+                  (click)="downloadPdf(invoice)"
+                  matTooltip="Download invoice PDF"
+                  aria-label="Download invoice PDF">
+                  <img src="assets/icons/pdf.svg" alt="" class="row-action-icon pdf-action-icon" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="row-action-button delivery-channel-button email-icon-button"
+                  (click)="openDeliveryDialog(invoice, 'email')"
+                  [disabled]="!canSendEmail(invoice)"
+                  [matTooltip]="canSendEmail(invoice) ? ('Email ' + invoice.emailRecipient) : 'Add branch invoice email to enable email sending'"
+                  [attr.aria-label]="canSendEmail(invoice) ? ('Send invoice by email to ' + invoice.emailRecipient) : 'Email sending unavailable'">
+                  <img src="assets/icons/email.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="row-action-button delivery-channel-button whatsapp-icon-button"
+                  (click)="openDeliveryDialog(invoice, 'whatsapp')"
+                  [disabled]="!canSendWhatsApp(invoice)"
+                  [matTooltip]="canSendWhatsApp(invoice) ? ('WhatsApp ' + invoice.whatsappRecipient) : 'Add branch WhatsApp number or group to enable WhatsApp sharing'"
+                  [attr.aria-label]="canSendWhatsApp(invoice) ? ('Send invoice by WhatsApp to ' + invoice.whatsappRecipient) : 'WhatsApp sending unavailable'">
+                  <img src="assets/icons/whatsapp.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
+                </button>
+                <span class="destructive-action-divider" aria-hidden="true"></span>
                 <button
                   *ngIf="canDelete(invoice)"
-                  mat-button
-                  class="table-action warn"
-                  color="warn"
+                  type="button"
+                  class="row-action-button delete-icon-button"
                   (click)="deleteInvoice(invoice)"
-                  [disabled]="isDeleting(invoice)">
-                  {{ isDeleting(invoice) ? 'Deleting...' : 'Delete' }}
+                  [disabled]="isDeleting(invoice)"
+                  [matTooltip]="isDeleting(invoice) ? 'Deleting invoice' : 'Delete invoice'"
+                  [attr.aria-label]="isDeleting(invoice) ? 'Deleting invoice' : 'Delete invoice'">
+                  <img src="assets/icons/delete.svg" alt="" class="row-action-icon delete-action-icon" aria-hidden="true" />
                 </button>
+              </div>
+              <div class="action-feedback" *ngIf="getActionFeedback(invoice) as feedback" [class.action-feedback-error]="feedback.tone === 'error'">
+                {{ feedback.message }}
               </div>
             </td>
           </ng-container>
