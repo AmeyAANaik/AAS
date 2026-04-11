@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AAS Master Data Review Mock</title>
+    <style>
+        :root {
+            --bg: #f4efe7;
+            --panel: #fffdf9;
+            --panel-strong: #fff8ee;
+            --ink: #1f2937;
+            --muted: #6b7280;
+            --line: #e6dccb;
+            --accent: #0f766e;
+            --accent-soft: #d7f3ee;
+            --warn: #b45309;
+            --warn-soft: #fef3c7;
+            --danger: #b91c1c;
+            --danger-soft: #fee2e2;
+            --shadow: 0 18px 45px rgba(84, 58, 20, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Avenir Next", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(180, 83, 9, 0.10), transparent 28%),
+                var(--bg);
+            color: var(--ink);
+        }
+
+        .page {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 28px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            padding: 18px 22px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 24px;
+            background: rgba(255, 253, 249, 0.82);
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-badge {
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #0f766e, #115e59);
+            color: white;
+            font-weight: 700;
+        }
+
+        .brand small,
+        .muted {
+            color: var(--muted);
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .notif-pill {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            font-weight: 600;
+        }
+
+        .notif-count {
+            min-width: 26px;
+            height: 26px;
+            padding: 0 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: #111827;
+            color: white;
+            font-size: 12px;
+        }
+
+        .hero {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: 1.3fr 0.7fr;
+            gap: 20px;
+        }
+
+        .hero-card,
+        .panel,
+        .stat,
+        .queue-card,
+        .detail-card {
+            background: var(--panel);
+            border: 1px solid rgba(230, 220, 203, 0.9);
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero-card {
+            padding: 28px;
+            background:
+                linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(255, 248, 238, 0.95)),
+                var(--panel);
+        }
+
+        .hero h1 {
+            margin: 0 0 10px;
+            font-size: 34px;
+            line-height: 1.1;
+        }
+
+        .hero p {
+            margin: 0;
+            max-width: 740px;
+            color: #4b5563;
+            line-height: 1.6;
+        }
+
+        .hero-actions {
+            margin-top: 22px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            font-weight: 700;
+            cursor: default;
+        }
+
+        .btn.primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn.secondary {
+            background: var(--panel);
+            color: var(--ink);
+            border-color: var(--line);
+        }
+
+        .hero-side {
+            padding: 22px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .signal {
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: var(--panel-strong);
+            border: 1px solid var(--line);
+        }
+
+        .signal strong {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .stats {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .stat {
+            padding: 20px;
+        }
+
+        .stat .label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .stat .value {
+            margin-top: 10px;
+            font-size: 30px;
+            font-weight: 800;
+        }
+
+        .layout {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+        }
+
+        .queue-card,
+        .detail-card {
+            padding: 22px;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .section-head h2 {
+            margin: 0 0 4px;
+            font-size: 22px;
+        }
+
+        .chip-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .chip {
+            padding: 9px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #faf7f2;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .chip.active {
+            background: var(--accent-soft);
+            border-color: rgba(15, 118, 110, 0.25);
+            color: #115e59;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        td {
+            padding: 15px 10px;
+            border-bottom: 1px solid #f0e7db;
+            vertical-align: top;
+        }
+
+        .item-title {
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pill.warn {
+            color: var(--warn);
+            background: var(--warn-soft);
+        }
+
+        .pill.ok {
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .pill.bad {
+            color: var(--danger);
+            background: var(--danger-soft);
+        }
+
+        .priority {
+            font-weight: 700;
+            color: var(--danger);
+        }
+
+        .detail-stack {
+            display: grid;
+            gap: 16px;
+        }
+
+        .card-block {
+            padding: 16px;
+            border-radius: 18px;
+            background: #fcfaf6;
+            border: 1px solid var(--line);
+        }
+
+        .review-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .field {
+            padding: 12px;
+            border-radius: 14px;
+            background: white;
+            border: 1px solid #ebe2d4;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .field .input {
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #f8f4ee;
+            border: 1px solid #eadfce;
+            font-weight: 600;
+        }
+
+        .timeline {
+            display: grid;
+            gap: 10px;
+        }
+
+        .timeline-step {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            margin-top: 6px;
+            border-radius: 999px;
+            background: var(--accent);
+            flex: 0 0 auto;
+        }
+
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .banner {
+            margin-top: 20px;
+            padding: 16px 18px;
+            border-radius: 18px;
+            border: 1px solid rgba(180, 83, 9, 0.18);
+            background: linear-gradient(135deg, rgba(254, 243, 199, 0.95), rgba(255, 253, 249, 1));
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 1080px) {
+            .hero,
+            .layout,
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="topbar">
+            <div class="brand">
+                <div class="brand-badge">AAS</div>
+                <div>
+                    <div><strong>Admin Workspace</strong></div>
+                    <small>Master data governance for invoice-created items</small>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <div class="notif-pill">
+                    <span>Notifications</span>
+                    <span class="notif-count">12</span>
+                </div>
+                <div class="notif-pill">
+                    <span>Pending approvals</span>
+                    <span class="notif-count">7</span>
+                </div>
+            </div>
+        </div>
+
+        <section class="hero">
+            <div class="hero-card">
+                <small class="muted">Suggested new module</small>
+                <h1>Master Data Review Queue</h1>
+                <p>
+                    When invoice extraction creates a new item automatically, we keep the order moving but raise a review task
+                    for admin. Admin can approve, correct item master fields, set margin, and mark the master-data record as governed.
+                </p>
+                <div class="hero-actions">
+                    <div class="btn primary">Open Review Queue</div>
+                    <div class="btn secondary">View Source Order</div>
+                    <div class="btn secondary">See Notification Center</div>
+                </div>
+                <div class="banner">
+                    <strong>Recommended rule:</strong> auto-created item remains usable for the current order, but stays in
+                    <strong>Pending Review</strong> until admin approves master data. This avoids blocking operations while keeping governance.
+                </div>
+            </div>
+
+            <div class="hero-side hero-card">
+                <div class="signal">
+                    <strong>What triggers this?</strong>
+                    A parsed invoice row does not match an existing item, so AAS creates an item in ERP and immediately opens a review task.
+                </div>
+                <div class="signal">
+                    <strong>Who sees it?</strong>
+                    `ADMIN` users via sidebar badge, top-header notification pill, and optional dashboard card.
+                </div>
+                <div class="signal">
+                    <strong>What can admin change?</strong>
+                    Item name, category, UOM, packaging, vendor HSN, default margin, GST, and review status.
+                </div>
+            </div>
+        </section>
+
+        <section class="stats">
+            <div class="stat">
+                <div class="label">New items today</div>
+                <div class="value">18</div>
+                <div class="muted">15 from invoice parsing, 3 manual</div>
+            </div>
+            <div class="stat">
+                <div class="label">Pending review</div>
+                <div class="value">7</div>
+                <div class="muted">2 are high-priority because orders are waiting</div>
+            </div>
+            <div class="stat">
+                <div class="label">Approved today</div>
+                <div class="value">11</div>
+                <div class="muted">Median review time 22 min</div>
+            </div>
+            <div class="stat">
+                <div class="label">Margin gaps</div>
+                <div class="value">4</div>
+                <div class="muted">Records missing or using default margin</div>
+            </div>
+        </section>
+
+        <section class="layout">
+            <div class="queue-card">
+                <div class="section-head">
+                    <div>
+                        <h2>Approval Queue</h2>
+                        <div class="muted">One row per new master-data item detected during order invoice upload.</div>
+                    </div>
+                    <div class="pill warn">7 pending</div>
+                </div>
+
+                <div class="chip-row">
+                    <div class="chip active">All pending</div>
+                    <div class="chip">Needs margin</div>
+                    <div class="chip">Category mismatch</div>
+                    <div class="chip">Duplicate suspect</div>
+                    <div class="chip">Approved today</div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Source</th>
+                            <th>Issue</th>
+                            <th>Current margin</th>
+                            <th>Status</th>
+                            <th>Owner</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background:#fffcf7;">
+                            <td>
+                                <div class="item-title">NIRMA YELLOW POWDER 1KG</div>
+                                <div class="muted">Code: ITM-VND001-DET-2398</div>
+                            </td>
+                            <td>
+                                <div><strong>Order:</strong> SO-000184</div>
+                                <div class="muted">Invoice: VB-24011 · Vendor: Metro Supplies</div>
+                            </td>
+                            <td>
+                                <div class="priority">Missing reviewed margin</div>
+                                <div class="muted">Auto-created from parsed invoice row 28</div>
+                            </td>
+                            <td>7% default</td>
+                            <td><span class="pill warn">Pending review</span></td>
+                            <td>Unassigned</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-title">AASHIRVAAD ATTA 5KG</div>
+                                <div class="muted">Code: ITM-VND004-FLR-4431</div>
+                            </td>
+                            <td>
+                                <div><strong>Order:</strong> SO-000183</div>
+                                <div class="muted">Invoice: VB-24009 · Vendor: Fresh Basket</div>
+                            </td>
+                            <td>
+                                <div>Possible duplicate</div>
+                                <div class="muted">Similar existing item found in Grocery</div>
+                            </td>
+                            <td>9%</td>
+                            <td><span class="pill bad">Needs merge</span></td>
+                            <td>Priya</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-title">FORTUNE SUNLITE 1L</div>
+                                <div class="muted">Code: ITM-VND009-OIL-7781</div>
+                            </td>
+                            <td>
+                                <div><strong>Order:</strong> SO-000181</div>
+                                <div class="muted">Invoice: VB-23998 · Vendor: Annapurna</div>
+                            </td>
+                            <td>
+                                <div>Category not confirmed</div>
+                                <div class="muted">Parsed under Bakery Inputs, probable Oils</div>
+                            </td>
+                            <td>6%</td>
+                            <td><span class="pill warn">Pending review</span></td>
+                            <td>Rahul</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="item-title">TATA SALT LITE 1KG</div>
+                                <div class="muted">Code: ITM-VND002-GRC-1244</div>
+                            </td>
+                            <td>
+                                <div><strong>Order:</strong> SO-000177</div>
+                                <div class="muted">Invoice: VB-23980 · Vendor: Metro Supplies</div>
+                            </td>
+                            <td>
+                                <div>Reviewed and approved</div>
+                                <div class="muted">Default margin updated to 8%</div>
+                            </td>
+                            <td>8%</td>
+                            <td><span class="pill ok">Approved</span></td>
+                            <td>Priya</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="footer-note">
+                    Notification copy example: <strong>“7 new master-data records need approval. 2 are still using default margin.”</strong>
+                </div>
+            </div>
+
+            <div class="detail-card">
+                <div class="section-head">
+                    <div>
+                        <h2>Review Drawer</h2>
+                        <div class="muted">Admin opens this from queue row or notification click.</div>
+                    </div>
+                    <div class="pill warn">Item pending</div>
+                </div>
+
+                <div class="detail-stack">
+                    <div class="card-block">
+                        <strong>NIRMA YELLOW POWDER 1KG</strong>
+                        <div class="muted" style="margin-top:6px;">Created on invoice upload for SO-000184 by Helper user on 05 Apr 2026, 2:14 PM.</div>
+                    </div>
+
+                    <div class="card-block">
+                        <div class="review-grid">
+                            <div class="field">
+                                <label>Item name</label>
+                                <div class="input">NIRMA YELLOW POWDER 1KG</div>
+                            </div>
+                            <div class="field">
+                                <label>Category</label>
+                                <div class="input">Cleaning Powder</div>
+                            </div>
+                            <div class="field">
+                                <label>Vendor HSN</label>
+                                <div class="input">2398</div>
+                            </div>
+                            <div class="field">
+                                <label>UOM</label>
+                                <div class="input">Nos</div>
+                            </div>
+                            <div class="field">
+                                <label>Packaging unit</label>
+                                <div class="input">1 KG pack</div>
+                            </div>
+                            <div class="field">
+                                <label>Default margin</label>
+                                <div class="input">12%</div>
+                            </div>
+                            <div class="field">
+                                <label>GST %</label>
+                                <div class="input">18%</div>
+                            </div>
+                            <div class="field">
+                                <label>Resolution</label>
+                                <div class="input">Approve as new master item</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-block">
+                        <strong>Context from source invoice</strong>
+                        <div class="muted" style="margin-top:8px; line-height:1.6;">
+                            Parsed row 28 · Qty 6 · Vendor rate 82.00 · Parsed amount 492.00 · Existing order line currently priced with 7% fallback margin.
+                        </div>
+                    </div>
+
+                    <div class="card-block">
+                        <strong>Audit trail</strong>
+                        <div class="timeline" style="margin-top:10px;">
+                            <div class="timeline-step">
+                                <div class="dot"></div>
+                                <div>
+                                    <strong>Auto-created in ERP item master</strong>
+                                    <div class="muted">Generated code, category, vendor link, and default margin 7%</div>
+                                </div>
+                            </div>
+                            <div class="timeline-step">
+                                <div class="dot"></div>
+                                <div>
+                                    <strong>Notification raised for admin review</strong>
+                                    <div class="muted">Severity elevated because item is still on fallback margin</div>
+                                </div>
+                            </div>
+                            <div class="timeline-step">
+                                <div class="dot"></div>
+                                <div>
+                                    <strong>Approve updates future orders automatically</strong>
+                                    <div class="muted">Optional toggle: also update open order SO-000184 with reviewed margin</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-bar">
+                    <div class="btn primary">Approve & update item</div>
+                    <div class="btn secondary">Approve and apply margin to open order</div>
+                    <div class="btn secondary">Mark duplicate / merge</div>
+                    <div class="btn secondary">Send back for correction</div>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

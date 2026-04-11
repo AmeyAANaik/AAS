@@ -1,0 +1,31 @@
+<div class="gallery-shell">
+  <div class="gallery-header">
+    <div>
+      <h2>Branch images</h2>
+      <p>Order {{ data.orderId }} · {{ images.length }} image{{ images.length === 1 ? '' : 's' }}</p>
+    </div>
+    <div class="gallery-actions">
+      <button mat-button type="button" color="primary" (click)="openCurrentInNewTab()" [disabled]="!selectedImage">Open in new tab</button>
+      <button mat-icon-button type="button" aria-label="Close dialog" (click)="close()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <div class="gallery-body" *ngIf="selectedImage as image">
+    <div class="gallery-preview">
+      <img [src]="image.file_url" [alt]="image.file_name || 'Branch image'" />
+    </div>
+    <div class="gallery-strip">
+      <button
+        class="thumb"
+        type="button"
+        *ngFor="let item of images; let i = index"
+        [class.active]="i === selectedIndex"
+        (click)="selectImage(i)">
+        <img [src]="item.file_url" [alt]="item.file_name || ('Branch image ' + (i + 1))" />
+        <span>{{ item.file_name || ('Image ' + (i + 1)) }}</span>
+      </button>
+    </div>
+  </div>
+</div>

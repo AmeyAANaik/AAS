@@ -1,6 +1,6 @@
 .stock-page {
   display: grid;
-  gap: 20px;
+  gap: 24px;
 }
 
 .muted {
@@ -21,9 +21,25 @@
   color: var(--ink);
 }
 
+.alert-card {
+  background: linear-gradient(135deg, rgba(179, 71, 47, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.summary-hint {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.summary-hint.neutral {
+  color: var(--muted);
+}
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 table {
@@ -53,4 +69,86 @@ table {
 
 .low-stock {
   background: rgba(198, 76, 52, 0.06);
+}
+
+.section-card {
+  padding: 12px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.section-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.pro-table th,
+.pro-table .mat-mdc-header-cell {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.vendor-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.vendor-group-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 244, 238, 0.9));
+}
+
+.vendor-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.vendor-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.vendor-total {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+.vendor-group-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vendor-item-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(29, 111, 122, 0.1);
+  color: var(--accent-strong);
+  font-size: 12px;
+  line-height: 1.2;
 }

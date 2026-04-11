@@ -1,18 +1,39 @@
+export interface OrderBranchImage {
+  id: string;
+  file_name: string;
+  file_url: string;
+}
+
 export type OrderStatus = 'Accepted' | 'Preparing' | 'Ready' | 'Delivered' | 'Pending' | 'Unknown' | string;
 
 export interface OrderSummary {
   name?: string;
+  title?: string;
   customer?: string;
   company?: string;
+  aas_category?: string;
   transaction_date?: string;
   delivery_date?: string;
+  currency?: string;
+  price_list_currency?: string;
   aas_vendor?: string;
+  branch_images?: OrderBranchImage[];
+  aas_vendor_pdf?: string;
   aas_status?: string;
   status?: string;
   grand_total?: number;
   aas_cost_total?: number;
   aas_margin_total?: number;
   aas_margin_percent?: number;
+  aas_po?: string;
+  aas_vendor_bill_total?: number;
+  aas_vendor_bill_ref?: string;
+  aas_vendor_bill_date?: string;
+  aas_transport_charge?: number;
+  aas_rounding_adjustment?: number;
+  aas_sell_order_total?: number;
+  aas_so_branch?: string;
+  aas_si_branch?: string;
 }
 
 export interface OrderView {
@@ -42,24 +63,70 @@ export interface OrderCreateLine {
   item_code: string;
   qty: number;
   rate: number;
+  item_name?: string;
+  aas_gst_percent?: number;
 }
 
 export interface OrderCreatePayload {
   customer: string;
   company: string;
+  aas_category?: string;
+  aas_vendor?: string;
   transaction_date: string;
   delivery_date: string;
+  items?: OrderCreateLine[];
+}
+
+export interface DirectOrderCreatePayload extends OrderCreatePayload {
+  aas_category: string;
+  aas_vendor: string;
   items: OrderCreateLine[];
+  apply_gst: boolean;
 }
 
 export interface OrderCreateResult {
   id: string;
   customer: string;
+  transactionDate?: string;
+}
+
+export interface VendorBillPayload {
+  vendor_bill_total: number;
+  vendor_bill_ref?: string;
+  vendor_bill_date?: string;
+  transport_charge?: number;
+  allow_mismatch?: boolean;
+}
+
+export interface SellPreview {
+  orderId: string;
+  vendorBillTotal: number;
+  marginPercent: number;
+  sellAmount: number;
+  marginAmount: number;
+}
+
+export interface CreateSellOrderPayload {
+  apply_transport_to_invoice?: boolean;
+}
+
+export interface OrderItemPayload {
+  item_code: string;
+  item_name?: string;
+  display_description?: string;
+  qty: number;
+  rate: number;
+  aas_margin_percent: number;
+  aas_mrp?: number;
+  aas_gst_percent?: number;
+  manual_entry?: boolean;
+  parse_note?: string;
 }
 
 export interface OrderOption {
   id: string;
   name: string;
+  disabled?: boolean;
 }
 
 export interface ItemOption {
@@ -68,4 +135,5 @@ export interface ItemOption {
   code: string;
   category?: string;
   unit?: string;
+  marginPercent?: number | null;
 }

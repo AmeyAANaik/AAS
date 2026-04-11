@@ -1,0 +1,228 @@
+<div class="review-page berry-page">
+  <app-page-header
+    kicker="Administration"
+    title="Master Data Review"
+    subtitle="Approve invoice-created items, tune master fields, and resolve default-margin fallbacks.">
+    <button mat-stroked-button color="primary" (click)="loadQueue()" [disabled]="isLoading || isSaving">Refresh</button>
+  </app-page-header>
+
+  <div class="feedback success" *ngIf="statusMessage">{{ statusMessage }}</div>
+  <div class="feedback error" *ngIf="errorMessage">{{ errorMessage }}</div>
+  <div class="notification-banner" *ngIf="notificationMessage">
+    <div class="notification-copy">
+      <mat-icon>notifications_active</mat-icon>
+      <div>
+        <strong>Admin notification</strong>
+        <div>{{ notificationMessage }}</div>
+      </div>
+    </div>
+    <button
+      mat-stroked-button
+      color="primary"
+      *ngIf="selectedStatus !== priorityFilter"
+      (click)="applyStatusFilter(priorityFilter)">
+      View pending
+    </button>
+  </div>
+
+  <div class="summary-grid">
+    <mat-card class="summary-card">
+      <div class="summary-label">Pending approval</div>
+      <div class="summary-value">{{ summary.pendingCount }}</div>
+      <div class="summary-note">Items waiting for admin review</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Approved</div>
+      <div class="summary-value">{{ summary.approvedCount }}</div>
+      <div class="summary-note">Reviewed records in this queue</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Default margin used</div>
+      <div class="summary-value">{{ summary.defaultMarginCount }}</div>
+      <div class="summary-note">Priority items created with fallback margin</div>
+    </mat-card>
+    <mat-card class="summary-card">
+      <div class="summary-label">Tracked records</div>
+      <div class="summary-value">{{ summary.totalCount }}</div>
+      <div class="summary-note">Items carrying review workflow state</div>
+    </mat-card>
+  </div>
+
+  <div class="content-grid">
+    <mat-card class="queue-card">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Approval queue</div>
+          <div class="section-subtitle">Admin-only review stream for invoice-created item masters.</div>
+        </div>
+        <div class="table-meta">{{ filteredItems.length }} items</div>
+      </div>
+
+      <div class="filter-row">
+        <button
+          *ngFor="let filter of statusFilters"
+          mat-stroked-button
+          class="filter-btn"
+          [class.active]="selectedStatus === filter.value"
+          (click)="applyStatusFilter(filter.value)">
+          {{ filter.label }}
+        </button>
+      </div>
+
+      <div class="search-row">
+        <div class="search-shell">
+          <mat-icon>search</mat-icon>
+          <input
+            type="text"
+            [ngModel]="searchTerm"
+            (ngModelChange)="applySearch($event)"
+            placeholder="Search item, code, order, invoice, category, or HSN" />
+        </div>
+        <div class="search-meta" *ngIf="hasActiveSearch">Showing {{ filteredItems.length }} matching items</div>
+      </div>
+
+      <div class="feedback loading" *ngIf="isLoading">Loading review queue...</div>
+
+      <div class="queue-scroll" *ngIf="!isLoading && filteredItems.length; else emptyQueue">
+        <div class="queue-list">
+          <button
+            type="button"
+            class="queue-item"
+            *ngFor="let item of filteredItems"
+            [class.selected]="selectedItem?.id === item.id"
+            (click)="selectItem(item.id)">
+            <div class="queue-main">
+              <div class="item-title-row">
+                <div>
+                  <div class="item-title">{{ item.itemName || item.itemCode }}</div>
+                  <div class="item-meta">{{ item.itemCode }} · {{ item.category || 'No category' }}</div>
+                </div>
+                <span class="status-pill" [attr.data-state]="item.reviewStatus.toLowerCase()">{{ item.reviewStatus.replace('_', ' ') }}</span>
+              </div>
+              <div class="item-submeta">
+                <span>Order: {{ item.sourceOrderId || 'Unknown' }}</span>
+                <span>Invoice: {{ item.sourceInvoiceRef || 'Unknown' }}</span>
+              </div>
+              <div class="item-submeta">
+                <span>Margin: {{ item.marginPercent | number:'1.0-2' }}%</span>
+                <span *ngIf="item.defaultMarginUsed" class="priority-flag">Default margin used</span>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <ng-template #emptyQueue>
+        <div class="empty-state" *ngIf="!isLoading">
+          <mat-icon>notifications_none</mat-icon>
+          <div>No items match the current review filter.</div>
+        </div>
+      </ng-template>
+    </mat-card>
+
+    <mat-card class="detail-card">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Review detail</div>
+          <div class="section-subtitle">Approve and tune the final item master values.</div>
+        </div>
+      </div>
+
+      <div class="feedback loading" *ngIf="isDetailLoading">Loading detail...</div>
+
+      <div *ngIf="!isDetailLoading && selectedItem; else selectPrompt" class="detail-scroll">
+        <div class="detail-body">
+          <div class="hero-strip">
+            <div>
+              <div class="detail-title">{{ selectedItem.itemName || selectedItem.itemCode }}</div>
+              <div class="detail-meta">{{ selectedItem.itemCode }}</div>
+            </div>
+            <span class="status-pill" [attr.data-state]="selectedItem.reviewStatus.toLowerCase()">{{ selectedItem.reviewStatus.replace('_', ' ') }}</span>
+          </div>
+
+          <div class="detail-info-grid">
+            <div class="info-card">
+              <label>Source order</label>
+              <div>{{ selectedItem.sourceOrderId || 'Unknown' }}</div>
+            </div>
+            <div class="info-card">
+              <label>Source invoice ref</label>
+              <div>{{ selectedItem.sourceInvoiceRef || 'Unknown' }}</div>
+            </div>
+            <div class="info-card">
+              <label>Created by</label>
+              <div>{{ selectedItem.createdBy || 'System' }}</div>
+            </div>
+            <div class="info-card">
+              <label>Created at</label>
+              <div>{{ selectedItem.createdAt || '-' }}</div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Item name</span>
+              <input [(ngModel)]="formModel.item_name" />
+            </label>
+
+            <label class="field">
+              <span>Category</span>
+              <input [(ngModel)]="formModel.item_group" list="review-category-options" />
+              <datalist id="review-category-options">
+                <option *ngFor="let category of categories" [value]="category"></option>
+              </datalist>
+            </label>
+
+            <label class="field">
+              <span>UOM</span>
+              <input [(ngModel)]="formModel.stock_uom" />
+            </label>
+
+            <label class="field">
+              <span>Packaging unit</span>
+              <input [(ngModel)]="formModel.aas_packaging_unit" />
+            </label>
+
+            <label class="field">
+              <span>Margin %</span>
+              <input type="number" min="0" step="0.01" [(ngModel)]="formModel.aas_margin_percent" />
+            </label>
+
+            <label class="field">
+              <span>GST %</span>
+              <input type="number" min="0" step="0.01" [(ngModel)]="formModel.aas_gst_percent" />
+            </label>
+
+            <label class="field">
+              <span>Vendor HSN code</span>
+              <input [(ngModel)]="formModel.aas_vendor_hsn_code" />
+            </label>
+
+            <label class="field field-checkbox">
+              <span>Apply reviewed margin to source order</span>
+              <input type="checkbox" [(ngModel)]="formModel.applyToSourceOrder" />
+            </label>
+          </div>
+
+          <label class="field field-full">
+            <span>Review notes</span>
+            <textarea rows="4" [(ngModel)]="formModel.reviewNotes"></textarea>
+          </label>
+
+          <div class="action-row">
+            <button mat-flat-button color="primary" (click)="approve()" [disabled]="isSaving">
+              {{ isSaving ? 'Approving...' : 'Approve Item' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ng-template #selectPrompt>
+        <div class="empty-state">
+          <mat-icon>inventory_2</mat-icon>
+          <div>Select a review item to inspect and approve it.</div>
+        </div>
+      </ng-template>
+    </mat-card>
+  </div>
+</div>

@@ -1,7 +1,7 @@
 <div class="reports-page">
   <app-page-header title="Reports" subtitle="Run operational and finance reports using MW data only.">
-    <button mat-stroked-button color="primary">Run</button>
-    <button mat-stroked-button color="primary">Export CSV</button>
+    <button mat-stroked-button color="primary" (click)="run()" [disabled]="isLoading">Run</button>
+    <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="isLoading">Export CSV</button>
   </app-page-header>
 
   <mat-card>
@@ -35,12 +35,30 @@
   <mat-card>
     <mat-card-title>Results</mat-card-title>
     <mat-card-content>
-      <app-empty-state
-        icon="bar_chart"
-        title="No results yet"
-        message="Select a report type and date range to run a report."
-        hint="Results will appear here once the MW report runs.">
-      </app-empty-state>
+      <div class="feedback loading" *ngIf="isLoading">Running report...</div>
+      <div class="feedback" *ngIf="!isLoading && status">{{ status }}</div>
+      <div *ngIf="rows.length; else emptyState" class="result-table-wrap">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th *ngFor="let column of columns">{{ column }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of rows">
+              <td *ngFor="let column of columns">{{ formatCell(row[column]) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-template #emptyState>
+        <app-empty-state
+          icon="bar_chart"
+          title="No results yet"
+          message="Select a report type and date range to run a report."
+          hint="Results will appear here once the MW report runs.">
+        </app-empty-state>
+      </ng-template>
     </mat-card-content>
   </mat-card>
 </div>

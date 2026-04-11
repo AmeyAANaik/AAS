@@ -1,0 +1,6 @@
+/node_modules/
+/.m2/
+/.vscode/
+/ui/.vscode/
+/ui/node_modules/
+/.env.mw

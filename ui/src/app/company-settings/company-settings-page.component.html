@@ -1,0 +1,321 @@
+<section class="company-settings-page">
+  <app-page-header kicker="Settings" title="Company Settings" subtitle="Update the application company identity shown throughout the shell, documents, and order workflow."></app-page-header>
+
+  <mat-card class="settings-card">
+    <div class="state" *ngIf="isLoading">Loading company details...</div>
+    <div class="state error" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div class="state success" *ngIf="message">{{ message }}</div>
+
+    <div class="identity" *ngIf="!isLoading">
+      <div class="identity-main">
+        <img *ngIf="companyLogoUrl" class="identity-logo" [src]="companyLogoUrl" alt="Company logo" />
+        <div *ngIf="!companyLogoUrl" class="identity-logo fallback">{{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}</div>
+        <div>
+          <div class="identity-kicker">Company profile</div>
+          <div class="identity-title">{{ form.get('name')?.value || 'Company' }}</div>
+          <div class="identity-subtitle">Application identity and document defaults</div>
+        </div>
+      </div>
+
+      <div class="identity-meta">
+        <div class="meta-chip">
+          <span class="meta-label">Abbr</span>
+          <strong>{{ form.get('abbr')?.value || 'Not set' }}</strong>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Currency</span>
+          <strong>{{ form.get('default_currency')?.value || 'Not set' }}</strong>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Country</span>
+          <strong>{{ form.get('country')?.value || 'Not set' }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <form [formGroup]="form" class="settings-form">
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Company logo</div>
+          <div class="section-subtitle">Upload the logo once and the same branding will be used across the shell and GST invoice PDFs.</div>
+        </div>
+        <div class="logo-uploader">
+          <div class="logo-preview-panel">
+            <img *ngIf="companyLogoUrl" class="logo-preview-image" [src]="companyLogoUrl" alt="Company logo preview" />
+            <div *ngIf="!companyLogoUrl" class="logo-preview-fallback">
+              {{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}
+            </div>
+            <div class="logo-preview-copy">
+              <div class="logo-preview-title">Current company logo</div>
+              <div class="logo-preview-subtitle">
+                {{ selectedLogoFileName || 'No logo uploaded yet. Add one for invoices, headers, and company identity.' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="logo-upload-actions">
+            <input #logoInput type="file" accept="image/*" hidden (change)="onLogoSelected($event)" />
+            <button mat-flat-button color="primary" type="button" (click)="logoInput.click()" [disabled]="isUploadingLogo || isLoading">
+              {{ isUploadingLogo ? 'Uploading...' : (companyLogoUrl ? 'Replace Logo' : 'Upload Logo') }}
+            </button>
+            <div class="logo-upload-note">Recommended: square or landscape PNG/JPG with a clean background.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Primary details</div>
+          <div class="section-subtitle">Core identity values used across the shell and application records.</div>
+        </div>
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Company Name</div>
+              <div class="row-subtitle">Read-only company name used by the application.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Company Name</mat-label>
+              <input matInput formControlName="name" readonly />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Abbreviation</div>
+              <div class="row-subtitle">Short identifier used across records.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Abbreviation</mat-label>
+              <input matInput formControlName="abbr" />
+              <mat-error *ngIf="form.get('abbr')?.hasError('required')">Abbreviation is required.</mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Default Currency</div>
+              <div class="row-subtitle">Primary currency used on generated documents.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Default Currency</mat-label>
+              <input matInput formControlName="default_currency" />
+              <mat-error *ngIf="form.get('default_currency')?.hasError('required')">Currency is required.</mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Country</div>
+              <div class="row-subtitle">Registered operating country.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Country</mat-label>
+              <input matInput formControlName="country" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Document defaults</div>
+          <div class="section-subtitle">Billing and compliance fields used when documents are generated downstream.</div>
+        </div>
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Default Letter Head</div>
+              <div class="row-subtitle">Header used on invoices and related paperwork.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Default Letter Head</mat-label>
+              <input matInput formControlName="default_letter_head" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Tax ID</div>
+              <div class="row-subtitle">Compliance identifier printed on documents.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Tax ID</mat-label>
+              <input matInput formControlName="tax_id" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Beneficiary Name</div>
+              <div class="row-subtitle">Account holder name shown on the GST invoice bank-details block.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Beneficiary Name</mat-label>
+              <input matInput formControlName="bank_beneficiary_name" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Name</div>
+              <div class="row-subtitle">Bank name printed on the right side of the GST invoice.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Name</mat-label>
+              <input matInput formControlName="bank_name" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Account Number</div>
+              <div class="row-subtitle">Beneficiary account number used for invoice payments.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Account Number</mat-label>
+              <input matInput formControlName="bank_account_number" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank IFSC Code</div>
+              <div class="row-subtitle">IFSC code shown for NEFT/RTGS/IMPS transfers.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank IFSC Code</mat-label>
+              <input matInput formControlName="bank_ifsc_code" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Branch</div>
+              <div class="row-subtitle">Optional branch name for the GST invoice bank-details panel.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Branch</mat-label>
+              <input matInput formControlName="bank_branch" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions settings-actions">
+        <div class="save-note">Changes are written back to the application company record.</div>
+        <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
+          {{ isSaving ? 'Saving...' : 'Save Company Details' }}
+        </button>
+      </div>
+    </form>
+  </mat-card>
+
+  <mat-card class="settings-card access-card">
+    <div class="access-header">
+      <div>
+        <div class="section-title">UI Access Control</div>
+        <div class="section-subtitle">Adjust sidebar and screen visibility per user without changing their base application role.</div>
+      </div>
+      <div class="access-note">Role defaults stay intact. Allow/Deny only adds UI overrides.</div>
+    </div>
+
+    <div class="state" *ngIf="isLoadingAccess">Loading access controls...</div>
+    <div class="state error" *ngIf="accessErrorMessage">{{ accessErrorMessage }}</div>
+    <div class="state success" *ngIf="accessMessage">{{ accessMessage }}</div>
+
+    <div class="access-layout" *ngIf="!isLoadingAccess">
+      <section class="user-list">
+        <button
+          type="button"
+          class="user-list-item"
+          *ngFor="let user of managedUsers"
+          [class.active]="user.id === selectedUserId"
+          (click)="selectManagedUser(user.id)">
+          <div class="user-list-item__title">{{ user.full_name || user.name }}</div>
+          <div class="user-list-item__meta">
+            <span>{{ user.email || user.name }}</span>
+            <span class="role-chip">{{ labelForRole(user.role) }}</span>
+          </div>
+        </button>
+      </section>
+
+      <section class="access-editor" *ngIf="selectedUser as user">
+        <div class="editor-identity">
+          <div>
+            <div class="identity-kicker">Selected user</div>
+            <div class="identity-title small">{{ user.full_name || user.name }}</div>
+            <div class="identity-subtitle">{{ user.email || user.name }}</div>
+          </div>
+          <div class="identity-meta">
+            <div class="meta-chip">
+              <span class="meta-label">Base role</span>
+              <strong>{{ selectedRoleLabel }}</strong>
+            </div>
+            <div class="meta-chip">
+              <span class="meta-label">Overrides</span>
+              <strong>{{ allowOverrides.size + denyOverrides.size }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="default-feature-strip">
+          <span class="meta-label">Default visibility</span>
+          <div class="feature-pill-wrap">
+            <span class="feature-pill" *ngFor="let feature of selectedDefaultFeatures">{{ feature }}</span>
+          </div>
+        </div>
+
+        <div class="feature-groups">
+          <section class="feature-group" *ngFor="let group of featureGroups">
+            <div class="group-title">{{ group.name }}</div>
+            <div class="feature-row" *ngFor="let feature of group.features">
+              <div class="feature-copy">
+                <div class="feature-title">{{ feature.label }}</div>
+                <div class="feature-subtitle">{{ feature.description }}</div>
+              </div>
+              <div class="feature-state">
+                <span class="feature-effective" [class.disabled]="!isEffective(feature.key)">
+                  {{ isEffective(feature.key) ? 'Visible' : 'Hidden' }}
+                </span>
+                <div class="override-toggle">
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'default'"
+                    (click)="setOverride(feature.key, 'default')">
+                    Default
+                  </button>
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'allow'"
+                    (click)="setOverride(feature.key, 'allow')">
+                    Allow
+                  </button>
+                  <button
+                    type="button"
+                    class="toggle-button"
+                    [class.active]="overrideState(feature.key) === 'deny'"
+                    (click)="setOverride(feature.key, 'deny')">
+                    Deny
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="actions settings-actions">
+          <div class="save-note">These overrides affect shell navigation and guarded screens after the next profile refresh.</div>
+          <div class="access-actions">
+            <button mat-stroked-button type="button" (click)="resetAccessOverrides()" [disabled]="isSavingAccess">Reset overrides</button>
+            <button mat-flat-button color="primary" type="button" (click)="saveAccess()" [disabled]="isSavingAccess">
+              {{ isSavingAccess ? 'Saving...' : 'Save Access Rules' }}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </mat-card>
+</section>

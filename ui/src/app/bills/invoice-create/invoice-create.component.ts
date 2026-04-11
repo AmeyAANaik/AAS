@@ -1,6 +1,7 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../../shared/error-message.util';
 import { BillsService } from '../bills.service';
 import {
   InvoiceCreatePayload,
@@ -21,7 +22,6 @@ export class InvoiceCreateComponent {
   @Input() orders: OptionItem[] = [];
   @Output() created = new EventEmitter<InvoiceCreateResult>();
 
-  mode: 'order' | 'manual' = 'order';
   statusMessage = '';
   isSubmitting = false;
   isLoadingOrder = false;
@@ -31,20 +31,10 @@ export class InvoiceCreateComponent {
     orderId: ['', Validators.required]
   });
 
-  manualForm: FormGroup = this.fb.group({
-    customer: ['', Validators.required],
-    company: ['aas', Validators.required],
-    itemCode: ['', Validators.required],
-    qty: [1, [Validators.required, Validators.min(1)]],
-    rate: [0, [Validators.required, Validators.min(0)]]
-  });
+  gstControl = new FormControl(true);
+  roundingAdjustmentControl = new FormControl(0, { nonNullable: true });
 
   constructor(private fb: FormBuilder, private billsService: BillsService) {}
-
-  setMode(mode: 'order' | 'manual'): void {
-    this.mode = mode;
-    this.statusMessage = '';
-  }
 
   loadOrder(): void {
     const orderId = String(this.orderForm.get('orderId')?.value ?? '').trim();
@@ -60,6 +50,9 @@ export class InvoiceCreateComponent {
       .subscribe({
         next: order => {
           this.orderSnapshot = order ?? null;
+          this.roundingAdjustmentControl.setValue(Number(order?.aas_rounding_adjustment ?? 0) || 0, {
+            emitEvent: false
+          });
           this.statusMessage = order ? 'Order loaded.' : 'Order not found.';
         },
         error: err => {
@@ -69,11 +62,39 @@ export class InvoiceCreateComponent {
   }
 
   submit(): void {
-    if (this.mode === 'order') {
-      this.submitFromOrder();
-      return;
+    this.submitFromOrder();
+  }
+
+  get orderSummary(): string {
+    if (!this.orderSnapshot) {
+      return 'No order loaded.';
     }
-    this.submitManual();
+    const itemCount = Array.isArray(this.orderSnapshot.items) ? this.orderSnapshot.items.length : 0;
+    return `${this.orderSnapshot.customer ?? 'Unknown'} · ${itemCount} item(s)`;
+  }
+
+  get orderPayments(): Array<{ due_date?: string; payment_amount?: number; outstanding?: number }> {
+    const schedule = this.orderSnapshot?.payment_schedule;
+    if (!Array.isArray(schedule)) {
+      return [];
+    }
+    return schedule.map(entry => ({
+      due_date: entry?.due_date,
+      payment_amount: Number(entry?.payment_amount ?? 0),
+      outstanding: Number(entry?.outstanding ?? 0)
+    }));
+  }
+
+  get orderOutstanding(): number | null {
+    if (!this.orderSnapshot) {
+      return null;
+    }
+    const payments = this.orderPayments;
+    if (!payments.length) {
+      return this.orderSnapshot.grand_total ?? null;
+    }
+    const outstanding = payments.reduce((sum, payment) => sum + (payment.outstanding ?? 0), 0);
+    return Number.isFinite(outstanding) ? outstanding : null;
   }
 
   private submitFromOrder(): void {
@@ -82,7 +103,7 @@ export class InvoiceCreateComponent {
       return;
     }
     const customer = String(this.orderSnapshot.customer ?? '').trim();
-    const company = String(this.orderSnapshot.company ?? 'aas').trim();
+    const company = String(this.orderSnapshot.company ?? '').trim();
     const items = Array.isArray(this.orderSnapshot.items) ? this.orderSnapshot.items : [];
     if (!customer || !company || !items.length) {
       this.statusMessage = 'Order is missing required invoice details.';
@@ -95,29 +116,11 @@ export class InvoiceCreateComponent {
         item_code: String(item.item_code ?? ''),
         qty: Number(item.qty ?? 0),
         rate: Number(item.rate ?? 0)
-      }))
+      })),
+      apply_gst: this.gstControl.value ?? true,
+      rounding_adjustment: this.roundingAdjustmentValue || undefined
     };
     this.createInvoice(payload, customer);
-  }
-
-  private submitManual(): void {
-    if (this.manualForm.invalid) {
-      this.manualForm.markAllAsTouched();
-      return;
-    }
-    const formValue = this.manualForm.getRawValue();
-    const payload: InvoiceCreatePayload = {
-      customer: String(formValue.customer ?? '').trim(),
-      company: String(formValue.company ?? 'aas').trim(),
-      items: [
-        {
-          item_code: String(formValue.itemCode ?? ''),
-          qty: Number(formValue.qty ?? 0),
-          rate: Number(formValue.rate ?? 0)
-        }
-      ]
-    };
-    this.createInvoice(payload, payload.customer);
   }
 
   private createInvoice(payload: InvoiceCreatePayload, customer: string): void {
@@ -143,37 +146,16 @@ export class InvoiceCreateComponent {
 
   resetForms(): void {
     this.orderForm.reset({ orderId: '' });
-    this.manualForm.reset({
-      customer: '',
-      company: 'aas',
-      itemCode: '',
-      qty: 1,
-      rate: 0
-    });
     this.orderSnapshot = null;
+    this.roundingAdjustmentControl.setValue(0);
   }
 
-  get orderSummary(): string {
-    if (!this.orderSnapshot) {
-      return 'No order loaded.';
-    }
-    const itemCount = Array.isArray(this.orderSnapshot.items) ? this.orderSnapshot.items.length : 0;
-    return `${this.orderSnapshot.customer ?? 'Unknown'} · ${itemCount} item(s)`;
-  }
-
-  get manualTotal(): number {
-    const qty = Number(this.manualForm.get('qty')?.value || 0);
-    const rate = Number(this.manualForm.get('rate')?.value || 0);
-    return qty * rate;
+  get roundingAdjustmentValue(): number {
+    const value = Number(this.roundingAdjustmentControl.value ?? 0);
+    return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

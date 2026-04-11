@@ -1,51 +1,951 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.dto.DownloadedFile;
+import com.aas.mw.dto.OrderItemLine;
 import com.aas.mw.dto.OrderRequest;
+import com.aas.mw.dto.UploadedFileInfo;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Map;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OrderService {
+    private static final String MANUAL_ENTRY_MARKER = "[AAS_MANUAL_ENTRY]";
+    private static final String PARSE_NOTE_PREFIX = "[AAS_PARSE_NOTE]";
 
     private static final String DOCTYPE = "Sales Order";
-
+    private static final String ITEM = "Item";
+    private static final String PURCHASE_ORDER = "Purchase Order";
+    private static final String PURCHASE_INVOICE = "Purchase Invoice";
+    private static final String SALES_INVOICE = "Sales Invoice";
+    private static final String DEFAULT_MANUAL_ITEM_HSN = "MANUAL";
+    private static final String BRANCH_IMAGE_ITEM_CODE = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
+    private static final String INVOICE_VERSION_OLD = "OLD";
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg");
+    private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final ErpNextClient erpNextClient;
     private final ErpNextFileService erpNextFileService;
+    private final OrderFlowStateMachine orderFlowStateMachine;
+    private final CatalogRoutingService catalogRoutingService;
+    private final OrderPricingService orderPricingService;
+    private final OrderBillingService orderBillingService;
+    private final String erpPublicBaseUrl;
+    private final double defaultMarginPercent;
 
-    public OrderService(ErpNextClient erpNextClient, ErpNextFileService erpNextFileService) {
+    public OrderService(
+            ErpNextClient erpNextClient,
+            ErpNextFileService erpNextFileService,
+            OrderFlowStateMachine orderFlowStateMachine,
+            CatalogRoutingService catalogRoutingService,
+            OrderPricingService orderPricingService,
+            OrderBillingService orderBillingService,
+            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl,
+            @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.erpNextFileService = erpNextFileService;
+        this.orderFlowStateMachine = orderFlowStateMachine;
+        this.catalogRoutingService = catalogRoutingService;
+        this.orderPricingService = orderPricingService;
+        this.orderBillingService = orderBillingService;
+        this.erpPublicBaseUrl = erpPublicBaseUrl;
+        this.defaultMarginPercent = defaultMarginPercent;
     }
 
     public Map<String, Object> createOrder(OrderRequest request) {
-        return erpNextClient.createResource(DOCTYPE, request.getFields());
+        Map<String, Object> fields = request.getFields();
+        applyCategoryVendorDefaults(fields);
+        ensureSalesOrderPricingDefaults(fields, asText(fields.get("company")));
+        applySalesOrderDefaults(fields);
+        applyOrderDisplayTitle(fields);
+        return erpNextClient.createResource(DOCTYPE, fields);
+    }
+
+    public Map<String, Object> createOrderFromSelectedItems(OrderRequest request) {
+        return createOrderFromSelectedItems(request, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> createOrderFromSelectedItems(OrderRequest request, String sessionCookie) {
+        Map<String, Object> input = request == null || request.getFields() == null
+                ? new HashMap<>()
+                : new HashMap<>(request.getFields());
+        String customer = asText(input.get("customer"));
+        String company = asText(input.get("company"));
+        String category = asText(input.get("aas_category"));
+        String vendor = asText(input.get("aas_vendor"));
+        if (customer.isBlank()) {
+            throw new IllegalArgumentException("Customer is required.");
+        }
+        if (company.isBlank()) {
+            throw new IllegalArgumentException("Company is required.");
+        }
+        if (category.isBlank()) {
+            throw new IllegalArgumentException("Category is required.");
+        }
+        if (vendor.isBlank()) {
+            throw new IllegalArgumentException("Vendor is required.");
+        }
+        catalogRoutingService.resolveVendorForCategory(vendor, category);
+
+        boolean applyGst = asFlag(input.remove("apply_gst"));
+        if (input.containsKey("applyGst")) {
+            applyGst = asFlag(input.remove("applyGst"));
+        }
+
+        Object rawItems = input.get("items");
+        if (!(rawItems instanceof List<?> rawList) || rawList.isEmpty()) {
+            throw new IllegalArgumentException("At least one item is required.");
+        }
+
+        List<Map<String, Object>> orderItems = new ArrayList<>();
+        for (Object rowObj : rawList) {
+            if (!(rowObj instanceof Map<?, ?> rawRow)) {
+                continue;
+            }
+            Map<String, Object> row = new HashMap<>();
+            String itemCode = asText(rawRow.get("item_code"));
+            if (itemCode.isBlank()) {
+                throw new IllegalArgumentException("Item code is required for every selected item.");
+            }
+            double qty = asDouble(rawRow.get("qty"));
+            if (qty <= 0) {
+                throw new IllegalArgumentException("Quantity must be greater than zero for " + itemCode + ".");
+            }
+            double rate = round(asDouble(rawRow.get("rate")));
+            if (rate < 0) {
+                throw new IllegalArgumentException("Rate must be non-negative for " + itemCode + ".");
+            }
+            double gstPercent = applyGst ? Math.max(0.0, round(asDouble(rawRow.get("aas_gst_percent")))) : 0.0;
+            row.put("item_code", itemCode);
+            if (hasText(asText(rawRow.get("item_name")))) {
+                row.put("item_name", asText(rawRow.get("item_name")));
+            }
+            row.put("qty", qty);
+            row.put("rate", rate);
+            row.put("amount", round(qty * rate));
+            row.put("aas_vendor_rate", rate);
+            row.put("aas_margin_percent", resolveMarginPercent(rawRow.get("aas_margin_percent"), itemCode));
+            row.put("aas_gst_percent", gstPercent);
+            orderItems.add(row);
+        }
+        if (orderItems.isEmpty()) {
+            throw new IllegalArgumentException("At least one valid item is required.");
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("customer", customer);
+        payload.put("company", company);
+        payload.put("aas_category", category);
+        payload.put("aas_vendor", vendor);
+        payload.put("transaction_date", resolveDate(asText(input.get("transaction_date"))));
+        payload.put("delivery_date", resolveDate(asText(input.get("delivery_date")), asText(input.get("transaction_date"))));
+        payload.put("items", orderItems);
+        payload.put("aas_status", "VENDOR_ASSIGNED");
+        payload.put("aas_margin_percent", calculateDerivedMarginPercent(orderItems));
+
+        ensureSalesOrderPricingDefaults(payload, company);
+        applySalesOrderDefaults(payload);
+        applyOrderDisplayTitle(payload);
+
+        Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
+        String orderId = extractDocName(order);
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalStateException("Order created but id was missing.");
+        }
+        erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_status", "VENDOR_ASSIGNED"));
+
+        double subtotal = 0.0;
+        double gstTotal = 0.0;
+        for (Map<String, Object> item : orderItems) {
+            double amount = asDouble(item.get("amount"));
+            double gstPercent = asDouble(item.get("aas_gst_percent"));
+            subtotal += amount;
+            if (applyGst && gstPercent > 0) {
+                gstTotal += amount * (gstPercent / 100.0);
+            }
+        }
+        subtotal = round(subtotal);
+        gstTotal = round(gstTotal);
+        double vendorBillTotal = round(subtotal + gstTotal);
+        String billDate = resolveDate(asText(payload.get("transaction_date")));
+        Map<String, Object> billCapture = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
+                "vendor_bill_total", vendorBillTotal,
+                "vendor_bill_ref", orderId,
+                "vendor_bill_date", billDate,
+                "transport_charge", 0.0,
+                "rounding_adjustment", 0.0));
+        UploadedFileInfo generatedInvoiceFile = attachGeneratedVendorInvoicePdf(
+                orderId,
+                asText(payload.get("customer")),
+                vendor,
+                category,
+                billDate,
+                orderItems,
+                subtotal,
+                gstTotal,
+                vendorBillTotal,
+                sessionCookie);
+        if (generatedInvoiceFile != null && generatedInvoiceFile.fileUrl() != null && !generatedInvoiceFile.fileUrl().isBlank()) {
+            erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_vendor_pdf", generatedInvoiceFile.fileUrl()));
+        }
+        Map<String, Object> sellPreview = orderBillingService.getSellPreview(orderId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("order", order);
+        response.put("orderId", orderId);
+        response.put("vendorBill", billCapture);
+        if (generatedInvoiceFile != null) {
+            response.put("vendorInvoiceFile", Map.of(
+                    "fileName", generatedInvoiceFile.fileName(),
+                    "fileUrl", generatedInvoiceFile.fileUrl() == null ? "" : generatedInvoiceFile.fileUrl(),
+                    "fileId", generatedInvoiceFile.fileId() == null ? "" : generatedInvoiceFile.fileId()));
+        }
+        response.put("sellPreview", sellPreview);
+        response.put("pricing", Map.of(
+                "applyGst", applyGst,
+                "subtotal", subtotal,
+                "gstTotal", gstTotal,
+                "vendorBillTotal", vendorBillTotal));
+        return response;
+    }
+
+    public Map<String, Object> createOrderWithImage(
+            String customer,
+            String company,
+            String category,
+            String transactionDate,
+            String deliveryDate,
+            org.springframework.web.multipart.MultipartFile file,
+            String sessionCookie) {
+        CatalogRoutingService.VendorCategoryResolution vendorResolution =
+                catalogRoutingService.resolveTopVendorForCategory(asText(category));
+        Map<String, Object> payload = new HashMap<>();
+        String warehouse = resolveDefaultWarehouse(asText(company));
+        if (!warehouse.isBlank()) {
+            payload.put("set_warehouse", warehouse);
+        }
+        payload.put("customer", customer);
+        payload.put("company", company);
+        payload.put("aas_category", vendorResolution.categoryId());
+        payload.put("aas_vendor", vendorResolution.vendorId());
+        // ERPNext often requires a selling price list + currency fields on Sales Order.
+        ensureSalesOrderPricingDefaults(payload, asText(company));
+        payload.put("transaction_date", resolveDate(transactionDate));
+        payload.put("delivery_date", resolveDate(deliveryDate, transactionDate));
+        payload.put("aas_status", "VENDOR_ASSIGNED");
+        payload.put("aas_margin_percent", defaultMarginPercent);
+        payload.put("items", List.of(applyItemMarginDefaults(buildBranchImageItem(warehouse))));
+        applyOrderDisplayTitle(payload);
+        Map<String, Object> order = erpNextClient.createResource(DOCTYPE, payload);
+        String orderId = extractDocName(order);
+        if (orderId != null && !orderId.isBlank()) {
+            erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+        }
+        return order;
+    }
+
+    private UploadedFileInfo attachGeneratedVendorInvoicePdf(
+            String orderId,
+            String customer,
+            String vendor,
+            String category,
+            String invoiceDate,
+            List<Map<String, Object>> orderItems,
+            double subtotal,
+            double gstTotal,
+            double vendorBillTotal,
+            String sessionCookie) {
+        if (sessionCookie == null || sessionCookie.isBlank()) {
+            return null;
+        }
+        try {
+            byte[] pdfBytes = buildGeneratedVendorInvoicePdf(
+                    orderId,
+                    customer,
+                    vendor,
+                    category,
+                    invoiceDate,
+                    orderItems,
+                    subtotal,
+                    gstTotal,
+                    vendorBillTotal);
+            return erpNextFileService.uploadOrderPdf(
+                    orderId,
+                    orderId + "-generated-vendor-invoice.pdf",
+                    pdfBytes,
+                    "application/pdf",
+                    sessionCookie);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private byte[] buildGeneratedVendorInvoicePdf(
+            String orderId,
+            String customer,
+            String vendor,
+            String category,
+            String invoiceDate,
+            List<Map<String, Object>> orderItems,
+            double subtotal,
+            double gstTotal,
+            double vendorBillTotal) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            PDPageContentStream content = new PDPageContentStream(document, page);
+            float margin = 44f;
+            float y = page.getMediaBox().getHeight() - margin;
+
+            y = writeLine(content, bold, 16f, margin, y, "AAS Generated Vendor Invoice");
+            y = writeLine(content, regular, 9f, margin, y - 4f, "This is a computer generated invoice based on selected order items.");
+            y = writeLine(content, regular, 10f, margin, y - 12f, "Order: " + safeText(orderId));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Vendor: " + safeText(vendor));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Branch: " + safeText(customer));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Category: " + safeText(category));
+            y = writeLine(content, regular, 10f, margin, y - 2f, "Invoice date: " + safeText(invoiceDate));
+
+            y -= 16f;
+            y = drawInvoiceTableHeader(content, bold, margin, y);
+            for (Map<String, Object> item : orderItems) {
+                if (y < 80f) {
+                    content.close();
+                    page = new PDPage(PDRectangle.A4);
+                    document.addPage(page);
+                    content = new PDPageContentStream(document, page);
+                    y = page.getMediaBox().getHeight() - margin;
+                    y = drawInvoiceTableHeader(content, bold, margin, y);
+                }
+                double qty = asDouble(item.get("qty"));
+                double rate = asDouble(item.get("aas_vendor_rate"));
+                if (rate <= 0) {
+                    rate = asDouble(item.get("rate"));
+                }
+                double lineSubtotal = round(qty * rate);
+                double gstPercent = asDouble(item.get("aas_gst_percent"));
+                double lineGst = round(lineSubtotal * (gstPercent / 100.0));
+                double lineTotal = round(lineSubtotal + lineGst);
+                String itemLabel = safeText(asText(item.get("item_name")).isBlank() ? asText(item.get("item_code")) : asText(item.get("item_name")));
+                y = drawInvoiceTableRow(
+                        content,
+                        regular,
+                        margin,
+                        y,
+                        itemLabel,
+                        formatMoney(qty),
+                        formatMoney(rate),
+                        formatMoney(gstPercent) + "%",
+                        formatMoney(lineSubtotal),
+                        formatMoney(lineGst),
+                        formatMoney(lineTotal));
+            }
+
+            y -= 8f;
+            y = writeLine(content, bold, 10f, 330f, y, "Subtotal: " + formatMoney(subtotal));
+            y = writeLine(content, bold, 10f, 330f, y - 2f, "GST total: " + formatMoney(gstTotal));
+            y = writeLine(content, bold, 11f, 330f, y - 4f, "Vendor invoice total: " + formatMoney(vendorBillTotal));
+
+            content.close();
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private float drawInvoiceTableHeader(PDPageContentStream content, PDType1Font bold, float margin, float y) throws IOException {
+        y = writeLine(content, bold, 10f, margin, y, "Item");
+        y += 0f;
+        writeText(content, bold, 10f, 265f, y + 12f, "Qty");
+        writeText(content, bold, 10f, 315f, y + 12f, "Rate");
+        writeText(content, bold, 10f, 375f, y + 12f, "GST %");
+        writeText(content, bold, 10f, 430f, y + 12f, "Taxable");
+        writeText(content, bold, 10f, 495f, y + 12f, "GST");
+        writeText(content, bold, 10f, 540f, y + 12f, "Total");
+        return y - 8f;
+    }
+
+    private float drawInvoiceTableRow(
+            PDPageContentStream content,
+            PDType1Font regular,
+            float margin,
+            float y,
+            String item,
+            String qty,
+            String rate,
+            String gst,
+            String taxable,
+            String gstAmount,
+            String total) throws IOException {
+        writeText(content, regular, 9f, margin, y, truncate(item, 34));
+        writeText(content, regular, 9f, 265f, y, qty);
+        writeText(content, regular, 9f, 315f, y, rate);
+        writeText(content, regular, 9f, 375f, y, gst);
+        writeText(content, regular, 9f, 430f, y, taxable);
+        writeText(content, regular, 9f, 495f, y, gstAmount);
+        writeText(content, regular, 9f, 540f, y, total);
+        return y - 18f;
+    }
+
+    private float writeLine(PDPageContentStream content, PDType1Font font, float size, float x, float y, String text)
+            throws IOException {
+        writeText(content, font, size, x, y, text);
+        return y - (size + 4f);
+    }
+
+    private void writeText(PDPageContentStream content, PDType1Font font, float size, float x, float y, String text)
+            throws IOException {
+        content.beginText();
+        content.setFont(font, size);
+        content.newLineAtOffset(x, y);
+        content.showText(safeText(text));
+        content.endText();
+    }
+
+    private String truncate(String value, int maxLength) {
+        String text = safeText(value);
+        if (text.length() <= maxLength) {
+            return text;
+        }
+        return text.substring(0, Math.max(0, maxLength - 3)) + "...";
+    }
+
+    private String safeText(String value) {
+        return (value == null ? "" : value)
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replace('\t', ' ')
+                .trim();
+    }
+
+    private String formatMoney(double value) {
+        BigDecimal decimal = BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).stripTrailingZeros();
+        return decimal.scale() <= 0 ? decimal.toPlainString() : decimal.toPlainString();
+    }
+
+    private void ensureSalesOrderPricingDefaults(Map<String, Object> payload, String company) {
+        if (payload == null) {
+            return;
+        }
+        if (!payload.containsKey("selling_price_list")) {
+            PriceListChoice choice = resolveSellingPriceList();
+            if (!choice.name().isBlank()) {
+                payload.put("selling_price_list", choice.name());
+                if (!payload.containsKey("price_list_currency") && !choice.currency().isBlank()) {
+                    payload.put("price_list_currency", choice.currency());
+                }
+            }
+        }
+        String currency = asText(payload.get("price_list_currency"));
+        if (currency.isBlank()) {
+            currency = resolveCompanyCurrency(company);
+            if (!currency.isBlank()) {
+                payload.put("price_list_currency", currency);
+            }
+        }
+        if (!payload.containsKey("currency") && !currency.isBlank()) {
+            payload.put("currency", currency);
+        }
+        if (!payload.containsKey("conversion_rate")) {
+            payload.put("conversion_rate", 1);
+        }
+        if (!payload.containsKey("plc_conversion_rate")) {
+            payload.put("plc_conversion_rate", 1);
+        }
+    }
+
+    private PriceListChoice resolveSellingPriceList() {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"currency\"]");
+            params.put("limit_page_length", "1");
+            params.put("filters", "[[\"selling\",\"=\",\"1\"],[\"enabled\",\"=\",\"1\"]]");
+            List<Map<String, Object>> lists = erpNextClient.listResources("Price List", params);
+            if (lists.isEmpty()) {
+                return new PriceListChoice("", "");
+            }
+            Map<String, Object> row = lists.get(0);
+            return new PriceListChoice(asText(row.get("name")), asText(row.get("currency")));
+        } catch (Exception ex) {
+            return new PriceListChoice("", "");
+        }
+    }
+
+    private String resolveCompanyCurrency(String company) {
+        if (company == null || company.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> companyDoc = erpNextClient.getResource("Company", company);
+            return asText(companyDoc.get("default_currency"));
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private record PriceListChoice(String name, String currency) {}
+
+    private String extractDocName(Map<String, Object> response) {
+        if (response == null) {
+            return null;
+        }
+        Object direct = response.get("name");
+        if (direct != null) {
+            return direct.toString();
+        }
+        Object data = response.get("data");
+        if (data instanceof Map<?, ?> map) {
+            Object name = map.get("name");
+            return name == null ? null : name.toString();
+        }
+        return null;
+    }
+
+    private void applyOrderDisplayTitle(Map<String, Object> fields) {
+        if (fields == null) {
+            return;
+        }
+        String title = buildOrderBusinessKey(
+                asText(fields.get("customer")),
+                asText(fields.get("aas_category")),
+                asText(fields.get("transaction_date")));
+        if (!title.isBlank()) {
+            fields.put("title", title);
+        }
+    }
+
+    private String buildOrderBusinessKey(String branchName, String categoryName, String date) {
+        String branch = normalizeNameSegment(branchName);
+        String category = normalizeNameSegment(categoryName);
+        String normalizedDate = normalizeDateSegment(date);
+        if (branch.isBlank() || category.isBlank() || normalizedDate.isBlank()) {
+            return "";
+        }
+        String prefix = branch + "_" + category + "_" + normalizedDate;
+        return prefix + "_" + resolveOrderBusinessKeyCounter(branchName, categoryName, date, prefix);
+    }
+
+    private int resolveOrderBusinessKeyCounter(String branchName, String categoryName, String date, String titlePrefix) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put(
+                    "filters",
+                    toJson(List.of(
+                            List.of("customer", "=", asText(branchName)),
+                            List.of("aas_category", "=", asText(categoryName)),
+                            List.of("transaction_date", "=", resolveDate(date)))));
+            long count = erpNextClient.getCount(DOCTYPE, params);
+            return (int) count + 1;
+        } catch (Exception ex) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"title\"]");
+            params.put("filters", "[[\"title\",\"like\",\"" + escape(titlePrefix) + "_%\"]]");
+            params.put("limit_page_length", 1000);
+            List<Map<String, Object>> rows = erpNextClient.listResources(DOCTYPE, params);
+            return rows.size() + 1;
+        }
+    }
+
+    private String normalizeNameSegment(String value) {
+        String text = asText(value);
+        if (text.isBlank()) {
+            return "";
+        }
+        String normalized = text
+                .replaceAll("[^A-Za-z0-9]+", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_+|_+$", "");
+        return normalized;
+    }
+
+    private String normalizeDateSegment(String value) {
+        String text = asText(value);
+        if (text.isBlank()) {
+            return "";
+        }
+        return text.replaceAll("[^0-9]+", "");
     }
 
     public Map<String, Object> getOrder(String id) {
-        return erpNextClient.getResource(DOCTYPE, id);
+        return withResolvedFileUrls(erpNextClient.getResource(DOCTYPE, id));
+    }
+
+    private void applyCategoryVendorDefaults(Map<String, Object> fields) {
+        if (fields == null) {
+            return;
+        }
+        String category = asText(fields.get("aas_category"));
+        if (category.isBlank() || !asText(fields.get("aas_vendor")).isBlank()) {
+            return;
+        }
+        CatalogRoutingService.VendorCategoryResolution resolution = catalogRoutingService.resolveTopVendorForCategory(category);
+        fields.put("aas_category", resolution.categoryId());
+        fields.put("aas_vendor", resolution.vendorId());
+        fields.putIfAbsent("aas_status", "VENDOR_ASSIGNED");
     }
 
     public Map<String, Object> updateOrder(String id, OrderRequest request) {
-        return erpNextClient.updateResource(DOCTYPE, id, request.getFields());
+        Map<String, Object> fields = request.getFields();
+        applySalesOrderDefaults(fields);
+        return erpNextClient.updateResource(DOCTYPE, id, fields);
+    }
+
+    public Map<String, Object> updateOrderItems(String orderId, List<OrderItemLine> items) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("Order id is required.");
+        }
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("Items are required.");
+        }
+
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
+        String status = asText(orderData.get("aas_status"));
+        String normalized = orderFlowStateMachine.normalize(status);
+        if (!"VENDOR_ASSIGNED".equals(normalized)
+                && !"VENDOR_PDF_RECEIVED".equals(normalized)
+                && !"VENDOR_BILL_CAPTURED".equals(normalized)
+                && !"SELL_ORDER_CREATED".equals(normalized)) {
+            throw new IllegalStateException(
+                    "Order items can only be edited when status is VENDOR_ASSIGNED, VENDOR_PDF_RECEIVED, "
+                            + "VENDOR_BILL_CAPTURED, or SELL_ORDER_CREATED.");
+        }
+
+        List<OrderItemLine> resolvedItems = resolveMissingItemCodes(items, orderData);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> existingSoItems =
+                orderData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        List<Map<String, Object>> updatedSoItems = buildUpdatedChildItems(
+                "Sales Order Item",
+                existingSoItems,
+                resolvedItems);
+        Map<String, Object> updatedOrder = erpNextClient.updateResource(DOCTYPE, orderId, Map.of("items", updatedSoItems));
+
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        Map<String, Object> updatedPo = null;
+        if (!purchaseOrderId.isBlank()) {
+            Map<String, Object> po = erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId);
+            Map<String, Object> poData = unwrap(po);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> existingPoItems =
+                    poData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+            List<Map<String, Object>> updatedPoItems = buildUpdatedChildItems(
+                    "Purchase Order Item",
+                    existingPoItems,
+                    resolvedItems);
+            updatedPo = erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of("items", updatedPoItems));
+        }
+
+        if ("VENDOR_BILL_CAPTURED".equals(normalized) || "SELL_ORDER_CREATED".equals(normalized)) {
+            updatedOrder = regenerateCurrentInvoices(orderId, orderData, unwrap(updatedOrder), normalized);
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("orderId", orderId);
+        response.put("order", updatedOrder);
+        response.put("purchaseOrderId", purchaseOrderId);
+        if (updatedPo != null) {
+            response.put("purchaseOrder", updatedPo);
+        }
+        response.put("items", extractSimpleItems(unwrap(updatedOrder)));
+        return response;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> regenerateCurrentInvoices(
+            String orderId,
+            Map<String, Object> previousOrderData,
+            Map<String, Object> updatedOrderData,
+            String previousStatus) {
+        String previousPurchaseInvoiceId = asText(previousOrderData.get("aas_pi_vendor"));
+        String previousSalesInvoiceId = asText(previousOrderData.get("aas_si_branch"));
+        double transportCharge = asDouble(previousOrderData.get("aas_transport_charge"));
+
+        if (hasText(previousPurchaseInvoiceId)) {
+            ensureDraftInvoiceCanBeReplaced(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
+        }
+        if ("SELL_ORDER_CREATED".equals(previousStatus) && hasText(previousSalesInvoiceId)) {
+            ensureDraftInvoiceCanBeReplaced(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
+        }
+
+        double itemsSubtotal = calculateItemsSubtotal(updatedOrderData);
+        double gstTotal = calculateItemsGstTotal(updatedOrderData);
+        double newVendorBillTotal = round(itemsSubtotal + gstTotal + transportCharge);
+        String billRef = hasText(asText(previousOrderData.get("aas_vendor_bill_ref")))
+                ? asText(previousOrderData.get("aas_vendor_bill_ref"))
+                : orderId;
+        String billDate = hasText(asText(previousOrderData.get("aas_vendor_bill_date")))
+                ? asText(previousOrderData.get("aas_vendor_bill_date"))
+                : resolveDate(asText(updatedOrderData.get("transaction_date")));
+
+        Map<String, Object> vendorBill = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
+                "vendor_bill_total", newVendorBillTotal,
+                "vendor_bill_ref", billRef,
+                "vendor_bill_date", billDate,
+                "transport_charge", transportCharge,
+                "rounding_adjustment", 0.0));
+        String replacementPurchaseInvoiceId = extractDocName((Map<String, Object>) vendorBill.get("purchaseInvoice"));
+        archiveReplacedInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, replacementPurchaseInvoiceId);
+
+        if ("SELL_ORDER_CREATED".equals(previousStatus)) {
+            boolean applyTransportToInvoice = shouldApplyTransportToReplacementInvoice(previousSalesInvoiceId);
+            Map<String, Object> sellOrder = orderBillingService.createSellOrder(orderId, Map.of(
+                    "apply_transport_to_invoice", applyTransportToInvoice));
+            String replacementSalesInvoiceId = extractDocName((Map<String, Object>) sellOrder.get("salesInvoice"));
+            archiveReplacedInvoice(SALES_INVOICE, previousSalesInvoiceId, replacementSalesInvoiceId);
+        }
+
+        return erpNextClient.getResource(DOCTYPE, orderId);
+    }
+
+    public boolean applyReviewedMarginToOrderItem(String orderId, String itemCode, double marginPercent) {
+        if (orderId == null || orderId.isBlank() || itemCode == null || itemCode.isBlank()) {
+            return false;
+        }
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
+        String status = orderFlowStateMachine.normalize(asText(orderData.get("aas_status")));
+        if (!"VENDOR_ASSIGNED".equals(status) && !"VENDOR_PDF_RECEIVED".equals(status)) {
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> existingSoItems =
+                orderData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+        if (existingSoItems.isEmpty()) {
+            return false;
+        }
+
+        List<OrderItemLine> desiredItems = new ArrayList<>();
+        boolean matched = false;
+        for (Map<String, Object> row : existingSoItems) {
+            String existingCode = asText(row.get("item_code"));
+            if (existingCode.isBlank() || BRANCH_IMAGE_ITEM_CODE.equals(existingCode)) {
+                continue;
+            }
+            OrderItemLine line = new OrderItemLine();
+            line.setItem_code(existingCode);
+            line.setItem_name(asText(row.get("item_name")));
+            line.setQty(asDouble(row.get("qty")));
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            line.setRate(vendorRate > 0 ? vendorRate : asDouble(row.get("rate")));
+            line.setAas_margin_percent(existingCode.equalsIgnoreCase(itemCode)
+                    ? marginPercent
+                    : asDouble(row.get("aas_margin_percent")));
+            line.setAas_mrp(asNullableDouble(row.get("aas_mrp")));
+            line.setAas_gst_percent(asNullableDouble(row.get("aas_gst_percent")));
+            desiredItems.add(line);
+            if (existingCode.equalsIgnoreCase(itemCode)) {
+                matched = true;
+            }
+        }
+        if (!matched || desiredItems.isEmpty()) {
+            return false;
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> poExistingItems;
+        String purchaseOrderId = asText(orderData.get("aas_po")).trim();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("items", buildUpdatedChildItems("Sales Order Item", existingSoItems, desiredItems));
+        erpNextClient.updateResource(DOCTYPE, orderId, payload);
+
+        if (!purchaseOrderId.isBlank()) {
+            Map<String, Object> po = erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId);
+            Map<String, Object> poData = unwrap(po);
+            poExistingItems = poData.get("items") instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
+            erpNextClient.updateResource(PURCHASE_ORDER, purchaseOrderId, Map.of(
+                    "items", buildUpdatedChildItems("Purchase Order Item", poExistingItems, desiredItems)));
+        }
+        return true;
+    }
+
+    private Map<String, Object> buildBranchImageItem(String warehouse) {
+        ensureBranchImageItem();
+        Map<String, Object> item = new HashMap<>();
+        item.put("item_code", BRANCH_IMAGE_ITEM_CODE);
+        item.put("qty", 1);
+        item.put("rate", 0);
+        item.put("price_list_rate", 0);
+        item.put("amount", 0);
+        if (warehouse != null && !warehouse.isBlank()) {
+            item.put("warehouse", warehouse);
+        }
+        return item;
+    }
+
+    private void ensureBranchImageItem() {
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource("Item", BRANCH_IMAGE_ITEM_CODE));
+            Object disabled = item.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource("Item", BRANCH_IMAGE_ITEM_CODE, Map.of("disabled", 0));
+            }
+        } catch (Exception ex) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", BRANCH_IMAGE_ITEM_CODE);
+            payload.put("item_name", "System Branch Image");
+            payload.put("item_group", "All Item Groups");
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 0);
+            payload.put("is_sales_item", 1);
+            payload.put("is_purchase_item", 0);
+            payload.put("disabled", 0);
+            payload.put("description", "Internal system item used for branch image order creation.");
+            erpNextClient.createResource("Item", payload);
+        }
     }
 
     public Map<String, Object> updateOrderFields(String id, Map<String, Object> fields) {
+        if (fields.containsKey("aas_status")) {
+            String targetStatus = String.valueOf(fields.get("aas_status"));
+            Map<String, Object> current = erpNextClient.getResource(DOCTYPE, id);
+            String currentStatus = readField(current, "aas_status");
+            orderFlowStateMachine.ensureTransitionAllowed(currentStatus, targetStatus);
+            fields.put("aas_status", orderFlowStateMachine.normalize(targetStatus));
+        }
         return erpNextClient.updateResource(DOCTYPE, id, fields);
     }
 
     public Map<String, Object> attachOrderImage(String orderId, org.springframework.web.multipart.MultipartFile file, String sessionCookie) {
-        return erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+        UploadedFileInfo info = erpNextFileService.uploadOrderImage(orderId, file, sessionCookie);
+        return Map.of(
+                "orderId", orderId,
+                "fileName", info.fileName(),
+                "fileUrl", resolveFileUrl(info.fileUrl()),
+                "fileId", info.fileId());
+    }
+
+    public DownloadedFile downloadBranchImagesZip(String orderId) {
+        List<Map<String, Object>> branchImages = listBranchImageAttachments(orderId);
+        if (branchImages.isEmpty()) {
+            throw new IllegalArgumentException("No branch images are available for this order.");
+        }
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (ZipOutputStream zip = new ZipOutputStream(out)) {
+                int index = 1;
+                for (Map<String, Object> image : branchImages) {
+                    String fileUrl = asText(image.get("file_url"));
+                    if (fileUrl.isBlank()) {
+                        continue;
+                    }
+                    DownloadedFile file = erpNextFileService.downloadFile(fileUrl);
+                    String fileName = ensureUniqueZipEntryName(index, asText(image.get("file_name")), file.fileName());
+                    zip.putNextEntry(new ZipEntry(fileName));
+                    zip.write(file.bytes());
+                    zip.closeEntry();
+                    index++;
+                }
+            }
+            return new DownloadedFile(orderId + "-branch-images.zip", "application/zip", out.toByteArray());
+        } catch (IOException ex) {
+            throw new IllegalStateException("Unable to create branch image ZIP.", ex);
+        }
+    }
+
+    public DownloadedFile downloadVendorPdf(String orderId) {
+        return downloadOrderAttachment(orderId, "aas_vendor_pdf");
+    }
+
+    public Map<String, Object> deleteOrder(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            throw new IllegalArgumentException("Order id is required.");
+        }
+        Map<String, Object> order = erpNextClient.getResource(DOCTYPE, orderId);
+        Map<String, Object> orderData = unwrap(order);
+        if (isSoftDeleted(orderData)) {
+            return Map.of(
+                    "orderId", orderId,
+                    "deleted", true,
+                    "softDeleted", true,
+                    "alreadyDeleted", true,
+                    "deletedPurchaseInvoices", List.of(),
+                    "retainedPurchaseInvoices", List.of(),
+                    "deletedSalesInvoices", List.of(),
+                    "retainedSalesInvoices", List.of(),
+                    "purchaseOrderDeleted", false,
+                    "salesInvoiceDeleted", false);
+        }
+        String status = readField(order, "aas_status");
+        orderFlowStateMachine.ensureCanDeleteOrder(status);
+        String purchaseOrderId = asText(orderData.get("aas_po"));
+
+        CascadeCleanupResult salesInvoiceCleanup = cleanupLinkedSalesInvoices(orderId, orderData);
+        CascadeCleanupResult purchaseInvoiceCleanup = cleanupLinkedPurchaseInvoices(orderId, orderData);
+        boolean deletedPurchaseOrder = false;
+        if (!purchaseOrderId.isBlank()) {
+            deletedPurchaseOrder = deleteLinkedDraftPurchaseOrder(orderId, purchaseOrderId, purchaseInvoiceCleanup.retainedDocIds());
+        }
+
+        clearInboundSalesOrderLinks(orderId);
+        softDeleteOrder(orderId, orderData);
+        return Map.of(
+                "orderId", orderId,
+                "deleted", true,
+                "softDeleted", true,
+                "deletedSalesInvoices", salesInvoiceCleanup.deletedDocIds(),
+                "retainedSalesInvoices", salesInvoiceCleanup.retainedDocIds(),
+                "salesInvoiceDeleted", !salesInvoiceCleanup.deletedDocIds().isEmpty(),
+                "purchaseOrderId", purchaseOrderId,
+                "purchaseOrderDeleted", deletedPurchaseOrder,
+                "deletedPurchaseInvoices", purchaseInvoiceCleanup.deletedDocIds(),
+                "retainedPurchaseInvoices", purchaseInvoiceCleanup.retainedDocIds());
+    }
+
+    private String resolveDate(String value) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        return java.time.LocalDate.now().toString();
+    }
+
+    private String resolveDate(String value, String fallback) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        return java.time.LocalDate.now().toString();
     }
 
     public List<Map<String, Object>> listOrders(Map<String, String> filters) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
-                "[\"name\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\"]");
-        params.put("order_by", "transaction_date desc");
+                "[\"name\",\"title\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_category\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
+                        + "\"currency\",\"price_list_currency\","
+                        + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_transport_charge\",\"aas_rounding_adjustment\",\"aas_margin_percent\","
+                        + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\",\"aas_is_deleted\",\"aas_deleted_at\"]");
+        // Sort by last modification so newly created orders show up reliably on the first page.
+        params.put("order_by", "modified desc");
         if (!filters.isEmpty()) {
             List<List<String>> filterList = new ArrayList<>();
             filters.forEach((key, value) -> {
@@ -60,8 +960,121 @@ public class OrderService {
             params.put("filters", toJson(filterList));
         }
         List<Map<String, Object>> orders = erpNextClient.listResources(DOCTYPE, params);
+        orders = orders.stream().filter(order -> !isSoftDeleted(order)).toList();
         addOrderCostMetrics(orders);
+        orders.forEach(this::resolveOrderFileUrls);
         return orders;
+    }
+
+    private Map<String, Object> withResolvedFileUrls(Map<String, Object> order) {
+        if (order == null) {
+            return null;
+        }
+        resolveOrderFileUrls(order);
+        Map<String, Object> data = unwrap(order);
+        if (data != order) {
+            resolveOrderFileUrls(data);
+        }
+        return order;
+    }
+
+    private void resolveOrderFileUrls(Map<String, Object> order) {
+        if (order == null) {
+            return;
+        }
+        order.remove("aas_branch_image");
+        putResolvedFileUrl(order, "aas_vendor_pdf");
+        String orderId = asText(order.get("name"));
+        if (!orderId.isBlank()) {
+            order.put("branch_images", listBranchImageAttachments(orderId));
+        }
+    }
+
+    private void putResolvedFileUrl(Map<String, Object> order, String field) {
+        String value = asText(order.get(field));
+        if (!value.isBlank()) {
+            order.put(field, resolveFileUrl(value));
+        }
+    }
+
+    private String resolveFileUrl(String filePath) {
+        String value = asText(filePath);
+        if (value.isBlank()) {
+            return value;
+        }
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        String base = erpPublicBaseUrl.endsWith("/") ? erpPublicBaseUrl.substring(0, erpPublicBaseUrl.length() - 1) : erpPublicBaseUrl;
+        String path = value.startsWith("/") ? value : "/" + value;
+        return base + path;
+    }
+
+    private DownloadedFile downloadOrderAttachment(String orderId, String field) {
+        Map<String, Object> order = unwrap(erpNextClient.getResource(DOCTYPE, orderId));
+        String fileUrl = asText(order.get(field));
+        if (fileUrl.isBlank()) {
+            throw new IllegalArgumentException("No file is available for this order.");
+        }
+        return erpNextFileService.downloadFile(fileUrl);
+    }
+
+    private List<Map<String, Object>> listBranchImageAttachments(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return List.of();
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"file_name\",\"file_url\",\"creation\"]");
+        params.put(
+                "filters",
+                "[[\"File\",\"attached_to_doctype\",\"=\",\"Sales Order\"],[\"File\",\"attached_to_name\",\"=\",\""
+                        + escape(orderId)
+                        + "\"]]");
+        params.put("order_by", "creation asc");
+        return erpNextClient.listResources("File", params).stream()
+                .filter(this::isBranchImageFile)
+                .sorted(Comparator.comparing(row -> asText(row.get("creation"))))
+                .map(this::toBranchImagePayload)
+                .toList();
+    }
+
+    private boolean isBranchImageFile(Map<String, Object> row) {
+        String value = firstText(row == null ? null : row.get("file_name"), row == null ? null : row.get("file_url"))
+                .toLowerCase(Locale.ROOT);
+        if (value.isBlank()) {
+            return false;
+        }
+        return IMAGE_EXTENSIONS.stream().anyMatch(value::endsWith);
+    }
+
+    private Map<String, Object> toBranchImagePayload(Map<String, Object> row) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("id", asText(row.get("name")));
+        payload.put("file_name", asText(row.get("file_name")));
+        payload.put("file_url", resolveFileUrl(asText(row.get("file_url"))));
+        return payload;
+    }
+
+    private String ensureUniqueZipEntryName(int index, String preferredName, String fallbackName) {
+        String name = !preferredName.isBlank() ? preferredName : fallbackName;
+        if (name == null || name.isBlank()) {
+            name = "branch-image-" + index + ".bin";
+        }
+        int dot = name.lastIndexOf('.');
+        if (dot <= 0 || dot == name.length() - 1) {
+            return index + "-" + name;
+        }
+        return index + "-" + name.substring(0, dot) + name.substring(dot);
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            String text = asText(value);
+            if (!text.isBlank()) {
+                return text;
+            }
+        }
+        return "";
     }
 
     private void addOrderCostMetrics(List<Map<String, Object>> orders) {
@@ -121,8 +1134,66 @@ public class OrderService {
         }
     }
 
+    private Double asNullableDouble(Object value) {
+        double parsed = asDouble(value);
+        return parsed > 0 ? parsed : null;
+    }
+
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private String resolveDefaultWarehouse(String company) {
+        if (company.isBlank()) {
+            return "";
+        }
+        String abbr = "";
+        try {
+            Map<String, Object> companyDoc = erpNextClient.getResource("Company", company);
+            abbr = asText(companyDoc.get("abbr"));
+        } catch (Exception ex) {
+            abbr = "";
+        }
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("company", "=", company));
+        filters.add(List.of("is_group", "=", "0"));
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"warehouse_name\",\"company\",\"is_group\"]");
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> warehouses = erpNextClient.listResources("Warehouse", params);
+        if (warehouses.isEmpty()) {
+            return "";
+        }
+        if (!abbr.isBlank()) {
+            String preferred = "Stores - " + abbr;
+            for (Map<String, Object> wh : warehouses) {
+                String name = asText(wh.get("name"));
+                if (preferred.equals(name)) {
+                    return name;
+                }
+            }
+        }
+        return asText(warehouses.get(0).get("name"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String readField(Map<String, Object> resource, String fieldName) {
+        if (resource == null) {
+            return "";
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> dataMap) {
+            return String.valueOf(((Map<String, Object>) dataMap).getOrDefault(fieldName, ""));
+        }
+        return String.valueOf(resource.getOrDefault(fieldName, ""));
     }
 
     private record OrderCost(double costTotal, double marginTotal, double marginPercent) {
@@ -150,5 +1221,672 @@ public class OrderService {
 
     private String escape(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrap(Map<String, Object> resource) {
+        if (resource == null) {
+            return Map.of();
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return resource;
+    }
+
+    private List<Map<String, Object>> buildUpdatedChildItems(
+            String childDoctype,
+            List<Map<String, Object>> existing,
+            List<OrderItemLine> desired) {
+        // Match existing rows by item_code (first unused match) so updates are stable and don't create duplicates.
+        boolean[] used = new boolean[existing == null ? 0 : existing.size()];
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (OrderItemLine line : desired) {
+            String itemCode = asText(line.getItem_code());
+            if (itemCode.isBlank()) {
+                continue;
+            }
+            int matchIdx = -1;
+            for (int i = 0; i < used.length; i++) {
+                if (used[i]) {
+                    continue;
+                }
+                Map<String, Object> row = existing.get(i);
+                if (itemCode.equalsIgnoreCase(asText(row.get("item_code")))) {
+                    matchIdx = i;
+                    used[i] = true;
+                    break;
+                }
+            }
+            Map<String, Object> existingRow = matchIdx >= 0 ? existing.get(matchIdx) : Map.of();
+            Double mrp = asNullableDouble(existingRow.get("aas_mrp"));
+            OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
+                    line.getRate(),
+                    resolveMarginPercent(line.getAas_margin_percent(), itemCode),
+                    mrp,
+                    itemCode);
+            Map<String, Object> row = new HashMap<>();
+            row.put("doctype", childDoctype);
+            row.put("item_code", itemCode);
+            if (hasText(line.getItem_name())) {
+                row.put("item_name", line.getItem_name().trim());
+            }
+            row.put("qty", line.getQty());
+            row.put("rate", line.getRate());
+            row.put("amount", line.getQty() * line.getRate());
+            row.put("aas_margin_percent", pricing.effectiveMarginPercent());
+            if (line.getAas_mrp() != null && line.getAas_mrp() > 0) {
+                row.put("aas_mrp", line.getAas_mrp());
+            }
+            if (line.getAas_gst_percent() != null && line.getAas_gst_percent() >= 0) {
+                row.put("aas_gst_percent", line.getAas_gst_percent());
+            }
+            if (matchIdx >= 0) {
+                Object name = existingRow.get("name");
+                if (name != null) {
+                    row.put("name", name);
+                }
+                copyIfPresent(existingRow, row, "warehouse");
+                copyIfPresent(existingRow, row, "uom");
+                copyIfPresent(existingRow, row, "stock_uom");
+                copyIfPresent(existingRow, row, "conversion_factor");
+                copyIfPresent(existingRow, row, "schedule_date");
+                copyIfPresent(existingRow, row, "expense_account");
+                copyIfPresent(existingRow, row, "cost_center");
+                copyIfPresent(existingRow, row, "description");
+            }
+            if ("Sales Order Item".equals(childDoctype)) {
+                row.put("aas_vendor_rate", line.getRate());
+            }
+            String description = buildItemDescription(
+                    asText(existingRow.get("description")),
+                    hasText(line.getDisplay_description()) ? line.getDisplay_description().trim() : "",
+                    hasText(line.getItem_name()) ? line.getItem_name().trim() : itemCode,
+                    line.isManual_entry(),
+                    line.getParse_note());
+            if (!description.isBlank()) {
+                row.put("description", description);
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    private List<OrderItemLine> resolveMissingItemCodes(List<OrderItemLine> items, Map<String, Object> orderData) {
+        CatalogRoutingService.VendorCategoryResolution vendorResolution = null;
+        for (OrderItemLine line : items) {
+            String itemCode = asText(line.getItem_code());
+            if (!itemCode.isBlank()) {
+                continue;
+            }
+            String itemName = asText(line.getItem_name());
+            if (itemName.isBlank()) {
+                throw new IllegalArgumentException("Item name is required when item code is missing.");
+            }
+            itemCode = findItemCodeByName(itemName);
+            if (itemCode == null) {
+                itemCode = findSingleItemCodeByLike(normalizeNameForLookup(itemName));
+            }
+            if ((itemCode == null || itemCode.isBlank()) && line.isManual_entry()) {
+                if (vendorResolution == null) {
+                    vendorResolution = resolveVendorResolutionForOrder(orderData);
+                }
+                itemCode = ensureManualItem(itemName, vendorResolution);
+            }
+            if (itemCode == null || itemCode.isBlank()) {
+                throw new IllegalArgumentException("Unable to resolve item code for \"" + itemName + "\".");
+            }
+            line.setItem_code(itemCode);
+        }
+        return items;
+    }
+
+    private CatalogRoutingService.VendorCategoryResolution resolveVendorResolutionForOrder(Map<String, Object> orderData) {
+        String vendorId = asText(orderData == null ? null : orderData.get("aas_vendor"));
+        String categoryId = asText(orderData == null ? null : orderData.get("aas_category"));
+        if (vendorId.isBlank() || categoryId.isBlank()) {
+            throw new IllegalStateException("Order vendor and category are required to auto-create manual recovery items.");
+        }
+        return catalogRoutingService.resolveVendorForCategory(vendorId, categoryId);
+    }
+
+    private String ensureManualItem(
+            String itemName,
+            CatalogRoutingService.VendorCategoryResolution vendorResolution) {
+        String code = catalogRoutingService.buildParsedItemCode(
+                vendorResolution.vendorCode(),
+                vendorResolution.categoryCode(),
+                DEFAULT_MANUAL_ITEM_HSN,
+                itemName);
+        if (!resourceExists(ITEM, code)) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("item_code", code);
+            payload.put("item_name", itemName);
+            payload.put("item_group", vendorResolution.categoryId());
+            payload.put("stock_uom", "Nos");
+            payload.put("is_stock_item", 1);
+            payload.put("aas_vendor", vendorResolution.vendorId());
+            payload.put("aas_vendor_hsn_code", DEFAULT_MANUAL_ITEM_HSN);
+            payload.put("aas_margin_percent", defaultMarginPercent);
+            Map<String, Object> created = erpNextClient.createResource(ITEM, payload);
+            Object name = created.get("name");
+            if (name != null && !name.toString().isBlank()) {
+                code = name.toString();
+            }
+        }
+        ensureItemEnabled(code);
+        return code;
+    }
+
+    private String buildItemDescription(
+            String existingDescription,
+            String displayDescription,
+            String itemName,
+            boolean manualEntry,
+            String parseNote) {
+        boolean hadMeta = hasText(existingDescription)
+                && (existingDescription.contains(MANUAL_ENTRY_MARKER) || existingDescription.contains(PARSE_NOTE_PREFIX));
+        String baseDescription = hasText(displayDescription)
+                ? displayDescription.trim()
+                : stripAasLineMeta(existingDescription).trim();
+        if (baseDescription.isBlank() && (manualEntry || hasText(parseNote) || hadMeta)) {
+            baseDescription = asText(itemName).trim();
+        }
+        if (baseDescription.isBlank() && !manualEntry && !hasText(parseNote) && !hadMeta) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        if (!baseDescription.isBlank()) {
+            lines.add(baseDescription);
+        }
+        if (manualEntry) {
+            lines.add(MANUAL_ENTRY_MARKER);
+        }
+        String note = asText(parseNote).trim();
+        if (!note.isBlank()) {
+            lines.add(PARSE_NOTE_PREFIX + " " + note);
+        }
+        return String.join("\n", lines).trim();
+    }
+
+    private void ensureItemEnabled(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource(ITEM, itemCode));
+            Object disabled = item.get("disabled");
+            if (disabled instanceof Number n && n.intValue() != 0) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled instanceof Boolean b && b) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            } else if (disabled != null && "1".equals(disabled.toString().trim())) {
+                erpNextClient.updateResource(ITEM, itemCode, Map.of("disabled", 0));
+            }
+        } catch (Exception ignored) {
+            // Best-effort. Save will surface ERP errors if the item is unusable.
+        }
+    }
+
+    private String normalizeNameForLookup(String itemName) {
+        String cleaned = asText(itemName);
+        if (cleaned.isBlank()) {
+            return "";
+        }
+        cleaned = cleaned.replaceAll("\\b\\d{4,10}\\b", " ");
+        cleaned = cleaned.replaceAll("\\b\\d{1,3}(?:\\.\\d+)?\\b\\s*$", " ");
+        cleaned = cleaned.replaceAll("[^A-Za-z0-9]+", " ");
+        return cleaned.replaceAll("\\s+", " ").trim();
+    }
+
+    private String findSingleItemCodeByLike(String cleanedName) {
+        if (cleanedName == null || cleanedName.isBlank() || cleanedName.length() < 4) {
+            return null;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_name\"]");
+        params.put("limit_page_length", "5");
+        params.put("filters", "[[\"item_name\",\"like\",\"%" + escape(cleanedName) + "%\"]]");
+        List<Map<String, Object>> data = erpNextClient.listResources(ITEM, params);
+        if (data.size() != 1) {
+            return null;
+        }
+        Object name = data.get(0).get("name");
+        return name == null ? null : name.toString();
+    }
+
+    private String findItemCodeByName(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return null;
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_name\"]");
+        params.put("limit_page_length", "1");
+        params.put("filters", "[[\"item_name\",\"=\",\"" + escape(itemName) + "\"]]");
+        List<Map<String, Object>> data = erpNextClient.listResources(ITEM, params);
+        if (data.isEmpty()) {
+            return null;
+        }
+        Object name = data.get(0).get("name");
+        return name == null ? null : name.toString();
+    }
+
+    private boolean resourceExists(String doctype, String name) {
+        if (doctype == null || doctype.isBlank() || name == null || name.isBlank()) {
+            return false;
+        }
+        try {
+            return !unwrap(erpNextClient.getResource(doctype, name)).isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stripAasLineMeta(String description) {
+        if (!hasText(description)) {
+            return "";
+        }
+        return description.lines()
+                .map(String::trim)
+                .filter(line -> !line.startsWith(MANUAL_ENTRY_MARKER))
+                .filter(line -> !line.startsWith(PARSE_NOTE_PREFIX))
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+    }
+
+    private void ensureDraftInvoiceCanBeReplaced(String doctype, String invoiceId, String label) {
+        if (!hasText(invoiceId)) {
+            return;
+        }
+        Map<String, Object> invoice = unwrap(erpNextClient.getResource(doctype, invoiceId));
+        int docstatus = (int) Math.round(asDouble(invoice.get("docstatus")));
+        if (docstatus != 0) {
+            throw new IllegalStateException(
+                    "Order updates are only supported while the current " + label + " is draft. "
+                            + "Create a new order revision flow for submitted invoices.");
+        }
+    }
+
+    private void archiveReplacedInvoice(String doctype, String oldInvoiceId, String newInvoiceId) {
+        if (!hasText(oldInvoiceId) || oldInvoiceId.equals(newInvoiceId)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_invoice_version_status", INVOICE_VERSION_OLD);
+        payload.put("aas_replaced_by", asText(newInvoiceId));
+        erpNextClient.updateResource(doctype, oldInvoiceId, payload);
+    }
+
+    private boolean shouldApplyTransportToReplacementInvoice(String salesInvoiceId) {
+        if (!hasText(salesInvoiceId)) {
+            return false;
+        }
+        try {
+            Map<String, Object> salesInvoice = unwrap(erpNextClient.getResource(SALES_INVOICE, salesInvoiceId));
+            Object itemsObj = salesInvoice.get("items");
+            if (!(itemsObj instanceof List<?> list)) {
+                return false;
+            }
+            for (Object rowObj : list) {
+                if (rowObj instanceof Map<?, ?> row && TRANSPORT_ITEM_CODE.equals(asText(row.get("item_code")))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            return false;
+        }
+        return false;
+    }
+
+    private double calculateItemsSubtotal(Map<String, Object> orderData) {
+        if (orderData == null) {
+            return 0.0;
+        }
+        Object itemsObj = orderData.get("items");
+        if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Object rowObj : list) {
+            if (rowObj instanceof Map<?, ?> row) {
+                total += asDouble(row.get("amount"));
+            }
+        }
+        return round(total);
+    }
+
+    private double calculateItemsGstTotal(Map<String, Object> orderData) {
+        if (orderData == null) {
+            return 0.0;
+        }
+        Object itemsObj = orderData.get("items");
+        if (!(itemsObj instanceof List<?> list) || list.isEmpty()) {
+            return 0.0;
+        }
+        double total = 0.0;
+        for (Object rowObj : list) {
+            if (!(rowObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            double amount = asDouble(row.get("amount"));
+            double gstPercent = asDouble(row.get("aas_gst_percent"));
+            if (amount > 0 && gstPercent > 0) {
+                total += amount * (gstPercent / 100.0);
+            }
+        }
+        return round(total);
+    }
+
+    private void copyIfPresent(Map<String, Object> from, Map<String, Object> to, String key) {
+        if (from == null || to == null || key == null) {
+            return;
+        }
+        if (from.containsKey(key) && from.get(key) != null) {
+            to.put(key, from.get(key));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractSimpleItems(Map<String, Object> doc) {
+        if (doc == null) {
+            return List.of();
+        }
+        Object itemsObj = doc.get("items");
+        if (!(itemsObj instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object obj : list) {
+            if (obj instanceof Map<?, ?> map) {
+                Map<String, Object> row = (Map<String, Object>) map;
+                if (BRANCH_IMAGE_ITEM_CODE.equals(asText(row.get("item_code")))) {
+                    continue;
+                }
+                Map<String, Object> simple = new HashMap<>();
+                simple.put("item_code", row.get("item_code"));
+                simple.put("item_name", row.getOrDefault("item_name", row.get("item_code")));
+                simple.put("qty", row.get("qty"));
+                simple.put("rate", row.get("rate"));
+                simple.put("amount", row.get("amount"));
+                simple.put("aas_margin_percent", row.get("aas_margin_percent"));
+                simple.put("aas_vendor_rate", row.get("aas_vendor_rate"));
+                simple.put("aas_rate_before_tax", row.get("aas_rate_before_tax"));
+                simple.put("aas_rate_after_tax", row.get("aas_rate_after_tax"));
+                simple.put("aas_mrp", row.get("aas_mrp"));
+                simple.put("aas_gst_percent", row.get("aas_gst_percent"));
+                simple.put("description", row.get("description"));
+                simple.put("display_description", stripAasLineMeta(asText(row.get("description"))));
+                simple.put("manual_entry", isManualEntry(row.get("description")));
+                simple.put("parse_note", extractParseNote(row.get("description")));
+                out.add(simple);
+            }
+        }
+        return out;
+    }
+
+    private boolean isManualEntry(Object description) {
+        return asText(description).lines().map(String::trim).anyMatch(line -> line.startsWith(MANUAL_ENTRY_MARKER));
+    }
+
+    private String extractParseNote(Object description) {
+        return asText(description).lines()
+                .map(String::trim)
+                .filter(line -> line.startsWith(PARSE_NOTE_PREFIX))
+                .map(line -> line.substring(PARSE_NOTE_PREFIX.length()).trim())
+                .findFirst()
+                .orElse("");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void applySalesOrderDefaults(Map<String, Object> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        double margin = asDouble(fields.get("aas_margin_percent"));
+        if (!fields.containsKey("aas_margin_percent") || margin <= 0) {
+            fields.put("aas_margin_percent", defaultMarginPercent);
+        }
+        Object itemsObj = fields.get("items");
+        if (!(itemsObj instanceof List<?> items) || items.isEmpty()) {
+            return;
+        }
+        String warehouse = asText(fields.get("set_warehouse"));
+        if (warehouse.isBlank()) {
+            warehouse = resolveDefaultWarehouse(asText(fields.get("company")));
+            if (!warehouse.isBlank()) {
+                fields.put("set_warehouse", warehouse);
+            }
+        }
+        for (Object rowObj : items) {
+            if (!(rowObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            Map<String, Object> item = (Map<String, Object>) row;
+            String itemCode = asText(item.get("item_code"));
+            item.put("aas_margin_percent", resolveMarginPercent(item.get("aas_margin_percent"), itemCode));
+            if (!warehouse.isBlank() && asText(item.get("warehouse")).isBlank()) {
+                item.put("warehouse", warehouse);
+            }
+        }
+    }
+
+    private Map<String, Object> applyItemMarginDefaults(Map<String, Object> item) {
+        if (item == null) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new HashMap<>(item);
+        String itemCode = asText(copy.get("item_code"));
+        copy.put("aas_margin_percent", resolveMarginPercent(copy.get("aas_margin_percent"), itemCode));
+        return copy;
+    }
+
+    private double resolveMarginPercent(Object value, String itemCode) {
+        double margin = asDouble(value);
+        if (value != null && !value.toString().trim().isEmpty() && margin > 0) {
+            return margin;
+        }
+        double itemMargin = resolveItemMarginPercent(itemCode);
+        if (itemMargin > 0) {
+            return itemMargin;
+        }
+        return defaultMarginPercent;
+    }
+
+    private double calculateDerivedMarginPercent(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return defaultMarginPercent;
+        }
+        double vendorTotal = 0.0;
+        double sellTotal = 0.0;
+        for (Map<String, Object> row : items) {
+            if (row == null) {
+                continue;
+            }
+            double qty = asDouble(row.get("qty"));
+            if (qty <= 0) {
+                qty = 1.0;
+            }
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            if (vendorRate <= 0) {
+                vendorRate = asDouble(row.get("rate"));
+            }
+            double marginPercent = asDouble(row.get("aas_margin_percent"));
+            if (marginPercent <= 0) {
+                marginPercent = defaultMarginPercent;
+            }
+            vendorTotal += vendorRate * qty;
+            sellTotal += vendorRate * (1 + marginPercent / 100.0) * qty;
+        }
+        vendorTotal = round(vendorTotal);
+        sellTotal = round(sellTotal);
+        if (vendorTotal <= 0) {
+            return defaultMarginPercent;
+        }
+        return round(((sellTotal - vendorTotal) / vendorTotal) * 100.0);
+    }
+
+    private boolean deleteLinkedDraftPurchaseOrder(String orderId, String purchaseOrderId, List<String> retainedPurchaseInvoiceIds) {
+        Map<String, Object> purchaseOrder = unwrap(erpNextClient.getResource(PURCHASE_ORDER, purchaseOrderId));
+        int purchaseOrderDocstatus = (int) Math.round(asDouble(purchaseOrder.get("docstatus")));
+        if (purchaseOrderDocstatus != 0) {
+            return false;
+        }
+
+        if (retainedPurchaseInvoiceIds != null && !retainedPurchaseInvoiceIds.isEmpty()) {
+            return false;
+        }
+
+        // ERPNext blocks deleting the Purchase Order while the Sales Order still links to it.
+        erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_po", ""));
+        erpNextClient.deleteResource(PURCHASE_ORDER, purchaseOrderId);
+        return true;
+    }
+
+    private CascadeCleanupResult cleanupLinkedSalesInvoices(String orderId, Map<String, Object> orderData) {
+        List<String> deleted = new ArrayList<>();
+        List<String> retained = new ArrayList<>();
+        String linkedSalesInvoiceId = asText(orderData.get("aas_si_branch"));
+        for (Map<String, Object> row : listLinkedSalesInvoices(orderId)) {
+            String salesInvoiceId = asText(row.get("name"));
+            if (salesInvoiceId.isBlank()) {
+                continue;
+            }
+            int salesInvoiceDocstatus = (int) Math.round(asDouble(row.get("docstatus")));
+            if (salesInvoiceDocstatus == 0) {
+                if (salesInvoiceId.equals(linkedSalesInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_si_branch", ""));
+                }
+                erpNextClient.deleteResource(SALES_INVOICE, salesInvoiceId);
+                deleted.add(salesInvoiceId);
+                continue;
+            }
+            if (salesInvoiceDocstatus == 2) {
+                if (salesInvoiceId.equals(linkedSalesInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_si_branch", ""));
+                }
+                deleted.add(salesInvoiceId);
+                continue;
+            }
+            retained.add(salesInvoiceId);
+        }
+        return new CascadeCleanupResult(deleted, retained);
+    }
+
+    private CascadeCleanupResult cleanupLinkedPurchaseInvoices(String orderId, Map<String, Object> orderData) {
+        List<String> deleted = new ArrayList<>();
+        List<String> retained = new ArrayList<>();
+        String linkedPurchaseInvoiceId = asText(orderData.get("aas_pi_vendor"));
+        for (Map<String, Object> row : listLinkedPurchaseInvoices(orderId)) {
+            String purchaseInvoiceId = asText(row.get("name"));
+            if (purchaseInvoiceId.isBlank()) {
+                continue;
+            }
+            int purchaseInvoiceDocstatus = (int) Math.round(asDouble(row.get("docstatus")));
+            if (purchaseInvoiceDocstatus == 0) {
+                if (purchaseInvoiceId.equals(linkedPurchaseInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_pi_vendor", ""));
+                }
+                erpNextClient.deleteResource(PURCHASE_INVOICE, purchaseInvoiceId);
+                deleted.add(purchaseInvoiceId);
+                continue;
+            }
+            if (purchaseInvoiceDocstatus == 2) {
+                if (purchaseInvoiceId.equals(linkedPurchaseInvoiceId)) {
+                    erpNextClient.updateResource(DOCTYPE, orderId, Map.of("aas_pi_vendor", ""));
+                }
+                deleted.add(purchaseInvoiceId);
+                continue;
+            }
+            retained.add(purchaseInvoiceId);
+        }
+        return new CascadeCleanupResult(deleted, retained);
+    }
+
+    private List<Map<String, Object>> listLinkedPurchaseInvoices(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"docstatus\"]");
+        params.put("filters", "[[\"Purchase Invoice\",\"aas_source_sales_order\",\"=\",\"" + escape(orderId) + "\"]]");
+        return erpNextClient.listResources(PURCHASE_INVOICE, params);
+    }
+
+    private List<Map<String, Object>> listLinkedSalesInvoices(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"docstatus\"]");
+        params.put("filters", "[[\"Sales Invoice\",\"aas_source_sales_order\",\"=\",\"" + escape(orderId) + "\"]]");
+        return erpNextClient.listResources(SALES_INVOICE, params);
+    }
+
+    private void clearInboundSalesOrderLinks(String orderId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"aas_so_branch\",\"aas_si_branch\"]");
+        params.put(
+                "or_filters",
+                "[[\"Sales Order\",\"aas_so_branch\",\"=\",\"" + escape(orderId) + "\"],"
+                        + "[\"Sales Order\",\"aas_si_branch\",\"=\",\"" + escape(orderId) + "\"]]");
+        List<Map<String, Object>> linkedOrders = erpNextClient.listResources(DOCTYPE, params);
+        for (Map<String, Object> linkedOrder : linkedOrders) {
+            String linkedOrderId = asText(linkedOrder.get("name"));
+            if (linkedOrderId.isBlank() || linkedOrderId.equals(orderId)) {
+                continue;
+            }
+            Map<String, Object> payload = new HashMap<>();
+            if (orderId.equals(asText(linkedOrder.get("aas_so_branch")))) {
+                payload.put("aas_so_branch", "");
+            }
+            if (orderId.equals(asText(linkedOrder.get("aas_si_branch")))) {
+                payload.put("aas_si_branch", "");
+            }
+            if (!payload.isEmpty()) {
+                erpNextClient.updateResource(DOCTYPE, linkedOrderId, payload);
+            }
+        }
+    }
+
+    private double resolveItemMarginPercent(String itemCode) {
+        String code = asText(itemCode);
+        if (code.isBlank()) {
+            return 0.0;
+        }
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource("Item", code));
+            double margin = asDouble(item.get("aas_margin_percent"));
+            return margin > 0 ? margin : 0.0;
+        } catch (Exception ex) {
+            return 0.0;
+        }
+    }
+
+    private void softDeleteOrder(String orderId, Map<String, Object> orderData) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_is_deleted", 1);
+        payload.put("aas_deleted_at", LocalDateTime.now().format(ERP_DATE_TIME));
+        payload.put("aas_po", "");
+        payload.put("aas_pi_vendor", "");
+        payload.put("aas_si_branch", "");
+        payload.put("aas_so_branch", "");
+        erpNextClient.updateResource(DOCTYPE, orderId, payload);
+    }
+
+    private boolean isSoftDeleted(Map<String, Object> order) {
+        return asFlag(order == null ? null : order.get("aas_is_deleted"))
+                || "DELETED".equalsIgnoreCase(asText(order == null ? null : order.get("aas_status")));
+    }
+
+    private boolean asFlag(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        String text = value.toString().trim().toLowerCase(Locale.ROOT);
+        return "1".equals(text) || "true".equals(text) || "yes".equals(text);
+    }
+
+    private record CascadeCleanupResult(List<String> deletedDocIds, List<String> retainedDocIds) {
     }
 }

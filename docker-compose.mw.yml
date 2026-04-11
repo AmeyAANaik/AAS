@@ -2,19 +2,23 @@ services:
   mw:
     build:
       context: ./mw
+    env_file:
+      - .env.mw
     ports:
       - "8083:8083"
     environment:
       ERPNEXT_BASE_URL: http://host.docker.internal:8080
+      ERPNEXT_PUBLIC_BASE_URL: http://localhost:8080
+      OCR_TESSERACT_DATAPATH: /usr/share/tesseract-ocr/5/tessdata
       APP_DEFAULTS_ENABLED: "true"
       APP_DEFAULTS_VENDOR_EMAIL: vendor@example.com
       APP_DEFAULTS_VENDOR_NAME: Vendor User
       APP_DEFAULTS_VENDOR_PASSWORD: VendorAAS!2026
-      APP_DEFAULTS_VENDOR_SUPPLIER: Vendor A
+      APP_DEFAULTS_VENDOR_SUPPLIER: Sanshray Foods
       APP_DEFAULTS_SHOP_EMAIL: shop@example.com
       APP_DEFAULTS_SHOP_NAME: Shop User
       APP_DEFAULTS_SHOP_PASSWORD: ShopAAS!2026
-      APP_DEFAULTS_SHOP_CUSTOMER: Shop A
+      APP_DEFAULTS_SHOP_CUSTOMER: Sukarta Aundh
       APP_DEFAULTS_HELPER_EMAIL: helper@example.com
       APP_DEFAULTS_HELPER_NAME: Helper User
       APP_DEFAULTS_HELPER_PASSWORD: HelperAAS!2026

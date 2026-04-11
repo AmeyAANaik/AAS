@@ -1,8 +1,15 @@
 import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
-import { Vendor, VendorFormValue, VendorView } from '../vendor.model';
+import { Category } from '../../categories/category.model';
+import { CategoryService } from '../../categories/category.service';
+import { Vendor, VendorFormValue, VendorInvoiceTemplateProfilePreview, VendorView } from '../vendor.model';
 import { VendorService } from '../vendor.service';
+import { InvoiceTemplateModel, InvoiceTemplateModelService } from '../../shared/invoice-template-model.service';
+import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { formatUiError } from '../../shared/error-message.util';
+import { VendorInvoiceSetupDialogComponent, VendorInvoiceSetupDialogResult } from '../vendor-invoice-setup-dialog/vendor-invoice-setup-dialog.component';
 
 @Component({
   selector: 'app-vendor-list',
@@ -10,23 +17,47 @@ import { VendorService } from '../vendor.service';
   styleUrl: './vendor-list.component.scss'
 })
 export class VendorListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'priority', 'status', 'actions'];
+  displayedColumns: string[] = ['name', 'category', 'priority', 'template', 'status', 'actions'];
   vendors: VendorView[] = [];
+  categories: Category[] = [];
   selectedVendor: VendorView | null = null;
   mode: 'create' | 'edit' = 'create';
   isFormOpen = false;
   searchControl = new FormControl('');
   isLoading = false;
   isSaving = false;
+  isValidatingTemplate = false;
   statusMessage = '';
+  invoiceTemplateModel: InvoiceTemplateModel | null = null;
+  profilePreview: VendorInvoiceTemplateProfilePreview | null = null;
 
-  constructor(private vendorService: VendorService) {}
+  constructor(
+    private vendorService: VendorService,
+    private categoryService: CategoryService,
+    private invoiceTemplateModelService: InvoiceTemplateModelService,
+    private toastService: MasterDataToastService,
+    private dialog: MatDialog
+  ) {}
 
   ngOnInit(): void {
+    this.invoiceTemplateModelService.getModel().subscribe({
+      next: model => {
+        this.invoiceTemplateModel = model;
+      }
+    });
+    this.categoryService.listCategories().subscribe({
+      next: categories => {
+        this.categories = (categories ?? []).map(category => ({
+          ...category,
+          name: category.name ?? category.item_group_name ?? ''
+        }));
+      }
+    });
     this.loadVendors();
   }
 
   loadVendors(): void {
+    const selectedId = this.selectedVendor?.id ?? null;
     this.isLoading = true;
     this.vendorService
       .listVendors()
@@ -34,6 +65,9 @@ export class VendorListComponent implements OnInit {
       .subscribe({
         next: vendors => {
           this.vendors = vendors.map(vendor => this.toViewModel(vendor));
+          if (selectedId) {
+            this.selectedVendor = this.vendors.find(vendor => vendor.id === selectedId) ?? this.selectedVendor;
+          }
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to load vendors');
@@ -45,7 +79,8 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = vendor;
     this.mode = 'edit';
     this.isFormOpen = true;
-    this.statusMessage = 'Editing vendors is not available yet.';
+    this.statusMessage = '';
+    this.profilePreview = null;
   }
 
   openCreate(): void {
@@ -53,43 +88,96 @@ export class VendorListComponent implements OnInit {
     this.selectedVendor = null;
     this.isFormOpen = true;
     this.statusMessage = '';
+    this.profilePreview = null;
   }
 
   clearSelection(): void {
+    this.clearSelectionInternal(true);
+  }
+
+  private clearSelectionInternal(clearStatus: boolean): void {
     this.selectedVendor = null;
     this.isFormOpen = false;
     this.mode = 'create';
-    this.statusMessage = '';
+    this.profilePreview = null;
+    if (clearStatus) {
+      this.statusMessage = '';
+    }
   }
 
   saveVendor(formValue: VendorFormValue): void {
     this.isSaving = true;
     const payload = this.toPayload(formValue);
-    this.vendorService
-      .createVendor(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.statusMessage = 'Vendor saved.';
-          this.clearSelection();
-          this.loadVendors();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save vendor');
-        }
-      });
+    const request$ =
+      this.mode === 'edit' && this.selectedVendor
+        ? this.vendorService.updateVendor(this.selectedVendor.id, payload)
+        : this.vendorService.createVendor(payload);
+    request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
+      next: () => {
+        this.statusMessage = this.mode === 'edit' ? 'Vendor updated.' : 'Vendor saved.';
+        this.toastService.success(this.statusMessage);
+        // Keep the status message visible after closing the form.
+        this.clearSelectionInternal(false);
+        this.loadVendors();
+      },
+      error: err => {
+        this.statusMessage = this.formatError(err, 'Unable to save vendor');
+        this.toastService.error(this.statusMessage);
+      }
+    });
+  }
+
+  openInvoiceSetup(): void {
+    if (!this.selectedVendor || this.mode !== 'edit') {
+      this.statusMessage = 'Save the vendor first before opening invoice extraction setup.';
+      return;
+    }
+    const dialogRef = this.dialog.open<VendorInvoiceSetupDialogComponent, {
+      vendor: VendorView;
+      invoiceTemplateModel: InvoiceTemplateModel | null;
+      profilePreview: VendorInvoiceTemplateProfilePreview | null;
+    }, VendorInvoiceSetupDialogResult>(VendorInvoiceSetupDialogComponent, {
+      width: 'min(1120px, 94vw)',
+      maxWidth: '94vw',
+      data: {
+        vendor: this.selectedVendor,
+        invoiceTemplateModel: this.invoiceTemplateModel,
+        profilePreview: this.profilePreview
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) {
+        return;
+      }
+      this.profilePreview = result.profilePreview;
+      if (result.invoiceTemplateModel) {
+        this.invoiceTemplateModel = result.invoiceTemplateModel;
+      }
+      if (result.statusMessage) {
+        this.statusMessage = result.statusMessage;
+      }
+      if (result.refreshVendor) {
+        this.loadVendors();
+      }
+    });
   }
 
   private toViewModel(vendor: Vendor): VendorView {
     const name = String(vendor['supplier_name'] ?? vendor.name ?? '').trim();
-    const disabled = Boolean(vendor['disabled']);
+    const disabled = this.asFlag(vendor['disabled']);
     const priorityValue = vendor['aas_priority'];
-    const priority = typeof priorityValue === 'number' ? priorityValue : null;
+    const priority = priorityValue === undefined || priorityValue === null ? null : Number(priorityValue);
+    const templateHasJson = String(vendor['invoice_template_json'] ?? '').trim().length > 0;
     return {
       id: String(vendor.name ?? name),
       name: name || String(vendor.name ?? ''),
+      vendorCode: String(vendor['vendor_code'] ?? '').trim(),
+      category: String(vendor['category'] ?? '').trim(),
       priority,
       status: disabled ? 'Inactive' : 'Active',
+      templateKey: '',
+      templateHasJson,
       raw: vendor
     };
   }
@@ -97,14 +185,69 @@ export class VendorListComponent implements OnInit {
   private toPayload(formValue: VendorFormValue): Record<string, unknown> {
     return {
       supplier_name: formValue.supplierName.trim(),
+      vendor_code: formValue.vendorCode.trim(),
+      category: formValue.category?.trim() || '',
       address: formValue.address?.trim() || '',
       phone: formValue.phone?.trim() || '',
       gst: formValue.gst?.trim() || '',
       pan: formValue.pan?.trim() || '',
       food_license_no: formValue.foodLicenseNo?.trim() || '',
       aas_priority: formValue.priority ?? 0,
-      disabled: formValue.status === 'Inactive' ? 1 : 0
+      disabled: formValue.status === 'Inactive' ? 1 : 0,
+      aas_invoice_template_json: String(formValue.invoiceTemplateJson ?? '').trim()
     };
+  }
+
+  clearTemplate(): void {
+    if (!this.selectedVendor) {
+      this.statusMessage = 'Select a vendor before clearing the template.';
+      return;
+    }
+    this.isSaving = true;
+    this.vendorService
+      .clearInvoiceTemplate(this.selectedVendor.id)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.profilePreview = null;
+          this.statusMessage = 'Template cleared.';
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to clear template');
+        }
+      });
+  }
+
+  deleteVendor(vendor: VendorView, event?: Event): void {
+    event?.stopPropagation();
+    if (!vendor) {
+      return;
+    }
+    if (vendor.status !== 'Inactive') {
+      this.statusMessage = 'Only inactive vendors can be deleted.';
+      return;
+    }
+    const confirmed = window.confirm(`Delete vendor "${vendor.name}"? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+    this.isSaving = true;
+    this.vendorService
+      .deleteVendor(vendor.id)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          if (this.selectedVendor?.id === vendor.id) {
+            this.clearSelectionInternal(false);
+          }
+          this.statusMessage = 'Vendor deleted.';
+          this.loadVendors();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to delete vendor');
+        }
+      });
   }
 
   get filteredVendors(): VendorView[] {
@@ -112,16 +255,38 @@ export class VendorListComponent implements OnInit {
     if (!term) {
       return this.vendors;
     }
-    return this.vendors.filter(vendor => vendor.name.toLowerCase().includes(term));
+    return this.vendors.filter(vendor =>
+      vendor.name.toLowerCase().includes(term)
+        || vendor.vendorCode.toLowerCase().includes(term)
+        || vendor.category.toLowerCase().includes(term));
+  }
+
+  get statusIsError(): boolean {
+    const msg = (this.statusMessage ?? '').toLowerCase();
+    if (!msg.trim()) {
+      return false;
+    }
+    return msg.includes('unable') || msg.includes('error') || msg.includes('failed') || msg.includes('forbidden');
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
+    return formatUiError(err, fallback);
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
     }
-    if (typeof err === 'string') {
-      return err;
+    if (typeof value === 'boolean') {
+      return value;
     }
-    return fallback;
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 }

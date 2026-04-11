@@ -1,153 +1,376 @@
 <mat-card>
-  <mat-card-title>Create order</mat-card-title>
+  <mat-card-title class="title-row">
+    <button mat-icon-button type="button" aria-label="Back to orders list" (click)="goBack()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>Create order</span>
+  </mat-card-title>
   <mat-card-content>
-    <mat-horizontal-stepper [linear]="true">
-      <mat-step [stepControl]="detailsGroup">
-        <form [formGroup]="detailsGroup" class="form-grid">
-          <ng-template matStepLabel>Order details</ng-template>
-          <mat-form-field appearance="outline">
-            <mat-label>Branch (Shop)</mat-label>
-            <mat-select formControlName="customer">
-              <mat-option value="">Select branch</mat-option>
-              <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
-            </mat-select>
-            <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Company</mat-label>
-            <input matInput formControlName="company" />
-            <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Order date</mat-label>
-            <input matInput type="date" formControlName="orderDate" />
-            <mat-error *ngIf="detailsGroup.get('orderDate')?.hasError('required')">Order date is required.</mat-error>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Delivery date</mat-label>
-            <input matInput type="date" formControlName="deliveryDate" />
-            <mat-error *ngIf="detailsGroup.get('deliveryDate')?.hasError('required')">Delivery date is required.</mat-error>
-          </mat-form-field>
-        </form>
-        <div class="step-actions">
-          <button mat-flat-button color="primary" matStepperNext [disabled]="detailsGroup.invalid">Next</button>
+    <form [formGroup]="form" class="create-form" (submit)="$event.preventDefault()">
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Order details</p>
+          <p class="muted">Select the branch and category. The top vendor for that category will be assigned automatically.</p>
         </div>
-      </mat-step>
+      </div>
+      <div formGroupName="details" class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Branch (Shop)</mat-label>
+          <mat-select formControlName="customer" [disabled]="isShopsLoading || !!shopsError">
+            <mat-option value="">Select branch</mat-option>
+            <mat-option *ngIf="isShopsLoading" disabled>Loading branches...</mat-option>
+            <mat-option *ngIf="noActiveBranchesAvailable" disabled>No active branches available</mat-option>
+            <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="detailsGroup.get('customer')?.hasError('required')">Branch is required.</mat-error>
+          <mat-hint *ngIf="shopsError">{{ shopsError }}</mat-hint>
+          <mat-hint *ngIf="noActiveBranchesAvailable">Reactivate a branch in Branches before creating an order.</mat-hint>
+        </mat-form-field>
 
-      <mat-step [stepControl]="itemGroup">
-        <form [formGroup]="itemGroup" class="form-grid">
-          <ng-template matStepLabel>Order item</ng-template>
-          <mat-form-field appearance="outline">
-            <mat-label>Item</mat-label>
-            <mat-select formControlName="itemId">
-              <mat-option value="">Select item</mat-option>
-              <mat-option *ngFor="let item of items" [value]="item.code">{{ item.name }}</mat-option>
-            </mat-select>
-            <mat-error *ngIf="itemGroup.get('itemId')?.hasError('required')">Item is required.</mat-error>
-          </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category" [disabled]="isCategoriesLoading || !!categoriesError">
+            <mat-option value="">Select category</mat-option>
+            <mat-option *ngIf="isCategoriesLoading" disabled>Loading categories...</mat-option>
+            <mat-option *ngFor="let category of categories" [value]="category.id">{{ category.name }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="detailsGroup.get('category')?.hasError('required')">Category is required.</mat-error>
+          <mat-hint *ngIf="categoriesError">{{ categoriesError }}</mat-hint>
+        </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Quantity</mat-label>
-            <input matInput type="number" formControlName="quantity" min="1" />
-            <mat-error *ngIf="itemGroup.get('quantity')?.hasError('required')">Quantity is required.</mat-error>
-            <mat-error *ngIf="itemGroup.get('quantity')?.hasError('min')">Quantity must be at least 1.</mat-error>
-          </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Company</mat-label>
+          <input matInput [value]="selectedCompanyLabel" readonly [disabled]="isCompaniesLoading" />
+          <mat-error *ngIf="detailsGroup.get('company')?.hasError('required')">Company is required.</mat-error>
+          <mat-hint *ngIf="companiesError">{{ companiesError }}</mat-hint>
+          <mat-hint *ngIf="!companiesError">Company is fixed from the selected boot-time company context.</mat-hint>
+        </mat-form-field>
 
-          <mat-slide-toggle formControlName="pricingVisible">Show pricing details (Option 1)</mat-slide-toggle>
+        <mat-form-field appearance="outline">
+          <mat-label>Order date</mat-label>
+          <input matInput type="date" formControlName="orderDate" />
+          <mat-error *ngIf="detailsGroup.get('orderDate')?.hasError('required')">Order date is required.</mat-error>
+        </mat-form-field>
 
-          <mat-form-field appearance="outline" *ngIf="pricingVisible">
-            <mat-label>Rate</mat-label>
-            <input matInput type="number" formControlName="rate" min="0" />
-            <mat-error *ngIf="itemGroup.get('rate')?.hasError('required')">Rate is required when pricing is visible.</mat-error>
-            <mat-error *ngIf="itemGroup.get('rate')?.hasError('min')">Rate cannot be negative.</mat-error>
-          </mat-form-field>
-        </form>
-        <div class="pricing-summary">
-          <div>
-            <span class="label">Line total</span>
-            <span class="value">{{ lineTotal | number: '1.0-2' }}</span>
+        <mat-form-field appearance="outline">
+          <mat-label>Delivery date</mat-label>
+          <input matInput type="date" formControlName="deliveryDate" />
+          <mat-error *ngIf="detailsGroup.get('deliveryDate')?.hasError('required')">Delivery date is required.</mat-error>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Order source</p>
+          <p class="muted">Either upload branch images now or raise the order directly from items in the chosen category.</p>
+        </div>
+      </div>
+      <div class="mode-toggle" role="tablist" aria-label="Order creation mode">
+        <button
+          mat-stroked-button
+          type="button"
+          [class.active]="createMode === 'images'"
+          (click)="setCreateMode('images')">
+          Upload images
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          [class.active]="createMode === 'items'"
+          (click)="setCreateMode('items')">
+          Select items
+        </button>
+      </div>
+    </section>
+
+    <section class="create-section" *ngIf="createMode === 'images'">
+      <div class="section-heading">
+        <div>
+          <p class="label">Attach image</p>
+          <p class="muted">Upload branch order image. This will be stored against the order.</p>
+        </div>
+      </div>
+      <div class="image-step">
+        <div class="image-controls">
+          <label class="file-label">
+            <input type="file" accept="image/*" multiple (change)="onImageSelected($event)" />
+            <span class="file-button">Choose images</span>
+            <span class="file-name">
+              {{ imageFiles.length ? imageFiles.length + ' image' + (imageFiles.length === 1 ? '' : 's') + ' selected' : 'No images selected' }}
+            </span>
+          </label>
+          <div class="image-actions">
+            <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
+              Clear all
+            </button>
           </div>
-          <span class="confidence">{{ pricingLabel }}</span>
-        </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext [disabled]="itemGroup.invalid">Attach image</button>
-        </div>
-      </mat-step>
-
-      <mat-step optional>
-        <ng-template matStepLabel>Attach image</ng-template>
-        <div class="image-step">
-          <div class="image-controls">
-            <label class="file-label">
-              <input type="file" accept="image/*" (change)="onImageSelected($event)" />
-              <span class="file-button">Choose image</span>
-              <span class="file-name">{{ imageFile?.name || 'No image selected' }}</span>
-            </label>
-            <div class="image-actions">
-              <button mat-stroked-button color="primary" type="button" (click)="generateSampleImage()">
-                Generate sample image
-              </button>
-              <button mat-button type="button" (click)="clearImage()" [disabled]="!imageSelected">
-                Clear
-              </button>
+          <p class="hint">
+            Attach one or more branch order images.
+          </p>
+          <div class="image-list" *ngIf="imageFiles.length">
+            <div class="image-list-row" *ngFor="let image of imageFiles; let i = index">
+              <span>{{ image.name }}</span>
+              <button mat-button type="button" color="warn" (click)="removeImage(i)">Remove</button>
             </div>
-            <p class="hint">
-              Attach a branch order image. If you do not have one, generate a sample and continue.
-            </p>
-          </div>
-          <div class="image-preview" *ngIf="imagePreviewUrl">
-            <img [src]="imagePreviewUrl" alt="Order image preview" />
           </div>
         </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" matStepperNext>Review</button>
+        <div class="image-preview-grid" *ngIf="imagePreviewUrls.length">
+          <div class="image-preview" *ngFor="let previewUrl of imagePreviewUrls; let i = index">
+            <img [src]="previewUrl" [alt]="'Order image preview ' + (i + 1)" />
+          </div>
         </div>
-      </mat-step>
+      </div>
+    </section>
 
-      <mat-step>
-        <ng-template matStepLabel>Review & submit</ng-template>
-        <div class="review-grid">
-          <div>
-            <p class="label">Branch</p>
-            <p class="value">{{ detailsGroup.get('customer')?.value || '-' }}</p>
+    <section class="create-section" *ngIf="createMode === 'items'">
+      <div class="section-heading">
+        <div>
+          <p class="label">Select items</p>
+          <p class="muted">Choose a vendor, set quantities, and generate the vendor invoice directly from the selected catalog lines.</p>
+        </div>
+      </div>
+      <div class="items-step" *ngIf="detailsGroup.get('category')?.value; else chooseCategoryFirst">
+        <div class="vendor-summary-panel">
+          <div class="vendor-summary-header">
+            <div>
+              <p class="label">Vendor & tax mode</p>
+              <p class="muted">Pick the vendor for this order and decide whether the generated vendor invoice should apply GST.</p>
+            </div>
+            <span class="vendor-summary-count">{{ categoryVendors.length }} vendors</span>
           </div>
-          <div>
-            <p class="label">Order date</p>
-            <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
+          <p class="hint" *ngIf="isVendorsLoading">Loading vendors for this category...</p>
+          <p class="hint" *ngIf="vendorsError">{{ vendorsError }}</p>
+          <p class="hint" *ngIf="!isVendorsLoading && !vendorsError && !categoryVendors.length">
+            No vendors are currently mapped to this category.
+          </p>
+          <div class="vendor-config-grid" formGroupName="details" *ngIf="categoryVendors.length">
+            <mat-form-field appearance="outline">
+              <mat-label>Vendor</mat-label>
+              <mat-select formControlName="vendor">
+                <mat-option value="">Select vendor</mat-option>
+                <mat-option *ngFor="let vendor of categoryVendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+            <div class="gst-switch-card">
+              <p class="label">Vendor invoice tax</p>
+              <mat-slide-toggle [checked]="applyGst" (change)="toggleApplyGst($event.checked)">
+                {{ applyGst ? 'Apply GST' : 'Do not apply GST' }}
+              </mat-slide-toggle>
+            </div>
           </div>
-          <div>
-            <p class="label">Delivery date</p>
-            <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
-          </div>
-          <div>
-            <p class="label">Item</p>
-            <p class="value">{{ selectedItem?.name || 'Unselected' }}</p>
-          </div>
-          <div>
-            <p class="label">Quantity</p>
-            <p class="value">{{ itemGroup.get('quantity')?.value }}</p>
-          </div>
-          <div>
-            <p class="label">Pricing</p>
-            <p class="value">{{ pricingHint }}</p>
-          </div>
-          <div>
-            <p class="label">Image</p>
-            <p class="value">{{ imageFile?.name || 'No image attached' }}</p>
+          <div class="vendor-chip-list" *ngIf="categoryVendors.length">
+            <span
+              class="vendor-chip"
+              [class.vendor-chip-active]="vendor.id === detailsGroup.get('vendor')?.value"
+              *ngFor="let vendor of categoryVendors">
+              {{ vendor.name }}
+            </span>
           </div>
         </div>
-        <div class="step-actions">
-          <button mat-stroked-button color="primary" matStepperPrevious>Back</button>
-          <button mat-flat-button color="primary" (click)="submit()" [disabled]="!canSubmit">Create order</button>
-          <button mat-button (click)="clear()" [disabled]="isSubmitting">Clear</button>
+        <p class="hint" *ngIf="isItemsLoading">Loading items for this category...</p>
+        <p class="hint" *ngIf="!isItemsLoading && !itemsError && categoryVendors.length && !detailsGroup.get('vendor')?.value">
+          Select a vendor to see only that vendor's catalog items.
+        </p>
+        <p class="hint" *ngIf="itemsError">{{ itemsError }}</p>
+        <p class="hint" *ngIf="!isItemsLoading && !itemsError && detailsGroup.get('vendor')?.value && !categoryItems.length">
+          No active items are available for this vendor in the selected category yet.
+        </p>
+        <div class="items-layout" *ngIf="categoryItems.length">
+          <div class="catalog-panel">
+            <div class="catalog-toolbar">
+              <mat-form-field appearance="outline" class="search-field">
+                <mat-label>Search items</mat-label>
+                <input
+                  matInput
+                  [value]="itemSearchTerm"
+                  (input)="updateItemSearch($any($event.target).value)"
+                  placeholder="Search by item, code, unit" />
+                <button
+                  *ngIf="itemSearchTerm"
+                  mat-icon-button
+                  matSuffix
+                  type="button"
+                  aria-label="Clear item search"
+                  (click)="clearItemSearch()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </mat-form-field>
+              <div class="catalog-stats">
+                <span>{{ filteredCategoryItems.length }} visible</span>
+                <span>{{ selectedItemsCount }} selected</span>
+              </div>
+            </div>
+
+            <div class="item-selection-list scroll-shell" *ngIf="filteredCategoryItems.length; else noItemMatches">
+              <div class="item-selection-row" *ngFor="let item of filteredCategoryItems">
+                <mat-checkbox
+                  [checked]="item.selected"
+                  (change)="toggleItemSelection(item.id, $event.checked)">
+                </mat-checkbox>
+                <div class="item-copy">
+                  <p class="item-name">{{ item.name }}</p>
+                  <p class="item-meta">
+                    {{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span>
+                  </p>
+                  <div class="item-tags">
+                    <span>Line total {{ (item.qty * item.rate) | number: '1.0-2' }}</span>
+                    <span *ngIf="applyGst">GST value {{ ((item.qty * item.rate * item.gstPercent) / 100) | number: '1.0-2' }}</span>
+                  </div>
+                </div>
+                <div class="item-edit-grid">
+                  <div class="item-edit-box">
+                    <label [attr.for]="'rate-' + item.id">Rate</label>
+                    <input
+                      [id]="'rate-' + item.id"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [value]="displayRate(item)"
+                      (keydown.enter)="$event.preventDefault()"
+                      (change)="onRateInput(item.id, $any($event.target).value)"
+                      (blur)="commitRateDraft(item.id)" />
+                  </div>
+                  <div class="item-edit-box" *ngIf="applyGst">
+                    <label [attr.for]="'gst-' + item.id">GST %</label>
+                    <input
+                      [id]="'gst-' + item.id"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [value]="displayGst(item)"
+                      (keydown.enter)="$event.preventDefault()"
+                      (change)="onGstInput(item.id, $any($event.target).value)"
+                      (blur)="commitGstDraft(item.id)" />
+                  </div>
+                </div>
+                <div class="item-qty-box">
+                  <label [attr.for]="'qty-' + item.id">Qty</label>
+                  <input
+                    [id]="'qty-' + item.id"
+                    type="number"
+                    min="1"
+                    [value]="displayQty(item)"
+                    (keydown.enter)="$event.preventDefault()"
+                    (change)="onQtyInput(item.id, $any($event.target).value)"
+                    (blur)="commitQtyDraft(item.id)" />
+                </div>
+                <span class="selection-state" [class.active]="item.selected">
+                  {{ item.selected ? 'Selected' : 'Tap to add' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="checkout-panel">
+            <p class="checkout-title">Order checkout</p>
+            <p class="checkout-copy">Review the generated vendor invoice totals and create the order directly in preview-ready state.</p>
+            <div class="checkout-metrics">
+              <div>
+                <p class="label">Selected items</p>
+                <p class="checkout-value">{{ selectedItemsCount }}</p>
+              </div>
+              <div>
+                <p class="label">Vendor</p>
+                <p class="checkout-value checkout-value-small">{{ selectedVendorName || '-' }}</p>
+              </div>
+            </div>
+            <div class="summary-stack">
+              <div class="summary-row">
+                <span>Vendor subtotal</span>
+                <strong>{{ vendorSubtotal | number: '1.0-2' }}</strong>
+              </div>
+              <div class="summary-row">
+                <span>GST total</span>
+                <strong>{{ gstTotal | number: '1.0-2' }}</strong>
+              </div>
+              <div class="summary-row total">
+                <span>Vendor invoice total</span>
+                <strong>{{ vendorInvoiceTotal | number: '1.0-2' }}</strong>
+              </div>
+            </div>
+            <div class="checkout-items scroll-shell" *ngIf="selectedOrderItems.length; else noSelectedItems">
+              <div class="checkout-item" *ngFor="let item of selectedOrderItems">
+                <div>
+                  <p class="checkout-item-name">{{ item.name }}</p>
+                  <p class="checkout-item-meta">{{ item.code }}<span *ngIf="item.unit"> · {{ item.unit }}</span><span *ngIf="item.packagingUnit"> · {{ item.packagingUnit }}</span></p>
+                  <p class="checkout-item-meta">Qty {{ item.qty }} · Rate {{ item.rate | number: '1.0-2' }} · GST {{ applyGst ? (item.gstPercent | number: '1.0-2') : 0 }}%</p>
+                </div>
+                <strong>{{ ((item.qty * item.rate) + (applyGst ? (item.qty * item.rate * item.gstPercent / 100) : 0)) | number: '1.0-2' }}</strong>
+              </div>
+            </div>
+          </aside>
         </div>
-        <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
-      </mat-step>
-    </mat-horizontal-stepper>
+      </div>
+      <ng-template #chooseCategoryFirst>
+        <p class="hint">Choose a category first to see items available for direct order creation.</p>
+      </ng-template>
+      <ng-template #noItemMatches>
+        <p class="hint">No items match your search for the selected vendor in this category.</p>
+      </ng-template>
+      <ng-template #noSelectedItems>
+        <p class="hint">Pick items from the catalog to build the order.</p>
+      </ng-template>
+    </section>
+
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Review & submit</p>
+          <p class="muted">Confirm the details before creating the order.</p>
+        </div>
+      </div>
+      <div class="review-grid">
+        <div>
+          <p class="label">Branch</p>
+          <p class="value">{{ detailsGroup.get('customer')?.value || '-' }}</p>
+        </div>
+        <div>
+          <p class="label">Mode</p>
+          <p class="value">{{ createMode === 'images' ? 'Upload images' : 'Select items' }}</p>
+        </div>
+        <div>
+          <p class="label">Category</p>
+          <p class="value">{{ detailsGroup.get('category')?.value || '-' }}</p>
+        </div>
+        <div *ngIf="createMode === 'items'">
+          <p class="label">Vendor</p>
+          <p class="value">{{ selectedVendorName || '-' }}</p>
+        </div>
+        <div>
+          <p class="label">Order date</p>
+          <p class="value">{{ detailsGroup.get('orderDate')?.value || '-' }}</p>
+        </div>
+        <div>
+          <p class="label">Delivery date</p>
+          <p class="value">{{ detailsGroup.get('deliveryDate')?.value || '-' }}</p>
+        </div>
+        <div>
+          <p class="label">{{ createMode === 'images' ? 'Images' : 'Selected items' }}</p>
+          <p class="value">
+            {{
+              createMode === 'images'
+                ? (imageFiles.length ? imageFiles.length + ' attached' : 'No image attached')
+                : (selectedItemsCount ? selectedItemsCount + ' items selected' : 'No items selected')
+            }}
+          </p>
+        </div>
+        <div *ngIf="createMode === 'items'">
+          <p class="label">Vendor invoice total</p>
+          <p class="value">{{ vendorInvoiceTotal | number: '1.0-2' }}</p>
+        </div>
+      </div>
+      <div class="step-actions">
+        <button mat-flat-button color="primary" type="button" (click)="submit()" [disabled]="!canSubmit">Create order</button>
+        <button mat-button type="button" (click)="clear()" [disabled]="isSubmitting">Clear</button>
+      </div>
+      <p class="muted" *ngIf="createdOrderId">
+        Order {{ createdOrderId }} created. Continue in Manage Order to upload images later or complete the rest of the order workflow.
+      </p>
+      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+    </section>
+    </form>
   </mat-card-content>
 </mat-card>

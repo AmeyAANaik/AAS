@@ -10,6 +10,7 @@ import { ItemVendorPricingService } from '../item-vendor-pricing.service';
   styleUrl: './item-vendor-pricing.component.scss'
 })
 export class ItemVendorPricingComponent implements OnChanges {
+  private readonly defaultMarginPercent = 7;
   @Input() items: ItemView[] = [];
   @Input() vendors: Vendor[] = [];
   @Input() pricing: ItemVendorPricingEntry[] = [];
@@ -19,7 +20,7 @@ export class ItemVendorPricingComponent implements OnChanges {
     itemId: ['', [Validators.required]],
     vendorId: ['', [Validators.required]],
     originalRate: [null, [Validators.required, Validators.min(0)]],
-    marginPercent: [0, [Validators.required, Validators.min(0)]]
+    marginPercent: [this.defaultMarginPercent, [Validators.required, Validators.min(0)]]
   });
 
   finalRate = 0;
@@ -39,7 +40,7 @@ export class ItemVendorPricingComponent implements OnChanges {
     }
     const value = this.form.getRawValue() as ItemVendorPricingFormValue;
     const item = this.items.find(entry => entry.id === value.itemId);
-    const vendor = this.vendors.find(entry => entry.name === value.vendorId || entry['supplier_name'] === value.vendorId);
+    const vendor = this.activeVendors.find(entry => entry.name === value.vendorId || entry['supplier_name'] === value.vendorId);
     if (!item || !vendor) {
       return;
     }
@@ -55,7 +56,11 @@ export class ItemVendorPricingComponent implements OnChanges {
       finalRate: this.pricingService.calculateFinalRate(originalRate, marginPercent)
     };
     this.pricingSaved.emit(entry);
-    this.form.reset({ itemId: '', vendorId: '', originalRate: null, marginPercent: 0 });
+    this.clear();
+  }
+
+  clear(): void {
+    this.form.reset({ itemId: '', vendorId: '', originalRate: null, marginPercent: this.defaultMarginPercent });
     this.finalRate = 0;
   }
 
@@ -63,5 +68,26 @@ export class ItemVendorPricingComponent implements OnChanges {
     const originalRate = Number(this.form.get('originalRate')?.value) || 0;
     const marginPercent = Number(this.form.get('marginPercent')?.value) || 0;
     this.finalRate = this.pricingService.calculateFinalRate(originalRate, marginPercent);
+  }
+
+  get activeVendors(): Vendor[] {
+    return this.vendors.filter(vendor => !this.isDisabled(vendor.disabled));
+  }
+
+  private isDisabled(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 }

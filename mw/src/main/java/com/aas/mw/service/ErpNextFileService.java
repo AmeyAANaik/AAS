@@ -1,13 +1,18 @@
 package com.aas.mw.service;
 
+import com.aas.mw.dto.DownloadedFile;
+import com.aas.mw.dto.UploadedFileInfo;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -19,31 +24,93 @@ public class ErpNextFileService {
 
     private final RestTemplate restTemplate;
     private final String baseUrl;
+    private final String publicBaseUrl;
 
     public ErpNextFileService(
             RestTemplateBuilder restTemplateBuilder,
-            @Value("${erpnext.base-url}") String baseUrl) {
+            @Value("${erpnext.base-url}") String baseUrl,
+            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String publicBaseUrl) {
         this.restTemplate = restTemplateBuilder.build();
         this.baseUrl = baseUrl;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
-    public Map<String, Object> uploadOrderImage(String orderId, MultipartFile file, String sessionCookie) {
+    public UploadedFileInfo uploadOrderImage(String orderId, MultipartFile file, String sessionCookie) {
+        String filename = normalizeFilename(file.getOriginalFilename(), "branch_order");
+        return uploadFile("Sales Order", orderId, filename, file, sessionCookie);
+    }
+
+    public UploadedFileInfo uploadOrderPdf(String orderId, MultipartFile file, String sessionCookie) {
+        String filename = normalizeFilename(file.getOriginalFilename(), "vendor_order");
+        return uploadFile("Sales Order", orderId, filename, file, sessionCookie);
+    }
+
+    public UploadedFileInfo uploadOrderPdf(
+            String orderId,
+            String filename,
+            byte[] bytes,
+            String contentType,
+            String sessionCookie) {
+        String safeFilename = normalizeFilename(filename, "vendor_order");
+        return uploadBytes("Sales Order", orderId, safeFilename, bytes, contentType, sessionCookie);
+    }
+
+    public DownloadedFile downloadFile(String fileUrl) {
+        String resolvedUrl = resolveInternalFileUrl(fileUrl);
+        ResponseEntity<byte[]> response = restTemplate.exchange(
+                resolvedUrl,
+                HttpMethod.GET,
+                HttpEntity.EMPTY,
+                byte[].class);
+        byte[] bytes = response.getBody();
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalStateException("Downloaded file is empty.");
+        }
+        String contentType = response.getHeaders().getContentType() == null
+                ? MediaType.APPLICATION_OCTET_STREAM_VALUE
+                : response.getHeaders().getContentType().toString();
+        return new DownloadedFile(resolveFilename(fileUrl), contentType, bytes);
+    }
+
+    public UploadedFileInfo uploadFile(
+            String doctype,
+            String docname,
+            String filename,
+            MultipartFile file,
+            String sessionCookie) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Image file is required.");
+            throw new IllegalArgumentException("File is required.");
+        }
+        return uploadBytes(doctype, docname, filename, toBytes(file), file.getContentType(), sessionCookie);
+    }
+
+    public UploadedFileInfo uploadBytes(
+            String doctype,
+            String docname,
+            String filename,
+            byte[] bytes,
+            String contentType,
+            String sessionCookie) {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("File content is required.");
         }
         if (sessionCookie == null || sessionCookie.isBlank()) {
             throw new IllegalStateException("Missing ERPNext session cookie.");
         }
-        String filename = normalizeFilename(file.getOriginalFilename(), orderId);
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("doctype", "Sales Order");
-        body.add("docname", orderId);
+        body.add("doctype", doctype);
+        body.add("docname", docname);
         body.add("file_name", filename);
         body.add("is_private", "0");
-        body.add("file", new ByteArrayResource(toBytes(file)) {
+        body.add("file", new ByteArrayResource(bytes) {
             @Override
             public String getFilename() {
                 return filename;
+            }
+
+            @Override
+            public long contentLength() {
+                return bytes.length;
             }
         });
 
@@ -57,7 +124,7 @@ public class ErpNextFileService {
                 baseUrl + "/api/method/upload_file",
                 requestEntity,
                 Map.class);
-        return response;
+        return extractFileInfo(response, filename);
     }
 
     private byte[] toBytes(MultipartFile file) {
@@ -68,10 +135,77 @@ public class ErpNextFileService {
         }
     }
 
-    private String normalizeFilename(String original, String orderId) {
-        if (original == null || original.isBlank()) {
-            return "order-" + orderId + ".png";
+    private UploadedFileInfo extractFileInfo(Map<String, Object> response, String fallbackName) {
+        if (response == null) {
+            return new UploadedFileInfo(fallbackName, null, null);
         }
-        return original.replaceAll("\\s+", "_");
+        Object message = response.get("message");
+        if (message instanceof Map<?, ?> map) {
+            String fileName = getString(map, "file_name", fallbackName);
+            String fileUrl = getString(map, "file_url", "");
+            String fileId = getString(map, "name", "");
+            return new UploadedFileInfo(
+                    fileName,
+                    fileUrl.isBlank() ? null : resolveFileUrl(fileUrl),
+                    fileId.isBlank() ? null : fileId);
+        }
+        return new UploadedFileInfo(fallbackName, null, null);
+    }
+
+    private String getString(Map<?, ?> map, String key, String fallback) {
+        Object value = map.get(key);
+        if (value == null) {
+            return fallback;
+        }
+        String text = value.toString();
+        return text.isBlank() ? fallback : text;
+    }
+
+    private String normalizeFilename(String original, String prefix) {
+        String extension = ".bin";
+        if (original != null && !original.isBlank()) {
+            int dot = original.lastIndexOf('.');
+            if (dot > -1 && dot < original.length() - 1) {
+                extension = original.substring(dot);
+            }
+        }
+        return prefix + extension;
+    }
+
+    private String resolveInternalFileUrl(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("File URL is required.");
+        }
+        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+            return filePath.replace(publicBaseUrl, baseUrl);
+        }
+        String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String path = filePath.startsWith("/") ? filePath : "/" + filePath;
+        return base + path;
+    }
+
+    private String resolveFilename(String fileUrl) {
+        String value = fileUrl == null ? "" : fileUrl.trim();
+        if (value.isBlank()) {
+            return "download.bin";
+        }
+        String path = URI.create(resolveFileUrl(value)).getPath();
+        int slash = path.lastIndexOf('/');
+        if (slash >= 0 && slash < path.length() - 1) {
+            return path.substring(slash + 1);
+        }
+        return "download.bin";
+    }
+
+    private String resolveFileUrl(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return filePath;
+        }
+        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+            return filePath;
+        }
+        String base = publicBaseUrl.endsWith("/") ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1) : publicBaseUrl;
+        String path = filePath.startsWith("/") ? filePath : "/" + filePath;
+        return base + path;
     }
 }

@@ -2,13 +2,30 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { OrderCreatePayload, OrderFilters, OrderSummary } from './order.model';
+import {
+  CreateSellOrderPayload,
+  DirectOrderCreatePayload,
+  OrderCreatePayload,
+  OrderFilters,
+  OrderItemPayload,
+  OrderSummary,
+  SellPreview,
+  VendorBillPayload
+} from './order.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class OrderService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
+
+  listBranches(): Observable<any[]> {
+    return this.http.get<any[]>('/api/shops', { headers: this.authHeaders() });
+  }
+
+  listCompanies(): Observable<any[]> {
+    return this.http.get<any[]>('/api/companies', { headers: this.authHeaders() });
+  }
 
   listOrders(filters: OrderFilters): Observable<OrderSummary[]> {
     const headers = this.authHeaders();
@@ -39,6 +56,40 @@ export class OrderService {
     );
   }
 
+  createDirectOrderFromItems(payload: DirectOrderCreatePayload): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      '/api/orders/direct-item-flow',
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createOrderFromBranchImage(
+    file: File,
+    payload: { customer?: string; company: string; category: string; transaction_date?: string; delivery_date?: string }
+  ): Observable<Record<string, unknown>> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    if (payload.customer) {
+      formData.append('customer', payload.customer);
+    }
+    if (payload.company) {
+      formData.append('company', payload.company);
+    }
+    if (payload.category) {
+      formData.append('category', payload.category);
+    }
+    if (payload.transaction_date) {
+      formData.append('transaction_date', payload.transaction_date);
+    }
+    if (payload.delivery_date) {
+      formData.append('delivery_date', payload.delivery_date);
+    }
+    return this.http.post<Record<string, unknown>>('/api/orders/branch-image', formData, {
+      headers: this.authHeaders()
+    });
+  }
+
   assignVendor(orderId: string, vendorId: string): Observable<unknown> {
     return this.http.post(
       `/api/orders/${orderId}/assign-vendor`,
@@ -61,6 +112,67 @@ export class OrderService {
     return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/image`, formData, {
       headers: this.authHeaders()
     });
+  }
+
+  uploadVendorPdf(orderId: string, file: File): Observable<Record<string, unknown>> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    return this.http.post<Record<string, unknown>>(`/api/orders/${orderId}/vendor-pdf`, formData, {
+      headers: this.authHeaders()
+    });
+  }
+
+  downloadBranchImagesZip(orderId: string): Observable<Blob> {
+    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/branch-images/download`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadVendorPdfFile(orderId: string): Observable<Blob> {
+    return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/vendor-pdf`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  captureVendorBill(orderId: string, payload: VendorBillPayload): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      `/api/orders/${orderId}/vendor-bill`,
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  deleteOrder(orderId: string): Observable<Record<string, unknown>> {
+    return this.http.delete<Record<string, unknown>>(`/api/orders/${orderId}`, { headers: this.authHeaders() });
+  }
+
+  getSellPreview(orderId: string): Observable<SellPreview> {
+    return this.http.get<SellPreview>(`/api/orders/${orderId}/sell-preview`, { headers: this.authHeaders() });
+  }
+
+  createSellOrder(orderId: string, payload: CreateSellOrderPayload = {}): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      `/api/orders/${orderId}/sell-order`,
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  getOrder(orderId: string): Observable<Record<string, unknown>> {
+    return this.http.get<Record<string, unknown>>(`/api/orders/${encodeURIComponent(orderId)}`, { headers: this.authHeaders() });
+  }
+
+  updateOrderItems(
+    orderId: string,
+    items: OrderItemPayload[]
+  ): Observable<Record<string, unknown>> {
+    return this.http.put<Record<string, unknown>>(
+      `/api/orders/${encodeURIComponent(orderId)}/items`,
+      { items },
+      { headers: this.authHeaders() }
+    );
   }
 
   private authHeaders(): HttpHeaders {

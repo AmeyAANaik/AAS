@@ -1,0 +1,147 @@
+<section class="user-settings-page">
+  <app-page-header title="User Details" subtitle="Review and update the signed-in application user profile that drives company, branch, and workflow access."></app-page-header>
+
+  <mat-card class="settings-card">
+    <div class="state" *ngIf="isLoading">Loading user details...</div>
+    <div class="state error" *ngIf="errorMessage">{{ errorMessage }}</div>
+    <div class="state success" *ngIf="message">{{ message }}</div>
+
+    <div class="identity" *ngIf="!isLoading">
+      <div class="identity-main">
+        <img *ngIf="userImageUrl" class="identity-avatar" [src]="userImageUrl" alt="User avatar" />
+        <div *ngIf="!userImageUrl" class="identity-avatar fallback">{{ (form.get('full_name')?.value || form.get('name')?.value || 'US').slice(0, 2).toUpperCase() }}</div>
+        <div>
+          <div class="identity-kicker">Workspace Profile</div>
+          <div class="identity-title">{{ form.get('full_name')?.value || form.get('name')?.value || 'User' }}</div>
+          <div class="identity-subtitle">{{ userRole || 'Signed in user' }}</div>
+        </div>
+      </div>
+
+      <div class="identity-meta">
+        <div class="meta-chip">
+          <span class="meta-label">User ID</span>
+          <strong>{{ form.get('name')?.value || 'Not set' }}</strong>
+        </div>
+        <div class="meta-chip">
+          <span class="meta-label">Email</span>
+          <strong>{{ form.get('email')?.value || 'Not set' }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <form [formGroup]="form" class="settings-form">
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Account Details</div>
+          <div class="section-subtitle">Identity information linked to your application login and day-to-day contact profile.</div>
+        </div>
+
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">User ID</div>
+              <div class="row-subtitle">Primary identifier for this signed-in account.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>User ID</mat-label>
+              <input matInput formControlName="name" readonly />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Full Name</div>
+              <div class="row-subtitle">Display name shown across approvals, ownership, and audit trails.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Full Name</mat-label>
+              <input matInput formControlName="full_name" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Email</div>
+              <div class="row-subtitle">Login-linked email address managed from the application user account.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Email</mat-label>
+              <input matInput formControlName="email" readonly />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Mobile Number</div>
+              <div class="row-subtitle">Contact number used for operational coordination.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Mobile Number</mat-label>
+              <input matInput formControlName="mobile_no" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Operational Mapping</div>
+          <div class="section-subtitle">Default company and business mappings that shape the workspace context for this user.</div>
+        </div>
+
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Location</div>
+              <div class="row-subtitle">Preferred operating location or territory for this profile.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Location</mat-label>
+              <input matInput formControlName="location" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Default Company</div>
+              <div class="row-subtitle">Company context used when opening finance and workflow screens.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Default Company</mat-label>
+              <input matInput formControlName="company" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Branch</div>
+              <div class="row-subtitle">Default customer/branch mapped to this user for branch-side workflows.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Branch</mat-label>
+              <input matInput formControlName="customer" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Supplier</div>
+              <div class="row-subtitle">Vendor mapping used when the signed-in user acts in supplier workflows.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Supplier</mat-label>
+              <input matInput formControlName="supplier" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+    </form>
+
+    <div class="actions">
+      <div class="save-note">Changes are written back to the user profile used by this workspace.</div>
+      <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
+        {{ isSaving ? 'Saving...' : 'Save User Details' }}
+      </button>
+    </div>
+  </mat-card>
+</section>

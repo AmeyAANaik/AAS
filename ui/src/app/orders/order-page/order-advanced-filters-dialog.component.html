@@ -1,0 +1,24 @@
+<h2 mat-dialog-title>Advanced filters</h2>
+
+<div mat-dialog-content class="dialog-content">
+  <p class="muted">Filter orders by transaction date range.</p>
+
+  <div class="grid">
+    <mat-form-field appearance="outline">
+      <mat-label>From date</mat-label>
+      <input matInput type="date" [formControl]="fromControl" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>To date</mat-label>
+      <input matInput type="date" [formControl]="toControl" />
+    </mat-form-field>
+  </div>
+</div>
+
+<div mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="clear()">Clear</button>
+  <button mat-button type="button" (click)="cancel()">Cancel</button>
+  <button mat-flat-button color="primary" type="button" (click)="apply()">Apply</button>
+</div>
+

@@ -1,0 +1,23 @@
+.dialog-content {
+  display: grid;
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.muted {
+  margin: 0;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+@media (max-width: 520px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+

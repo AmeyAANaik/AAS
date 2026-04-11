@@ -48,6 +48,12 @@ export type BillingRow = {
   total: number;
 };
 
+export type RevenuePoint = {
+  label: string;
+  shortLabel: string;
+  value: number;
+};
+
 export type StockSnapshot = {
   totalItems: number;
   totalQuantity: number;
@@ -57,6 +63,27 @@ export type SalesSummary = {
   invoiceCount: number;
   totalRevenue: number;
   dateRangeLabel: string;
+  averageDailyRevenue: number;
+  peakRevenue: number;
+  peakRevenueLabel: string;
+};
+
+export type VendorOperationsSnapshot = {
+  totalVendors: number;
+  vendorsWithPendingOrders: number;
+  totalPendingOrders: number;
+  awaitingPdf: number;
+  awaitingBillCapture: number;
+  totalPendingBillAmount: number;
+};
+
+export type BranchOperationsSnapshot = {
+  totalBranches: number;
+  branchesWithPendingOrders: number;
+  totalPendingOrders: number;
+  awaitingVendorAssignment: number;
+  awaitingVendorResponse: number;
+  openReceivableAmount: number;
 };
 
 export type DashboardSnapshot = {
@@ -65,5 +92,8 @@ export type DashboardSnapshot = {
   billsByVendor: BillingRow[];
   stockSnapshot: StockSnapshot;
   salesSummary: SalesSummary;
+  revenueSeries: RevenuePoint[];
+  vendorOperations: VendorOperationsSnapshot;
+  branchOperations: BranchOperationsSnapshot;
   periodLabel: string;
 };

@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Berry Dashboard Style - AAS UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #F5F7FA;
+            color: #3F3F3F;
+        }
+
+        /* HEADER */
+        .header {
+            background: #FFFFFF;
+            padding: 16px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #E8EAED;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #3F3F3F;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: #5E35B1;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-icon {
+            font-size: 20px;
+            color: #8F92A6;
+            cursor: pointer;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #5E35B1;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        /* MAIN CONTAINER */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 64px);
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 280px;
+            background: #FFFFFF;
+            border-right: 1px solid #E8EAED;
+            padding: 24px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-item {
+            padding: 12px 24px;
+            color: #8F92A6;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover {
+            background: #F5F7FA;
+            color: #5E35B1;
+        }
+
+        .sidebar-item.active {
+            background: #F3E5F5;
+            color: #5E35B1;
+            border-left: 3px solid #5E35B1;
+            padding-left: 21px;
+            font-weight: 600;
+        }
+
+        .sidebar-item-icon {
+            font-size: 20px;
+        }
+
+        .sidebar-title {
+            padding: 24px 24px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #8F92A6;
+            letter-spacing: 0.5px;
+        }
+
+        /* CONTENT */
+        .content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 600;
+            color: #3F3F3F;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: #8F92A6;
+        }
+
+        .welcome-section {
+            background: linear-gradient(135deg, #5E35B1, #7E57C2);
+            color: white;
+            padding: 24px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+        }
+
+        .welcome-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .welcome-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        /* STAT CARDS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: #FFFFFF;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #E8EAED;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            border-color: #5E35B1;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon.primary {
+            background: #F3E5F5;
+            color: #5E35B1;
+        }
+
+        .stat-icon.success {
+            background: #E8F5E9;
+            color: #43A047;
+        }
+
+        .stat-icon.warning {
+            background: #FFF3E0;
+            color: #FFA726;
+        }
+
+        .stat-icon.danger {
+            background: #FFEBEE;
+            color: #E53935;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #8F92A6;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #3F3F3F;
+            margin-bottom: 8px;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-change.positive {
+            color: #43A047;
+        }
+
+        .stat-change.negative {
+            color: #E53935;
+        }
+
+        /* CHARTS */
+        .charts-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .chart-card {
+            background: #FFFFFF;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #E8EAED;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #3F3F3F;
+        }
+
+        .chart-menu {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #8F92A6;
+        }
+
+        .fake-chart {
+            height: 200px;
+            background: linear-gradient(180deg, #5E35B1 0%, transparent 100%);
+            border-radius: 4px;
+            opacity: 0.1;
+            margin-bottom: 16px;
+        }
+
+        .chart-footer {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            text-align: center;
+        }
+
+        .chart-stat {
+            padding: 12px;
+        }
+
+        .chart-stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #3F3F3F;
+        }
+
+        .chart-stat-label {
+            font-size: 12px;
+            color: #8F92A6;
+            margin-top: 4px;
+        }
+
+        /* TABLES */
+        .table-section {
+            background: #FFFFFF;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #E8EAED;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .table-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #3F3F3F;
+        }
+
+        .table-action {
+            background: none;
+            border: none;
+            color: #5E35B1;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #F5F7FA;
+            border-bottom: 1px solid #E8EAED;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #8F92A6;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #F5F7FA;
+            color: #3F3F3F;
+        }
+
+        tbody tr:hover {
+            background: #F9F9FB;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #E8F5E9;
+            color: #43A047;
+        }
+
+        .badge-warning {
+            background: #FFF3E0;
+            color: #FFA726;
+        }
+
+        .badge-pending {
+            background: #E3F2FD;
+            color: #0288D1;
+        }
+
+        .action-icon {
+            background: none;
+            border: none;
+            color: #5E35B1;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 240px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #E8EAED;
+                padding: 12px 0;
+                display: none;
+            }
+
+            .sidebar.open {
+                display: block;
+            }
+
+            .content {
+                padding: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .page-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="header-left">
+        <button class="menu-toggle">≡</button>
+        <div class="logo">🍓 AAS</div>
+    </div>
+    <div class="header-right">
+        <div class="header-icon">🔔</div>
+        <div class="header-icon">🌙</div>
+        <div class="user-menu">
+            <div class="avatar">A</div>
+            <span style="color: #3F3F3F; font-size: 14px;">Admin</span>
+        </div>
+    </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-container">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-title">Main</div>
+        <a class="sidebar-item active">
+            <span class="sidebar-item-icon">📊</span>
+            <span>Dashboard</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">📦</span>
+            <span>Orders</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">📄</span>
+            <span>Items</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">🏭</span>
+            <span>Vendors</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">🏢</span>
+            <span>Branches</span>
+        </a>
+
+        <div class="sidebar-title" style="margin-top: 24px;">Features</div>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">📋</span>
+            <span>Bills</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">🔄</span>
+            <span>Vendor Ops</span>
+        </a>
+        <a class="sidebar-item">
+            <span class="sidebar-item-icon">⚙️</span>
+            <span>Settings</span>
+        </a>
+    </aside>
+
+    <!-- CONTENT -->
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">Dashboard</div>
+            <div class="page-subtitle">Welcome back! Here's what's happening with your business today.</div>
+        </div>
+
+        <!-- WELCOME SECTION -->
+        <div class="welcome-section">
+            <div class="welcome-title">👋 Welcome back, Admin</div>
+            <div class="welcome-subtitle">Your dashboard is loaded with today's insights and key metrics.</div>
+        </div>
+
+        <!-- STATISTICS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon primary">💰</div>
+                <div class="stat-label">Total Sales</div>
+                <div class="stat-value">$12.5K</div>
+                <div class="stat-change positive">📈 12% vs last month</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon success">📈</div>
+                <div class="stat-label">Total Revenue</div>
+                <div class="stat-value">$45.2K</div>
+                <div class="stat-change positive">📈 23% vs last month</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon warning">📦</div>
+                <div class="stat-label">Total Orders</div>
+                <div class="stat-value">127</div>
+                <div class="stat-change positive">📈 8% vs last month</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon danger">👥</div>
+                <div class="stat-label">Total Users</div>
+                <div class="stat-value">1,245</div>
+                <div class="stat-change positive">📈 5% vs last month</div>
+            </div>
+        </div>
+
+        <!-- CHARTS -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">Revenue Overview</div>
+                    <button class="chart-menu">⋮</button>
+                </div>
+                <div class="fake-chart"></div>
+                <div class="chart-footer">
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">$45.2K</div>
+                        <div class="chart-stat-label">This Month</div>
+                    </div>
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">$38.5K</div>
+                        <div class="chart-stat-label">Last Month</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">Order Status Distribution</div>
+                    <button class="chart-menu">⋮</button>
+                </div>
+                <div class="fake-chart" style="background: linear-gradient(180deg, #43A047 0%, transparent 100%);"></div>
+                <div class="chart-footer">
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">57</div>
+                        <div class="chart-stat-label">Delivered</div>
+                    </div>
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">38</div>
+                        <div class="chart-stat-label">Pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <div class="chart-title">Top Categories</div>
+                    <button class="chart-menu">⋮</button>
+                </div>
+                <div class="fake-chart" style="background: linear-gradient(180deg, #FFA726 0%, transparent 100%);"></div>
+                <div class="chart-footer">
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">67</div>
+                        <div class="chart-stat-label">Supplies</div>
+                    </div>
+                    <div class="chart-stat">
+                        <div class="chart-stat-value">45</div>
+                        <div class="chart-stat-label">Electronics</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RECENT ORDERS -->
+        <div class="table-section">
+            <div class="table-header">
+                <div class="table-title">Recent Orders</div>
+                <button class="table-action">View All →</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Customer</th>
+                        <th>Status</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>#12345</strong></td>
+                        <td>Branch A</td>
+                        <td><span class="status-badge badge-success">✓ Delivered</span></td>
+                        <td>$250.00</td>
+                        <td>Mar 4, 2026</td>
+                        <td><button class="action-icon">→</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>#12344</strong></td>
+                        <td>Branch B</td>
+                        <td><span class="status-badge badge-warning">⏳ Pending</span></td>
+                        <td>$180.50</td>
+                        <td>Mar 3, 2026</td>
+                        <td><button class="action-icon">→</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>#12343</strong></td>
+                        <td>Branch C</td>
+                        <td><span class="status-badge badge-success">✓ Delivered</span></td>
+                        <td>$420.25</td>
+                        <td>Mar 2, 2026</td>
+                        <td><button class="action-icon">→</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>#12342</strong></td>
+                        <td>Branch D</td>
+                        <td><span class="status-badge badge-pending">ℹ️ Review</span></td>
+                        <td>$320.75</td>
+                        <td>Mar 1, 2026</td>
+                        <td><button class="action-icon">→</button></td>
+                    </tr>
+                    <tr>
+                        <td><strong>#12341</strong></td>
+                        <td>Branch A</td>
+                        <td><span class="status-badge badge-success">✓ Delivered</span></td>
+                        <td>$580.00</td>
+                        <td>Feb 28, 2026</td>
+                        <td><button class="action-icon">→</button></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

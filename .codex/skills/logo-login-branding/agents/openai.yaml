@@ -1,0 +1,4 @@
+interface:
+  display_name: "Logo Login Branding"
+  short_description: "Generate branded login concepts"
+  default_prompt: "Use $logo-login-branding to turn a company logo into login-page concepts, save previews as images, and apply the selected design to the app and ERPNext."

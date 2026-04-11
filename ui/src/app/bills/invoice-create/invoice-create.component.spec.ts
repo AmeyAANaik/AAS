@@ -2,9 +2,11 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { BillsService } from '../bills.service';
@@ -19,7 +21,7 @@ describe('InvoiceCreateComponent', () => {
     billsService = jasmine.createSpyObj('BillsService', ['createInvoice', 'getOrderSnapshot']);
     billsService.createInvoice.and.returnValue(of({ name: 'INV-1' }));
     billsService.getOrderSnapshot.and.returnValue(
-      of({ customer: 'Shop A', company: 'aas', items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }] })
+      of({ customer: 'Sukarta Aundh', company: 'aas', items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }] })
     );
 
     await TestBed.configureTestingModule({
@@ -28,9 +30,11 @@ describe('InvoiceCreateComponent', () => {
         ReactiveFormsModule,
         MatButtonModule,
         MatCardModule,
+        MatDividerModule,
         MatFormFieldModule,
         MatInputModule,
         MatSelectModule,
+        MatSlideToggleModule,
         NoopAnimationsModule
       ],
       providers: [{ provide: BillsService, useValue: billsService }]
@@ -38,7 +42,7 @@ describe('InvoiceCreateComponent', () => {
 
     fixture = TestBed.createComponent(InvoiceCreateComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Shop A' }];
+    component.customers = [{ id: 'SHOP-1', name: 'Sukarta Aundh', company: 'aas' }];
     component.items = [{ id: 'ITEM-1', name: 'Item A', code: 'ITM-1' }];
     component.orders = [{ id: 'ORD-1', name: 'ORD-1' }];
     fixture.detectChanges();
@@ -50,12 +54,22 @@ describe('InvoiceCreateComponent', () => {
 
   it('submits manual invoice payload', () => {
     component.setMode('manual');
+    component.onManualCustomerChange();
+    component.roundingAdjustmentControl.setValue(-0.4);
     component.manualForm.patchValue({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'aas'
+    });
+    component.manualItems.at(0).patchValue({
       itemCode: 'ITM-1',
       qty: 2,
       rate: 12
+    });
+    component.addManualItem();
+    component.manualItems.at(1).patchValue({
+      itemCode: 'ITM-1',
+      qty: 1,
+      rate: 5
     });
 
     component.submit();
@@ -63,7 +77,12 @@ describe('InvoiceCreateComponent', () => {
     expect(billsService.createInvoice).toHaveBeenCalledWith({
       customer: 'SHOP-1',
       company: 'aas',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 12 }]
+      items: [
+        { item_code: 'ITM-1', qty: 2, rate: 12 },
+        { item_code: 'ITM-1', qty: 1, rate: 5 }
+      ],
+      apply_gst: true,
+      rounding_adjustment: -0.4
     });
   });
 
@@ -71,14 +90,17 @@ describe('InvoiceCreateComponent', () => {
     component.setMode('order');
     component.orderForm.patchValue({ orderId: 'ORD-1' });
     component.loadOrder();
+    component.roundingAdjustmentControl.setValue(0.4);
 
     component.submit();
 
     expect(billsService.getOrderSnapshot).toHaveBeenCalledWith('ORD-1');
     expect(billsService.createInvoice).toHaveBeenCalledWith({
-      customer: 'Shop A',
+      customer: 'Sukarta Aundh',
       company: 'aas',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }]
+      items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }],
+      apply_gst: true,
+      rounding_adjustment: 0.4
     });
   });
 });

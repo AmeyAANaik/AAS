@@ -36,7 +36,7 @@ public class RoleResolver {
         if (containsRole(erpRoles, helperRole)) {
             return AppRole.HELPER;
         }
-        return AppRole.ADMIN;
+        throw new IllegalStateException("No supported ERP role assigned.");
     }
 
     private boolean containsRole(List<String> erpRoles, String role) {

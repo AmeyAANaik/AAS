@@ -4,8 +4,9 @@ import { finalize } from 'rxjs/operators';
 import { BranchService } from '../../branches/branch.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
+import { formatUiError } from '../../shared/error-message.util';
 import { BillsService } from '../bills.service';
-import { InvoiceFilters, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
+import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
 
 @Component({
   selector: 'app-bills-page',
@@ -20,12 +21,15 @@ export class BillsPageComponent implements OnInit {
   });
 
   invoices: InvoiceView[] = [];
+  invoiceOptions: InvoiceOption[] = [];
   customers: OptionItem[] = [];
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
+  private customerCompanies = new Map<string, string>();
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
   statusMessage = '';
   isLoading = false;
+  deletingInvoiceId = '';
 
   constructor(
     private fb: FormBuilder,
@@ -48,7 +52,12 @@ export class BillsPageComponent implements OnInit {
       next: branches => {
         this.customers = (branches ?? []).map(branch => {
           const name = String(branch.customer_name ?? branch.name ?? '').trim();
-          return { id: String(branch.name ?? name), name: name || String(branch.name ?? '') };
+          const id = String(branch.name ?? name);
+          return {
+            id,
+            name: name || String(branch.name ?? ''),
+            company: this.customerCompanies.get(id) || undefined
+          };
         });
       }
     });
@@ -67,10 +76,22 @@ export class BillsPageComponent implements OnInit {
 
     this.orderService.listOrders({}).subscribe({
       next: orders => {
+        this.customerCompanies.clear();
+        (orders ?? []).forEach(order => {
+          const customerId = String(order.customer ?? '').trim();
+          const company = String(order.company ?? '').trim();
+          if (customerId && company && !this.customerCompanies.has(customerId)) {
+            this.customerCompanies.set(customerId, company);
+          }
+        });
         this.orders = (orders ?? []).map(order => {
           const name = String(order.name ?? '').trim();
-          return { id: name, name };
+          return { id: name, name, company: String(order.company ?? '').trim() || undefined };
         });
+        this.customers = this.customers.map(customer => ({
+          ...customer,
+          company: customer.company || this.customerCompanies.get(customer.id) || undefined
+        }));
       }
     });
   }
@@ -84,6 +105,18 @@ export class BillsPageComponent implements OnInit {
       .subscribe({
         next: invoices => {
           this.invoices = (invoices ?? []).map(invoice => this.toViewModel(invoice));
+          this.invoiceOptions = this.invoices
+            .filter(invoice => invoice.status.toLowerCase() !== 'paid')
+            .map(invoice => {
+              const outstanding = Number(invoice.raw.outstanding_amount ?? invoice.raw.grand_total ?? 0);
+            return {
+              id: invoice.id,
+              name: `${invoice.id} • ${invoice.customer} • Due ${outstanding.toFixed(2)}`,
+              customer: invoice.customer,
+              company: invoice.company,
+              outstanding
+            };
+          });
           this.summary = this.buildSummary(this.invoices);
           this.statusMessage = '';
         },
@@ -115,6 +148,30 @@ export class BillsPageComponent implements OnInit {
     });
   }
 
+  deleteInvoice(invoice: InvoiceView): void {
+    if (!invoice?.id || !this.canDelete(invoice)) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete invoice "${invoice.id}"? Only draft invoices can be removed.`);
+    if (!confirmed) {
+      return;
+    }
+    this.deletingInvoiceId = invoice.id;
+    this.statusMessage = '';
+    this.billsService
+      .deleteInvoice(invoice.id)
+      .pipe(finalize(() => (this.deletingInvoiceId = '')))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Invoice deleted.';
+          this.loadInvoices();
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to delete invoice');
+        }
+      });
+  }
+
   downloadCsv(): void {
     const filters = this.filtersForm.getRawValue() as InvoiceFilters;
     this.billsService.exportInvoices(filters).subscribe({
@@ -143,6 +200,14 @@ export class BillsPageComponent implements OnInit {
     this.loadInvoices();
   }
 
+  canDelete(invoice: InvoiceView): boolean {
+    return !!invoice.id;
+  }
+
+  isDeleting(invoice: InvoiceView): boolean {
+    return this.deletingInvoiceId === invoice.id;
+  }
+
   getStatusPillClass(invoice: InvoiceView): string {
     if (invoice.statusTone === 'success') {
       return 'pill pill-success';
@@ -161,6 +226,7 @@ export class BillsPageComponent implements OnInit {
     return {
       id: String(invoice.name ?? '').trim(),
       customer: String(invoice.customer ?? '').trim() || 'Unknown',
+      company: String(invoice.company ?? '').trim(),
       date: String(invoice.posting_date ?? '').trim(),
       totalLabel: this.resolveTotalLabel(invoice.grand_total),
       status,
@@ -209,12 +275,6 @@ export class BillsPageComponent implements OnInit {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

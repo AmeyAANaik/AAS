@@ -1,12 +1,12 @@
 import { Component, OnInit } from '@angular/core';
-import { finalize } from 'rxjs/operators';
+import { MatDialog } from '@angular/material/dialog';
 import { Category } from '../../categories/category.model';
 import { CategoryService } from '../../categories/category.service';
-import { Vendor } from '../../vendors/vendor.model';
+import { formatUiError } from '../../shared/error-message.util';
 import { VendorService } from '../../vendors/vendor.service';
+import { ItemCategoryDialogComponent } from '../item-category-dialog/item-category-dialog.component';
 import { ItemMetadataService } from '../item-metadata.service';
-import { ItemVendorPricingService } from '../item-vendor-pricing.service';
-import { Item, ItemFormValue, ItemVendorPricingEntry, ItemView } from '../item.model';
+import { Item, ItemCategorySummaryView, ItemView } from '../item.model';
 import { ItemService } from '../item.service';
 
 @Component({
@@ -15,85 +15,78 @@ import { ItemService } from '../item.service';
   styleUrl: './item-list.component.scss'
 })
 export class ItemListComponent implements OnInit {
-  displayedColumns: string[] = ['code', 'name', 'category', 'uom', 'packaging'];
+  displayedColumns: string[] = ['category', 'count', 'actions'];
   items: ItemView[] = [];
+  categoryRows: ItemCategorySummaryView[] = [];
   categories: Category[] = [];
-  vendors: Vendor[] = [];
-  pricing: ItemVendorPricingEntry[] = [];
-  isLoading = false;
-  isSaving = false;
+  vendors: Array<Record<string, unknown>> = [];
+  isLoadingItems = false;
   statusMessage = '';
+  searchTerm = '';
 
   constructor(
-    private itemService: ItemService,
-    private vendorService: VendorService,
-    private categoryService: CategoryService,
-    private metadataService: ItemMetadataService,
-    private pricingService: ItemVendorPricingService
+    private readonly itemService: ItemService,
+    private readonly categoryService: CategoryService,
+    private readonly vendorService: VendorService,
+    private readonly metadataService: ItemMetadataService,
+    private readonly dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
-    this.loadReferenceData();
-    this.loadPricing();
+    this.loadPageData();
   }
 
-  loadReferenceData(): void {
-    this.isLoading = true;
+  loadPageData(): void {
+    this.isLoadingItems = true;
     Promise.all([
+      this.categoryService.listCategories().toPromise(),
       this.itemService.listItems().toPromise(),
-      this.vendorService.listVendors().toPromise(),
-      this.categoryService.listCategories().toPromise()
+      this.vendorService.listVendors().toPromise()
     ])
-      .then(([items, vendors, categories]) => {
-        const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
-        this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
-        this.vendors = vendors ?? [];
+      .then(([categories, items, vendors]) => {
         this.categories = (categories ?? []).map(category => ({
           ...category,
           name: category.name ?? category.item_group_name ?? ''
         }));
+        this.vendors = (vendors ?? []) as Array<Record<string, unknown>>;
+        const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
+        this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
+        this.refreshCategoryRows();
       })
       .catch(err => {
         this.statusMessage = this.formatError(err, 'Unable to load item data');
       })
       .finally(() => {
-        this.isLoading = false;
+        this.isLoadingItems = false;
       });
   }
 
-  loadPricing(): void {
-    this.pricing = this.pricingService.listPricing();
+  applyFilter(value: string): void {
+    this.searchTerm = value.trim();
+    this.refreshCategoryRows();
   }
 
-  saveItem(formValue: ItemFormValue): void {
-    this.isSaving = true;
-    const payload = {
-      item_code: formValue.itemCode.trim(),
-      item_name: formValue.itemName.trim(),
-      item_group: formValue.category || 'All Item Groups',
-      stock_uom: formValue.measureUnit || 'Nos',
-      aas_packaging_unit: formValue.packagingUnit || ''
-    };
-    this.itemService
-      .createItem(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
-      .subscribe({
-        next: () => {
-          this.metadataService.saveMetadata(payload.item_code, {
-            packagingUnit: formValue.packagingUnit
-          });
-          this.statusMessage = 'Item saved.';
-          this.loadReferenceData();
-        },
-        error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save item');
-        }
-      });
+  openCreate(): void {
+    this.openCategoryDialog(this.firstCreatableCategory);
   }
 
-  savePricing(entry: ItemVendorPricingEntry): void {
-    this.pricingService.upsertPricing(entry);
-    this.loadPricing();
+  openCategoryDialog(categoryName = ''): void {
+    const dialogRef = this.dialog.open(ItemCategoryDialogComponent, {
+      width: '1100px',
+      maxWidth: '95vw',
+      data: {
+        categories: this.categories,
+        vendors: this.vendors.map(vendor => ({ ...vendor })),
+        items: this.items.map(item => ({ ...item })),
+        initialCategory: categoryName
+      }
+    });
+    dialogRef.afterClosed().subscribe(didChange => {
+      if (didChange) {
+        this.statusMessage = 'Items updated.';
+        this.loadPageData();
+      }
+    });
   }
 
   private toViewModel(item: Item & { packagingUnit?: string }): ItemView {
@@ -103,19 +96,68 @@ export class ItemListComponent implements OnInit {
       code: code || String(item.name ?? ''),
       name: String(item.item_name ?? item.name ?? '').trim(),
       category: String(item.item_group ?? ''),
+      vendorId: String(item.aas_vendor ?? '').trim(),
+      vendorHsnCode: String(item.aas_vendor_hsn_code ?? '').trim(),
       measureUnit: String(item.stock_uom ?? ''),
       packagingUnit: item.aas_packaging_unit ?? item.packagingUnit ?? '',
+      marginPercent: typeof item.aas_margin_percent === 'number' ? item.aas_margin_percent : null,
       raw: item
     };
   }
 
+  private refreshCategoryRows(): void {
+    const counts = new Map<string, number>();
+    for (const item of this.items) {
+      const key = item.category || 'Uncategorized';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const categoryNames = new Set<string>();
+    for (const category of this.categories) {
+      const name = String(category.name ?? category.item_group_name ?? '').trim();
+      if (name) {
+        categoryNames.add(name);
+      }
+    }
+    for (const item of this.items) {
+      if (item.category) {
+        categoryNames.add(item.category);
+      }
+    }
+
+    const search = this.searchTerm.trim().toLowerCase();
+    this.categoryRows = [...categoryNames]
+      .map(name => ({
+        id: name,
+        name,
+        itemCount: counts.get(name) ?? 0
+      }))
+      .filter(row => !search || row.name.toLowerCase().includes(search))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private get firstCreatableCategory(): string {
+    const activeVendorCategories = new Set(
+      this.vendors
+        .filter(vendor => !this.asFlag(vendor['disabled']))
+        .map(vendor => String(vendor['category'] ?? '').trim())
+        .filter(Boolean)
+    );
+    return this.categoryRows.find(row => activeVendorCategories.has(row.name))?.name ?? this.categoryRows[0]?.name ?? '';
+  }
+
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
+    return formatUiError(err, fallback);
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (typeof value === 'boolean') {
+      return value;
     }
-    if (typeof err === 'string') {
-      return err;
+    if (typeof value === 'number') {
+      return value !== 0;
     }
-    return fallback;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
   }
 }

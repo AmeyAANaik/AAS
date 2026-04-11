@@ -1,122 +1,182 @@
-<div class="order-page">
-  <app-page-header title="Orders" subtitle="Review order status, assign vendors, and create new orders.">
-    <button mat-stroked-button color="primary" routerLink="/bills">Bills & invoices</button>
-    <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
+<div class="order-page berry-page">
+  <app-page-header
+    title="Order Workflow"
+    subtitle="Track demand from branch image intake through vendor billing and sell-order creation.">
+    <button mat-stroked-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
+    <button mat-flat-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
   </app-page-header>
 
-  <div class="summary-grid">
-    <mat-card class="summary-card">
-      <div class="summary-label">Total orders</div>
-      <div class="summary-value">{{ summary.total }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">In progress</div>
-      <div class="summary-value">{{ summary.inProgress }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">Pending</div>
-      <div class="summary-value">{{ summary.pending }}</div>
-    </mat-card>
-    <mat-card class="summary-card">
-      <div class="summary-label">Delivered</div>
-      <div class="summary-value">{{ summary.delivered }}</div>
-    </mat-card>
-  </div>
-
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Filters</div>
-        <div class="section-subtitle">Narrow orders by branch, vendor, status, and date.</div>
-      </div>
-    </div>
+  <mat-card class="orders-list-card" *ngIf="!selectedOrder">
     <mat-card-content>
-      <form [formGroup]="filtersForm" class="form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Branch</mat-label>
-          <mat-select formControlName="customer">
-            <mat-option value="">All branches</mat-option>
-            <mat-option *ngFor="let shop of shops" [value]="shop.id">{{ shop.name }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Vendor</mat-label>
-          <mat-select formControlName="vendor">
-            <mat-option value="">All vendors</mat-option>
-            <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All statuses</mat-option>
-            <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>From</mat-label>
-          <input matInput type="date" formControlName="from" />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>To</mat-label>
-          <input matInput type="date" formControlName="to" />
-        </mat-form-field>
-
-        <div class="form-actions">
-          <button mat-flat-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Apply</button>
+      <div class="list-intro">
+        <div class="intro-copy">
+          <div class="section-title">Order queue</div>
+          <div class="section-subtitle">Use search and filters to surface the next orders that need action.</div>
         </div>
-      </form>
-    </mat-card-content>
-  </mat-card>
-
-  <mat-card class="section-card">
-    <div class="section-header">
-      <div>
-        <div class="section-title">Order list</div>
-        <div class="section-subtitle">Totals are derived from MW-provided order summaries.</div>
+        <div class="search-section search-row">
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Search orders, vendors, items</mat-label>
+          <input matInput [formControl]="searchControl">
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Advanced filters"
+            (click)="openAdvancedFilters()">
+            <mat-icon>search</mat-icon>
+          </button>
+        </mat-form-field>
       </div>
-    </div>
-    <mat-card-content>
-      <div class="table-wrapper" *ngIf="orders.length; else emptyState">
-        <table mat-table [dataSource]="orders" class="mat-elevation-z1 pro-table">
+      </div>
+      <div class="applied-chips" *ngIf="selectedFilterChips.length">
+        <mat-chip-set>
+          <mat-chip
+            *ngFor="let chip of selectedFilterChips"
+            [removable]="true"
+            (removed)="removeAppliedFilter(chip.kind, chip.value)">
+            {{ chip.label }}
+            <button matChipRemove aria-label="Remove filter">
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-chip>
+        </mat-chip-set>
+        <button mat-button type="button" class="clear-inline" (click)="clearAllFilters()">Clear all</button>
+      </div>
+
+      <div
+        class="filter-summary-row compact"
+        *ngIf="
+          selectedFilterChips.length ||
+          searchControl.value.trim() ||
+          fromDateControl.value.trim() ||
+          toDateControl.value.trim()
+        ">
+        <div class="filter-summary">{{ filterSummary }}</div>
+      </div>
+
+      <mat-sidenav-container class="filters-container">
+        <mat-sidenav #filterSidenav mode="over" position="end" class="filters-sidenav">
+          <div class="filters-header">
+            <div class="filters-title">Filters</div>
+            <button mat-icon-button type="button" aria-label="Close filters" (click)="filterSidenav.close()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+
+          <mat-accordion>
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Status</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let status of availableStatuses"
+                  [checked]="draftStatusFilters.has(status)"
+                  (change)="toggleDraftStatus(status)">
+                  {{ getStatusLabel(status) }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Branch</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let branch of availableBranches"
+                  [checked]="draftBranchFilters.has(branch)"
+                  (change)="toggleDraftBranch(branch)">
+                  {{ branch }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>Vendor</mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="filters-list">
+                <mat-checkbox
+                  *ngFor="let vendor of availableVendors"
+                  [checked]="draftVendorFilters.has(vendor)"
+                  (change)="toggleDraftVendor(vendor)">
+                  {{ vendor }}
+                </mat-checkbox>
+              </div>
+            </mat-expansion-panel>
+          </mat-accordion>
+
+          <div class="filters-footer">
+            <button mat-stroked-button type="button" (click)="clearAllDraftFilters()">Clear All</button>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="applyFilters(); filterSidenav.close()">
+              Apply Filters
+            </button>
+          </div>
+        </mat-sidenav>
+
+        <mat-sidenav-content>
+          <!-- content continues below -->
+        </mat-sidenav-content>
+      </mat-sidenav-container>
+
+      <div class="table-toolbar">
+        <div class="table-summary">
+          Showing {{ dataSource.filteredData.length }} of {{ dataSource.data.length }} orders
+        </div>
+        <div class="table-actions">
+          <button
+            mat-stroked-button
+            color="primary"
+            class="filters-btn"
+            type="button"
+            (click)="filterSidenav.open(); openFilters()"
+            [matBadge]="activeFilterCount"
+            matBadgeColor="primary"
+            [matBadgeHidden]="activeFilterCount === 0">
+            <mat-icon>filter_list</mat-icon>
+            Filters
+          </button>
+        </div>
+      </div>
+
+      <div class="feedback loading" *ngIf="isLoading">Loading orders...</div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && !errorMessage; else orderError">
+        <table mat-table [dataSource]="dataSource" matSort class="orders-table">
           <ng-container matColumnDef="id">
-            <th mat-header-cell *matHeaderCellDef>Order</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Order ID</th>
             <td mat-cell *matCellDef="let order">
-              <div class="item-name">{{ order.id }}</div>
-              <div class="muted">{{ order.customer }}</div>
+              <div class="cell-title">{{ order.displayId }}</div>
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Status</th>
-            <td mat-cell *matCellDef="let order">
-              <span [class]="getStatusPillClass(order)">{{ order.statusLabel }}</span>
-            </td>
+          <ng-container matColumnDef="branch">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Branch</th>
+            <td mat-cell *matCellDef="let order">{{ order.branch }}</td>
           </ng-container>
 
           <ng-container matColumnDef="vendor">
-            <th mat-header-cell *matHeaderCellDef>Vendor</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Vendor</th>
+            <td mat-cell *matCellDef="let order">{{ order.vendor || 'Not assigned' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
             <td mat-cell *matCellDef="let order">
-              <span [class.dimmed]="!order.isVendorAssigned">{{ order.vendor }}</span>
+              <span class="status-badge" [ngClass]="order.status | lowercase">{{ getStatusLabel(order.status) }}</span>
             </td>
           </ng-container>
 
-          <ng-container matColumnDef="dates">
-            <th mat-header-cell *matHeaderCellDef>Dates</th>
+          <ng-container matColumnDef="date">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>Date</th>
             <td mat-cell *matCellDef="let order">
-              <div>{{ order.orderDate }}</div>
-              <div class="muted">Delivery: {{ order.deliveryDate }}</div>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="total">
-            <th mat-header-cell *matHeaderCellDef>Total</th>
-            <td mat-cell *matCellDef="let order">
-              <span [class.pending]="order.totalLabel === 'Pending'">{{ order.totalLabel }}</span>
+              <div class="cell-title">{{ order.raw.transaction_date || '-' }}</div>
+              <div class="cell-muted" *ngIf="order.raw.delivery_date">Delivery: {{ order.raw.delivery_date }}</div>
             </td>
           </ng-container>
 
@@ -124,95 +184,595 @@
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let order">
               <button mat-button color="primary" (click)="selectOrder(order)">Manage</button>
+              <button
+                mat-icon-button
+                color="warn"
+                type="button"
+                aria-label="Delete order"
+                (click)="confirmDeleteOrder(order)"
+                [disabled]="!canDeleteOrder(order)">
+                <mat-icon>delete</mat-icon>
+              </button>
             </td>
           </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['id', 'status', 'vendor', 'dates', 'total', 'actions']"></tr>
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
         </table>
       </div>
-      <ng-template #emptyState>
-        <app-empty-state
-          icon="assignment"
-          title="No orders found"
-          message="No orders match the selected filters."
-          hint="Create a new order or adjust the date range.">
-        </app-empty-state>
+      <ng-template #orderError>
+        <div class="error-alert" *ngIf="!isLoading && errorMessage">
+          <mat-icon>error</mat-icon>
+          <div>
+            <strong>Error</strong>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
       </ng-template>
+
+      <mat-paginator
+        [pageSize]="10"
+        [pageSizeOptions]="[10, 25, 50]"
+        showFirstLastButtons>
+      </mat-paginator>
     </mat-card-content>
   </mat-card>
 
-  <mat-accordion>
-    <mat-expansion-panel>
-      <mat-expansion-panel-header>
-        <mat-panel-title>Create a new order</mat-panel-title>
-        <mat-panel-description>Step-by-step flow</mat-panel-description>
-      </mat-expansion-panel-header>
-      <app-order-create [shops]="shops" [items]="items" (created)="onOrderCreated()"></app-order-create>
-    </mat-expansion-panel>
-  </mat-accordion>
-
-  <mat-card *ngIf="selectedOrder; else selectPrompt">
-    <mat-card-title>Manage order</mat-card-title>
-    <mat-card-content>
-      <div class="manage-header">
-        <div>
-          <p class="label">Order</p>
-          <p class="value">{{ selectedOrder.id }}</p>
+  <!-- Order Processing Flow (Modal) -->
+  <div class="manage-modal" *ngIf="selectedOrder" [@slideIn]>
+    <div class="manage-backdrop" (click)="closeManage()"></div>
+    <div class="manage-dialog" role="dialog" aria-modal="true">
+      <mat-card class="manage-card">
+        <!-- Dialog Header -->
+        <div class="manage-modal-header">
+          <div>
+            <mat-card-title>Manage order workflow</mat-card-title>
+            <p class="muted">Track the order from vendor assignment to sell order creation.</p>
+          </div>
+          <button class="close-btn" (click)="closeManage()" type="button" aria-label="Close dialog">×</button>
         </div>
-        <div>
-          <p class="label">Status</p>
-          <app-status-pill [label]="selectedOrder.statusLabel"></app-status-pill>
-        </div>
-      </div>
 
-      <div class="manage-grid">
-        <div>
-          <p class="label">Vendor assignment</p>
-          <form [formGroup]="assignForm">
-            <mat-form-field appearance="outline">
-              <mat-label>Vendor</mat-label>
-              <mat-select formControlName="vendorId" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder)">
+        <!-- Order ID and Status -->
+        <div class="order-info-section">
+          <div class="order-id">
+            <label>ORDER</label>
+            <h4>{{ selectedOrder.displayId }}</h4>
+          </div>
+          <div class="order-status">
+            <label>STATUS</label>
+            <span class="status-badge" [ngClass]="selectedOrder.status | lowercase">{{ getStatusLabel(selectedOrder.status) }}</span>
+          </div>
+        </div>
+
+        <!-- Step Indicator (Swiggy/Amazon style) -->
+        <div class="steps-indicator berry-stepper">
+          <div class="step" [class.active]="isStepActive(1)" [class.completed]="isStepCompleted(1)">
+            <div class="step-number">1</div>
+            <div class="step-label">Vendor<br/>Assignment</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(1)"></div>
+          <div class="step" [class.active]="isStepActive(2)" [class.completed]="isStepCompleted(2)">
+            <div class="step-number">2</div>
+            <div class="step-label">PDF<br/>Upload</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(2)"></div>
+          <div class="step" [class.active]="isStepActive(3)" [class.completed]="isStepCompleted(3)">
+            <div class="step-number">3</div>
+            <div class="step-label">Bill<br/>Capture</div>
+          </div>
+          <div class="step-connector" [class.active]="isStepCompleted(3)"></div>
+          <div class="step" [class.active]="isStepActive(4)" [class.completed]="isStepCompleted(4)">
+            <div class="step-number">4</div>
+            <div class="step-label">Create<br/>Order</div>
+          </div>
+        </div>
+
+        <!-- Step 1: Vendor Assignment -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'DRAFT'">
+          <div class="step-header">
+            <h3>Step 1: Vendor Assignment</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'DRAFT'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'DRAFT'">
+            <div class="stage-link" *ngIf="hasBranchImages">
+              <span class="stage-link-label">Branch images from order creation ({{ branchImages.length }})</span>
+              <div class="stage-link-actions">
+                <button mat-button type="button" color="primary" (click)="openBranchImages()">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadBranchImages()">Download</button>
+              </div>
+            </div>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Select Vendor</mat-label>
+              <mat-select [formControl]="vendorControl" [disabled]="isVendorsLoading || !!vendorsError">
                 <mat-option value="">Select vendor</mat-option>
-                <mat-option *ngFor="let vendor of vendors" [value]="vendor.id">{{ vendor.name }}</mat-option>
+                <mat-option *ngIf="isVendorsLoading" disabled>Loading vendors...</mat-option>
+                <mat-option *ngIf="!isVendorsLoading && !vendorsError && !assignableVendorOptions.length" disabled>
+                  No vendors mapped to this order category
+                </mat-option>
+                <mat-option *ngFor="let vendor of assignableVendorOptions" [value]="vendor.id">{{ vendor.name }}</mat-option>
               </mat-select>
+              <mat-hint *ngIf="vendorsError">{{ vendorsError }}</mat-hint>
+              <mat-hint *ngIf="!vendorsError && selectedOrderCategory">
+                Showing vendors mapped to {{ selectedOrderCategory }}.
+              </mat-hint>
             </mat-form-field>
-          </form>
-          <button mat-flat-button color="primary" (click)="assignVendor()" [disabled]="!selectedOrder || !canAssignVendor(selectedOrder) || isSaving">
-            Assign vendor
-          </button>
-          <p class="helper" *ngIf="selectedOrder?.isVendorAssigned">Vendor already assigned.</p>
+            <button mat-raised-button color="primary" (click)="assignVendor()" [disabled]="!vendorControl.value" class="full-width">Assign Vendor</button>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'DRAFT'">
+            <p><strong>Assigned Vendor:</strong> {{ selectedOrder.vendor }}</p>
+            <p *ngIf="hasBranchImages">
+              <strong>Branch images:</strong>
+              <button mat-button type="button" color="primary" (click)="openBranchImages()">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadBranchImages()">Download</button>
+            </p>
+          </div>
         </div>
 
-        <div>
-          <p class="label">Status update</p>
-          <form [formGroup]="statusForm">
-            <mat-form-field appearance="outline">
-              <mat-label>Status</mat-label>
-              <mat-select formControlName="status" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder)">
-                <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
-              </mat-select>
-            </mat-form-field>
-          </form>
-          <button mat-flat-button color="primary" (click)="updateStatus()" [disabled]="!selectedOrder || !canUpdateStatus(selectedOrder) || isSaving">
-            Update status
-          </button>
-          <p class="helper" *ngIf="selectedOrder?.isFinal">Status is locked after delivery.</p>
+        <!-- Step 2: PDF Upload -->
+        <div class="step-content" [class.active]="canManageVendorPdf">
+          <div class="step-header">
+            <h3>Step 2: Vendor PDF Upload</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="canManageVendorPdf">
+            <div class="stage-link" *ngIf="vendorPdfUrl">
+              <span class="stage-link-label">Vendor PDF already uploaded</span>
+              <div class="stage-link-actions">
+                <button mat-button type="button" color="primary" (click)="openVendorPdf()">Open</button>
+                <button mat-stroked-button type="button" color="primary" (click)="downloadVendorPdf()">Download</button>
+              </div>
+            </div>
+            <div class="upload-section">
+              <div class="file-upload" [class.has-file]="selectedFile">
+                <input #fileInput type="file" accept=".pdf" (change)="onFileSelected($event)" hidden />
+                <div class="upload-prompt" *ngIf="!selectedFile" (click)="fileInput.click()">
+                  <mat-icon>cloud_upload</mat-icon>
+                  <p><strong>Upload PDF Invoice</strong></p>
+                  <p class="text-muted">Click to select or drag and drop a PDF file</p>
+                  <p class="file-hint">Maximum file size: 10MB, PDF format only</p>
+                </div>
+                <div class="file-info" *ngIf="selectedFile">
+                  <mat-icon color="accent">check_circle</mat-icon>
+                  <div>
+                    <p><strong>{{ selectedFile.name }}</strong></p>
+                    <p class="text-muted">{{ (selectedFile.size / 1024).toFixed(2) }} KB</p>
+                  </div>
+                  <button mat-icon-button (click)="clearFile()" aria-label="Remove file">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </div>
+              <div class="error-message" *ngIf="fileError">
+                <mat-icon>error</mat-icon>
+                <span>{{ fileError }}</span>
+              </div>
+              <button mat-raised-button color="primary" (click)="uploadAndParsePDF()" [disabled]="!selectedFile || isUploading" class="full-width">
+                <span *ngIf="!isUploading">{{ vendorPdfUrl ? 'Re-upload and Parse PDF' : 'Upload and Parse PDF' }}</span>
+                <mat-spinner diameter="20" *ngIf="isUploading" [ngStyle]="{'display': 'inline-block', 'margin-right': '8px'}"></mat-spinner>
+                <span *ngIf="isUploading">Processing...</span>
+              </button>
+            </div>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT'">
+            <p *ngIf="pdfData"><strong>PDF Uploaded:</strong> {{ pdfData.fileName || 'Vendor Invoice' }}</p>
+            <p *ngIf="vendorPdfUrl">
+              <strong>Vendor PDF:</strong>
+              <button mat-button type="button" color="primary" (click)="openVendorPdf()">Open</button>
+              <button mat-button type="button" color="primary" (click)="downloadVendorPdf()">Download</button>
+            </p>
+            <p *ngIf="pdfData?.items"><strong>Items Extracted:</strong> {{ pdfData?.items?.length ?? 0 }}</p>
+            <p *ngIf="pdfData?.template?.key"><strong>Template used:</strong> {{ pdfData?.template?.key }}</p>
+          </div>
         </div>
-      </div>
 
-      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
-    </mat-card-content>
-  </mat-card>
+        <!-- Item Review / Edit -->
+        <div class="step-content" *ngIf="orderLines.length">
+          <div class="step-header">
+            <h3>Review invoice items</h3>
+            <span class="step-info muted">Edit qty/rate or remove lines before proceeding</span>
+          </div>
+          <div class="step-body">
+            <div class="pricing-summary">
+              <div class="summary-card">
+                <div class="label">Parsed line value</div>
+                <div class="value">{{ itemsSubtotal | number:'1.2-2' }}</div>
+                <div class="muted">Sum of the invoice line amounts currently shown below.</div>
+              </div>
+              <div *ngIf="gstTotal > 0 || gstIncludedInLineAmounts" class="summary-card">
+                <div class="label">{{ gstIncludedInLineAmounts ? 'GST handling' : 'GST added on top' }}</div>
+                <div class="value">{{ gstTotal | number:'1.2-2' }}</div>
+                <div class="muted" *ngIf="gstIncludedInLineAmounts">GST is already included in the parsed line rate / line total for this vendor layout.</div>
+                <div class="muted" *ngIf="!gstIncludedInLineAmounts">Additional GST calculated from the parsed rows.</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">Parsed items total</div>
+                <div class="value">{{ itemsTotal | number:'1.2-2' }}</div>
+                <div class="muted">This is the running total from all parsed item rows.</div>
+              </div>
+              <div *ngIf="transportCharge > 0" class="summary-card">
+                <div class="label">Invoice-level extra spend</div>
+                <div class="value">{{ transportCharge | number:'1.2-2' }}</div>
+                <div class="muted">Transport, freight, or any bill-level extra amount.</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">Expected vendor bill total</div>
+                <div class="value">{{ expectedBillTotal | number:'1.2-2' }}</div>
+                <div class="muted">
+                  Expected bill = parsed items total{{ transportCharge > 0 ? ' + invoice-level extra spend' : '' }}.
+                </div>
+              </div>
+              <div class="summary-card">
+                <div class="label">Entered vendor bill total</div>
+                <div class="value">{{ billTotal | number:'1.2-2' }}</div>
+                <div class="muted">The bill total currently entered for capture.</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">Difference to resolve</div>
+                <div class="value" [style.color]="billMatchesItems ? '#2c7a4b' : '#9c6a2c'">
+                  {{ billDiff | number:'1.2-2' }}
+                </div>
+                <div class="muted" *ngIf="!billMatchesItems">Review missing rows, GST handling, or invoice-level extras until the difference becomes zero.</div>
+                <div class="muted" *ngIf="billMatchesItems">Entered bill total matches the parsed review total.</div>
+              </div>
+            </div>
+            <div class="dialog-actions">
+              <button mat-stroked-button type="button" (click)="applyItemsTotalToBill()">Set bill total = expected total</button>
+              <button mat-stroked-button type="button" *ngIf="unappliedAdditionalSpend > 0" (click)="applyDiffAsAdditionalSpend()">
+                Add diff as transport
+              </button>
+              <button mat-stroked-button type="button" color="accent" *ngIf="hasMissingParsedRows" (click)="addManualOrderLine()">
+                Add missing row manually
+              </button>
+            </div>
 
-  <ng-template #selectPrompt>
-    <mat-card>
-      <mat-card-title>Select an order to manage</mat-card-title>
-      <mat-card-content>
-        <p class="muted">
-          Choose an order from the list to assign a vendor or update status.
-        </p>
-      </mat-card-content>
-    </mat-card>
-  </ng-template>
+            <div class="bill-validation" *ngIf="hasMissingParsedRows">
+              <mat-icon>warning</mat-icon>
+              <span>
+                The parser may have missed invoice rows: {{ parserMissingRowsSummary }}.
+                Add a manual recovery row before saving if needed.
+              </span>
+            </div>
+
+            <div class="table-wrapper">
+              <table mat-table [dataSource]="orderLines" class="orders-table compact">
+                <ng-container matColumnDef="serial">
+                  <th mat-header-cell *matHeaderCellDef>Sr no</th>
+                  <td mat-cell *matCellDef="let line; let i = index">{{ getOrderLineSerial(line, i) }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="item">
+                  <th mat-header-cell *matHeaderCellDef>Item</th>
+                  <td mat-cell *matCellDef="let line">
+                    <ng-container *ngIf="line.manual_entry; else parsedItemCell">
+                      <div class="manual-item-editor">
+                        <mat-form-field appearance="outline" class="manual-item-field">
+                          <mat-label>Search item</mat-label>
+                          <input
+                            matInput
+                            placeholder="Type item name or code"
+                            [(ngModel)]="line.item_name"
+                            (ngModelChange)="recalcLine(line)"
+                            [matAutocomplete]="manualItemAuto" />
+                        </mat-form-field>
+                        <mat-autocomplete #manualItemAuto="matAutocomplete" (optionSelected)="selectManualItem(line, $event)">
+                          <mat-option *ngFor="let option of getManualItemMatches(line.item_name)" [value]="option.name">
+                            <div class="manual-option-name">{{ option.name }}</div>
+                            <div class="manual-option-meta">{{ option.code }}<span *ngIf="option.category"> · {{ option.category }}</span></div>
+                          </mat-option>
+                        </mat-autocomplete>
+                      </div>
+                      <div class="cell-muted" *ngIf="line.item_code; else unresolvedManualCode">{{ line.item_code }}</div>
+                      <ng-template #unresolvedManualCode>
+                        <div class="cell-note warning">Type an existing item name to resolve the application item code.</div>
+                      </ng-template>
+                    </ng-container>
+                    <ng-template #parsedItemCell>
+                      <div class="cell-title">{{ line.item_name }}</div>
+                      <div class="cell-muted">{{ line.item_code }}</div>
+                    </ng-template>
+                    <div class="cell-note muted" *ngIf="getLineRateBeforeTax(line) !== null || getLineRateAfterTax(line) !== null">
+                      Rate before tax:
+                      <strong>{{ (getLineRateBeforeTax(line) ?? 0) | number:'1.2-2' }}</strong>
+                      |
+                      Rate after tax:
+                      <strong>{{ (getLineRateAfterTax(line) ?? 0) | number:'1.2-2' }}</strong>
+                    </div>
+                    <div class="cell-note warning" *ngIf="line.manual_entry">Manual recovery row</div>
+                    <div class="cell-note muted" *ngIf="line.parse_note">{{ line.parse_note }}</div>
+                    <div class="cell-note warning" *ngIf="line.mrpApplied">MRP cap applied</div>
+                    <div class="cell-note error" *ngIf="!line.mrpApplied && line.aas_mrp && line.rate > line.aas_mrp">
+                      Vendor rate exceeds MRP
+                    </div>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="qty">
+                  <th mat-header-cell *matHeaderCellDef>Qty</th>
+                  <td mat-cell *matCellDef="let line">
+                    <div class="qty-cell" *ngIf="line.manual_entry; else parsedQtyCell">
+                      <button mat-icon-button type="button" aria-label="Decrease qty" (click)="adjustQty(line, -1)">
+                        <mat-icon>remove</mat-icon>
+                      </button>
+                      <input matInput type="number" step="0.01" [(ngModel)]="line.qty" (ngModelChange)="recalcLine(line)" />
+                      <button mat-icon-button type="button" aria-label="Increase qty" (click)="adjustQty(line, 1)">
+                        <mat-icon>add</mat-icon>
+                      </button>
+                    </div>
+                    <ng-template #parsedQtyCell>{{ line.qty | number:'1.0-2' }}</ng-template>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="rate">
+                  <th mat-header-cell *matHeaderCellDef>Rate</th>
+                  <td mat-cell *matCellDef="let line">
+                    <ng-container *ngIf="line.manual_entry; else parsedRateCell">
+                      <input matInput type="number" [(ngModel)]="line.rate" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedRateCell>{{ line.rate | number:'1.2-2' }}</ng-template>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="gst">
+                  <th mat-header-cell *matHeaderCellDef>GST %</th>
+                  <td mat-cell *matCellDef="let line">
+                    <ng-container *ngIf="line.manual_entry; else parsedGstCell">
+                      <input matInput type="number" min="0" step="0.01" [(ngModel)]="line.aas_gst_percent" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedGstCell>
+                      <span *ngIf="line.aas_gst_percent !== null && line.aas_gst_percent !== undefined; else noGst">
+                        {{ line.aas_gst_percent | number:'1.0-2' }}
+                      </span>
+                      <ng-template #noGst>-</ng-template>
+                    </ng-template>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="mrp">
+                  <th mat-header-cell *matHeaderCellDef>MRP</th>
+                  <td mat-cell *matCellDef="let line">
+                    <span *ngIf="line.aas_mrp; else noMrp">{{ line.aas_mrp | number:'1.2-2' }}</span>
+                    <ng-template #noMrp>-</ng-template>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="margin">
+                  <th mat-header-cell *matHeaderCellDef>Margin %</th>
+                  <td mat-cell *matCellDef="let line">
+                    <ng-container *ngIf="line.manual_entry; else parsedMarginCell">
+                      <input matInput type="number" min="0" step="0.01" [(ngModel)]="line.aas_margin_percent" (ngModelChange)="recalcLine(line)" />
+                    </ng-container>
+                    <ng-template #parsedMarginCell>{{ line.aas_margin_percent | number:'1.0-2' }}</ng-template>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="amount">
+                  <th mat-header-cell *matHeaderCellDef>Amount</th>
+                  <td mat-cell *matCellDef="let line">{{ line.amount | number:'1.2-2' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="lineActions">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let line; let i = index">
+                    <button mat-icon-button type="button" color="warn" aria-label="Remove line" (click)="removeOrderLine(i)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="['serial','item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
+                <tr mat-row *matRowDef="let row; columns: ['serial','item','qty','rate','gst','mrp','margin','amount','lineActions']"></tr>
+              </table>
+            </div>
+
+            <div class="dialog-actions">
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="saveOrderLines()"
+                [disabled]="isItemsSaving || selectedOrder.status === 'INVOICED'">
+                {{ isItemsSaving ? 'Saving...' : 'Update order items' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Bill Capture -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_PDF_RECEIVED'">
+          <div class="step-header">
+            <h3>Step 3: Vendor Bill Capture</h3>
+            <span class="step-info" *ngIf="selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'VENDOR_ASSIGNED'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_PDF_RECEIVED'">
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Total *</mat-label>
+                <input matInput [formControl]="billTotalControl" type="number" step="0.01" />
+                <mat-error *ngIf="billTotalControl.hasError('mismatch')">{{ billValidationMessage }}</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Reference *</mat-label>
+                <input matInput [formControl]="billRefControl" />
+              </mat-form-field>
+            </div>
+            <div class="form-row">
+              <mat-form-field appearance="outline" class="half-width" *ngIf="showAdditionalSpendField">
+                <mat-label>Transport / Additional Spend</mat-label>
+                <input matInput [formControl]="transportChargeControl" type="number" step="0.01" />
+                <mat-hint>Use this for transport or other invoice-level extra spend.</mat-hint>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Vendor Bill Date *</mat-label>
+                <input matInput [matDatepicker]="picker" [formControl]="billDateControl" />
+                <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker #picker></mat-datepicker>
+              </mat-form-field>
+            </div>
+            <div class="bill-validation" *ngIf="billValidationMessage">
+              <mat-icon>error</mat-icon>
+              <span>{{ billValidationMessage }}</span>
+            </div>
+            <div class="bill-validation mismatch-override" *ngIf="canProceedAsMismatchBill">
+              <mat-checkbox [formControl]="mismatchOverrideControl">
+                Mark this as a mismatched bill and continue
+              </mat-checkbox>
+            </div>
+            <button mat-raised-button color="primary" (click)="captureBill()" [disabled]="!isBillFormValid()" class="full-width">Capture Vendor Bill</button>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT' && selectedOrder.status !== 'VENDOR_ASSIGNED'">
+            <p><strong>Bill Total:</strong> {{ selectedOrder.billTotal | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
+            <p *ngIf="selectedOrder.transportCharge > 0"><strong>Transport / Additional Spend:</strong> {{ selectedOrder.transportCharge | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
+            <p *ngIf="selectedOrder.roundingAdjustment"><strong>Round off:</strong> {{ selectedOrder.roundingAdjustment | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
+            <p><strong>Bill Reference:</strong> {{ selectedOrder.billRef }}</p>
+            <p><strong>Bill Date:</strong> {{ selectedOrder.billDate | date:'short' }}</p>
+          </div>
+        </div>
+
+        <!-- Step 4: Create Sell Order -->
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+          <div class="step-header">
+            <h3>Step 4: Sell Order Preview & Create</h3>
+            <span class="step-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">✓ Completed</span>
+          </div>
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+            <mat-slide-toggle [formControl]="applyTransportToInvoiceControl">
+              Apply transport charges to customer invoice
+            </mat-slide-toggle>
+            <p class="muted" *ngIf="invoiceTransportCharge > 0">
+              Captured transport of {{ invoiceTransportCharge | currency:selectedOrder.currency:'symbol':'1.2-2' }}
+              will {{ shouldApplyTransportToInvoice ? '' : 'not ' }}be passed to the customer invoice.
+            </p>
+            <p class="muted" *ngIf="invoiceTransportCharge <= 0">
+              No transport charge was captured on this order. Keeping this toggle on will not add anything to the invoice.
+            </p>
+            <button mat-stroked-button (click)="calculatePreview()" class="full-width mb-2">Calculate Preview</button>
+            <div *ngIf="sellPreview" class="preview-section">
+              <h4>Order Preview</h4>
+              <p><strong>Estimated items price:</strong> {{ sellPreview.estimatedPrice | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
+              <p *ngIf="shouldApplyTransportToInvoice">
+                <strong>Transport on invoice:</strong> {{ invoiceTransportCharge | currency:selectedOrder.currency:'symbol':'1.2-2' }}
+              </p>
+              <p><strong>Estimated invoice total:</strong> {{ previewInvoiceTotal | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
+              <p><strong>Invoice line count:</strong> {{ previewItemsCount }}</p>
+            </div>
+            <div *ngIf="sellPreview" class="review-descriptions">
+              <div class="review-descriptions__header">
+                <h4>Review invoice descriptions</h4>
+                <p>Apply a few common cleanup rules once, then edit any line inline before creating the branch invoice.</p>
+              </div>
+              <div class="description-tools">
+                <div class="description-tools__group">
+                  <span class="description-tools__label">Common remove text</span>
+                  <div class="description-tools__chips">
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="cleanup-chip"
+                      *ngFor="let token of availableDescriptionCleanupTokens"
+                      [class.cleanup-chip--active]="isDescriptionCleanupTokenSelected(token)"
+                      (click)="toggleDescriptionCleanupToken(token)">
+                      {{ token }}
+                    </button>
+                  </div>
+                </div>
+                <div class="description-tools__row">
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Custom remove text</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionBulkRemoveText"
+                      placeholder="Comma-separated words, for example SAMRAT, 50KG" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Find text</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionReplaceFrom"
+                      placeholder="Text to replace in all descriptions" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="description-tools__field">
+                    <mat-label>Replace with</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="descriptionReplaceTo"
+                      placeholder="Replacement text" />
+                  </mat-form-field>
+                </div>
+                <div class="description-tools__actions">
+                  <button mat-flat-button color="primary" type="button" (click)="applyDescriptionToolsToAll()">
+                    Apply to all descriptions
+                  </button>
+                  <button mat-stroked-button type="button" (click)="applyTitleCaseToAllDescriptions()">
+                    Title Case All
+                  </button>
+                </div>
+                <div class="description-tools__rules" *ngIf="activeDescriptionRuleLabels.length">
+                  <span class="description-tools__label">Active rules</span>
+                  <div class="description-tools__chips">
+                    <span class="rule-chip" *ngFor="let rule of activeDescriptionRuleLabels">{{ rule }}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="table-wrapper review-descriptions__table">
+                <table class="description-review-table">
+                  <thead>
+                    <tr>
+                      <th>Sr no</th>
+                      <th>Item</th>
+                      <th>Application item code</th>
+                      <th>Invoice description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let line of orderLines; let i = index">
+                      <td class="description-review-table__serial">{{ getOrderLineSerial(line, i) }}</td>
+                      <td class="description-review-table__item">{{ line.item_name }}</td>
+                      <td class="description-review-table__code">{{ line.item_code }}</td>
+                      <td class="description-review-table__description">
+                        <mat-form-field appearance="outline" class="description-field">
+                          <mat-label>Description</mat-label>
+                          <input
+                            matInput
+                            [(ngModel)]="line.display_description"
+                            placeholder="Clean description for this order only" />
+                        </mat-form-field>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <button
+                mat-stroked-button
+                type="button"
+                class="full-width mb-2"
+                (click)="saveOrderLines()"
+                [disabled]="isItemsSaving">
+                {{ isItemsSaving ? 'Saving review...' : 'Save review changes' }}
+              </button>
+            </div>
+            <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview || isItemsSaving" class="full-width">Create Sell Order</button>
+          </div>
+          <div class="step-completed-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">
+            <mat-icon class="success-icon">check_circle</mat-icon>
+            <p><strong>Sell Order Created Successfully!</strong></p>
+            <p>Order Status: {{ getStatusLabel(selectedOrder.status) }}</p>
+          </div>
+        </div>
+
+        <!-- Error Display -->
+        <div class="error-alert" *ngIf="errorMessage">
+          <mat-icon>error</mat-icon>
+          <div>
+            <strong>Error</strong>
+            <p>{{ errorMessage }}</p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="dialog-actions">
+          <button mat-button (click)="closeManage()">Close</button>
+        </div>
+      </mat-card>
+    </div>
+  </div>
 </div>

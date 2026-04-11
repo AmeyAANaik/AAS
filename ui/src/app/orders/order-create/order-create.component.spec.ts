@@ -1,25 +1,84 @@
+import { Location } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatStepperModule } from '@angular/material/stepper';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { Router } from '@angular/router';
 import { of } from 'rxjs';
+import { CategoryService } from '../../categories/category.service';
+import { ItemService } from '../../items/item.service';
+import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderCreateComponent } from './order-create.component';
+import { CompanyContextService } from '../../shared/company-context.service';
+import { ItemVendorPricingService } from '../../items/item-vendor-pricing.service';
 
 describe('OrderCreateComponent', () => {
   let component: OrderCreateComponent;
   let fixture: ComponentFixture<OrderCreateComponent>;
   let orderService: jasmine.SpyObj<OrderService>;
+  let categoryService: jasmine.SpyObj<CategoryService>;
+  let itemService: jasmine.SpyObj<ItemService>;
+  let vendorService: jasmine.SpyObj<VendorService>;
+  let companyContextService: jasmine.SpyObj<CompanyContextService>;
+  let itemVendorPricingService: jasmine.SpyObj<ItemVendorPricingService>;
+  let location: jasmine.SpyObj<Location>;
+  let router: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
-    orderService = jasmine.createSpyObj('OrderService', ['createOrder']);
-    orderService.createOrder.and.returnValue(of({ name: 'ORD-1', customer: 'Shop A' }));
+    orderService = jasmine.createSpyObj('OrderService', [
+      'createOrder',
+      'createDirectOrderFromItems',
+      'createOrderFromBranchImage',
+      'captureVendorBill',
+      'uploadOrderImage',
+      'listBranches'
+    ]);
+    orderService.createOrder.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
+    orderService.createDirectOrderFromItems.and.returnValue(of({ order: { name: 'Shop_A_Grocery_20260315' } }));
+    orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
+    orderService.captureVendorBill.and.returnValue(of({}));
+    orderService.uploadOrderImage.and.returnValue(of({}));
+    orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }]));
+
+    categoryService = jasmine.createSpyObj('CategoryService', ['listCategories']);
+    categoryService.listCategories.and.returnValue(of([{ name: 'Grocery', item_group_name: 'Grocery' }]));
+
+    itemService = jasmine.createSpyObj('ItemService', ['listItems']);
+    itemService.listItems.and.returnValue(of([
+      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-1', aas_vendor_rate: 42, aas_gst_percent: 5 },
+      { name: 'ITEM-1B', item_code: 'ITEM-1B', item_name: 'Dal', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-2', aas_vendor_rate: 50, aas_gst_percent: 12 },
+      { name: 'ITEM-2', item_code: 'ITEM-2', item_name: 'Soap', item_group: 'Cleaning', stock_uom: 'Nos' }
+    ]));
+
+    vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
+    vendorService.listVendors.and.returnValue(of([
+      { name: 'SUP-1', supplier_name: 'Fresh Harvest', category: 'Grocery', disabled: 0 },
+      { name: 'SUP-2', supplier_name: 'Daily Staples', category: 'Grocery', disabled: 0 },
+      { name: 'SUP-3', supplier_name: 'CleanCo', category: 'Cleaning', disabled: 0 }
+    ]));
+
+    companyContextService = jasmine.createSpyObj('CompanyContextService', ['getContext']);
+    companyContextService.getContext.and.returnValue(of({
+      company: { id: 'AAS', name: 'AAS' },
+      branch: null,
+      companies: [{ name: 'AAS' }],
+      branches: []
+    }));
+
+    itemVendorPricingService = jasmine.createSpyObj('ItemVendorPricingService', ['listPricing']);
+    itemVendorPricingService.listPricing.and.returnValue([]);
+
+    location = jasmine.createSpyObj('Location', ['back']);
+    router = jasmine.createSpyObj('Router', ['navigate']);
+    router.navigate.and.returnValue(Promise.resolve(true));
 
     await TestBed.configureTestingModule({
       declarations: [OrderCreateComponent],
@@ -27,20 +86,28 @@ describe('OrderCreateComponent', () => {
         ReactiveFormsModule,
         MatButtonModule,
         MatCardModule,
+        MatCheckboxModule,
         MatFormFieldModule,
+        MatIconModule,
         MatInputModule,
         MatSelectModule,
         MatSlideToggleModule,
-        MatStepperModule,
         NoopAnimationsModule
       ],
-      providers: [{ provide: OrderService, useValue: orderService }]
+      providers: [
+        { provide: OrderService, useValue: orderService },
+        { provide: CategoryService, useValue: categoryService },
+        { provide: ItemService, useValue: itemService },
+        { provide: VendorService, useValue: vendorService },
+        { provide: CompanyContextService, useValue: companyContextService },
+        { provide: ItemVendorPricingService, useValue: itemVendorPricingService },
+        { provide: Location, useValue: location },
+        { provide: Router, useValue: router }
+      ]
     }).compileComponents();
 
     fixture = TestBed.createComponent(OrderCreateComponent);
     component = fixture.componentInstance;
-    component.shops = [{ id: 'SHOP-1', name: 'Shop A' }];
-    component.items = [{ id: 'ITEM-1', name: 'Item A', code: 'ITM-1' }];
     fixture.detectChanges();
   });
 
@@ -48,49 +115,54 @@ describe('OrderCreateComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('marks form invalid when required fields are missing', () => {
-    component.detailsGroup.patchValue({ customer: '', company: '', orderDate: '', deliveryDate: '' });
-    component.itemGroup.patchValue({ itemId: '', quantity: null });
-    expect(component.form.invalid).toBeTrue();
+  it('loads branches into shops', () => {
+    expect(orderService.listBranches).toHaveBeenCalled();
+    expect(component.shops).toEqual([{ id: 'SHOP-1', name: 'Sukarta Aundh' }]);
   });
 
-  it('submits an order with pricing when visible', () => {
-    component.detailsGroup.patchValue({
-      customer: 'SHOP-1',
-      company: 'aas',
-      orderDate: '2024-01-10',
-      deliveryDate: '2024-01-12'
-    });
-    component.itemGroup.patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: true, rate: 10 });
-
-    component.submit();
-
-    expect(orderService.createOrder).toHaveBeenCalledWith({
-      customer: 'SHOP-1',
-      company: 'aas',
-      transaction_date: '2024-01-10',
-      delivery_date: '2024-01-12',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }]
-    });
+  it('loads categories and companies', () => {
+    expect(categoryService.listCategories).toHaveBeenCalled();
+    expect(companyContextService.getContext).toHaveBeenCalled();
+    expect(vendorService.listVendors).toHaveBeenCalled();
+    expect(component.categories).toEqual([{ id: 'Grocery', name: 'Grocery' }]);
+    expect(component.selectedCompanyLabel).toBe('AAS');
+    expect(component.detailsGroup.get('company')?.value).toBe('AAS');
   });
 
-  it('forces rate to zero when pricing is hidden', () => {
-    component.detailsGroup.patchValue({
-      customer: 'SHOP-1',
-      company: 'aas',
-      orderDate: '2024-01-10',
-      deliveryDate: '2024-01-12'
-    });
-    component.itemGroup.patchValue({ itemId: 'ITM-1', quantity: 2, pricingVisible: false, rate: 99 });
+  it('shows all vendors and items for the selected category', () => {
+    component.detailsGroup.patchValue({ category: 'Grocery' });
 
-    component.submit();
+    expect(component.categoryVendors.map(vendor => vendor.name)).toEqual(['Daily Staples', 'Fresh Harvest']);
+    expect(component.categoryItems).toEqual([]);
+  });
 
-    expect(orderService.createOrder).toHaveBeenCalledWith({
-      customer: 'SHOP-1',
-      company: 'aas',
-      transaction_date: '2024-01-10',
-      delivery_date: '2024-01-12',
-      items: [{ item_code: 'ITM-1', qty: 2, rate: 0 }]
-    });
+  it('filters items by selected vendor and updates checkout totals when qty, rate, and gst change', () => {
+    component.detailsGroup.patchValue({ category: 'Grocery', vendor: 'SUP-1' });
+
+    expect(component.categoryItems.map(item => item.name)).toEqual(['Rice']);
+
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.onQtyInput(item.id, '3');
+    component.onRateInput(item.id, '100');
+    component.onGstInput(item.id, '18');
+
+    expect(component.selectedOrderItems.length).toBe(1);
+    expect(component.selectedOrderItems[0].qty).toBe(3);
+    expect(component.selectedOrderItems[0].rate).toBe(100);
+    expect(component.selectedOrderItems[0].gstPercent).toBe(18);
+    expect(component.vendorSubtotal).toBe(300);
+    expect(component.gstTotal).toBe(54);
+    expect(component.vendorInvoiceTotal).toBe(354);
+  });
+
+  it('keeps the source switch working between upload images and select items', () => {
+    expect(component.createMode).toBe('images');
+
+    component.setCreateMode('items');
+    expect(component.createMode).toBe('items');
+
+    component.setCreateMode('images');
+    expect(component.createMode).toBe('images');
   });
 });

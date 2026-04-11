@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Orders Page - AAS UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .header-content p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .header-actions button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-actions button:hover {
+            background: #1976D2;
+        }
+
+        .header-actions button.secondary {
+            background: #f5f7fa;
+            color: #2196F3;
+            border: 1px solid #e0e0e0;
+        }
+
+        .header-actions button.secondary:hover {
+            background: #eeeeee;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+        }
+
+        .card-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .search-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-field {
+            flex: 1;
+            max-width: 400px;
+            padding: 10px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .search-field input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .search-field button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #2196F3;
+            font-size: 18px;
+        }
+
+        .card-content {
+            padding: 20px 30px;
+        }
+
+        .filters-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: #e3f2fd;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #1565c0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .filter-chip:hover {
+            background: #bbdefb;
+        }
+
+        .filter-chip button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: inherit;
+            font-size: 16px;
+            padding: 0;
+        }
+
+        .clear-filters {
+            color: #2196F3;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+
+        .filter-summary {
+            padding: 12px 16px;
+            background: #f9f9f9;
+            border-left: 3px solid #2196F3;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .filter-summary strong {
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        .bulk-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #1565c0;
+        }
+
+        .bulk-actions button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 10px;
+            transition: background 0.3s;
+        }
+
+        .bulk-actions button:hover {
+            background: #1976D2;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f5f7fa;
+            border-bottom: 2px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 16px;
+            color: #1a1a1a;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #fafafa;
+        }
+
+        tbody tr.selected {
+            background: #f0f7ff;
+        }
+
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .order-id {
+            font-weight: 600;
+            color: #2196F3;
+            cursor: pointer;
+        }
+
+        .order-id:hover {
+            text-decoration: underline;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-ready {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .badge-delivered {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-preparing {
+            background: #fff8e1;
+            color: #e65100;
+        }
+
+        .row-details {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 4px;
+            color: #2196F3;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #e3f2fd;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+            border-top: 1px solid #f0f0f0;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .pagination-buttons button {
+            background: #f5f7fa;
+            border: 1px solid #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .pagination-buttons button:hover:not(:disabled) {
+            background: #e0e0e0;
+        }
+
+        .pagination-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .dropdown {
+            background: #f5f7fa;
+            border: 1px solid #e0e0e0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 30px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .empty-state-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            td, th {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-content">
+        <h1>📦 Order Workflow</h1>
+        <p>Track demand from branch image intake through vendor billing and sell-order creation</p>
+    </div>
+    <div class="header-actions">
+        <button class="secondary">🔄 Refresh</button>
+        <button>➕ Create New Order</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Order Queue</div>
+    </div>
+
+    <div class="card-content">
+        <div class="search-section">
+            <div class="search-field">
+                <span class="material-icons" style="font-size: 18px; color: #999;">search</span>
+                <input type="text" placeholder="Search orders, vendors, items...">
+            </div>
+            <button style="background: #f5f7fa; border: 1px solid #e0e0e0; padding: 8px 12px; border-radius: 4px; cursor: pointer; color: #2196F3;">
+                ⚙️ Advanced Filters
+            </button>
+        </div>
+
+        <div class="filters-row">
+            <span style="font-size: 12px; font-weight: 600; color: #666;">Active Filters:</span>
+            <div class="filter-chip">
+                ✓ Status: Pending
+                <button>✕</button>
+            </div>
+            <div class="filter-chip">
+                ✓ Priority: High
+                <button>✕</button>
+            </div>
+            <div class="filter-chip">
+                ✓ Branch: All
+                <button>✕</button>
+            </div>
+            <button class="clear-filters">Clear all</button>
+        </div>
+
+        <div class="filter-summary">
+            📊 Showing <strong>12 of 24 orders</strong> • <strong>8 filtered out</strong> • Last updated 2 minutes ago
+        </div>
+
+        <div class="bulk-actions">
+            <input type="checkbox" class="checkbox" checked>
+            <strong>1 selected</strong>
+            <button>🗑️ Delete</button>
+            <button>📋 Update Status</button>
+            <button>👤 Assign</button>
+            <button>🖨️ Print</button>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"><input type="checkbox" class="checkbox"></th>
+                        <th>Order ID</th>
+                        <th>Branch</th>
+                        <th>Status</th>
+                        <th>Vendor</th>
+                        <th>Amount</th>
+                        <th style="width: 80px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="selected">
+                        <td><input type="checkbox" class="checkbox" checked></td>
+                        <td>
+                            <div class="order-id">ORD-2024-001</div>
+                            <div class="row-details">Created: 3 days ago</div>
+                        </td>
+                        <td>
+                            <div>Branch A - New York</div>
+                            <div class="row-details">Manager: John Smith</div>
+                        </td>
+                        <td>
+                            <span class="status-badge badge-pending">
+                                🟠 PENDING
+                            </span>
+                            <div class="row-details">Awaiting vendor response</div>
+                        </td>
+                        <td>
+                            <div>Vendor 1</div>
+                            <div class="row-details">Expected: 2 days</div>
+                        </td>
+                        <td>
+                            <strong>$450.00</strong>
+                            <div class="row-details">3 items</div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><input type="checkbox" class="checkbox"></td>
+                        <td>
+                            <div class="order-id">ORD-2024-002</div>
+                            <div class="row-details">Created: 1 day ago</div>
+                        </td>
+                        <td>
+                            <div>Branch C - California</div>
+                            <div class="row-details">Manager: Sarah Johnson</div>
+                        </td>
+                        <td>
+                            <span class="status-badge badge-ready">
+                                🔵 READY
+                            </span>
+                            <div class="row-details">Ready for pickup tomorrow</div>
+                        </td>
+                        <td>
+                            <div>Vendor 2</div>
+                            <div class="row-details">Expected: Today</div>
+                        </td>
+                        <td>
+                            <strong>$320.50</strong>
+                            <div class="row-details">2 items</div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><input type="checkbox" class="checkbox"></td>
+                        <td>
+                            <div class="order-id">ORD-2024-003</div>
+                            <div class="row-details">Created: Today</div>
+                        </td>
+                        <td>
+                            <div>Branch B - Texas</div>
+                            <div class="row-details">Manager: Mike Davis</div>
+                        </td>
+                        <td>
+                            <span class="status-badge badge-preparing">
+                                ⚙️ PREPARING
+                            </span>
+                            <div class="row-details">Being processed</div>
+                        </td>
+                        <td>
+                            <div>Vendor 3</div>
+                            <div class="row-details">Expected: 3 days</div>
+                        </td>
+                        <td>
+                            <strong>$580.25</strong>
+                            <div class="row-details">5 items</div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><input type="checkbox" class="checkbox"></td>
+                        <td>
+                            <div class="order-id">ORD-2024-004</div>
+                            <div class="row-details">Created: 5 days ago</div>
+                        </td>
+                        <td>
+                            <div>Branch A - New York</div>
+                            <div class="row-details">Manager: John Smith</div>
+                        </td>
+                        <td>
+                            <span class="status-badge badge-delivered">
+                                ✓ DELIVERED
+                            </span>
+                            <div class="row-details">Completed on time</div>
+                        </td>
+                        <td>
+                            <div>Vendor 1</div>
+                            <div class="row-details">Completed</div>
+                        </td>
+                        <td>
+                            <strong>$275.00</strong>
+                            <div class="row-details">2 items</div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td><input type="checkbox" class="checkbox"></td>
+                        <td>
+                            <div class="order-id">ORD-2024-005</div>
+                            <div class="row-details">Created: 2 days ago</div>
+                        </td>
+                        <td>
+                            <div>Branch D - Florida</div>
+                            <div class="row-details">Manager: Emily Wilson</div>
+                        </td>
+                        <td>
+                            <span class="status-badge badge-pending">
+                                🟠 PENDING
+                            </span>
+                            <div class="row-details">Awaiting PDF confirmation</div>
+                        </td>
+                        <td>
+                            <div>Vendor 4</div>
+                            <div class="row-details">Expected: 4 days</div>
+                        </td>
+                        <td>
+                            <strong>$420.75</strong>
+                            <div class="row-details">4 items</div>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn" title="View Details">👁️</button>
+                                <button class="action-btn" title="Edit">✎</button>
+                                <button class="action-btn" title="More">⋮</button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <div>
+                <span>Show:</span>
+                <select class="dropdown" style="margin-left: 8px;">
+                    <option>10</option>
+                    <option selected>20</option>
+                    <option>50</option>
+                </select>
+                <span style="margin-left: 20px; color: #1a1a1a;"><strong>Page 1 of 3</strong> • Showing 20 of 47 orders</span>
+            </div>
+            <div class="pagination-buttons">
+                <button>← Previous</button>
+                <button>Next →</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

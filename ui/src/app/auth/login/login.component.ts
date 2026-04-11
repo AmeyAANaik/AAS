@@ -43,7 +43,7 @@ export class LoginComponent implements OnInit {
     this.status = 'Signing in...';
     try {
       const data = await this.http
-        .post<{ accessToken: string }>(`/api/auth/login`, {
+        .post<{ accessToken: string; role?: string }>(`/api/auth/login`, {
           username: this.username,
           password: this.password
         })
@@ -54,6 +54,9 @@ export class LoginComponent implements OnInit {
         return;
       }
       this.tokenStore.setToken(token);
+      this.tokenStore.setRole(data?.role ?? null);
+      this.tokenStore.setFeatures([]);
+      this.tokenStore.setHomeRoute(null);
       this.status = '';
       this.router.navigateByUrl(this.returnUrl);
     } catch (err) {
@@ -69,6 +72,7 @@ export class LoginComponent implements OnInit {
 
   signInDifferent(): void {
     this.tokenStore.setToken(null);
+    this.tokenStore.setRole(null);
     this.hasToken = false;
     this.showForm = true;
     this.status = '';

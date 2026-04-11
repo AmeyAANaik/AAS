@@ -1,35 +1,58 @@
 <div class="vendor-page">
-  <app-page-header title="Vendors" subtitle="Manage vendor master data in ERPNext style.">
+  <app-page-header title="Vendors" subtitle="Manage vendor master data for the application.">
     <button mat-flat-button color="primary" (click)="openCreate()">Create vendor</button>
   </app-page-header>
 
   <div class="content-grid">
     <mat-card class="list-card">
-      <div class="section-header">
-        <div>
-          <div class="section-title">Vendor list</div>
-          <div class="section-subtitle">Search and maintain vendor master records.</div>
-        </div>
-      </div>
       <mat-card-content>
+        <div class="section-header">
+          <div>
+            <div class="section-title">Vendor directory <span class="count">{{ filteredVendors.length }}</span></div>
+            <div class="section-subtitle">Search supplier records, inspect status, and open a vendor profile for updates.</div>
+          </div>
+        </div>
         <div class="toolbar">
           <mat-form-field appearance="outline">
             <mat-label>Search vendor</mat-label>
             <input matInput [formControl]="searchControl" placeholder="Search by name" />
           </mat-form-field>
-          <button mat-stroked-button color="primary" (click)="loadVendors()" [disabled]="isLoading">Refresh</button>
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadVendors()" [disabled]="isLoading" aria-label="Refresh vendors">
+            <mat-icon>refresh</mat-icon>
+          </button>
         </div>
 
-        <div class="table-wrapper" *ngIf="filteredVendors.length; else emptyState">
+        <div class="feedback loading" *ngIf="isLoading">Loading vendors...</div>
+        <div
+          class="feedback"
+          [class.error]="statusIsError"
+          [class.success]="!statusIsError"
+          *ngIf="!isLoading && statusMessage">
+          {{ statusMessage }}
+        </div>
+
+        <div class="table-wrapper" *ngIf="!isLoading && filteredVendors.length; else emptyState">
           <table mat-table [dataSource]="filteredVendors" class="mat-elevation-z1 pro-table">
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>Vendor name</th>
               <td mat-cell *matCellDef="let vendor">{{ vendor.name }}</td>
             </ng-container>
 
+            <ng-container matColumnDef="category">
+              <th mat-header-cell *matHeaderCellDef>Category</th>
+              <td mat-cell *matCellDef="let vendor">{{ vendor.category || '—' }}</td>
+            </ng-container>
+
             <ng-container matColumnDef="priority">
               <th mat-header-cell *matHeaderCellDef>Priority</th>
               <td mat-cell *matCellDef="let vendor">{{ vendor.priority ?? '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="template">
+              <th mat-header-cell *matHeaderCellDef>Template</th>
+              <td mat-cell *matCellDef="let vendor">
+                <app-status-pill [label]="vendor.templateHasJson ? 'Ready' : 'Missing'"></app-status-pill>
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="status">
@@ -42,20 +65,34 @@
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>Actions</th>
               <td mat-cell *matCellDef="let vendor">
-                <button mat-button color="primary" (click)="selectVendor(vendor)">View</button>
+                <button mat-button class="table-action" color="primary" (click)="selectVendor(vendor)">Edit</button>
+                <button
+                  mat-button
+                  class="table-action danger"
+                  color="warn"
+                  *ngIf="vendor.status === 'Inactive'"
+                  (click)="deleteVendor(vendor, $event)">
+                  Delete
+                </button>
               </td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+            <tr
+              mat-row
+              *matRowDef="let row; columns: displayedColumns"
+              (click)="selectVendor(row)"
+              [class.selected]="selectedVendor?.id === row.id">
+            </tr>
           </table>
         </div>
         <ng-template #emptyState>
           <app-empty-state
+            *ngIf="!isLoading"
             icon="person_add"
             title="No vendors yet"
-            message="Create the first vendor to start assigning purchase orders."
-            hint="Use the Create vendor action to add a new vendor.">
+            message="Create the first vendor to start configuring invoice mapping."
+            hint="Use the Create vendor action to add a vendor, then upload a sample invoice and map the required fields.">
           </app-empty-state>
         </ng-template>
       </mat-card-content>
@@ -64,11 +101,15 @@
     <mat-card class="form-card" *ngIf="isFormOpen">
       <app-vendor-form
         [vendor]="selectedVendor"
+        [categories]="categories"
         [mode]="mode"
         [isSaving]="isSaving"
         [statusMessage]="statusMessage"
+        [invoiceTemplateModel]="invoiceTemplateModel"
+        [profilePreview]="profilePreview"
         (save)="saveVendor($event)"
-        (reset)="clearSelection()">
+        (reset)="clearSelection()"
+        (openInvoiceSetup)="openInvoiceSetup()">
       </app-vendor-form>
     </mat-card>
   </div>

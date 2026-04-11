@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Dashboard - AAS UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 5px;
+        }
+
+        .header-title p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .header-buttons button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-left: 10px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .header-buttons button:hover {
+            background: #1976D2;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #2196F3;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+        }
+
+        .kpi-card.green {
+            border-left-color: #4CAF50;
+        }
+
+        .kpi-card.orange {
+            border-left-color: #FF9800;
+        }
+
+        .kpi-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .kpi-meta {
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .kpi-trend {
+            color: #4CAF50;
+            font-weight: 600;
+        }
+
+        .kpi-trend.down {
+            color: #F44336;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+        }
+
+        .chart-subtitle {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 5px;
+        }
+
+        .simple-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            height: 200px;
+            margin-bottom: 20px;
+        }
+
+        .bar {
+            background: linear-gradient(180deg, #2196F3, #1976D2);
+            border-radius: 4px 4px 0 0;
+            width: 50px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .bar:hover {
+            filter: brightness(1.1);
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .card-action {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .card-action:hover {
+            background: #1976D2;
+        }
+
+        .metric-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .metric-item {
+            padding: 15px;
+            background: #f5f7fa;
+            border-radius: 6px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-green {
+            background: #4CAF50;
+        }
+
+        .status-yellow {
+            background: #FF9800;
+        }
+
+        .status-red {
+            background: #F44336;
+        }
+
+        .status-blue {
+            background: #2196F3;
+        }
+
+        .progress-bar {
+            background: #e0e0e0;
+            height: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            border-radius: 2px;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .list-item-name {
+            font-weight: 500;
+            color: #1a1a1a;
+            font-size: 13px;
+        }
+
+        .list-item-value {
+            font-weight: 700;
+            color: #2196F3;
+            font-size: 13px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f5f7fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 700;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            color: #1a1a1a;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .badge-warning {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+
+        .badge-pending {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .badge-info {
+            background: #f3e5f5;
+            color: #6a1b9a;
+        }
+
+        @media (max-width: 768px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-row {
+                grid-template-columns: 1fr;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="header-title">
+        <h1>🏠 Operations Dashboard</h1>
+        <p>Real-time snapshot of your operations</p>
+    </div>
+    <div class="header-buttons">
+        <button>📊 View Reports</button>
+        <button>⚙️ Settings</button>
+    </div>
+</div>
+
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon">📄</div>
+        <div class="kpi-label">Total Invoices</div>
+        <div class="kpi-value">127</div>
+        <div class="kpi-meta">
+            <span class="kpi-trend">↑ 12%</span> from last month
+        </div>
+    </div>
+
+    <div class="kpi-card green">
+        <div class="kpi-icon">🏢</div>
+        <div class="kpi-label">Branches with Dues</div>
+        <div class="kpi-value">8</div>
+        <div class="kpi-meta">
+            <span class="kpi-trend">$45,300</span> total due
+        </div>
+    </div>
+
+    <div class="kpi-card orange">
+        <div class="kpi-icon">🏭</div>
+        <div class="kpi-label">Vendors with Dues</div>
+        <div class="kpi-value">5</div>
+        <div class="kpi-meta">
+            <span class="kpi-trend down">$23,500</span> payables
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons">show_chart</span>
+        Revenue & Order Trends
+    </div>
+
+    <div class="cards-grid">
+        <div class="chart-container">
+            <div class="chart-title">💰 Revenue This Month</div>
+            <div class="simple-chart">
+                <div class="bar" style="height: 60%;">
+                    <div class="bar-value">$12K</div>
+                    <div class="bar-label">Week 1</div>
+                </div>
+                <div class="bar" style="height: 85%;">
+                    <div class="bar-value">$17K</div>
+                    <div class="bar-label">Week 2</div>
+                </div>
+                <div class="bar" style="height: 70%;">
+                    <div class="bar-value">$14K</div>
+                    <div class="bar-label">Week 3</div>
+                </div>
+                <div class="bar" style="height: 90%;">
+                    <div class="bar-value">$18K</div>
+                    <div class="bar-label">Week 4</div>
+                </div>
+            </div>
+            <div style="text-align: center; font-size: 12px; color: #666;">
+                Total this month: <strong>$61,000</strong> | Last month: $54,200 | <span style="color: #4CAF50;">↑ 12.5%</span>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title">📦 Order Status Distribution</div>
+            <div class="metric-row" style="display: block;">
+                <div style="margin-bottom: 15px;">
+                    <div class="metric-label" style="margin-bottom: 5px;">✓ Delivered</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 45%; background: #4CAF50;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 3px;">45% • 28 orders</div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <div class="metric-label" style="margin-bottom: 5px;">⏳ Ready</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 30%; background: #2196F3;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 3px;">30% • 18 orders</div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <div class="metric-label" style="margin-bottom: 5px;">⚙️ Preparing</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 20%; background: #FF9800;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 3px;">20% • 12 orders</div>
+                </div>
+                <div>
+                    <div class="metric-label" style="margin-bottom: 5px;">⌛ Pending</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 5%; background: #F44336;"></div>
+                    </div>
+                    <div style="font-size: 12px; color: #999; margin-top: 3px;">5% • 3 orders</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons">business</span>
+        Operations Overview
+    </div>
+
+    <div class="cards-grid">
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">🚛 Vendor Operations</div>
+                <button class="card-action">View Details →</button>
+            </div>
+            <div class="metric-row">
+                <div class="metric-item">
+                    <div class="metric-label">Pending Orders</div>
+                    <div class="metric-value">12</div>
+                    <span class="status-indicator status-red"></span>
+                    <span style="font-size: 11px; color: #F44336;">High</span>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Awaiting PDF</div>
+                    <div class="metric-value">3</div>
+                    <span class="status-indicator status-yellow"></span>
+                    <span style="font-size: 11px; color: #FF9800;">Medium</span>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Bill Capture</div>
+                    <div class="metric-value">2</div>
+                    <span class="status-indicator status-green"></span>
+                    <span style="font-size: 11px; color: #4CAF50;">Low</span>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #f0f0f0;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 12px; color: #666;">Total Pending Amount</span>
+                    <span style="font-weight: 700; color: #F44336;">$5,234.50</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">📋 Branch Operations</div>
+                <button class="card-action">View Details →</button>
+            </div>
+            <div class="metric-row">
+                <div class="metric-item">
+                    <div class="metric-label">Pending Orders</div>
+                    <div class="metric-value">8</div>
+                    <span class="status-indicator status-yellow"></span>
+                    <span style="font-size: 11px; color: #FF9800;">Medium</span>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Awaiting Assignment</div>
+                    <div class="metric-value">2</div>
+                    <span class="status-indicator status-yellow"></span>
+                    <span style="font-size: 11px; color: #FF9800;">Medium</span>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Vendor Response</div>
+                    <div class="metric-value">5</div>
+                    <span class="status-indicator status-green"></span>
+                    <span style="font-size: 11px; color: #4CAF50;">Low</span>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #f0f0f0;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 12px; color: #666;">Open Receivable</span>
+                    <span style="font-weight: 700; color: #F44336;">$12,300.00</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section">
+    <div class="section-title">
+        <span class="material-icons">table_chart</span>
+        Data Overview
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">Top Branches by Sales</div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Branch Name</th>
+                        <th>Total Sales</th>
+                        <th>Orders</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Branch A - New York</strong></td>
+                        <td>$23,400</td>
+                        <td>12</td>
+                        <td><span class="status-badge badge-success">✓ Active</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Branch B - California</strong></td>
+                        <td>$18,600</td>
+                        <td>9</td>
+                        <td><span class="status-badge badge-warning">⏳ Pending</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Branch C - Texas</strong></td>
+                        <td>$15,300</td>
+                        <td>7</td>
+                        <td><span class="status-badge badge-success">✓ Active</span></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Branch D - Florida</strong></td>
+                        <td>$8,300</td>
+                        <td>4</td>
+                        <td><span class="status-badge badge-pending">ℹ️ Review</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

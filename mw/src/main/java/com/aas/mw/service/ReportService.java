@@ -175,14 +175,30 @@ public class ReportService {
 
     private List<Map<String, Object>> fetchSalesOrders(String month) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"company\",\"transaction_date\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\"]");
+        params.put("fields", "[\"name\",\"customer\",\"company\",\"transaction_date\",\"aas_vendor\",\"aas_status\",\"aas_is_deleted\",\"status\",\"grand_total\"]");
         params.put("order_by", "transaction_date desc");
         DateRange range = dateRange(month);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("transaction_date", ">=", range.start()));
         filters.add(List.of("transaction_date", "<=", range.end()));
         params.put("filters", toJson(filters));
-        return erpNextClient.listResources("Sales Order", params);
+        return erpNextClient.listResources("Sales Order", params).stream()
+                .filter(order -> !asFlag(order.get("aas_is_deleted")) && !"DELETED".equalsIgnoreCase(asString(order.get("aas_status"))))
+                .toList();
+    }
+
+    private boolean asFlag(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        String text = value.toString().trim().toLowerCase();
+        return "1".equals(text) || "true".equals(text) || "yes".equals(text);
     }
 
     private Map<String, OrderCost> computeOrderCosts(List<Map<String, Object>> orders) {

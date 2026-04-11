@@ -1,0 +1,306 @@
+<h2 mat-dialog-title>
+  <div class="dialog-title-row">
+    <div>
+      <div>Invoice extraction setup</div>
+      <div class="dialog-subtitle">{{ data.vendor.name }}</div>
+    </div>
+    <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
+  </div>
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <div class="message" *ngIf="isLoadingModel">
+    Loading invoice mapping setup details...
+  </div>
+
+  <div class="workflow-strip" aria-label="Setup progress">
+    <button
+      type="button"
+      class="workflow-card"
+      *ngFor="let item of stepCards; trackBy: trackChecklist"
+      [class.done]="item.done"
+      [class.active]="(item.step !== '3' && activeStage === 'setup') || (item.step === '3' && activeStage === 'review')"
+      (click)="item.step === '3' ? openReviewStage() : openSetupStage()">
+      <div class="workflow-step">{{ item.step }}</div>
+      <div class="workflow-copy">
+        <div class="workflow-title">{{ item.title }}</div>
+        <div class="status muted">{{ item.description }}</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="setup-overview">
+    <div class="overview-copy">
+      <div class="panel-title">Generate native invoice mapping</div>
+      <div class="status muted">Upload a real invoice sample, let the backend read the native PDF layout and map vendor columns to our required fields, review extracted rows and totals, then save the validated setup for this vendor.</div>
+    </div>
+    <div class="overview-stats">
+      <div class="summary-stat compact">
+        <span class="summary-label">Required</span>
+        <strong>{{ requiredFieldCount }}</strong>
+      </div>
+      <div class="summary-stat compact">
+        <span class="summary-label">Matched</span>
+        <strong>{{ matchedFieldCount }}/{{ requiredFieldCount }}</strong>
+      </div>
+      <div class="summary-stat compact">
+        <span class="summary-label">Sample</span>
+        <strong>{{ hasUploadedSample ? 'Ready' : 'Needed' }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="workspace-grid" *ngIf="activeStage === 'setup'">
+    <div class="workspace-main">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">1. Upload sample invoice</div>
+            <div class="status muted">Use one real invoice PDF from this vendor. We reuse the stored sample if you do not upload a new one.</div>
+          </div>
+        </div>
+
+        <label class="upload-box">
+          <input type="file" accept="application/pdf" (change)="onSampleFileSelected($event)" />
+          <span>{{ sampleFile ? sampleFile.name : 'Choose sample PDF' }}</span>
+        </label>
+
+        <div class="status muted" *ngIf="savedSampleFileName">
+          Saved sample: {{ savedSampleFileName }}
+        </div>
+
+        <div class="status muted" *ngIf="selectedSampleFileName">
+          New selected sample: {{ selectedSampleFileName }}
+        </div>
+
+        <div class="status upload-status" [class.ready]="hasUploadedSample" *ngIf="hasUploadedSample">
+          {{ sampleFile ? 'Selected PDF will be used for the next native-layout preview.' : 'A sample PDF is already stored for this vendor.' }}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">2. Analyze invoice structure</div>
+            <div class="status muted">We inspect the uploaded invoice, extract native rows from the PDF layout, map vendor columns to our required schema, and validate that mapping against the same sample before you save it.</div>
+          </div>
+        </div>
+
+        <div class="guide-list">
+          <div class="guide-item">Upload or reuse a sample PDF first.</div>
+          <div class="guide-item">Click Analyze invoice to build a new native PDF layout mapping from this vendor invoice.</div>
+          <div class="guide-item">Review the extracted rows and totals before saving the generated mapping.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace-side">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Preview status</div>
+            <div class="status muted">The preview runs the generated native layout mapping and validates required extracted fields before saving.</div>
+          </div>
+        </div>
+
+        <div class="summary-banner side-banner">
+          <div class="summary-stat compact">
+            <span class="summary-label">Saved template</span>
+            <strong>{{ savedTemplateProfile?.label || 'None' }}</strong>
+          </div>
+          <div class="summary-stat compact">
+            <span class="summary-label">Generated</span>
+            <strong>{{ profilePreview?.templateProfile?.label || 'Pending' }}</strong>
+          </div>
+          <div class="summary-stat compact">
+            <span class="summary-label">Sample</span>
+            <strong>{{ hasUploadedSample ? 'Ready' : 'Needed' }}</strong>
+          </div>
+        </div>
+
+        <div class="action-stack">
+          <button mat-flat-button color="primary" type="button" (click)="analyzeInvoice()" [disabled]="!canPreview">
+            {{ isWorking ? 'Analyzing...' : 'Analyze invoice' }}
+          </button>
+          <button mat-stroked-button color="warn" type="button" (click)="clearTemplate()" [disabled]="isWorking">
+            Clear setup
+          </button>
+        </div>
+
+        <div class="message success" *ngIf="infoMessage">{{ infoMessage }}</div>
+        <div class="message error" *ngIf="errorMessage">{{ errorMessage }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="review-stage" *ngIf="activeStage === 'review' && profilePreview as preview">
+      <div class="panel review-panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Review extracted data</div>
+            <div class="status muted">Confirm the native layout mapping is extracting the expected rows and summary values before saving.</div>
+          </div>
+          <div class="template-status-badge" [attr.data-state]="validationStatusTone">{{ validationStateLabel }}</div>
+        </div>
+
+      <div class="guide-list" *ngIf="preview.generation">
+        <div class="guide-item">Generated template: {{ preview.templateProfile.label }}</div>
+        <div class="guide-item">Generator: {{ preview.generation.method }} / {{ preview.generation.model }}</div>
+        <div class="guide-item">{{ preview.generation.summary }}</div>
+      </div>
+
+      <div class="review-metrics">
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Items extracted</span>
+          <strong>{{ extractedItemCount }}</strong>
+        </div>
+        <div class="summary-stat emphasis" *ngIf="expectedItemCount > 0">
+          <span class="summary-label">Expected items</span>
+          <strong>{{ expectedItemCount }}</strong>
+        </div>
+        <div class="summary-stat emphasis" *ngIf="expectedItemCount > 0">
+          <span class="summary-label">Missing items</span>
+          <strong>{{ missingItemCount }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Parser rows scanned</span>
+          <strong>{{ preview.parserLineCount ?? preview.previewMetrics.totalRows }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Detected bill amount</span>
+          <strong>{{ preview.previewMetrics.billAmount || 'Not found' }}</strong>
+        </div>
+        <div class="summary-stat emphasis">
+          <span class="summary-label">Detected transport</span>
+          <strong>{{ preview.previewMetrics.transportCharge || 'Not found' }}</strong>
+        </div>
+      </div>
+
+      <div class="validation-columns">
+        <span
+          class="column-chip"
+          [class.ok]="!preview.missingFields.items.includes(field.key)"
+          [class.missing]="preview.missingFields.items.includes(field.key)"
+          *ngFor="let field of requiredItemFields; trackBy: trackField">
+          {{ field.label }}
+        </span>
+      </div>
+
+      <div class="validation-columns">
+        <span
+          class="column-chip"
+          [class.ok]="!preview.missingFields.summary.includes(field.key)"
+          [class.missing]="preview.missingFields.summary.includes(field.key)"
+          *ngFor="let field of requiredSummaryFields; trackBy: trackField">
+          {{ field.label }}
+        </span>
+      </div>
+
+      <div class="panel" *ngIf="fieldMappingItemRows.length || fieldMappingSummaryRows.length">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Detected field mapping</div>
+            <div class="status muted">The LLM maps invoice labels to our canonical fields. Optional fields like MRP may be blank if the invoice does not expose them.</div>
+          </div>
+        </div>
+
+        <div class="ocr-preview" *ngIf="fieldMappingItemRows.length">
+          <div class="ocr-line" *ngFor="let mapping of fieldMappingItemRows">
+            Item · {{ mapping.targetField }} -> {{ mapping.sourceLabel || 'Not detected' }} ({{ mapping.required ? 'required' : 'optional' }}, {{ mapping.confidence }})
+          </div>
+        </div>
+
+        <div class="ocr-preview" *ngIf="fieldMappingSummaryRows.length">
+          <div class="ocr-line" *ngFor="let mapping of fieldMappingSummaryRows">
+            Summary · {{ mapping.targetField }} -> {{ mapping.sourceLabel || 'Not detected' }} ({{ mapping.required ? 'required' : 'optional' }}, {{ mapping.confidence }})
+          </div>
+        </div>
+
+        <div class="status muted" *ngIf="preview.fieldMapping?.notes">{{ preview.fieldMapping?.notes }}</div>
+      </div>
+
+      <div class="message error" *ngIf="itemCountMismatch">
+        This invoice shows {{ expectedItemCount }} serial-numbered item rows, but only {{ extractedItemCount }} were extracted. Review the setup before saving.
+      </div>
+
+      <div class="message error" *ngIf="itemCountMismatch && missingSerialNumbers.length">
+        Missing serial numbers: {{ missingSerialSummary }}
+      </div>
+
+      <div class="panel" *ngIf="itemCountMismatch && missingSerialContexts.length">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Missing row context</div>
+            <div class="status muted">These invoice regions were not matched by the current parser.</div>
+          </div>
+        </div>
+
+        <div class="ocr-preview">
+          <div class="ocr-line" *ngFor="let context of missingSerialContexts">
+            <strong>Serial {{ context.serial }}</strong>
+            <div *ngIf="context.parserContext.length">Parser: {{ context.parserContext.join(' | ') }}</div>
+            <div *ngIf="context.camelotContext.length">Camelot: {{ context.camelotContext.join(' | ') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="workspace-grid review-layout">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-heading-copy">
+            <div class="panel-title">Preview rows</div>
+            <div class="status muted">These rows come directly from the native PDF layout preview response.</div>
+          </div>
+          <div class="panel-actions">
+            <button
+              mat-stroked-button
+              class="panel-action-button"
+              type="button"
+              (click)="openSetupStage()">
+              Edit setup
+            </button>
+          </div>
+        </div>
+
+        <div class="ocr-preview" *ngIf="preview.previewItems?.length; else previewFallback">
+          <div class="ocr-line" *ngFor="let row of preview.previewItems">
+            {{ row['item_name'] }} | {{ row['item_id'] }} | {{ row['qty'] }} {{ row['uom'] || '' }} |
+            before tax: {{ row['rate_before_tax'] || row['rate'] }} |
+            after tax: {{ row['rate_after_tax'] || row['rate'] }} |
+            total: {{ row['total'] }}
+          </div>
+        </div>
+
+        <ng-template #previewFallback>
+          <div class="ocr-preview">
+            <div class="ocr-line" *ngFor="let line of (preview.parserPreview?.length ? preview.parserPreview : preview.ocrPreview)">{{ line }}</div>
+          </div>
+        </ng-template>
+      </div>
+
+      <div class="panel review-help">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Before saving</div>
+            <div class="status muted">Use this checklist to confirm the generated native invoice mapping is safe for Manage Order.</div>
+          </div>
+        </div>
+
+        <div class="guide-list">
+          <div class="guide-item">Required fields must all be green.</div>
+          <div class="guide-item">Item count should look reasonable for the invoice.</div>
+          <div class="guide-item">Bill amount should match the invoice total exactly.</div>
+          <div class="guide-item">Optional fields like UOM and transport may be missing if the profile or invoice layout does not provide them.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button type="button" (click)="close()" [disabled]="isWorking">Cancel</button>
+  <button mat-flat-button color="primary" type="button" (click)="apply()" [disabled]="!canSave">
+    {{ isWorking ? 'Saving...' : 'Save generated template' }}
+  </button>
+</mat-dialog-actions>

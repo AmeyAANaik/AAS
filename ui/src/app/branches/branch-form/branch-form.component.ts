@@ -17,7 +17,8 @@ export class BranchFormComponent implements OnChanges {
   form: FormGroup = this.fb.group({
     branchName: ['', [Validators.required, Validators.maxLength(140)]],
     location: [''],
-    whatsappGroupName: ['']
+    whatsappGroupName: [''],
+    creditDays: [0, [Validators.min(0)]]
   });
 
   constructor(private fb: FormBuilder) {}
@@ -27,14 +28,15 @@ export class BranchFormComponent implements OnChanges {
       this.form.patchValue({
         branchName: this.branch.name,
         location: this.branch.location,
-        whatsappGroupName: this.branch.whatsappGroupName
+        whatsappGroupName: this.branch.whatsappGroupName,
+        creditDays: this.branch.creditDays ?? 0
       });
       this.form.get('branchName')?.disable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '' });
+    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', creditDays: 0 });
   }
 
   submit(): void {
@@ -47,7 +49,7 @@ export class BranchFormComponent implements OnChanges {
 
   clear(): void {
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '' });
+    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', creditDays: 0 });
     this.reset.emit();
   }
 }

@@ -1,39 +1,89 @@
-import { Component, EventEmitter, Input, OnChanges, OnDestroy, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output } from '@angular/core';
+import { Location } from '@angular/common';
+import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { of } from 'rxjs';
-import { finalize, map, switchMap } from 'rxjs/operators';
-import { ItemOption, OrderCreatePayload, OrderCreateResult, OrderOption } from '../order.model';
+import { Subscription, from, of } from 'rxjs';
+import { catchError, concatMap, finalize, map, switchMap, toArray } from 'rxjs/operators';
+import { DirectOrderCreatePayload, OrderCreateResult, OrderOption } from '../order.model';
 import { OrderService } from '../order.service';
+import { CategoryService } from '../../categories/category.service';
+import { formatUiError } from '../../shared/error-message.util';
+import { ItemService } from '../../items/item.service';
+import { Item, ItemVendorPricingEntry } from '../../items/item.model';
+import { ItemVendorPricingService } from '../../items/item-vendor-pricing.service';
+import { VendorService } from '../../vendors/vendor.service';
+import { Vendor } from '../../vendors/vendor.model';
+import { CompanyContextService } from '../../shared/company-context.service';
+
+type CreateMode = 'images' | 'items';
+
+interface CategoryOrderItemOption {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  vendorId: string;
+  unit: string;
+  packagingUnit: string;
+  rate: number;
+  gstPercent: number;
+  selected: boolean;
+  qty: number;
+}
+
+interface CategoryVendorOption {
+  id: string;
+  name: string;
+  category: string;
+}
 
 @Component({
   selector: 'app-order-create',
   templateUrl: './order-create.component.html',
   styleUrl: './order-create.component.scss'
 })
-export class OrderCreateComponent implements OnChanges, OnDestroy {
+export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   @Input() shops: OrderOption[] = [];
-  @Input() items: ItemOption[] = [];
   @Output() created = new EventEmitter<OrderCreateResult>();
 
   statusMessage = '';
   isSubmitting = false;
-  lineTotal = 0;
-  pricingLabel = '';
-  imageFile: File | null = null;
-  imagePreviewUrl = '';
+  isShopsLoading = false;
+  isCategoriesLoading = false;
+  isCompaniesLoading = false;
+  shopsError = '';
+  categoriesError = '';
+  companiesError = '';
+  imageFiles: File[] = [];
+  imagePreviewUrls: string[] = [];
+  createdOrderId: string | null = null;
+  currentCompanyName = 'AAS';
+  currentCompanyId = 'AAS';
+  categories: OrderOption[] = [];
+  createMode: CreateMode = 'images';
+  allItems: CategoryOrderItemOption[] = [];
+  allVendors: CategoryVendorOption[] = [];
+  categoryItems: CategoryOrderItemOption[] = [];
+  categoryVendors: CategoryVendorOption[] = [];
+  itemSearchTerm = '';
+  applyGst = true;
+  isItemsLoading = false;
+  isVendorsLoading = false;
+  itemsError = '';
+  vendorsError = '';
+  private vendorPricing = new Map<string, ItemVendorPricingEntry>();
+  private rateDrafts = new Map<string, string>();
+  private gstDrafts = new Map<string, string>();
+  private qtyDrafts = new Map<string, string>();
+  private subscriptions = new Subscription();
 
   detailsGroup: FormGroup = this.fb.group({
     customer: ['', Validators.required],
-    company: ['aas', Validators.required],
+    category: ['', Validators.required],
+    vendor: [''],
+    company: ['', Validators.required],
     orderDate: ['', Validators.required],
     deliveryDate: ['', Validators.required]
-  });
-
-  itemGroup: FormGroup = this.fb.group({
-    itemId: ['', Validators.required],
-    quantity: [1, [Validators.required, Validators.min(1)]],
-    pricingVisible: [true],
-    rate: [0, [Validators.min(0)]]
   });
 
   imageGroup: FormGroup = this.fb.group({
@@ -42,20 +92,53 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
 
   form: FormGroup = this.fb.group({
     details: this.detailsGroup,
-    item: this.itemGroup,
     image: this.imageGroup
   });
 
-  constructor(private fb: FormBuilder, private orderService: OrderService) {
+  constructor(
+    private fb: FormBuilder,
+    private orderService: OrderService,
+    private categoryService: CategoryService,
+    private itemService: ItemService,
+    private itemVendorPricingService: ItemVendorPricingService,
+    private vendorService: VendorService,
+    private companyContextService: CompanyContextService,
+    private location: Location,
+    private router: Router
+  ) {
     this.setTodayDefaults();
-    this.registerPricingWatcher();
-    this.registerLineTotalWatcher();
+  }
+
+  ngOnInit(): void {
+    this.loadCompanyContext();
+    if (!this.shops?.length) {
+      this.loadShops();
+    }
+    this.loadVendorPricing();
+    this.loadCategories();
+    this.loadItems();
+    this.loadVendors();
+    const categorySub = this.detailsGroup.get('category')?.valueChanges.subscribe(value => {
+      const categoryId = String(value ?? '');
+      this.clearSelectedItems();
+      this.detailsGroup.patchValue({ vendor: '' }, { emitEvent: false });
+      this.updateCategoryItems(categoryId);
+      this.updateCategoryVendors(categoryId);
+    });
+    if (categorySub) {
+      this.subscriptions.add(categorySub);
+    }
+    const vendorSub = this.detailsGroup.get('vendor')?.valueChanges.subscribe(() => {
+      this.clearSelectedItems();
+      this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+    });
+    if (vendorSub) {
+      this.subscriptions.add(vendorSub);
+    }
   }
 
   ngOnChanges(): void {
-    if (!this.detailsGroup.get('company')?.value) {
-      this.detailsGroup.patchValue({ company: 'aas' });
-    }
+    // Categories are loaded internally for the create flow.
   }
 
   submit(): void {
@@ -64,26 +147,106 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
       return;
     }
 
-    const payload = this.buildPayload();
+    if (this.createMode === 'items' && !this.selectedOrderItems.length) {
+      this.statusMessage = 'Select at least one item from the chosen category before creating the order.';
+      return;
+    }
+    if (this.createMode === 'items' && !String(this.detailsGroup.get('vendor')?.value ?? '').trim()) {
+      this.statusMessage = 'Choose a vendor before creating the order.';
+      return;
+    }
+    if (this.createMode === 'items' && this.vendorInvoiceTotal <= 0) {
+      this.statusMessage = 'Enter a valid rate for the selected items so the vendor invoice total is greater than zero.';
+      return;
+    }
+
     this.isSubmitting = true;
-    this.statusMessage = 'Creating order...';
+    this.statusMessage = this.createMode === 'items'
+      ? 'Creating order from selected items...'
+      : 'Creating order...';
+    this.createdOrderId = null;
+    const details = this.detailsGroup.getRawValue();
+
+    if (this.createMode === 'items') {
+      const payload: DirectOrderCreatePayload = {
+        customer: String(details.customer ?? '').trim(),
+        company: String(details.company ?? '').trim(),
+        aas_category: String(details.category ?? '').trim(),
+        aas_vendor: String(details.vendor ?? '').trim(),
+        transaction_date: String(details.orderDate ?? ''),
+        delivery_date: String(details.deliveryDate ?? ''),
+        apply_gst: this.applyGst,
+        items: this.selectedOrderItems.map(item => ({
+          item_code: item.code,
+          item_name: item.name,
+          qty: Math.max(1, Number(item.qty || 1)),
+          rate: Math.max(0, Number(item.rate || 0)),
+          aas_gst_percent: this.applyGst ? Math.max(0, Number(item.gstPercent || 0)) : 0
+        }))
+      };
+      this.createDirectItemFlow(payload)
+      .pipe(finalize(() => (this.isSubmitting = false)))
+      .subscribe({
+        next: response => {
+          const orderPayload = (response as { order?: unknown } | null)?.order ?? response;
+          const id = this.extractOrderId(orderPayload);
+          const displayId = this.extractOrderDisplayId(orderPayload);
+          if (id) {
+            this.createdOrderId = id;
+            this.statusMessage = `Order created, vendor invoice generated, and preview is ready: ${id}`;
+            this.created.emit({
+              id,
+              customer: String(details.customer ?? '').trim(),
+              transactionDate: String(details.orderDate ?? '')
+            });
+            void this.router.navigate(['/orders'], {
+              queryParams: { orderId: id, q: displayId || id }
+            });
+          } else {
+            this.statusMessage = 'Order created.';
+          }
+          this.resetForm(false);
+        },
+        error: err => {
+          this.statusMessage = this.formatError(err, 'Unable to create order from selected items.');
+        }
+      });
+      return;
+    }
+
+    if (!this.imageFiles.length) {
+      this.isSubmitting = false;
+      this.statusMessage = 'Upload at least one branch image before creating the order.';
+      return;
+    }
+    const [primaryImage, ...extraImages] = this.imageFiles;
+    let createdOrderId = '';
     this.orderService
-      .createOrder(payload)
+      .createOrderFromBranchImage(primaryImage, {
+        customer: String(details.customer ?? '').trim(),
+        company: String(details.company ?? '').trim(),
+        category: String(details.category ?? '').trim(),
+        transaction_date: String(details.orderDate ?? ''),
+        delivery_date: String(details.deliveryDate ?? '')
+      })
       .pipe(
         map(response => {
           const id = this.extractOrderId(response);
           if (!id) {
             throw new Error('Order created but ID missing.');
           }
+          createdOrderId = id;
           return { id, response };
         }),
         switchMap(({ id, response }) => {
-          if (!this.imageFile) {
-            return of({ id, response, uploaded: false });
+          if (!extraImages.length) {
+            return of({ id, response, uploadedExtras: 0 });
           }
-          this.statusMessage = 'Uploading order image...';
-          return this.orderService.uploadOrderImage(id, this.imageFile).pipe(
-            map(uploadResponse => ({ id, response, uploaded: true, uploadResponse }))
+          this.statusMessage = `Uploading ${extraImages.length} additional image${extraImages.length === 1 ? '' : 's'}...`;
+          return from(extraImages).pipe(
+            concatMap(file => this.orderService.uploadOrderImage(id, file)),
+            toArray(),
+            map(results => ({ id, response, uploadedExtras: results.length }))
           );
         }),
         finalize(() => (this.isSubmitting = false))
@@ -91,68 +254,60 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
       .subscribe({
         next: result => {
           const id = result?.id ?? '';
-          this.statusMessage = id
-            ? result?.uploaded
-              ? `Order created and image uploaded: ${id}`
-              : `Order created: ${id}`
-            : 'Order created.';
+          const displayId = this.extractOrderDisplayId(result?.response);
           if (id) {
-            this.created.emit({ id, customer: payload.customer });
+            this.createdOrderId = id;
+            this.statusMessage = `Order created with ${this.imageFiles.length} image${this.imageFiles.length === 1 ? '' : 's'} and top vendor assigned automatically: ${id}`;
+            this.created.emit({
+              id,
+              customer: String(details.customer ?? '').trim(),
+              transactionDate: String(details.orderDate ?? '')
+            });
+            void this.router.navigate(['/orders'], {
+              queryParams: { orderId: id, q: displayId || id }
+            });
+          } else {
+            this.statusMessage = 'Order created.';
           }
-          this.resetForm();
+          this.resetForm(false);
         },
         error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to create order');
+          const fallback = createdOrderId
+            ? `Order ${createdOrderId} was created, but follow-up processing failed.`
+            : 'Unable to create order.';
+          this.statusMessage = this.formatError(err, fallback);
         }
       });
   }
 
   clear(): void {
-    this.resetForm();
+    this.resetForm(true);
+  }
+
+  goBack(): void {
+    this.location.back();
   }
 
   ngOnDestroy(): void {
-    this.revokePreviewUrl();
-  }
-
-  get selectedItem(): ItemOption | undefined {
-    const itemId = String(this.itemGroup.get('itemId')?.value ?? '').trim();
-    return this.items.find(item => item.code === itemId || item.id === itemId);
-  }
-
-  get pricingVisible(): boolean {
-    return Boolean(this.itemGroup.get('pricingVisible')?.value);
+    this.subscriptions.unsubscribe();
+    this.revokePreviewUrls();
   }
 
   get canSubmit(): boolean {
-    return this.form.valid && !this.isSubmitting;
+    const hasModeInput = this.createMode === 'images'
+      ? this.imageSelected
+      : this.selectedOrderItems.length > 0
+        && !!String(this.detailsGroup.get('vendor')?.value ?? '').trim()
+        && this.vendorInvoiceTotal > 0;
+    return this.form.valid && hasModeInput && !this.isSubmitting;
   }
 
   get imageSelected(): boolean {
-    return Boolean(this.imageFile);
+    return this.imageFiles.length > 0;
   }
 
-  get pricingHint(): string {
-    return this.pricingVisible ? 'Pricing visible' : 'Pricing pending';
-  }
-
-  private buildPayload(): OrderCreatePayload {
-    const details = this.detailsGroup.getRawValue();
-    const itemValues = this.itemGroup.getRawValue();
-    const rate = this.pricingVisible ? Number(itemValues.rate || 0) : 0;
-    return {
-      customer: String(details.customer ?? '').trim(),
-      company: String(details.company ?? '').trim(),
-      transaction_date: String(details.orderDate ?? ''),
-      delivery_date: String(details.deliveryDate ?? ''),
-      items: [
-        {
-          item_code: String(itemValues.itemId ?? ''),
-          qty: Number(itemValues.quantity || 0),
-          rate
-        }
-      ]
-    } as OrderCreatePayload;
+  get noActiveBranchesAvailable(): boolean {
+    return !this.isShopsLoading && !this.shopsError && this.shops.length === 0;
   }
 
   private setTodayDefaults(): void {
@@ -160,57 +315,24 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
     this.detailsGroup.patchValue({ orderDate: today, deliveryDate: today });
   }
 
-  private registerPricingWatcher(): void {
-    this.itemGroup.get('pricingVisible')?.valueChanges.subscribe(visible => {
-      const rateControl = this.itemGroup.get('rate');
-      if (!rateControl) {
-        return;
-      }
-      if (visible) {
-        rateControl.setValidators([Validators.required, Validators.min(0)]);
-        if (rateControl.value === null) {
-          rateControl.setValue(0);
-        }
-      } else {
-        rateControl.clearValidators();
-        rateControl.setValue(0, { emitEvent: false });
-      }
-      rateControl.updateValueAndValidity({ emitEvent: false });
-      this.updateLineTotal();
-    });
-  }
-
-  private registerLineTotalWatcher(): void {
-    this.itemGroup.valueChanges.subscribe(() => this.updateLineTotal());
-    this.updateLineTotal();
-  }
-
-  private updateLineTotal(): void {
-    const quantity = Number(this.itemGroup.get('quantity')?.value || 0);
-    const rate = this.pricingVisible ? Number(this.itemGroup.get('rate')?.value || 0) : 0;
-    this.lineTotal = this.pricingVisible ? quantity * rate : 0;
-    this.pricingLabel = this.pricingVisible ? 'Derived total' : 'Pricing pending';
-  }
-
-  private resetForm(): void {
+  private resetForm(clearCreated: boolean): void {
     this.detailsGroup.reset({
       customer: '',
-      company: 'aas',
+      category: '',
+      vendor: '',
+      company: this.currentCompanyId,
       orderDate: this.formatDate(new Date()),
       deliveryDate: this.formatDate(new Date())
     });
-    this.itemGroup.reset({
-      itemId: '',
-      quantity: 1,
-      pricingVisible: true,
-      rate: 0
-    });
     this.imageGroup.reset({ imageName: '' });
-    this.imageFile = null;
-    this.revokePreviewUrl();
-    this.statusMessage = '';
-    this.lineTotal = 0;
-    this.pricingLabel = '';
+    this.imageFiles = [];
+    this.itemSearchTerm = '';
+    this.clearSelectedItems();
+    this.revokePreviewUrls();
+    if (clearCreated) {
+      this.statusMessage = '';
+      this.createdOrderId = null;
+    }
   }
 
   private formatDate(date: Date): string {
@@ -221,23 +343,364 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
+    return formatUiError(err, fallback);
+  }
+
+  private asFlag(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
     }
-    if (typeof err === 'string') {
-      return err;
+    if (typeof value === 'boolean') {
+      return value;
     }
-    return fallback;
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    return text === '1' || text === 'true' || text === 'yes';
+  }
+
+  private loadCompanyContext(): void {
+    this.isCompaniesLoading = true;
+    this.companiesError = '';
+    const sub = this.companyContextService
+      .getContext()
+      .pipe(finalize(() => (this.isCompaniesLoading = false)))
+      .subscribe({
+        next: context => {
+          const company = context?.company;
+          const name = String(company?.name ?? '').trim();
+          this.currentCompanyName = name || 'AAS';
+          this.currentCompanyId = name || 'AAS';
+          this.detailsGroup.patchValue({ company: this.currentCompanyId });
+        },
+        error: err => {
+          this.companiesError = this.formatError(err, 'Unable to load selected company');
+          this.currentCompanyName = 'AAS';
+          this.currentCompanyId = 'AAS';
+          if (!this.detailsGroup.get('company')?.value) {
+            this.detailsGroup.patchValue({ company: this.currentCompanyId });
+          }
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private loadShops(): void {
+    this.isShopsLoading = true;
+    this.shopsError = '';
+    const sub = this.orderService
+      .listBranches()
+      .pipe(finalize(() => (this.isShopsLoading = false)))
+      .subscribe({
+        next: branches => {
+          this.shops = (branches ?? []).map(branch => {
+            const name = String(branch?.customer_name ?? branch?.name ?? '').trim();
+            const disabled = this.asFlag(branch?.disabled);
+            return { id: String(branch?.name ?? name), name: name || String(branch?.name ?? ''), disabled };
+          })
+          .filter(branch => !branch.disabled)
+          .map(({ id, name }) => ({ id, name }));
+        },
+        error: err => {
+          this.shopsError = this.formatError(err, 'Unable to load branches');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private loadCategories(): void {
+    this.isCategoriesLoading = true;
+    this.categoriesError = '';
+    const sub = this.categoryService
+      .listCategories()
+      .pipe(finalize(() => (this.isCategoriesLoading = false)))
+      .subscribe({
+        next: categories => {
+          this.categories = (categories ?? []).map(category => {
+            const name = String(category?.item_group_name ?? category?.name ?? '').trim();
+            return {
+              id: String(category?.name ?? name),
+              name: name || String(category?.name ?? ''),
+              disabled: false
+            };
+          })
+          .filter(category => !category.disabled)
+          .map(({ id, name }) => ({ id, name }));
+          this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+          this.updateCategoryVendors(String(this.detailsGroup.get('category')?.value ?? ''));
+        },
+        error: err => {
+          this.categoriesError = this.formatError(err, 'Unable to load categories');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private loadItems(): void {
+    this.isItemsLoading = true;
+    this.itemsError = '';
+    const sub = this.itemService
+      .listItems()
+      .pipe(finalize(() => (this.isItemsLoading = false)))
+      .subscribe({
+        next: items => {
+          this.allItems = (items ?? []).map(item => this.mapItemOption(item));
+          this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+        },
+        error: err => {
+          this.itemsError = this.formatError(err, 'Unable to load items for category ordering.');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  private loadVendorPricing(): void {
+    const pricing = this.itemVendorPricingService.listPricing();
+    this.vendorPricing = new Map(pricing.map(entry => [`${entry.itemId}::${entry.vendorId}`, entry]));
+  }
+
+  private loadVendors(): void {
+    this.isVendorsLoading = true;
+    this.vendorsError = '';
+    const sub = this.vendorService
+      .listVendors()
+      .pipe(finalize(() => (this.isVendorsLoading = false)))
+      .subscribe({
+        next: vendors => {
+          this.allVendors = (vendors ?? [])
+            .map(vendor => this.mapVendorOption(vendor))
+            .filter(vendor => !!vendor.category)
+            .sort((left, right) => left.name.localeCompare(right.name));
+          this.updateCategoryVendors(String(this.detailsGroup.get('category')?.value ?? ''));
+        },
+        error: err => {
+          this.vendorsError = this.formatError(err, 'Unable to load vendors for this category.');
+        }
+      });
+    this.subscriptions.add(sub);
+  }
+
+  setCreateMode(mode: CreateMode): void {
+    this.createMode = mode;
+    this.statusMessage = '';
+    if (mode === 'items') {
+      const categoryId = String(this.detailsGroup.get('category')?.value ?? '');
+      this.updateCategoryItems(categoryId);
+      this.updateCategoryVendors(categoryId);
+    }
+  }
+
+  toggleItemSelection(itemId: string, selected: boolean): void {
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, selected, qty: selected ? Math.max(item.qty, 1) : 1 }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  get selectedOrderItems(): CategoryOrderItemOption[] {
+    return this.categoryItems.filter(item => item.selected);
+  }
+
+  get selectedVendorName(): string {
+    const vendorId = String(this.detailsGroup.get('vendor')?.value ?? '').trim();
+    const match = this.categoryVendors.find(vendor => vendor.id === vendorId);
+    return match?.name ?? vendorId;
+  }
+
+  get selectedItemsCount(): number {
+    return this.selectedOrderItems.length;
+  }
+
+  get vendorSubtotal(): number {
+    return this.selectedOrderItems.reduce((sum, item) => sum + (item.qty * item.rate), 0);
+  }
+
+  get gstTotal(): number {
+    if (!this.applyGst) {
+      return 0;
+    }
+    return this.selectedOrderItems.reduce((sum, item) => {
+      const lineBase = item.qty * item.rate;
+      return sum + (lineBase * item.gstPercent / 100);
+    }, 0);
+  }
+
+  get vendorInvoiceTotal(): number {
+    return this.vendorSubtotal + this.gstTotal;
+  }
+
+  get filteredCategoryItems(): CategoryOrderItemOption[] {
+    const term = this.itemSearchTerm.trim().toLowerCase();
+    if (!term) {
+      return this.categoryItems;
+    }
+    return this.categoryItems.filter(item =>
+      item.name.toLowerCase().includes(term)
+      || item.code.toLowerCase().includes(term)
+      || item.unit.toLowerCase().includes(term)
+      || item.packagingUnit.toLowerCase().includes(term)
+    );
+  }
+
+  updateItemSearch(term: string): void {
+    this.itemSearchTerm = term;
+  }
+
+  clearItemSearch(): void {
+    this.itemSearchTerm = '';
+  }
+
+  onQtyInput(itemId: string, rawValue: string): void {
+    this.qtyDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const qty = Math.max(1, parsed);
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, qty, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  commitQtyDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.qtyDrafts.set(itemId, String(item?.qty ?? 1));
+  }
+
+  onRateInput(itemId: string, rawValue: string): void {
+    this.rateDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const rate = Math.max(0, parsed);
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, rate, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  commitRateDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.rateDrafts.set(itemId, String(item?.rate ?? 0));
+  }
+
+  onGstInput(itemId: string, rawValue: string): void {
+    this.gstDrafts.set(itemId, rawValue);
+    const parsed = this.asNumber(rawValue);
+    if (parsed === null) {
+      return;
+    }
+    const gstPercent = Math.max(0, parsed);
+    this.categoryItems = this.categoryItems.map(item => item.id === itemId
+      ? { ...item, gstPercent, selected: true }
+      : item);
+    this.syncItemsToMasterList();
+  }
+
+  commitGstDraft(itemId: string): void {
+    const item = this.categoryItems.find(entry => entry.id === itemId);
+    this.gstDrafts.set(itemId, String(item?.gstPercent ?? 0));
+  }
+
+  toggleApplyGst(checked: boolean): void {
+    this.applyGst = checked;
+  }
+
+  displayQty(item: CategoryOrderItemOption): string {
+    return this.qtyDrafts.get(item.id) ?? String(item.qty);
+  }
+
+  displayRate(item: CategoryOrderItemOption): string {
+    return this.rateDrafts.get(item.id) ?? String(item.rate);
+  }
+
+  displayGst(item: CategoryOrderItemOption): string {
+    return this.gstDrafts.get(item.id) ?? String(item.gstPercent);
+  }
+
+  private createDirectItemFlow(payload: DirectOrderCreatePayload) {
+    return this.orderService.createDirectOrderFromItems(payload).pipe(
+      catchError(err => {
+        const status = Number((err as { status?: number } | null)?.status ?? 0);
+        if (status !== 405) {
+          throw err;
+        }
+        return this.createDirectItemFlowFallback(payload);
+      })
+    );
+  }
+
+  private createDirectItemFlowFallback(payload: DirectOrderCreatePayload) {
+    return this.orderService.createOrder({
+      customer: payload.customer,
+      company: payload.company,
+      aas_category: payload.aas_category,
+      aas_vendor: payload.aas_vendor,
+      transaction_date: payload.transaction_date,
+      delivery_date: payload.delivery_date,
+      items: payload.items
+    }).pipe(
+      switchMap(orderResponse => {
+        const id = this.extractOrderId(orderResponse);
+        if (!id) {
+          throw new Error('Order created but ID missing.');
+        }
+        return this.orderService.updateStatus(id, 'VENDOR_ASSIGNED').pipe(
+          switchMap(() => this.orderService.captureVendorBill(id, {
+          vendor_bill_total: this.vendorInvoiceTotal,
+          vendor_bill_ref: id,
+          vendor_bill_date: payload.transaction_date,
+          transport_charge: 0,
+          allow_mismatch: false
+          })),
+          map(vendorBill => ({ order: orderResponse, vendorBill, orderId: id }))
+        );
+      })
+    );
   }
 
   onImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) {
+    const files = input?.files ? Array.from(input.files) : [];
+    if (!files.length) {
       this.clearImage();
       return;
     }
-    this.setImage(file);
+    const existingKeys = new Set(
+      this.imageFiles.map(file => `${file.name}:${file.size}:${file.lastModified}`)
+    );
+    const appended = files.filter(file => {
+      const key = `${file.name}:${file.size}:${file.lastModified}`;
+      if (existingKeys.has(key)) {
+        return false;
+      }
+      existingKeys.add(key);
+      return true;
+    });
+    this.setImages([...this.imageFiles, ...appended]);
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  private isDisabled(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    const text = String(value).trim().toLowerCase();
+    if (!text) {
+      return false;
+    }
+    return text === '1' || text === 'true' || text === 'yes';
   }
 
   generateSampleImage(): void {
@@ -257,41 +720,138 @@ export class OrderCreateComponent implements OnChanges, OnDestroy {
         <text x="100" y="230" font-size="18" font-family="Arial" fill="#374151">Branch: ${
           this.detailsGroup.get('customer')?.value || 'Unassigned'
         }</text>
-        <text x="100" y="270" font-size="18" font-family="Arial" fill="#374151">Item: ${
-          this.selectedItem?.name || 'Unselected'
-        }</text>
-        <text x="100" y="310" font-size="18" font-family="Arial" fill="#374151">Qty: ${
-          this.itemGroup.get('quantity')?.value || 0
+        <text x="100" y="270" font-size="18" font-family="Arial" fill="#374151">Category: ${
+          this.detailsGroup.get('category')?.value || 'Unassigned'
         }</text>
       </svg>
     `;
     const blob = new Blob([svg.trim()], { type: 'image/svg+xml' });
     const file = new File([blob], `order-${timestamp}.svg`, { type: 'image/svg+xml' });
-    this.setImage(file);
+    this.setImages([file]);
   }
 
   clearImage(): void {
-    this.imageFile = null;
+    this.imageFiles = [];
     this.imageGroup.patchValue({ imageName: '' });
-    this.revokePreviewUrl();
+    this.revokePreviewUrls();
   }
 
-  private setImage(file: File): void {
-    this.imageFile = file;
-    this.imageGroup.patchValue({ imageName: file.name });
-    this.revokePreviewUrl();
-    this.imagePreviewUrl = URL.createObjectURL(file);
-  }
-
-  private revokePreviewUrl(): void {
-    if (this.imagePreviewUrl) {
-      URL.revokeObjectURL(this.imagePreviewUrl);
-      this.imagePreviewUrl = '';
+  removeImage(index: number): void {
+    if (index < 0 || index >= this.imageFiles.length) {
+      return;
     }
+    this.imageFiles = this.imageFiles.filter((_, i) => i !== index);
+    this.syncImageState();
+  }
+
+  private setImages(files: File[]): void {
+    this.imageFiles = files;
+    this.syncImageState();
+  }
+
+  private syncImageState(): void {
+    this.imageGroup.patchValue({
+      imageName: this.imageFiles.map(file => file.name).join(', ')
+    });
+    this.revokePreviewUrls();
+    this.imagePreviewUrls = this.imageFiles.map(file => URL.createObjectURL(file));
+  }
+
+  private revokePreviewUrls(): void {
+    this.imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    this.imagePreviewUrls = [];
   }
 
   private extractOrderId(response: unknown): string {
     const anyResponse = response as { name?: string; data?: { name?: string } } | null;
     return String(anyResponse?.name ?? anyResponse?.data?.name ?? '').trim();
   }
+
+  private extractOrderDisplayId(response: unknown): string {
+    const anyResponse = response as { title?: string; data?: { title?: string } } | null;
+    return String(anyResponse?.title ?? anyResponse?.data?.title ?? '').trim();
+  }
+
+  get selectedCompanyLabel(): string {
+    return this.currentCompanyName || this.currentCompanyId || 'AAS';
+  }
+
+  private mapItemOption(item: Item): CategoryOrderItemOption {
+    const id = String(item.name ?? item.item_code ?? '').trim();
+    const vendorId = String(item.aas_vendor ?? '').trim();
+    const pricing = this.vendorPricing.get(`${id}::${vendorId}`);
+    const backendRate = this.asNumber(item.aas_vendor_rate) ?? 0;
+    return {
+      id,
+      code: String(item.item_code ?? '').trim(),
+      name: String(item.item_name ?? item.item_code ?? '').trim(),
+      category: String(item.item_group ?? '').trim(),
+      vendorId,
+      unit: String(item.stock_uom ?? 'Nos').trim() || 'Nos',
+      packagingUnit: String(item.aas_packaging_unit ?? '').trim(),
+      rate: Math.max(
+        0,
+        backendRate > 0
+          ? backendRate
+          : (pricing?.finalRate ?? pricing?.originalRate ?? 0)
+      ),
+      gstPercent: Math.max(0, this.asNumber(item.aas_gst_percent) ?? 0),
+      selected: false,
+      qty: 1
+    };
+  }
+
+  private mapVendorOption(vendor: Vendor): CategoryVendorOption {
+    const name = String(vendor.supplier_name ?? vendor.name ?? '').trim();
+    return {
+      id: String(vendor.name ?? name).trim(),
+      name: name || String(vendor.name ?? '').trim(),
+      category: String(vendor.category ?? '').trim()
+    };
+  }
+
+  private updateCategoryItems(categoryId: string): void {
+    const normalized = this.normalizeCategory(categoryId);
+    const vendorId = String(this.detailsGroup.get('vendor')?.value ?? '').trim();
+    this.itemSearchTerm = '';
+    this.categoryItems = this.allItems
+      .filter(item => normalized ? this.normalizeCategory(item.category) === normalized : false)
+      .filter(item => vendorId ? item.vendorId === vendorId : false)
+      .map(item => ({ ...item }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private updateCategoryVendors(categoryId: string): void {
+    const normalized = this.normalizeCategory(categoryId);
+    this.categoryVendors = this.allVendors
+      .filter(vendor => normalized ? this.normalizeCategory(vendor.category) === normalized : false)
+      .map(vendor => ({ ...vendor }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private syncItemsToMasterList(): void {
+    const overrides = new Map(this.categoryItems.map(item => [item.id, item]));
+    this.allItems = this.allItems.map(item => overrides.get(item.id) ?? item);
+  }
+
+  private clearSelectedItems(): void {
+    this.allItems = this.allItems.map(item => ({ ...item, selected: false, qty: 1 }));
+    this.rateDrafts.clear();
+    this.gstDrafts.clear();
+    this.qtyDrafts.clear();
+    this.updateCategoryItems(String(this.detailsGroup.get('category')?.value ?? ''));
+  }
+
+  private asNumber(value: unknown): number | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  private normalizeCategory(value: unknown): string {
+    return String(value ?? '').trim().toLowerCase();
+  }
+
 }

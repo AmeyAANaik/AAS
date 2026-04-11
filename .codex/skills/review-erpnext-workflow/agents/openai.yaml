@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review ERPNext Workflow"
+  short_description: "Review AAS ERPNext workflow"
+  default_prompt: "Use $review-erpnext-workflow to review the application workflow against ERPNext standards and update the repo review document."

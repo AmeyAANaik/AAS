@@ -7,8 +7,11 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../shared/error-message.util';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
+import { ReportsService } from './reports.service';
 
 @Component({
   selector: 'app-reports-placeholder',
@@ -29,6 +32,11 @@ import { PageHeaderComponent } from '../shared/page-header/page-header.component
   styleUrl: './reports-placeholder.component.css'
 })
 export class ReportsPlaceholderComponent {
+  rows: Array<Record<string, unknown>> = [];
+  columns: string[] = [];
+  isLoading = false;
+  status = '';
+
   reportForm = new FormGroup({
     reportType: new FormControl('vendor-orders'),
     from: new FormControl(''),
@@ -43,4 +51,73 @@ export class ReportsPlaceholderComponent {
     { id: 'shop-payments', label: 'Branch Payments' },
     { id: 'shop-category', label: 'Branch Category Spend' }
   ];
+
+  constructor(private reportsService: ReportsService) {}
+
+  run(): void {
+    const reportType = this.reportForm.get('reportType')?.value || 'vendor-orders';
+    const month = this.resolveMonth();
+    this.isLoading = true;
+    this.status = 'Running report...';
+    this.reportsService
+      .runReport(String(reportType), month)
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: data => {
+          this.rows = data ?? [];
+          this.columns = this.rows.length ? Object.keys(this.rows[0]) : [];
+          this.status = `Loaded ${this.rows.length} row(s) for ${month}.`;
+        },
+        error: err => {
+          this.rows = [];
+          this.columns = [];
+          this.status = this.formatError(err, 'Failed to run report.');
+        }
+      });
+  }
+
+  exportCsv(): void {
+    const reportType = this.reportForm.get('reportType')?.value || 'vendor-orders';
+    const month = this.resolveMonth();
+    this.status = 'Exporting CSV...';
+    this.reportsService.exportReport(String(reportType), month).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${reportType}-${month}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        this.status = `CSV exported for ${month}.`;
+      },
+      error: err => {
+        this.status = this.formatError(err, 'Failed to export CSV.');
+      }
+    });
+  }
+
+  formatCell(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '-';
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value.toFixed(2) : '-';
+    }
+    return String(value);
+  }
+
+  private resolveMonth(): string {
+    const from = this.reportForm.get('from')?.value;
+    if (from && String(from).length >= 7) {
+      return String(from).slice(0, 7);
+    }
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  private formatError(err: unknown, fallback: string): string {
+    return formatUiError(err, fallback);
+  }
 }

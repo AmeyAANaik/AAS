@@ -1,8 +1,9 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
+import { formatUiError } from '../../shared/error-message.util';
 import { BillsService } from '../bills.service';
-import { OptionItem, PaymentPayload } from '../bills.model';
+import { InvoiceOption, OptionItem, PaymentPayload } from '../bills.model';
 
 @Component({
   selector: 'app-payment-form',
@@ -11,10 +12,12 @@ import { OptionItem, PaymentPayload } from '../bills.model';
 })
 export class PaymentFormComponent {
   @Input() customers: OptionItem[] = [];
+  @Input() invoices: InvoiceOption[] = [];
   @Input() defaultCompany = 'aas';
   @Output() created = new EventEmitter<void>();
 
   form: FormGroup = this.fb.group({
+    invoiceId: [''],
     customer: ['', Validators.required],
     company: [this.defaultCompany, Validators.required],
     amount: [0, [Validators.required, Validators.min(0.01)]],
@@ -24,6 +27,7 @@ export class PaymentFormComponent {
 
   statusMessage = '';
   isSubmitting = false;
+  selectedInvoice?: InvoiceOption;
 
   constructor(private fb: FormBuilder, private billsService: BillsService) {}
 
@@ -33,10 +37,13 @@ export class PaymentFormComponent {
       return;
     }
     const value = this.form.getRawValue();
+    const customer = this.selectedInvoice?.customer || String(value.customer ?? '').trim();
+    const company = this.selectedInvoice?.company || String(value.company ?? '').trim();
     const payload: PaymentPayload = {
-      customer: String(value.customer ?? '').trim(),
-      company: String(value.company ?? '').trim(),
+      customer,
+      company,
       amount: Number(value.amount || 0),
+      invoiceId: String(value.invoiceId ?? '').trim() || undefined,
       referenceNo: String(value.referenceNo ?? '').trim() || undefined,
       referenceDate: String(value.referenceDate ?? '').trim() || undefined
     };
@@ -59,21 +66,77 @@ export class PaymentFormComponent {
 
   reset(): void {
     this.form.reset({
+      invoiceId: '',
       customer: '',
       company: this.defaultCompany,
       amount: 0,
       referenceNo: '',
       referenceDate: ''
     });
+    this.selectedInvoice = undefined;
+  }
+
+  onInvoiceChange(): void {
+    const invoiceId = String(this.form.get('invoiceId')?.value ?? '').trim();
+    if (!invoiceId) {
+      this.selectedInvoice = undefined;
+      this.syncCompanyFromCustomer();
+      return;
+    }
+    const invoice = this.invoices.find(entry => entry.id === invoiceId);
+    if (!invoice) {
+      this.selectedInvoice = undefined;
+      this.syncCompanyFromCustomer();
+      return;
+    }
+    this.selectedInvoice = invoice;
+    this.form.patchValue({ customer: invoice.customer, company: invoice.company });
+    if (Number.isFinite(invoice.outstanding)) {
+      this.form.patchValue({ amount: invoice.outstanding });
+    }
+  }
+
+  onCustomerChange(): void {
+    if (this.selectedInvoice) {
+      return;
+    }
+    this.syncCompanyFromCustomer();
+  }
+
+  get pendingBalance(): number | null {
+    if (!this.selectedInvoice) {
+      return null;
+    }
+    return Number(this.selectedInvoice.outstanding || 0);
+  }
+
+  get balanceAfterPayment(): number | null {
+    if (this.pendingBalance === null) {
+      return null;
+    }
+    const amount = Number(this.form.get('amount')?.value ?? 0);
+    return this.pendingBalance - amount;
+  }
+
+  get surplusAmount(): number | null {
+    const balance = this.balanceAfterPayment;
+    if (balance === null) {
+      return null;
+    }
+    return balance < 0 ? Math.abs(balance) : 0;
+  }
+
+  get companyDisplay(): string {
+    return String(this.form.get('company')?.value ?? '').trim() || 'Select branch or invoice to lock company';
+  }
+
+  private syncCompanyFromCustomer(): void {
+    const customerId = String(this.form.get('customer')?.value ?? '').trim();
+    const company = this.customers.find(customer => customer.id === customerId)?.company?.trim() || this.defaultCompany;
+    this.form.patchValue({ company }, { emitEvent: false });
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }

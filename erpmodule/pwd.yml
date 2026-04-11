@@ -1,6 +1,7 @@
 services:
   backend:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -16,7 +17,8 @@ services:
       MARIADB_ROOT_PASSWORD: admin
 
   configurator:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -34,18 +36,22 @@ services:
         bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
         bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        bench set-config -g host_name "$${HOST_NAME:-http://frontend:8080}";
+        bench set-config -g server_script_enabled 1;
     environment:
       DB_HOST: db
       DB_PORT: "3306"
       REDIS_CACHE: redis-cache:6379
       REDIS_QUEUE: redis-queue:6379
       SOCKETIO_PORT: "9000"
+      HOST_NAME: "http://frontend:8080"
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
 
   create-site:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -55,6 +61,7 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
       - ../mw/src/main/resources/application.properties:/config/mw.properties:ro
+      - ./scripts/bootstrap_site.py:/config/bootstrap_site.py:ro
     entrypoint:
       - bash
       - -c
@@ -76,14 +83,18 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default aas.core.local;
+        if [ ! -f sites/aas.core.local/site_config.json ]; then
+          bench new-site --mariadb-user-host-login-scope='%' --admin-password=admin --db-root-username=root --db-root-password=admin --install-app erpnext --set-default aas.core.local;
+        else
+          echo "Site aas.core.local already exists";
+        fi;
         if [ -f /config/mw.properties ]; then
           prop() { grep -E "^$$1=" /config/mw.properties | tail -n 1 | cut -d= -f2-; };
           resolve_prop() {
             val="$$(prop "$$1")";
             if echo "$$val" | grep -q '^$${'; then
               val="$${val#*:}";
-              val="$${val%}}";
+              val="$${val%\}}";
             fi;
             echo "$$val";
           };
@@ -102,16 +113,15 @@ services:
         if [ -z "$$ERP_SETUP_FULL_NAME" ]; then ERP_SETUP_FULL_NAME="Administrator"; fi;
         if [ -z "$$ERP_SETUP_EMAIL" ]; then ERP_SETUP_EMAIL="admin@example.com"; fi;
         if [ -z "$$ERP_SETUP_PASSWORD" ]; then ERP_SETUP_PASSWORD="admin"; fi;
-        if [ -z "$$ERP_SETUP_COMPANY_NAME" ]; then ERP_SETUP_COMPANY_NAME="AAS Core"; fi;
+        if [ -z "$$ERP_SETUP_COMPANY_NAME" ]; then ERP_SETUP_COMPANY_NAME="AAS"; fi;
         if [ -z "$$ERP_SETUP_COMPANY_ABBR" ]; then ERP_SETUP_COMPANY_ABBR="AAS"; fi;
         if [ -z "$$ERP_SETUP_COUNTRY" ]; then ERP_SETUP_COUNTRY="United States"; fi;
-        if [ -z "$$ERP_SETUP_CURRENCY" ]; then ERP_SETUP_CURRENCY="USD"; fi;
+        if [ -z "$$ERP_SETUP_CURRENCY" ]; then ERP_SETUP_CURRENCY="INR"; fi;
         if [ -z "$$ERP_SETUP_TIMEZONE" ]; then ERP_SETUP_TIMEZONE="America/New_York"; fi;
         if [ -z "$$ERP_SETUP_FY_START_DATE" ]; then ERP_SETUP_FY_START_DATE="2026-01-01"; fi;
         if [ -z "$$ERP_SETUP_FY_END_DATE" ]; then ERP_SETUP_FY_END_DATE="2026-12-31"; fi;
         if [ -z "$$ERP_SETUP_CHART_OF_ACCOUNTS" ]; then ERP_SETUP_CHART_OF_ACCOUNTS="Standard"; fi;
-        ARGS="{'full_name':'$$ERP_SETUP_FULL_NAME','email':'$$ERP_SETUP_EMAIL','password':'$$ERP_SETUP_PASSWORD','company_name':'$$ERP_SETUP_COMPANY_NAME','company_abbr':'$$ERP_SETUP_COMPANY_ABBR','country':'$$ERP_SETUP_COUNTRY','currency':'$$ERP_SETUP_CURRENCY','timezone':'$$ERP_SETUP_TIMEZONE','fy_start_date':'$$ERP_SETUP_FY_START_DATE','fy_end_date':'$$ERP_SETUP_FY_END_DATE','language':'english','company_tagline':'AAS','chart_of_accounts':'$$ERP_SETUP_CHART_OF_ACCOUNTS'}";
-        bench --site aas.core.local execute erpnext.setup.setup_wizard.setup_wizard.setup_complete --args "[$$ARGS]";
+        cd /home/frappe/frappe-bench && ./env/bin/python /config/bootstrap_site.py;
 
   db:
     image: mariadb:10.6
@@ -136,7 +146,8 @@ services:
       - db-data:/var/lib/mysql
 
   frontend:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     depends_on:
@@ -162,7 +173,8 @@ services:
       - "8080:8080"
 
   queue-long:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -181,7 +193,8 @@ services:
       FRAPPE_REDIS_QUEUE: redis://redis-queue:6379
 
   queue-short:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -218,7 +231,8 @@ services:
         condition: on-failure
 
   scheduler:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:
@@ -232,7 +246,8 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   websocket:
-    image: frappe/erpnext:v15.94.3
+    image: aas-erpnext
+    build: .
     networks:
       - frappe_network
     deploy:

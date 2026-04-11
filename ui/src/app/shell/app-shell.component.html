@@ -1,63 +1,100 @@
 <div class="shell">
   <header class="shell-header">
     <div class="header-left">
-      <div class="brand">
-        <div class="logo">SC</div>
-        <div>
-          <div class="brand-title">SCM Console</div>
-          <div class="brand-sub">Supply chain workspace</div>
+      <button class="nav-toggle" type="button" (click)="toggleNav()" aria-label="Toggle navigation menu">
+        <span class="material-icons" aria-hidden="true">{{ isNavOpen ? 'close' : 'menu' }}</span>
+      </button>
+      <div class="header-brand">
+        <img *ngIf="companyLogoUrl" class="header-logo-image" [src]="companyLogoUrl" [alt]="companyName + ' logo'" />
+        <div *ngIf="!companyLogoUrl" class="header-logo" aria-hidden="true">{{ companyAvatarText }}</div>
+        <div class="header-brand-copy">
+          <div class="header-company">{{ companyName }}</div>
+          <div class="header-company-sub">{{ companySubline }}</div>
         </div>
       </div>
     </div>
-    <div class="header-center">
-      <input class="global-search" type="search" placeholder="Search orders, vendors, items, invoices" />
-    </div>
     <div class="header-right">
-      <button class="header-chip" type="button">Branch: Select</button>
-      <button class="header-chip" type="button">Notifications</button>
-      <button class="header-chip" type="button">User Menu</button>
-      <button class="header-chip danger" type="button" (click)="logout()">Logout</button>
+      <a
+        *ngIf="canAccess(masterDataReviewFeature)"
+        class="header-chip notification-chip"
+        routerLink="/master-data-review"
+        routerLinkActive="active-chip"
+        [attr.aria-label]="'Master data review notifications: ' + masterDataReviewCount">
+        <span class="material-icons" aria-hidden="true">notifications</span>
+        <span>Reviews</span>
+        <span class="notification-count" *ngIf="masterDataReviewCount > 0">{{ masterDataReviewCount }}</span>
+      </a>
+      <button class="header-chip theme-chip" type="button" (click)="toggleTheme()" [title]="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <span class="material-icons" aria-hidden="true">{{ currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+        <span>{{ currentTheme === 'dark' ? 'Light mode' : 'Dark mode' }}</span>
+      </button>
+      <div class="user-menu-shell">
+        <button class="header-chip user-chip" type="button" (click)="toggleUserMenu()" title="User menu">
+          <span class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</span>
+          <span class="user-copy">
+            <strong>{{ userName }}</strong>
+            <small>{{ userRole || 'Signed in' }}</small>
+          </span>
+          <span class="material-icons" aria-hidden="true">expand_more</span>
+        </button>
+        <div class="user-menu-panel" *ngIf="isUserMenuOpen">
+          <a class="user-panel-head user-panel-link" routerLink="/user-settings" (click)="closeUserMenu()">
+            <div class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</div>
+            <div class="user-panel-copy">
+              <strong>{{ userName }}</strong>
+              <span *ngIf="userEmail">{{ userEmail }}</span>
+              <span>{{ userRole || 'Signed in' }}</span>
+            </div>
+          </a>
+          <a class="user-menu-link" routerLink="/user-settings" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">person</span>
+            User Details
+          </a>
+          <a class="user-menu-link" *ngIf="canAccess('company_settings.view')" routerLink="/company-settings" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">business</span>
+            Company Settings
+          </a>
+          <button class="user-menu-link danger" type="button" (click)="closeUserMenu(); logout()">
+            <span class="material-icons" aria-hidden="true">logout</span>
+            Logout
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
   <div class="shell-body">
-    <aside class="shell-sidebar">
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Home</div>
-        <a routerLink="/admin/dashboard" routerLinkActive="active">Dashboard</a>
-      </nav>
+    <div class="shell-sidebar-backdrop" *ngIf="isNavOpen" (click)="closeNav()"></div>
+    <aside class="shell-sidebar" [class.shell-sidebar-open]="isNavOpen">
+      <div class="sidebar-head">
+        <div class="sidebar-head-copy">
+          <div class="sidebar-kicker">Workspace</div>
+          <div class="sidebar-current">{{ breadcrumbs }}</div>
+          <div class="sidebar-meta">{{ companyName }} · {{ userRole || 'AAS user' }}</div>
+        </div>
+      </div>
 
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Procure</div>
-        <a routerLink="/orders" routerLinkActive="active">Orders</a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Inventory</div>
-        <a routerLink="/stock" routerLinkActive="active">Stock</a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Finance</div>
-        <a routerLink="/bills" routerLinkActive="active">Bills / Invoices</a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Master Data</div>
-        <a routerLink="/vendors" routerLinkActive="active">Vendors</a>
-        <a routerLink="/branches" routerLinkActive="active">Branches</a>
-        <a routerLink="/categories" routerLinkActive="active">Categories</a>
-        <a routerLink="/items" routerLinkActive="active">Items</a>
-      </nav>
-
-      <nav class="sidebar-group">
-        <div class="sidebar-title">Reports</div>
-        <a routerLink="/reports" routerLinkActive="active">Reports</a>
+      <nav class="sidebar-group" *ngFor="let section of navSections">
+        <div class="sidebar-title">{{ section.title }}</div>
+        <a
+          *ngFor="let link of section.links"
+          [routerLink]="link.route"
+          routerLinkActive="active"
+          (click)="closeNav()">
+          <span class="material-icons nav-icon" aria-hidden="true">{{ link.icon }}</span>
+          {{ link.label }}
+        </a>
       </nav>
     </aside>
 
     <main class="shell-content">
-      <div class="breadcrumbs">{{ breadcrumbs }}</div>
+      <div class="breadcrumbs-shell">
+        <div>
+          <div class="breadcrumbs">{{ breadcrumbs }}</div>
+          <div class="breadcrumbs-note">Operational workspace</div>
+        </div>
+        <div class="workspace-pill">{{ companySubline }}</div>
+      </div>
       <div class="page-body">
         <router-outlet></router-outlet>
       </div>

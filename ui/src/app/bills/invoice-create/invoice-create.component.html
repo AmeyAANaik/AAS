@@ -1,18 +1,16 @@
-<mat-card>
-  <mat-card-title>Create invoice</mat-card-title>
-  <mat-card-content>
-    <div class="toggle-row">
-      <button mat-stroked-button color="primary" [class.active]="mode === 'order'" (click)="setMode('order')">
-        From order
-      </button>
-      <button mat-stroked-button color="primary" [class.active]="mode === 'manual'" (click)="setMode('manual')">
-        Manual entry
-      </button>
+<mat-card class="invoice-card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Create invoice</div>
+      <div class="card-subtitle">Generate invoices from application orders.</div>
     </div>
-
-    <div *ngIf="mode === 'order'" class="mode-panel">
+    <mat-slide-toggle [formControl]="gstControl" class="gst-toggle">Apply GST</mat-slide-toggle>
+  </div>
+  <mat-divider></mat-divider>
+  <mat-card-content>
+    <div class="mode-panel">
       <form [formGroup]="orderForm" class="form-grid">
-        <mat-form-field appearance="outline">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>Order</mat-label>
           <mat-select formControlName="orderId">
             <mat-option value="">Select order</mat-option>
@@ -39,61 +37,28 @@
           <span class="confidence">Derived</span>
         </div>
       </div>
-    </div>
-
-    <div *ngIf="mode === 'manual'" class="mode-panel">
-      <form [formGroup]="manualForm" class="form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Branch (Customer)</mat-label>
-          <mat-select formControlName="customer">
-            <mat-option value="">Select branch</mat-option>
-            <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
-          </mat-select>
-          <mat-error *ngIf="manualForm.get('customer')?.hasError('required')">Branch is required.</mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Company</mat-label>
-          <input matInput formControlName="company" />
-          <mat-error *ngIf="manualForm.get('company')?.hasError('required')">Company is required.</mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Item</mat-label>
-          <mat-select formControlName="itemCode">
-            <mat-option value="">Select item</mat-option>
-            <mat-option *ngFor="let item of items" [value]="item.code">{{ item.name }}</mat-option>
-          </mat-select>
-          <mat-error *ngIf="manualForm.get('itemCode')?.hasError('required')">Item is required.</mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Quantity</mat-label>
-          <input matInput type="number" formControlName="qty" min="1" />
-          <mat-error *ngIf="manualForm.get('qty')?.hasError('required')">Quantity is required.</mat-error>
-          <mat-error *ngIf="manualForm.get('qty')?.hasError('min')">Quantity must be at least 1.</mat-error>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Final rate</mat-label>
-          <input matInput type="number" formControlName="rate" min="0" />
-          <mat-error *ngIf="manualForm.get('rate')?.hasError('required')">Final rate is required.</mat-error>
-          <mat-error *ngIf="manualForm.get('rate')?.hasError('min')">Final rate cannot be negative.</mat-error>
-        </mat-form-field>
-      </form>
-
-      <div class="summary-card">
-        <div>
-          <p class="label">Line total</p>
-          <p class="value">{{ manualTotal | number: '1.0-2' }}</p>
+      <div *ngIf="orderPayments.length" class="payments-panel">
+        <p class="label">Bill payments</p>
+        <div class="payments-row" *ngFor="let payment of orderPayments">
+          <span>{{ payment.due_date || 'Due date unknown' }}</span>
+          <span>{{ payment.payment_amount | number: '1.0-2' }}</span>
+          <span [class.open]="(payment.outstanding ?? 0) > 0">
+            Outstanding {{ (payment.outstanding ?? 0) | number: '1.0-2' }}
+          </span>
         </div>
-        <div>
-          <p class="label">Pricing</p>
-          <p class="value">Final rate</p>
-          <span class="confidence">Derived</span>
+        <div class="payments-total">
+          <span>Total outstanding</span>
+          <strong>{{ orderOutstanding ?? orderSnapshot?.grand_total ?? '0.00' | number: '1.0-2' }}</strong>
         </div>
       </div>
-      <p class="helper">Enter the final rate only. Original rate and margin are intentionally hidden.</p>
+    </div>
+
+    <div class="form-grid invoice-adjustments">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Round off</mat-label>
+        <input matInput type="number" step="0.01" [formControl]="roundingAdjustmentControl" />
+        <mat-hint>Optional. Use negative to round down and positive to round up.</mat-hint>
+      </mat-form-field>
     </div>
 
     <div class="actions">

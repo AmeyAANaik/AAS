@@ -1,30 +1,55 @@
 <div class="category-page">
   <app-page-header title="Categories" subtitle="Manage item group categories.">
-    <button mat-stroked-button color="primary" (click)="loadCategories()" [disabled]="isLoading">Refresh</button>
+    <button mat-flat-button color="primary" (click)="openCreate()">Create category</button>
   </app-page-header>
 
-  <app-category-form
-    [category]="selectedCategory"
-    [isSaving]="isSaving"
-    [statusMessage]="statusMessage"
-    (save)="saveCategory($event)"
-    (reset)="clearSelection()">
-  </app-category-form>
+  <div class="content-grid">
+    <mat-card class="list-card">
+      <mat-card-content>
+        <div class="section-header">
+          <div>
+            <div class="section-title">Category library <span class="count">{{ categories.length }}</span></div>
+            <div class="section-subtitle">Keep item groups tidy so downstream item pricing and ordering stay clear.</div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <mat-form-field appearance="outline">
+            <mat-label>Search category</mat-label>
+            <input matInput placeholder="Search by category name" />
+          </mat-form-field>
+          <button mat-icon-button color="primary" class="refresh-action" (click)="loadCategories()" [disabled]="isLoading" aria-label="Refresh categories">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
 
-  <mat-card>
-    <mat-card-title>Category list</mat-card-title>
-    <mat-card-content>
-      <div class="table-wrapper" *ngIf="categories.length; else emptyState">
-        <table mat-table [dataSource]="categories" class="mat-elevation-z1">
+      <div class="feedback loading" *ngIf="isLoading">Loading categories...</div>
+      <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && categories.length; else emptyState">
+        <table mat-table [dataSource]="categories" class="mat-elevation-z1 pro-table">
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef>Category name</th>
             <td mat-cell *matCellDef="let category">{{ category.name }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="code">
+            <th mat-header-cell *matHeaderCellDef>Category code</th>
+            <td mat-cell *matCellDef="let category">{{ category.code || '—' }}</td>
+          </ng-container>
+
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
-            <td mat-cell *matCellDef="let category">
-              <button mat-button color="primary" (click)="selectCategory(category)">Edit</button>
+            <td mat-cell *matCellDef="let category" class="actions-cell">
+              <button mat-button class="table-action" color="primary" (click)="selectCategory(category)">Edit</button>
+              <button
+                mat-button
+                class="table-action delete-action"
+                color="warn"
+                type="button"
+                (click)="deleteCategory(category)"
+                [disabled]="isDeleting">
+                Delete
+              </button>
             </td>
           </ng-container>
 
@@ -34,12 +59,24 @@
       </div>
       <ng-template #emptyState>
         <app-empty-state
+          *ngIf="!isLoading"
           icon="category"
           title="No categories found"
           message="No item groups are available yet."
           hint="Create a category to organize items.">
         </app-empty-state>
       </ng-template>
-    </mat-card-content>
-  </mat-card>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="form-card" *ngIf="isFormOpen">
+      <app-category-form
+        [category]="selectedCategory"
+        [isSaving]="isSaving"
+        [statusMessage]="statusMessage"
+        (save)="saveCategory($event)"
+        (reset)="clearSelection()">
+      </app-category-form>
+    </mat-card>
+  </div>
 </div>

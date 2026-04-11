@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -37,6 +38,12 @@ public interface ErpNextFeignClient {
             @PathVariable("doctype") String doctype,
             @RequestParam Map<String, Object> params);
 
+    @GetMapping("/api/resource/{doctype}")
+    Map<String, Object> listResourcesWithCookie(
+            @PathVariable("doctype") String doctype,
+            @RequestParam Map<String, Object> params,
+            @RequestHeader("Cookie") String cookie);
+
     @PostMapping("/api/resource/{doctype}")
     Map<String, Object> createResource(
             @PathVariable("doctype") String doctype,
@@ -48,6 +55,29 @@ public interface ErpNextFeignClient {
             @PathVariable("id") String id,
             @RequestBody Map<String, Object> payload);
 
+    @DeleteMapping("/api/resource/{doctype}/{id}")
+    Map<String, Object> deleteResource(
+            @PathVariable("doctype") String doctype,
+            @PathVariable("id") String id);
+
     @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     byte[] downloadPdf(@RequestParam("doctype") String doctype, @RequestParam("name") String name);
+
+    @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    byte[] downloadPdfWithParams(@RequestParam Map<String, Object> params);
+
+    @GetMapping(value = "/api/method/frappe.utils.print_format.download_pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    byte[] downloadPdfWithParamsAndCookie(
+            @RequestParam Map<String, Object> params,
+            @RequestHeader("Cookie") String cookie);
+
+    @GetMapping("/api/method/frappe.desk.reportview.get_count")
+    Map<String, Object> getCount(@RequestParam Map<String, Object> params);
+
+    @PostMapping("/api/method/frappe.client.submit")
+    Map<String, Object> submit(@RequestBody Map<String, Object> payload);
+
+    @PostMapping("/api/method/frappe.client.cancel")
+    Map<String, Object> cancel(@RequestBody Map<String, Object> payload);
+
 }

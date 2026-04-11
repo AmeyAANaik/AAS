@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { finalize } from 'rxjs/operators';
 import { Category, CategoryFormValue, CategoryView } from '../category.model';
 import { CategoryService } from '../category.service';
+import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { formatUiError } from '../../shared/error-message.util';
 
 @Component({
   selector: 'app-category-list',
@@ -9,14 +11,19 @@ import { CategoryService } from '../category.service';
   styleUrl: './category-list.component.scss'
 })
 export class CategoryListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'actions'];
+  displayedColumns: string[] = ['name', 'code', 'actions'];
   categories: CategoryView[] = [];
   selectedCategory: CategoryView | null = null;
+  isFormOpen = false;
   isLoading = false;
   isSaving = false;
+  isDeleting = false;
   statusMessage = '';
 
-  constructor(private categoryService: CategoryService) {}
+  constructor(
+    private categoryService: CategoryService,
+    private toastService: MasterDataToastService
+  ) {}
 
   ngOnInit(): void {
     this.loadCategories();
@@ -39,28 +46,69 @@ export class CategoryListComponent implements OnInit {
 
   selectCategory(category: CategoryView): void {
     this.selectedCategory = category;
-    this.statusMessage = 'Category edits are not available yet.';
+    this.isFormOpen = true;
+    this.statusMessage = '';
+  }
+
+  openCreate(): void {
+    this.selectedCategory = null;
+    this.isFormOpen = true;
+    this.statusMessage = '';
   }
 
   clearSelection(): void {
     this.selectedCategory = null;
+    this.isFormOpen = false;
     this.statusMessage = '';
   }
 
   saveCategory(formValue: CategoryFormValue): void {
     this.isSaving = true;
-    const payload = { item_group_name: formValue.categoryName.trim() };
+    const payload = {
+      item_group_name: formValue.categoryName.trim(),
+      aas_category_code: formValue.categoryCode.trim()
+    };
+    const request$ = this.selectedCategory
+      ? this.categoryService.updateCategory(this.selectedCategory.id, payload)
+      : this.categoryService.createCategory(payload);
+    request$.pipe(finalize(() => (this.isSaving = false))).subscribe({
+      next: () => {
+        this.statusMessage = this.selectedCategory ? 'Category updated.' : 'Category saved.';
+        this.toastService.success(this.statusMessage);
+        this.selectedCategory = null;
+        this.isFormOpen = false;
+        this.loadCategories();
+      },
+      error: err => {
+        this.statusMessage = this.formatError(err, 'Unable to save category');
+        this.toastService.error(this.statusMessage);
+      }
+    });
+  }
+
+  deleteCategory(category: CategoryView): void {
+    const categoryId = category.id?.trim();
+    if (!categoryId || this.isDeleting) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete category "${category.name}"? This works only when no items or child categories use it.`);
+    if (!confirmed) {
+      return;
+    }
+    this.isDeleting = true;
     this.categoryService
-      .createCategory(payload)
-      .pipe(finalize(() => (this.isSaving = false)))
+      .deleteCategory(categoryId)
+      .pipe(finalize(() => (this.isDeleting = false)))
       .subscribe({
         next: () => {
-          this.statusMessage = 'Category saved.';
-          this.selectedCategory = null;
+          this.statusMessage = 'Category deleted.';
+          if (this.selectedCategory?.id === categoryId) {
+            this.clearSelection();
+          }
           this.loadCategories();
         },
         error: err => {
-          this.statusMessage = this.formatError(err, 'Unable to save category');
+          this.statusMessage = this.formatError(err, 'Unable to delete category');
         }
       });
   }
@@ -70,17 +118,12 @@ export class CategoryListComponent implements OnInit {
     return {
       id: String(category.name ?? name),
       name: name || String(category.name ?? ''),
+      code: String(category.aas_category_code ?? '').trim(),
       raw: category
     };
   }
 
   private formatError(err: unknown, fallback: string): string {
-    if (err instanceof Error) {
-      return err.message;
-    }
-    if (typeof err === 'string') {
-      return err;
-    }
-    return fallback;
+    return formatUiError(err, fallback);
   }
 }
