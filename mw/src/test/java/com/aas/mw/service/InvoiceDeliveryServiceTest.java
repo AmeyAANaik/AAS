@@ -32,7 +32,7 @@ class InvoiceDeliveryServiceTest {
                 invoiceService,
                 List.of(
                         emailAdapter,
-                        new TwilioWhatsAppInvoiceAdapter("", "", "", "")));
+                        new WhatsAppInvoiceAdapter("", "")));
 
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-1"))
                 .thenReturn(Map.of("data", Map.of(

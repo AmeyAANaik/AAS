@@ -16,14 +16,6 @@
       </div>
     </div>
 
-    <div class="channel-state" [class.channel-state-muted]="!activeChannel.configured || activeChannel.missingRecipient">
-      <mat-icon>{{ data.channel === 'email' ? 'mail' : 'chat' }}</mat-icon>
-      <div>
-        <strong>{{ channelLabel }} delivery</strong>
-        <div>{{ activeChannel.hint || 'Recipient and channel are ready.' }}</div>
-      </div>
-    </div>
-
     <form [formGroup]="form" class="delivery-form">
       <mat-form-field appearance="outline">
         <mat-label>{{ channelLabel }} recipient</mat-label>

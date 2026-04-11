@@ -18,6 +18,8 @@ export type CompanyIdentity = {
   bank_account_number?: string;
   bank_ifsc_code?: string;
   bank_branch?: string;
+  invoice_email?: string;
+  whatsapp_number?: string;
 };
 
 export type BranchIdentity = {

@@ -184,6 +184,8 @@ public class MasterDataService {
         profile.put("bank_account_number", asText(company.get("aas_bank_account_number")));
         profile.put("bank_ifsc_code", asText(company.get("aas_bank_ifsc_code")));
         profile.put("bank_branch", asText(company.get("aas_bank_branch")));
+        profile.put("invoice_email", asText(company.get("aas_invoice_email")));
+        profile.put("whatsapp_number", asText(company.get("aas_whatsapp_number")));
         return profile;
     }
 
@@ -206,6 +208,8 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "aas_bank_account_number", "bank_account_number");
         copyIfPresent(fields, payload, "aas_bank_ifsc_code", "bank_ifsc_code");
         copyIfPresent(fields, payload, "aas_bank_branch", "bank_branch");
+        copyIfPresent(fields, payload, "aas_invoice_email", "invoice_email");
+        copyIfPresent(fields, payload, "aas_whatsapp_number", "whatsapp_number");
         if (payload.isEmpty()) {
             return getCompanyProfile(id);
         }

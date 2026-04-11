@@ -43,25 +43,6 @@
   border: 1px solid var(--border);
 }
 
-.channel-state {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: rgba(228, 244, 238, 0.6);
-  color: var(--ink);
-}
-
-.channel-state mat-icon {
-  color: var(--accent-strong);
-}
-
-.channel-state-muted {
-  background: rgba(244, 245, 248, 0.95);
-  color: var(--muted);
-}
-
 .delivery-form {
   display: grid;
   gap: 14px;

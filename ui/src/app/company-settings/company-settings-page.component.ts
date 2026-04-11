@@ -25,7 +25,9 @@ export class CompanySettingsPageComponent implements OnInit {
     bank_name: [''],
     bank_account_number: [''],
     bank_ifsc_code: [''],
-    bank_branch: ['']
+    bank_branch: [''],
+    invoice_email: ['', Validators.email],
+    whatsapp_number: ['']
   });
 
   companyId = '';
@@ -82,7 +84,9 @@ export class CompanySettingsPageComponent implements OnInit {
       bank_name: String(raw.bank_name ?? '').trim(),
       bank_account_number: String(raw.bank_account_number ?? '').trim(),
       bank_ifsc_code: String(raw.bank_ifsc_code ?? '').trim(),
-      bank_branch: String(raw.bank_branch ?? '').trim()
+      bank_branch: String(raw.bank_branch ?? '').trim(),
+      invoice_email: String(raw.invoice_email ?? '').trim(),
+      whatsapp_number: String(raw.whatsapp_number ?? '').trim()
     })
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
@@ -201,7 +205,9 @@ export class CompanySettingsPageComponent implements OnInit {
       bank_name: company.bank_name ?? '',
       bank_account_number: company.bank_account_number ?? '',
       bank_ifsc_code: company.bank_ifsc_code ?? '',
-      bank_branch: company.bank_branch ?? ''
+      bank_branch: company.bank_branch ?? '',
+      invoice_email: company.invoice_email ?? '',
+      whatsapp_number: company.whatsapp_number ?? ''
     });
   }
 

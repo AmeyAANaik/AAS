@@ -39,6 +39,12 @@ function sanitizeUiError(raw: string): string {
   }
 
   let message = raw.trim();
+  const lowerRaw = message.toLowerCase();
+  if (lowerRaw.includes('#131005')
+      || lowerRaw.includes('authentication error')
+      || (lowerRaw.includes('access denied') && lowerRaw.includes('access token'))) {
+    return 'Meta rejected the WhatsApp access token or permissions. Generate a fresh WhatsApp Cloud API token for this phone-number ID and try again.';
+  }
   message = message.replace(/ERPNext/gi, 'system');
   message = message.replace(/ErpNext/gi, 'system');
   message = message.replace(/\[\d+\s+[A-Z_ ]+\]\s+during\s+\[[A-Z]+\]\s+to\s+\[[^\]]+\]\s+\[[^\]]+\]:\s*/i, '');

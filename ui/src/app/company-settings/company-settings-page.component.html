@@ -223,6 +223,37 @@
         </div>
       </section>
 
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Invoice delivery</div>
+          <div class="section-subtitle">Default email and WhatsApp number used when sending invoices to customers.</div>
+        </div>
+        <div class="horizontal-form">
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Invoice Email</div>
+              <div class="row-subtitle">Default sender/recipient email address for invoice delivery.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Invoice Email</mat-label>
+              <input matInput formControlName="invoice_email" type="email" placeholder="billing@example.com" />
+              <mat-error *ngIf="form.get('invoice_email')?.hasError('email')">Enter a valid email address.</mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">WhatsApp Number</div>
+              <div class="row-subtitle">Default WhatsApp number for invoice delivery (include country code).</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>WhatsApp Number</mat-label>
+              <input matInput formControlName="whatsapp_number" placeholder="+919405925917" />
+            </mat-form-field>
+          </div>
+        </div>
+      </section>
+
       <div class="actions settings-actions">
         <div class="save-note">Changes are written back to the application company record.</div>
         <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">

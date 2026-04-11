@@ -35,18 +35,23 @@ public class SetupService {
               .aas-party-table { margin-bottom: 16px; }
               .aas-party-table td { width: 50%; border: 1px solid #111827; vertical-align: top; padding: 10px 12px; }
               .aas-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin: 0 0 8px; }
-              .aas-items { margin-bottom: 16px; }
-              .aas-items th, .aas-items td { border: 1px solid #111827; padding: 8px 9px; vertical-align: top; }
-              .aas-items th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; }
+              .aas-items { margin-bottom: 16px; table-layout: fixed; page-break-inside: auto; }
+              .aas-items tr { page-break-inside: avoid; page-break-after: auto; }
+              .aas-items thead { display: table-header-group; }
+              .aas-items tfoot { display: table-row-group; }
+              .aas-items th, .aas-items td { border: 1px solid #111827; padding: 6px 6px; vertical-align: top; }
+              .aas-items th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; }
+              .aas-items td { font-size: 11px; }
               .aas-items .num { text-align: right; white-space: nowrap; }
               .aas-items .center { text-align: center; }
-              .aas-item-name { font-weight: 600; }
-              .aas-summary { width: 500px; margin: 12px 0 24px auto; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; }
-              .aas-summary td { border-top: 1px solid #d1d5db; padding: 10px 14px; line-height: 1.35; vertical-align: middle; }
-              .aas-summary .aas-summary-heading td { border-top: 0; border-bottom: 1px solid #111827; padding: 8px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; }
-              .aas-summary .aas-summary-label-cell { font-weight: 600; width: 60%; color: #111827; }
-              .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; width: 40%; font-variant-numeric: tabular-nums; }
-              .aas-summary .aas-summary-grand td { border-top: 1px solid #111827; font-weight: 700; background: #eef2ff; font-size: 13px; }
+              .aas-item-name { font-weight: 600; overflow-wrap: break-word; word-wrap: break-word; }
+              .aas-summary { width: 360px; margin: 12px 0 24px auto; table-layout: fixed; border-collapse: collapse; page-break-inside: avoid; }
+              .aas-summary tr { page-break-inside: avoid; }
+              .aas-summary td { border: 1px solid #111827; padding: 8px 10px; line-height: 1.35; vertical-align: middle; }
+              .aas-summary .aas-summary-heading td { padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; }
+              .aas-summary .aas-summary-label-cell { font-weight: 600; color: #111827; }
+              .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+              .aas-summary .aas-summary-grand td { font-weight: 700; background: #eef2ff; font-size: 13px; }
               .aas-footer-grid { width: 100%; margin-top: 20px; border-collapse: separate; border-spacing: 0; border-top: 1px solid #111827; padding-top: 14px; }
               .aas-footer-grid td { vertical-align: top; }
               .aas-footer-left { width: 62%; padding-right: 18px; }
@@ -155,15 +160,15 @@ public class SetupService {
             <table class="aas-items">
               <thead>
                 <tr>
-                  <th style="width: 54px;">SR</th>
-                  <th>Item</th>
-                  <th style="width: 88px;">Quantity</th>
-                  <th style="width: 76px;">UOM</th>
-                  <th style="width: 120px;">Rate</th>
-                  <th style="width: 78px;">GST %</th>
-                  <th style="width: 132px;">Amount Before Tax</th>
-                  <th style="width: 132px;">Rate With GST</th>
-                  <th style="width: 146px;">Total Amount</th>
+                  <th style="width: 5%;">SR</th>
+                  <th style="width: 22%;">Item</th>
+                  <th style="width: 9%;">Qty</th>
+                  <th style="width: 7%;">UOM</th>
+                  <th style="width: 12%;">Rate</th>
+                  <th style="width: 7%;">GST %</th>
+                  <th style="width: 13%;">Amount Before Tax</th>
+                  <th style="width: 12%;">Rate With GST</th>
+                  <th style="width: 13%;">Total Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,8 +209,8 @@ public class SetupService {
             <table class="aas-summary">
               <tbody>
               <tr class="aas-summary-heading">
-                <td class="aas-summary-label-cell">Summary</td>
-                <td class="aas-summary-value-cell">Amount</td>
+                <td class="aas-summary-label-cell" style="width: 58%;">Summary</td>
+                <td class="aas-summary-value-cell" style="width: 42%;">Amount</td>
               </tr>
               <tr>
                 <td class="aas-summary-label-cell">Goods Total Before Tax</td>
