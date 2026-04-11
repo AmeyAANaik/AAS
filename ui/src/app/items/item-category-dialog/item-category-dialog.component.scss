@@ -37,6 +37,11 @@
   color: var(--ink);
 }
 
+.item-search-field {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
 .items-table-wrapper {
   max-height: 460px;
   overflow: auto;

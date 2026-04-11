@@ -16,86 +16,171 @@ public class SetupService {
     private static final String SALES_INVOICE_PRINT_FORMAT_NAME = "AAS Sales Invoice Print";
     private static final String SALES_INVOICE_PRINT_FORMAT_HTML = """
             <style>
-              .print-format { font-size: 12px; color: #111827; }
-              .aas-header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-              .aas-title { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
-              .aas-subtitle { color: #6b7280; margin: 0; }
-              .aas-meta, .aas-items, .aas-summary { width: 100%; border-collapse: collapse; }
-              .aas-meta { margin-bottom: 18px; }
-              .aas-meta td { padding: 4px 8px 4px 0; vertical-align: top; }
-              .aas-meta-label { color: #6b7280; white-space: nowrap; width: 140px; }
-              .aas-items { margin-bottom: 18px; }
-              .aas-items th, .aas-items td { border-bottom: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: top; }
-              .aas-items th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+              .print-format { font-size: 12px; color: #111827; line-height: 1.45; }
+              .aas-title-row, .aas-meta-table, .aas-party-table, .aas-items, .aas-summary { width: 100%; border-collapse: collapse; }
+              .aas-title-row { margin-bottom: 16px; }
+              .aas-title-row td { vertical-align: top; }
+              .aas-brand { width: 58%; }
+              .aas-invoice-meta { width: 42%; }
+              .aas-brand-wrap { display: flex; align-items: flex-start; gap: 14px; }
+              .aas-logo-box { width: 82px; }
+              .aas-logo { max-width: 82px; max-height: 82px; object-fit: contain; }
+              .aas-company-name { font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+              .aas-company-line, .aas-bank-line, .aas-bill-line { margin: 0 0 2px; color: #374151; }
+              .aas-gst-line { margin: 6px 0 0; font-weight: 600; }
+              .aas-invoice-card { border: 1px solid #111827; padding: 10px 12px; }
+              .aas-invoice-heading { font-size: 18px; font-weight: 700; text-align: center; letter-spacing: 0.08em; margin: 0 0 10px; }
+              .aas-meta-table td { border: 1px solid #111827; padding: 6px 8px; vertical-align: top; }
+              .aas-meta-label { font-weight: 600; width: 34%; white-space: nowrap; }
+              .aas-party-table { margin-bottom: 16px; }
+              .aas-party-table td { width: 50%; border: 1px solid #111827; vertical-align: top; padding: 10px 12px; }
+              .aas-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin: 0 0 8px; }
+              .aas-items { margin-bottom: 16px; }
+              .aas-items th, .aas-items td { border: 1px solid #111827; padding: 8px 9px; vertical-align: top; }
+              .aas-items th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; }
               .aas-items .num { text-align: right; white-space: nowrap; }
-              .aas-items .item-name { font-weight: 600; }
-              .aas-summary { width: 320px; margin-left: auto; }
-              .aas-summary td { padding: 6px 0 6px 16px; }
-              .aas-summary .label { color: #6b7280; }
+              .aas-items .center { text-align: center; }
+              .aas-item-name { font-weight: 600; }
+              .aas-summary { width: 360px; margin-left: auto; }
+              .aas-summary td { border: 1px solid #111827; padding: 7px 10px; }
+              .aas-summary .label { font-weight: 600; }
               .aas-summary .value { text-align: right; white-space: nowrap; }
-              .aas-summary .total td { border-top: 1px solid #111827; font-weight: 700; padding-top: 10px; }
+              .aas-summary .grand td { font-weight: 700; }
+              .aas-empty { color: #6b7280; }
             </style>
-            <div class="aas-header">
-              <div>
-                <p class="aas-title">Sales Invoice</p>
-                <p class="aas-subtitle">{{ doc.name }}</p>
-              </div>
-              <div style="text-align: right;">
-                <div><strong>{{ doc.company_name or doc.company }}</strong></div>
-                <div>{{ doc.customer }}</div>
-              </div>
-            </div>
-            <table class="aas-meta">
+            {% set company_doc = frappe.get_doc("Company", doc.company) if doc.company else None %}
+            {% set company_logo = (company_doc.company_logo or company_doc.logo or company_doc.letter_head_image) if company_doc else "" %}
+            {% if company_logo and company_logo.startswith("http://localhost:8080") %}
+            {% set company_logo = company_logo.replace("http://localhost:8080", "http://frontend:8080") %}
+            {% endif %}
+            {% if company_logo %}
+            {% set company_logo = company_logo.replace(" ", "%20") %}
+            {% endif %}
+            {% set company_tax_id = (company_doc.tax_id or company_doc.gstin) if company_doc else "" %}
+            {% set company_address = [company_doc.address_line_1, company_doc.address_line_2, company_doc.city, company_doc.state, company_doc.pincode] if company_doc else [] %}
+            {% set rounding_adjustment = frappe.utils.flt(doc.aas_rounding_adjustment if doc.aas_rounding_adjustment else doc.rounding_adjustment, 2) %}
+            {% set invoice_total = frappe.utils.flt(doc.grand_total if doc.grand_total else 0, 2) %}
+            {% set bank_lines = [] %}
+            {% if company_doc and company_doc.aas_bank_beneficiary_name %}{% set _ = bank_lines.append("A/C Name: " ~ company_doc.aas_bank_beneficiary_name) %}{% endif %}
+            {% if company_doc and company_doc.aas_bank_name %}{% set _ = bank_lines.append("Bank: " ~ company_doc.aas_bank_name) %}{% endif %}
+            {% if company_doc and company_doc.aas_bank_account_number %}{% set _ = bank_lines.append("A/C No: " ~ company_doc.aas_bank_account_number) %}{% endif %}
+            {% if company_doc and company_doc.aas_bank_ifsc_code %}{% set _ = bank_lines.append("IFSC: " ~ company_doc.aas_bank_ifsc_code) %}{% endif %}
+            {% if company_doc and company_doc.aas_bank_branch %}{% set _ = bank_lines.append("Branch: " ~ company_doc.aas_bank_branch) %}{% endif %}
+            <table class="aas-title-row">
               <tr>
-                <td class="aas-meta-label">Date</td>
-                <td>{{ frappe.utils.formatdate(doc.posting_date) }}</td>
-                <td class="aas-meta-label">Customer</td>
-                <td>{{ doc.customer }}</td>
+                <td class="aas-brand">
+                  <div class="aas-brand-wrap">
+                    {% if company_logo %}
+                    <div class="aas-logo-box">
+                      <img class="aas-logo" src="{{ company_logo }}" alt="{{ doc.company }}" />
+                    </div>
+                    {% endif %}
+                    <div>
+                      <p class="aas-company-name">{{ doc.company_name or doc.company }}</p>
+                      {% for address_part in company_address %}
+                      {% if address_part %}
+                      <p class="aas-company-line">{{ address_part }}</p>
+                      {% endif %}
+                      {% endfor %}
+                      {% if company_tax_id %}
+                      <p class="aas-gst-line">GSTIN: {{ company_tax_id }}</p>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+                <td class="aas-invoice-meta">
+                  <div class="aas-invoice-card">
+                    <p class="aas-invoice-heading">Tax Invoice</p>
+                    <table class="aas-meta-table">
+                      <tr><td class="aas-meta-label">Invoice No</td><td>{{ doc.name }}</td></tr>
+                      <tr><td class="aas-meta-label">Invoice Date</td><td>{{ frappe.utils.formatdate(doc.posting_date) }}</td></tr>
+                      <tr><td class="aas-meta-label">Due Date</td><td>{{ frappe.utils.formatdate(doc.due_date) if doc.due_date else "-" }}</td></tr>
+                      <tr><td class="aas-meta-label">Source Order</td><td>{{ doc.aas_source_sales_order or "-" }}</td></tr>
+                    </table>
+                  </div>
+                </td>
               </tr>
+            </table>
+            <table class="aas-party-table">
               <tr>
-                <td class="aas-meta-label">Source Sales Order</td>
-                <td>{{ doc.aas_source_sales_order or '-' }}</td>
-                <td class="aas-meta-label">Payment Due Date</td>
-                <td>{{ frappe.utils.formatdate(doc.due_date) if doc.due_date else '-' }}</td>
+                <td>
+                  <p class="aas-section-title">Bill To</p>
+                  <p class="aas-bill-line"><strong>{{ doc.customer_name or doc.customer }}</strong></p>
+                  {% if doc.customer_address %}<p class="aas-bill-line">{{ doc.customer_address }}</p>{% endif %}
+                  {% if doc.contact_display %}<p class="aas-bill-line">{{ doc.contact_display }}</p>{% endif %}
+                </td>
+                <td>
+                  <p class="aas-section-title">Bank Details</p>
+                  {% if bank_lines %}
+                  {% for bank_line in bank_lines %}
+                  <p class="aas-bank-line">{{ bank_line }}</p>
+                  {% endfor %}
+                  {% else %}
+                  <p class="aas-bank-line aas-empty">Bank details not configured.</p>
+                  {% endif %}
+                </td>
               </tr>
             </table>
             <table class="aas-items">
               <thead>
                 <tr>
-                  <th style="width: 56px;">Sr</th>
+                  <th style="width: 54px;">SR</th>
                   <th>Item</th>
-                  <th>Description</th>
-                  <th class="num" style="width: 88px;">Quantity</th>
-                  <th style="width: 88px;">UOM</th>
-                  <th class="num" style="width: 110px;">Taxable Rate</th>
-                  <th class="num" style="width: 88px;">GST %</th>
-                  <th class="num" style="width: 120px;">GST Amt</th>
-                  <th class="num" style="width: 130px;">Taxable Amt</th>
+                  <th style="width: 88px;">Quantity</th>
+                  <th style="width: 76px;">UOM</th>
+                  <th style="width: 120px;">Rate</th>
+                  <th style="width: 78px;">GST %</th>
+                  <th style="width: 132px;">Amount Before Tax</th>
+                  <th style="width: 132px;">Rate With GST</th>
+                  <th style="width: 146px;">Total Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {% set totals = namespace(taxable=0.0, gst=0.0) %}
+                {% set totals = namespace(goods_taxable=0.0, taxable=0.0, gst=0.0, transport=0.0, visible_rows=0) %}
                 {% for item in doc.items %}
                 {% set gst_percent = item.aas_gst_percent if item.aas_gst_percent else 0 %}
-                {% set taxable_amount = frappe.utils.flt(item.amount, 2) %}
+                {% set taxable_rate = frappe.utils.flt(item.net_rate if item.net_rate else item.rate, 2) %}
+                {% set taxable_amount = frappe.utils.flt(item.net_amount if item.net_amount else item.amount, 2) %}
                 {% set gst_amount = frappe.utils.flt(taxable_amount * gst_percent / 100, 2) %}
+                {% set rate_with_gst = frappe.utils.flt(taxable_rate + (taxable_rate * gst_percent / 100), 2) %}
+                {% set total_amount = frappe.utils.flt(taxable_amount + gst_amount, 2) %}
+                {% set is_transport = item.item_code == "AAS-TRANSPORT-CHARGE" %}
+                {% set display_name = "Transport / Additional Spend" if is_transport else (item.description or item.item_name or item.item_code or "-") %}
                 {% set totals.taxable = totals.taxable + taxable_amount %}
                 {% set totals.gst = totals.gst + gst_amount %}
+                {% if is_transport %}
+                {% set totals.transport = totals.transport + taxable_amount %}
+                {% else %}
+                {% set totals.goods_taxable = totals.goods_taxable + taxable_amount %}
+                {% endif %}
+                {% if not is_transport %}
+                {% set totals.visible_rows = totals.visible_rows + 1 %}
                 <tr>
-                  <td>{{ loop.index }}</td>
-                  <td class="item-name">{{ item.item_code or item.item_name }}</td>
-                  <td>{{ item.description or item.item_name or item.item_code }}</td>
-                  <td class="num">{{ frappe.utils.flt(item.qty, 0) }}</td>
-                  <td>{{ item.uom or item.stock_uom or '-' }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(item.rate, currency=doc.currency) }}</td>
-                  <td class="num">{{ frappe.utils.flt(gst_percent, 0) }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(gst_amount, currency=doc.currency) }}</td>
+                  <td class="center">{{ totals.visible_rows }}</td>
+                  <td class="aas-item-name">{{ display_name }}</td>
+                  <td class="num">{{ frappe.utils.flt(item.qty, 2) }}</td>
+                  <td class="center">{{ item.uom or item.stock_uom or "-" }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(taxable_rate, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.flt(gst_percent, 2) }}</td>
                   <td class="num">{{ frappe.utils.fmt_money(taxable_amount, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(rate_with_gst, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(total_amount, currency=doc.currency) }}</td>
                 </tr>
+                {% endif %}
                 {% endfor %}
               </tbody>
             </table>
             <table class="aas-summary">
+              <tr>
+                <td class="label">Goods Total Before Tax</td>
+                <td class="value">{{ frappe.utils.fmt_money(totals.goods_taxable, currency=doc.currency) }}</td>
+              </tr>
+              {% if totals.transport %}
+              <tr>
+                <td class="label">Transport / Additional Spend</td>
+                <td class="value">{{ frappe.utils.fmt_money(totals.transport, currency=doc.currency) }}</td>
+              </tr>
+              {% endif %}
               <tr>
                 <td class="label">Taxable Total</td>
                 <td class="value">{{ frappe.utils.fmt_money(totals.taxable, currency=doc.currency) }}</td>
@@ -104,15 +189,19 @@ public class SetupService {
                 <td class="label">GST Total</td>
                 <td class="value">{{ frappe.utils.fmt_money(totals.gst, currency=doc.currency) }}</td>
               </tr>
-              {% if doc.aas_rounding_adjustment %}
+              <tr>
+                <td class="label">Invoice Total</td>
+                <td class="value">{{ frappe.utils.fmt_money(invoice_total, currency=doc.currency) }}</td>
+              </tr>
+              {% if rounding_adjustment %}
               <tr>
                 <td class="label">Rounding Adjustment</td>
-                <td class="value">{{ frappe.utils.fmt_money(doc.aas_rounding_adjustment, currency=doc.currency) }}</td>
+                <td class="value">{{ frappe.utils.fmt_money(rounding_adjustment, currency=doc.currency) }}</td>
               </tr>
               {% endif %}
-              <tr class="total">
+              <tr class="grand">
                 <td class="label">Grand Total</td>
-                <td class="value">{{ frappe.utils.fmt_money(doc.grand_total, currency=doc.currency) }}</td>
+                <td class="value">{{ frappe.utils.fmt_money(invoice_total + rounding_adjustment, currency=doc.currency) }}</td>
               </tr>
             </table>
             """;
@@ -381,6 +470,41 @@ public class SetupService {
                 "Link",
                 "Print Format",
                 "default_currency");
+        boolean companyBankBeneficiaryField = ensureCustomField(
+                "Company",
+                "aas_bank_beneficiary_name",
+                "Bank Beneficiary Name",
+                "Data",
+                null,
+                "aas_sales_invoice_print_format");
+        boolean companyBankNameField = ensureCustomField(
+                "Company",
+                "aas_bank_name",
+                "Bank Name",
+                "Data",
+                null,
+                "aas_bank_beneficiary_name");
+        boolean companyBankAccountNumberField = ensureCustomField(
+                "Company",
+                "aas_bank_account_number",
+                "Bank Account Number",
+                "Data",
+                null,
+                "aas_bank_name");
+        boolean companyBankIfscField = ensureCustomField(
+                "Company",
+                "aas_bank_ifsc_code",
+                "Bank IFSC Code",
+                "Data",
+                null,
+                "aas_bank_account_number");
+        boolean companyBankBranchField = ensureCustomField(
+                "Company",
+                "aas_bank_branch",
+                "Bank Branch",
+                "Data",
+                null,
+                "aas_bank_ifsc_code");
         boolean userFeatureAllowField = ensureCustomField(
                 "User",
                 UserFeatureService.FEATURE_ALLOW_FIELD,
@@ -570,6 +694,11 @@ public class SetupService {
         result.put("invoiceReplacedByFieldCreated", invoiceReplacedByField);
         result.put("invoiceRoundingAdjustmentFieldCreated", invoiceRoundingAdjustmentField);
         result.put("companyInvoicePrintFormatFieldCreated", companyInvoicePrintFormatField);
+        result.put("companyBankBeneficiaryFieldCreated", companyBankBeneficiaryField);
+        result.put("companyBankNameFieldCreated", companyBankNameField);
+        result.put("companyBankAccountNumberFieldCreated", companyBankAccountNumberField);
+        result.put("companyBankIfscFieldCreated", companyBankIfscField);
+        result.put("companyBankBranchFieldCreated", companyBankBranchField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());

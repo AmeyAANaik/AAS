@@ -2,7 +2,9 @@ package com.aas.mw.controller;
 
 import com.aas.mw.service.MasterDataService;
 import com.aas.mw.service.UserService;
+import com.aas.mw.service.ErpSessionStore;
 import com.aas.mw.dto.FieldsRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -131,6 +133,21 @@ public class MasterDataController {
             @PathVariable String id,
             @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.updateCompanyProfile(id, request));
+    }
+
+    @PostMapping(value = "/companies/{id}/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> uploadCompanyLogo(
+            @PathVariable String id,
+            @RequestPart("file") MultipartFile file,
+            HttpServletRequest request) {
+        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of(
+                            "error", "Session expired. Please log out and log in again.",
+                            "errorCode", "ERP_SESSION_MISSING"));
+        }
+        return ResponseEntity.ok(masterDataService.uploadCompanyLogo(id, file, sessionCookie));
     }
 
     @GetMapping("/users/{id}")

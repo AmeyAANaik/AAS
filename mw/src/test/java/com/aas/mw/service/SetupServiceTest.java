@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.argThat;
@@ -149,6 +150,24 @@ class SetupServiceTest {
                 eq("aas_source_sales_order"),
                 eq(true),
                 eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Company"),
+                eq("aas_bank_beneficiary_name"),
+                eq("Bank Beneficiary Name"),
+                eq("Data"),
+                eq(null),
+                eq("aas_sales_invoice_print_format"),
+                eq(true),
+                eq(false));
+        verify(customFieldProvisioner, atLeastOnce()).ensure(
+                eq("Company"),
+                eq("aas_bank_account_number"),
+                eq("Bank Account Number"),
+                eq("Data"),
+                eq(null),
+                eq("aas_bank_name"),
+                eq(true),
+                eq(false));
     }
 
     @Test
@@ -228,6 +247,27 @@ class SetupServiceTest {
                                 .equals(payload.get("roles"))
                         && "".equals(payload.get("supplier"))
                         && "".equals(payload.get("customer"))));
+    }
+
+    @Test
+    void salesInvoicePrintFormatHidesTransportLineItemsFromVisibleTable() {
+        when(erpNextClient.listResources(eq("Print Format"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "AAS Sales Invoice Print")));
+        when(erpNextClient.updateResource(eq("Print Format"), eq("AAS Sales Invoice Print"), anyMap()))
+                .thenReturn(Map.of("name", "AAS Sales Invoice Print"));
+
+        service.ensureSetup();
+
+        verify(erpNextClient).updateResource(
+                eq("Print Format"),
+                eq("AAS Sales Invoice Print"),
+                argThat(payload -> {
+                    String html = String.valueOf(payload.get("html"));
+                    assertTrue(html.contains("{% if not is_transport %}"));
+                    assertTrue(html.contains("{% set totals.visible_rows = totals.visible_rows + 1 %}"));
+                    assertTrue(html.contains("<td class=\"center\">{{ totals.visible_rows }}</td>"));
+                    return true;
+                }));
     }
 
     private feign.FeignException.NotFound notFound(String doctype, String name) {

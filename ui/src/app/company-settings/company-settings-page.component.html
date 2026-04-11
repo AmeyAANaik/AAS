@@ -1,5 +1,5 @@
 <section class="company-settings-page">
-  <app-page-header kicker="Settings" title="Company Settings" subtitle="Update the ERPNext-backed company identity shown throughout the shell, documents, and order workflow."></app-page-header>
+  <app-page-header kicker="Settings" title="Company Settings" subtitle="Update the application company identity shown throughout the shell, documents, and order workflow."></app-page-header>
 
   <mat-card class="settings-card">
     <div class="state" *ngIf="isLoading">Loading company details...</div>
@@ -13,7 +13,7 @@
         <div>
           <div class="identity-kicker">Company profile</div>
           <div class="identity-title">{{ form.get('name')?.value || 'Company' }}</div>
-          <div class="identity-subtitle">ERP-backed identity and document defaults</div>
+          <div class="identity-subtitle">Application identity and document defaults</div>
         </div>
       </div>
 
@@ -36,14 +36,43 @@
     <form [formGroup]="form" class="settings-form">
       <section class="form-section">
         <div class="section-copy">
+          <div class="section-title">Company logo</div>
+          <div class="section-subtitle">Upload the logo once and the same branding will be used across the shell and GST invoice PDFs.</div>
+        </div>
+        <div class="logo-uploader">
+          <div class="logo-preview-panel">
+            <img *ngIf="companyLogoUrl" class="logo-preview-image" [src]="companyLogoUrl" alt="Company logo preview" />
+            <div *ngIf="!companyLogoUrl" class="logo-preview-fallback">
+              {{ (form.get('name')?.value || 'CO').slice(0, 2).toUpperCase() }}
+            </div>
+            <div class="logo-preview-copy">
+              <div class="logo-preview-title">Current company logo</div>
+              <div class="logo-preview-subtitle">
+                {{ selectedLogoFileName || 'No logo uploaded yet. Add one for invoices, headers, and company identity.' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="logo-upload-actions">
+            <input #logoInput type="file" accept="image/*" hidden (change)="onLogoSelected($event)" />
+            <button mat-flat-button color="primary" type="button" (click)="logoInput.click()" [disabled]="isUploadingLogo || isLoading">
+              {{ isUploadingLogo ? 'Uploading...' : (companyLogoUrl ? 'Replace Logo' : 'Upload Logo') }}
+            </button>
+            <div class="logo-upload-note">Recommended: square or landscape PNG/JPG with a clean background.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-copy">
           <div class="section-title">Primary details</div>
-          <div class="section-subtitle">Core identity values used across the shell and ERP-backed records.</div>
+          <div class="section-subtitle">Core identity values used across the shell and application records.</div>
         </div>
         <div class="horizontal-form">
           <div class="form-row">
             <div class="row-label">
               <div class="row-title">Company Name</div>
-              <div class="row-subtitle">Read-only ERP company name.</div>
+              <div class="row-subtitle">Read-only company name used by the application.</div>
             </div>
             <mat-form-field appearance="outline">
               <mat-label>Company Name</mat-label>
@@ -115,11 +144,66 @@
               <input matInput formControlName="tax_id" />
             </mat-form-field>
           </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Beneficiary Name</div>
+              <div class="row-subtitle">Account holder name shown on the GST invoice bank-details block.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Beneficiary Name</mat-label>
+              <input matInput formControlName="bank_beneficiary_name" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Name</div>
+              <div class="row-subtitle">Bank name printed on the right side of the GST invoice.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Name</mat-label>
+              <input matInput formControlName="bank_name" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Account Number</div>
+              <div class="row-subtitle">Beneficiary account number used for invoice payments.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Account Number</mat-label>
+              <input matInput formControlName="bank_account_number" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank IFSC Code</div>
+              <div class="row-subtitle">IFSC code shown for NEFT/RTGS/IMPS transfers.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank IFSC Code</mat-label>
+              <input matInput formControlName="bank_ifsc_code" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Bank Branch</div>
+              <div class="row-subtitle">Optional branch name for the GST invoice bank-details panel.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Bank Branch</mat-label>
+              <input matInput formControlName="bank_branch" />
+            </mat-form-field>
+          </div>
         </div>
       </section>
 
       <div class="actions settings-actions">
-        <div class="save-note">Changes are written back to the ERPNext company record.</div>
+        <div class="save-note">Changes are written back to the application company record.</div>
         <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">
           {{ isSaving ? 'Saving...' : 'Save Company Details' }}
         </button>
@@ -131,7 +215,7 @@
     <div class="access-header">
       <div>
         <div class="section-title">UI Access Control</div>
-        <div class="section-subtitle">Adjust sidebar and screen visibility per user without changing their base ERP role.</div>
+        <div class="section-subtitle">Adjust sidebar and screen visibility per user without changing their base application role.</div>
       </div>
       <div class="access-note">Role defaults stay intact. Allow/Deny only adds UI overrides.</div>
     </div>

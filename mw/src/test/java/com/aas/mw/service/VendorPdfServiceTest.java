@@ -7,6 +7,7 @@ import com.aas.mw.dto.UploadedFileInfo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -483,6 +484,44 @@ class VendorPdfServiceTest {
         assertNotNull(completeness);
         assertEquals(List.of(1, 2, 3, 4), completeness.get("expectedSerials"));
         assertEquals(List.of(3), completeness.get("missingSerials"));
+    }
+
+    @Test
+    void prefersExtractedSerialRangeWhenRawExpectedRangeLooksInflated() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        List<String> rawTableLines = new ArrayList<>();
+        for (int serial = 1; serial <= 427; serial++) {
+            rawTableLines.add(serial + " RAW ITEM " + serial + ".00");
+        }
+        List<Integer> extractedSerials = java.util.stream.IntStream.rangeClosed(1, 50)
+                .filter(value -> value != 39)
+                .boxed()
+                .toList();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(
+                                new ParsedItem("ITEM 38", 1, 10, 10, "11010000", 5.0, "KG", null),
+                                new ParsedItem("ITEM 40", 1, 10, 10, "11010000", 5.0, "KG", null),
+                                new ParsedItem("ITEM 50", 1, 10, 10, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "30.00",
+                        "",
+                        "",
+                        rawTableLines,
+                        extractedSerials));
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> completeness = (Map<String, Object>) response.get("completeness");
+        assertNotNull(completeness);
+        assertEquals(50, ((List<?>) completeness.get("expectedSerials")).size());
+        assertEquals(List.of(39), completeness.get("missingSerials"));
     }
 
     private void mockOrderContext() {

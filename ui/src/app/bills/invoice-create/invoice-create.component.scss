@@ -6,7 +6,7 @@
 
 .card-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   margin-bottom: 16px;
@@ -22,27 +22,6 @@
   font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
-}
-
-.mode-toggle {
-  display: inline-flex;
-  gap: 8px;
-  padding: 4px;
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--surface-muted);
-  justify-self: center;
-}
-
-.mode-toggle button {
-  min-width: 132px;
-  border-radius: 10px;
-}
-
-.mode-toggle button.active {
-  background: var(--accent-strong);
-  color: #fff;
-  border-color: transparent;
 }
 
 .gst-toggle {
@@ -199,17 +178,6 @@
   .card-header {
     grid-template-columns: 1fr;
     align-items: stretch;
-  }
-
-  .mode-toggle {
-    width: 100%;
-    justify-content: stretch;
-    justify-self: stretch;
-  }
-
-  .mode-toggle button {
-    flex: 1;
-    min-width: 0;
   }
 
   .line-items-header,

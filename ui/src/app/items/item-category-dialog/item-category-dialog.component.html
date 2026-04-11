@@ -22,6 +22,23 @@
   <div class="dialog-grid">
     <div class="items-pane">
       <div class="pane-title">Items in {{ selectedCategory || 'category' }}</div>
+      <mat-form-field appearance="outline" class="item-search-field">
+        <mat-label>Search items</mat-label>
+        <input
+          matInput
+          [formControl]="itemSearchControl"
+          placeholder="Search by name, code, HSN, packaging, or unit" />
+        <button
+          matSuffix
+          mat-icon-button
+          type="button"
+          *ngIf="hasActiveSearch"
+          (click)="clearSearch()"
+          aria-label="Clear item search">
+          <mat-icon>close</mat-icon>
+        </button>
+        <mat-icon matSuffix *ngIf="!hasActiveSearch">search</mat-icon>
+      </mat-form-field>
       <div class="items-table-wrapper" *ngIf="visibleItems.length; else emptyState">
         <table mat-table [dataSource]="visibleItems" class="mat-elevation-z1 popup-table">
           <ng-container matColumnDef="name">
@@ -64,9 +81,9 @@
       <ng-template #emptyState>
         <app-empty-state
           icon="inventory"
-          title="No items in this category"
-          message="Create the first item for this category."
-          hint="Use the form on the right to add an item.">
+          [title]="emptyStateTitle"
+          [message]="emptyStateMessage"
+          [hint]="emptyStateHint">
         </app-empty-state>
       </ng-template>
     </div>

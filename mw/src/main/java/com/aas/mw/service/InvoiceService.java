@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +24,7 @@ public class InvoiceService {
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String PAYMENT_LEDGER_ENTRY = "Payment Ledger Entry";
     private static final String INVOICE_VERSION_OLD = "OLD";
+    private static final Pattern PAYMENT_ENTRY_ID_PATTERN = Pattern.compile("(ACC-PAY-\\d{4}-\\d+)");
 
     private final ErpNextClient erpNextClient;
     private final String gstTemplate;
@@ -327,12 +330,18 @@ public class InvoiceService {
                             "message", "Invoice cancelled and removed from AAS list. ERP kept the cancelled ledger record for audit integrity.",
                             "invoiceId", invoiceId);
                 }
+                if (isPaymentLinkBlock(message)) {
+                    throw new IllegalStateException(buildInvoiceDeletionBlockedMessage(invoiceId, message), ex);
+                }
                 throw ex;
             }
         } catch (IllegalArgumentException ex) {
             throw ex;
         } catch (Exception ex) {
             String detail = firstMeaningfulMessage(ex);
+            if (isPaymentLinkBlock(detail)) {
+                detail = buildInvoiceDeletionBlockedMessage(invoiceId, detail);
+            }
             throw new IllegalStateException(detail.isBlank() ? "Unable to delete invoice." : detail, ex);
         }
     }
@@ -373,11 +382,19 @@ public class InvoiceService {
         if (paymentId == null || paymentId.isBlank()) {
             return;
         }
-        if (docstatus == 1) {
-            erpNextClient.cancelResource(PAYMENT_ENTRY, paymentId);
+        try {
+            if (docstatus == 1) {
+                erpNextClient.cancelResource(PAYMENT_ENTRY, paymentId);
+            }
+            deletePaymentLedgerEntriesForVoucher(paymentId);
+            erpNextClient.deleteResource(PAYMENT_ENTRY, paymentId);
+        } catch (FeignException ex) {
+            String message = summarizeFeignMessage(ex);
+            if (isPaymentLinkBlock(message)) {
+                throw new IllegalStateException(buildPaymentEntryBlockedMessage(paymentId), ex);
+            }
+            throw ex;
         }
-        deletePaymentLedgerEntriesForVoucher(paymentId);
-        erpNextClient.deleteResource(PAYMENT_ENTRY, paymentId);
     }
 
     private void deletePaymentLedgerEntriesForVoucher(String voucherNo) {
@@ -572,6 +589,33 @@ public class InvoiceService {
     private boolean isLedgerRetentionBlock(String message) {
         String normalized = message == null ? "" : message.toLowerCase();
         return normalized.contains("gl entry") || normalized.contains("payment ledger entry");
+    }
+
+    private boolean isPaymentLinkBlock(String message) {
+        String normalized = message == null ? "" : message.toLowerCase();
+        return normalized.contains("linkexistserror")
+                || normalized.contains("cannot delete or cancel because payment entry")
+                || (normalized.contains("payment entry") && normalized.contains("linked"));
+    }
+
+    private String buildInvoiceDeletionBlockedMessage(String invoiceId, String rawMessage) {
+        String paymentId = extractPaymentEntryId(rawMessage);
+        if (!paymentId.isBlank()) {
+            return "Invoice " + invoiceId + " cannot be deleted because payment " + paymentId + " is linked to it. Remove or unlink the payment first.";
+        }
+        return "Invoice " + invoiceId + " cannot be deleted because a linked payment exists. Remove or unlink the payment first.";
+    }
+
+    private String buildPaymentEntryBlockedMessage(String paymentId) {
+        return "Payment " + paymentId + " could not be removed automatically because it is linked to another accounting record. Please unlink it in ERP before deleting the invoice.";
+    }
+
+    private String extractPaymentEntryId(String message) {
+        if (message == null || message.isBlank()) {
+            return "";
+        }
+        Matcher matcher = PAYMENT_ENTRY_ID_PATTERN.matcher(message);
+        return matcher.find() ? matcher.group(1) : "";
     }
 
     private String summarizeFeignMessage(FeignException ex) {

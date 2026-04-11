@@ -3,6 +3,7 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.FieldsRequest;
 import com.aas.mw.dto.ParsedItem;
+import com.aas.mw.dto.UploadedFileInfo;
 import com.aas.mw.meta.VendorFieldMapper;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class MasterDataService {
@@ -175,6 +177,11 @@ public class MasterDataService {
         profile.put("default_letter_head", asText(company.get("default_letter_head")));
         profile.put("tax_id", firstText(company.get("tax_id"), company.get("gstin")));
         profile.put("logo_url", firstText(company.get("company_logo"), company.get("logo"), company.get("letter_head_image")));
+        profile.put("bank_beneficiary_name", asText(company.get("aas_bank_beneficiary_name")));
+        profile.put("bank_name", asText(company.get("aas_bank_name")));
+        profile.put("bank_account_number", asText(company.get("aas_bank_account_number")));
+        profile.put("bank_ifsc_code", asText(company.get("aas_bank_ifsc_code")));
+        profile.put("bank_branch", asText(company.get("aas_bank_branch")));
         return profile;
     }
 
@@ -191,10 +198,35 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "tax_id");
         copyIfPresent(fields, payload, "company_logo");
         copyIfPresent(fields, payload, "logo");
+        copyIfPresent(fields, payload, "aas_bank_beneficiary_name", "bank_beneficiary_name");
+        copyIfPresent(fields, payload, "aas_bank_name", "bank_name");
+        copyIfPresent(fields, payload, "aas_bank_account_number", "bank_account_number");
+        copyIfPresent(fields, payload, "aas_bank_ifsc_code", "bank_ifsc_code");
+        copyIfPresent(fields, payload, "aas_bank_branch", "bank_branch");
         if (payload.isEmpty()) {
             return getCompanyProfile(id);
         }
         erpNextClient.updateResource("Company", id, payload);
+        return getCompanyProfile(id);
+    }
+
+    public Map<String, Object> uploadCompanyLogo(String id, MultipartFile file, String sessionCookie) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Company id is required.");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Logo file is required.");
+        }
+        UploadedFileInfo uploaded = erpNextFileService.uploadFile(
+                "Company",
+                id,
+                resolveCompanyLogoFilename(file.getOriginalFilename()),
+                file,
+                sessionCookie);
+        if (uploaded.fileUrl() == null || uploaded.fileUrl().isBlank()) {
+            throw new IllegalStateException("Unable to upload company logo.");
+        }
+        erpNextClient.updateResource("Company", id, Map.of("company_logo", uploaded.fileUrl()));
         return getCompanyProfile(id);
     }
 
@@ -429,6 +461,12 @@ public class MasterDataService {
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
         if (source.containsKey(key)) {
             target.put(key, source.get(key));
+        }
+    }
+
+    private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String targetKey, String sourceKey) {
+        if (source.containsKey(sourceKey)) {
+            target.put(targetKey, source.get(sourceKey));
         }
     }
 
@@ -713,6 +751,17 @@ public class MasterDataService {
         }
         String path = filePath.startsWith("/") ? filePath : "/" + filePath;
         return base + path;
+    }
+
+    private String resolveCompanyLogoFilename(String originalFilename) {
+        String extension = ".png";
+        if (originalFilename != null && !originalFilename.isBlank()) {
+            int dot = originalFilename.lastIndexOf('.');
+            if (dot > -1 && dot < originalFilename.length() - 1) {
+                extension = originalFilename.substring(dot);
+            }
+        }
+        return "company_logo" + extension;
     }
 
     private Map<String, Object> resolveVendorTemplateFileUrl(Map<String, Object> vendor) {

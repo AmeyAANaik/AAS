@@ -181,6 +181,74 @@
   width: 100%;
 }
 
+.logo-uploader {
+  display: grid;
+  gap: 18px;
+}
+
+.logo-preview-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px dashed rgba(91, 107, 255, 0.3);
+  background: linear-gradient(180deg, rgba(248, 250, 255, 0.98), rgba(244, 247, 255, 0.95));
+}
+
+.logo-preview-image,
+.logo-preview-fallback {
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+
+.logo-preview-image {
+  object-fit: cover;
+}
+
+.logo-preview-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--color-secondary));
+}
+
+.logo-preview-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.logo-preview-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.logo-preview-subtitle {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.logo-upload-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.logo-upload-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .settings-actions {
   justify-content: space-between;
   padding: 16px 20px 0;
@@ -449,6 +517,15 @@
 
   .settings-actions {
     padding: 12px 0 0;
+  }
+
+  .logo-preview-panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .logo-upload-actions {
+    align-items: flex-start;
   }
 
   .feature-row {

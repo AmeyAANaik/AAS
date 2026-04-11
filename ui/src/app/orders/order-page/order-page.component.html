@@ -463,7 +463,7 @@
                       </div>
                       <div class="cell-muted" *ngIf="line.item_code; else unresolvedManualCode">{{ line.item_code }}</div>
                       <ng-template #unresolvedManualCode>
-                        <div class="cell-note warning">Type an existing item name to resolve the ERP item code.</div>
+                        <div class="cell-note warning">Type an existing item name to resolve the application item code.</div>
                       </ng-template>
                     </ng-container>
                     <ng-template #parsedItemCell>
@@ -719,7 +719,7 @@
                     <tr>
                       <th>Sr no</th>
                       <th>Item</th>
-                      <th>ERP item code</th>
+                      <th>Application item code</th>
                       <th>Invoice description</th>
                     </tr>
                   </thead>

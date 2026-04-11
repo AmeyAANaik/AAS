@@ -1,4 +1,5 @@
 import { Component, Inject, OnInit } from '@angular/core';
+import { FormControl } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
@@ -25,6 +26,7 @@ export class ItemCategoryDialogComponent implements OnInit {
   selectedItem: ItemView | null = null;
   visibleItems: ItemView[] = [];
   sortedCategories: Category[] = [];
+  readonly itemSearchControl = new FormControl('', { nonNullable: true });
   isSaving = false;
   isDeleting = false;
   statusMessage = '';
@@ -47,12 +49,14 @@ export class ItemCategoryDialogComponent implements OnInit {
     this.selectedCategory = this.data.initialCategory?.trim() || firstCategory;
     this.refreshVisibleItems();
     this.bumpFormVersion();
+    this.itemSearchControl.valueChanges.subscribe(() => this.refreshVisibleItems());
   }
 
   onCategoryChange(categoryName: string): void {
     this.selectedCategory = categoryName;
     this.selectedItem = null;
     this.statusMessage = '';
+    this.itemSearchControl.setValue('', { emitEvent: false });
     this.refreshVisibleItems();
     this.bumpFormVersion();
   }
@@ -149,9 +153,35 @@ export class ItemCategoryDialogComponent implements OnInit {
   }
 
   private refreshVisibleItems(): void {
+    const searchTerm = this.normalizedSearchTerm;
     this.visibleItems = this.data.items
       .filter(item => item.category === this.selectedCategory)
+      .filter(item => !searchTerm || this.matchesSearch(item, searchTerm))
       .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  clearSearch(): void {
+    this.itemSearchControl.setValue('');
+  }
+
+  get hasActiveSearch(): boolean {
+    return this.normalizedSearchTerm.length > 0;
+  }
+
+  get emptyStateTitle(): string {
+    return this.hasActiveSearch ? 'No matching items' : 'No items in this category';
+  }
+
+  get emptyStateMessage(): string {
+    return this.hasActiveSearch
+      ? `No items in ${this.selectedCategory || 'this category'} match your search.`
+      : 'Create the first item for this category.';
+  }
+
+  get emptyStateHint(): string {
+    return this.hasActiveSearch
+      ? 'Try a different item name, code, HSN, packaging, or unit.'
+      : 'Use the form on the right to add an item.';
   }
 
   get resolvedVendor(): { id: string; name: string; code: string } | null {
@@ -262,6 +292,28 @@ export class ItemCategoryDialogComponent implements OnInit {
       name: String(vendor['supplier_name'] ?? vendor['name'] ?? '').trim(),
       code: this.normalizeCodeSegment(String(vendor['vendor_code'] ?? vendor['supplier_name'] ?? vendor['name'] ?? ''))
     };
+  }
+
+  private get normalizedSearchTerm(): string {
+    return this.normalizeSearchValue(this.itemSearchControl.value);
+  }
+
+  private matchesSearch(item: ItemView, searchTerm: string): boolean {
+    return [
+      item.name,
+      item.code,
+      item.measureUnit,
+      item.packagingUnit,
+      item.vendorHsnCode
+    ]
+      .map(value => this.normalizeSearchValue(value))
+      .some(value => value.includes(searchTerm));
+  }
+
+  private normalizeSearchValue(value: unknown): string {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase();
   }
 
   private asFlag(value: unknown): boolean {

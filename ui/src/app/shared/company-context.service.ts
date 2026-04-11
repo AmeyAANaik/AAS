@@ -12,6 +12,11 @@ export type CompanyIdentity = {
   default_letter_head?: string;
   tax_id?: string;
   logo_url?: string;
+  bank_beneficiary_name?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_ifsc_code?: string;
+  bank_branch?: string;
 };
 
 export type BranchIdentity = {
@@ -46,6 +51,16 @@ export class CompanyContextService {
     return this.http.put<CompanyIdentity>(
       `/api/companies/${encodeURIComponent(id)}`,
       { fields },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  uploadCompanyLogo(id: string, file: File): Observable<CompanyIdentity> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<CompanyIdentity>(
+      `/api/companies/${encodeURIComponent(id)}/logo`,
+      formData,
       { headers: this.authHeaders() }
     );
   }

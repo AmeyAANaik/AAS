@@ -502,7 +502,7 @@ public class VendorPdfService {
         List<Map<String, Object>> enriched = new ArrayList<>();
         for (Map<String, Object> row : baseItems) {
             Map<String, Object> copy = new HashMap<>(row);
-            double vendorRate = asDouble(row.get("rate"));
+            double vendorRate = resolveVendorRateBeforeTax(row);
             double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
             OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
                     vendorRate,
@@ -520,7 +520,7 @@ public class VendorPdfService {
         List<Map<String, Object>> enriched = new ArrayList<>();
         for (Map<String, Object> row : baseItems) {
             Map<String, Object> copy = new HashMap<>(row);
-            double vendorRate = asDouble(row.get("rate"));
+            double vendorRate = resolveVendorRateBeforeTax(row);
             double qty = asDouble(row.get("qty"));
             double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"));
             OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
@@ -535,6 +535,23 @@ public class VendorPdfService {
             enriched.add(copy);
         }
         return enriched;
+    }
+
+    private double resolveVendorRateBeforeTax(Map<String, Object> row) {
+        double explicitBeforeTax = asDouble(row.get("aas_rate_before_tax"));
+        if (explicitBeforeTax > 0) {
+            return explicitBeforeTax;
+        }
+        double vendorRate = asDouble(row.get("rate"));
+        if (vendorRate > 0) {
+            return vendorRate;
+        }
+        double rateAfterTax = asDouble(row.get("aas_rate_after_tax"));
+        double gstPercent = asDouble(row.get("aas_gst_percent"));
+        if (rateAfterTax > 0 && gstPercent > 0) {
+            return round(rateAfterTax / (1 + (gstPercent / 100.0)));
+        }
+        return rateAfterTax;
     }
 
     private double calculateDerivedMarginPercent(List<Map<String, Object>> items) {
@@ -919,6 +936,9 @@ public class VendorPdfService {
         List<Integer> rawExpected = expectedRangeFromObserved(rawNumbers);
         List<Integer> extractedExpected = expectedRangeFromExtracted(extractedNumbers);
 
+        if (shouldPreferExtractedExpected(rawExpected, extractedExpected, extractedNumbers)) {
+            return extractedExpected;
+        }
         if (!rawExpected.isEmpty() && rawExpected.size() > 1) {
             return rawExpected;
         }
@@ -926,6 +946,29 @@ public class VendorPdfService {
             return extractedExpected;
         }
         return rawExpected.isEmpty() ? extractedExpected : rawExpected;
+    }
+
+    private boolean shouldPreferExtractedExpected(
+            List<Integer> rawExpected,
+            List<Integer> extractedExpected,
+            List<Integer> extractedNumbers) {
+        if (rawExpected == null || rawExpected.isEmpty() || extractedExpected == null || extractedExpected.isEmpty()) {
+            return false;
+        }
+        if (rawExpected.size() <= extractedExpected.size()) {
+            return false;
+        }
+        int rawMax = rawExpected.getLast();
+        int extractedMax = extractedExpected.getLast();
+        int extractedCount = extractedNumbers == null ? 0 : extractedNumbers.size();
+        if (extractedMax <= 0 || extractedCount <= 0) {
+            return false;
+        }
+        int maxGap = rawMax - extractedMax;
+        int sizeGap = rawExpected.size() - extractedExpected.size();
+        return maxGap >= 25
+                && sizeGap >= 25
+                && extractedCount >= Math.max(10, extractedMax / 2);
     }
 
     private List<Integer> detectSerialCandidates(List<String> rawTableLines, String parserText) {

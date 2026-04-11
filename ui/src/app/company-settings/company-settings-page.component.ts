@@ -20,15 +20,22 @@ export class CompanySettingsPageComponent implements OnInit {
     default_currency: ['', Validators.required],
     country: [''],
     default_letter_head: [''],
-    tax_id: ['']
+    tax_id: [''],
+    bank_beneficiary_name: [''],
+    bank_name: [''],
+    bank_account_number: [''],
+    bank_ifsc_code: [''],
+    bank_branch: ['']
   });
 
   companyId = '';
   companyLogoUrl = '';
+  selectedLogoFileName = '';
   branchName = '';
   branchLocation = '';
   isLoading = false;
   isSaving = false;
+  isUploadingLogo = false;
   isLoadingAccess = false;
   isSavingAccess = false;
   message = '';
@@ -67,7 +74,12 @@ export class CompanySettingsPageComponent implements OnInit {
       default_currency: String(raw.default_currency ?? '').trim(),
       country: String(raw.country ?? '').trim(),
       default_letter_head: String(raw.default_letter_head ?? '').trim(),
-      tax_id: String(raw.tax_id ?? '').trim()
+      tax_id: String(raw.tax_id ?? '').trim(),
+      bank_beneficiary_name: String(raw.bank_beneficiary_name ?? '').trim(),
+      bank_name: String(raw.bank_name ?? '').trim(),
+      bank_account_number: String(raw.bank_account_number ?? '').trim(),
+      bank_ifsc_code: String(raw.bank_ifsc_code ?? '').trim(),
+      bank_branch: String(raw.bank_branch ?? '').trim()
     })
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
@@ -77,6 +89,39 @@ export class CompanySettingsPageComponent implements OnInit {
         },
         error: () => {
           this.errorMessage = 'Unable to update company details.';
+        }
+      });
+  }
+
+  onLogoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file || !this.companyId) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.errorMessage = 'Please choose an image file for the company logo.';
+      input.value = '';
+      return;
+    }
+    this.isUploadingLogo = true;
+    this.errorMessage = '';
+    this.message = '';
+    this.selectedLogoFileName = file.name;
+    this.companyContextService.uploadCompanyLogo(this.companyId, file)
+      .pipe(finalize(() => {
+        this.isUploadingLogo = false;
+        if (input) {
+          input.value = '';
+        }
+      }))
+      .subscribe({
+        next: company => {
+          this.applyCompany(company);
+          this.message = 'Company logo updated.';
+        },
+        error: () => {
+          this.errorMessage = 'Unable to upload company logo.';
         }
       });
   }
@@ -102,13 +147,21 @@ export class CompanySettingsPageComponent implements OnInit {
   private applyCompany(company: CompanyIdentity): void {
     this.companyId = company.id;
     this.companyLogoUrl = company.logo_url ?? '';
+    this.selectedLogoFileName = this.companyLogoUrl
+      ? this.companyLogoUrl.split('/').pop()?.split('?')[0] ?? ''
+      : '';
     this.form.patchValue({
       name: company.name ?? '',
       abbr: company.abbr ?? '',
       default_currency: company.default_currency ?? '',
       country: company.country ?? '',
       default_letter_head: company.default_letter_head ?? '',
-      tax_id: company.tax_id ?? ''
+      tax_id: company.tax_id ?? '',
+      bank_beneficiary_name: company.bank_beneficiary_name ?? '',
+      bank_name: company.bank_name ?? '',
+      bank_account_number: company.bank_account_number ?? '',
+      bank_ifsc_code: company.bank_ifsc_code ?? '',
+      bank_branch: company.bank_branch ?? ''
     });
   }
 
