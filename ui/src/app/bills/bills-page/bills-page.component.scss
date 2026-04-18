@@ -51,6 +51,14 @@
   align-items: end;
 }
 
+.inline-toggle {
+  grid-column: 1 / -1;
+}
+
+.toggle-group {
+  width: fit-content;
+}
+
 .form-actions {
   display: flex;
   align-items: center;

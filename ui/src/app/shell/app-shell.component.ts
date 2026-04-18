@@ -7,6 +7,7 @@ import { CompanyContextService } from '../shared/company-context.service';
 import { UserAccessService } from '../shared/user-access.service';
 import { BerryThemeService } from '../shared/services/berry-theme.service';
 import { MasterDataReviewService } from '../master-data-review/master-data-review.service';
+import { BillReviewService } from '../bill-review/bill-review.service';
 
 type ShellRouteMeta = { breadcrumbs: string[] };
 type ShellNavLink = { label: string; icon: string; route: string; feature: string };
@@ -37,7 +38,9 @@ export class AppShellComponent implements OnDestroy {
   isNavOpen = false;
   currentTheme: 'light' | 'dark' = 'light';
   masterDataReviewCount = 0;
+  billReviewCount = 0;
   readonly masterDataReviewFeature = 'master_data_review.view';
+  readonly billReviewFeature = 'bill_review.view';
   readonly allNavSections: ShellNavSection[] = [
     {
       title: 'Home',
@@ -61,8 +64,14 @@ export class AppShellComponent implements OnDestroy {
         { label: 'Vendors', icon: 'local_shipping', route: '/vendors', feature: 'master_data.view' },
         { label: 'Branches', icon: 'hub', route: '/branches', feature: 'master_data.view' },
         { label: 'Categories', icon: 'category', route: '/categories', feature: 'master_data.view' },
-        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' },
-        { label: 'Master Data Review', icon: 'notifications_active', route: '/master-data-review', feature: 'master_data_review.view' }
+        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' }
+      ]
+    },
+    {
+      title: 'Administration',
+      links: [
+        { label: 'Master Data Review', icon: 'notifications_active', route: '/master-data-review', feature: 'master_data_review.view' },
+        { label: 'Bill Review', icon: 'fact_check', route: '/bill-review', feature: 'bill_review.view' }
       ]
     },
     {
@@ -87,6 +96,7 @@ export class AppShellComponent implements OnDestroy {
     '/bills': { breadcrumbs: ['Finance', 'Bills / Invoices'] },
     '/user-settings': { breadcrumbs: ['Home', 'User Details'] },
     '/master-data-review': { breadcrumbs: ['Administration', 'Master Data Review'] },
+    '/bill-review': { breadcrumbs: ['Administration', 'Bill Review'] },
     '/vendors': { breadcrumbs: ['Master Data', 'Vendors'] },
     '/branches': { breadcrumbs: ['Master Data', 'Branches'] },
     '/company-settings': { breadcrumbs: ['Home', 'Company Settings'] },
@@ -97,6 +107,7 @@ export class AppShellComponent implements OnDestroy {
   private readonly subscription: Subscription;
   private readonly themeSubscription: Subscription;
   private readonly masterDataReviewSubscription: Subscription;
+  private readonly billReviewSubscription: Subscription;
 
   constructor(
     private router: Router,
@@ -104,7 +115,8 @@ export class AppShellComponent implements OnDestroy {
     private companyContextService: CompanyContextService,
     private userAccess: UserAccessService,
     private themeService: BerryThemeService,
-    private masterDataReviewService: MasterDataReviewService
+    private masterDataReviewService: MasterDataReviewService,
+    private billReviewService: BillReviewService
   ) {
     this.subscription = this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
@@ -124,6 +136,11 @@ export class AppShellComponent implements OnDestroy {
     this.masterDataReviewSubscription = this.masterDataReviewService.refresh$.subscribe(() => {
       if (this.canAccess(this.masterDataReviewFeature)) {
         this.loadMasterDataReviewCount();
+      }
+    });
+    this.billReviewSubscription = this.billReviewService.refresh$.subscribe(() => {
+      if (this.canAccess(this.billReviewFeature)) {
+        this.loadBillReviewCount();
       }
     });
   }
@@ -171,6 +188,7 @@ export class AppShellComponent implements OnDestroy {
     this.subscription.unsubscribe();
     this.themeSubscription.unsubscribe();
     this.masterDataReviewSubscription.unsubscribe();
+    this.billReviewSubscription.unsubscribe();
   }
 
   private loadCompanyContext(): void {
@@ -209,6 +227,7 @@ export class AppShellComponent implements OnDestroy {
         const features = Array.isArray(profile['features']) ? profile['features'].map(value => String(value)) : this.tokenStore.getFeatures();
         this.navSections = this.buildNavSections(features);
         this.loadMasterDataReviewCount(features);
+        this.loadBillReviewCount(features);
       },
       error: () => {
         const role = this.formatRole(String(this.tokenStore.getRole() ?? '').trim());
@@ -217,6 +236,7 @@ export class AppShellComponent implements OnDestroy {
         const features = this.tokenStore.getFeatures();
         this.navSections = this.buildNavSections(features);
         this.loadMasterDataReviewCount(features);
+        this.loadBillReviewCount(features);
       }
     });
   }
@@ -261,6 +281,33 @@ export class AppShellComponent implements OnDestroy {
         this.masterDataReviewCount = 0;
       }
     });
+  }
+
+  private loadBillReviewCount(features: string[] = this.tokenStore.getFeatures()): void {
+    if (!features.includes(this.billReviewFeature)) {
+      this.billReviewCount = 0;
+      return;
+    }
+    this.billReviewService.getPendingCount().subscribe({
+      next: result => {
+        this.billReviewCount = Number(result?.pendingCount ?? 0);
+      },
+      error: () => {
+        this.billReviewCount = 0;
+      }
+    });
+  }
+
+  get totalReviewCount(): number {
+    return (Number(this.masterDataReviewCount) || 0) + (Number(this.billReviewCount) || 0);
+  }
+
+  get reviewsRoute(): string {
+    return this.canAccess(this.billReviewFeature) ? '/bill-review' : '/master-data-review';
+  }
+
+  get canSeeReviewsChip(): boolean {
+    return this.canAccess(this.masterDataReviewFeature) || this.canAccess(this.billReviewFeature);
   }
 
   private initialsFor(value: string, fallback: string): string {

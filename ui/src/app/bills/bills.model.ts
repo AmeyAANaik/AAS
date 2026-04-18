@@ -52,6 +52,8 @@ export interface InvoiceView {
 }
 
 export interface InvoiceFilters {
+  partyType?: 'Customer' | 'Supplier' | string;
+  partyId?: string;
   customer?: string;
   from?: string;
   to?: string;
@@ -91,14 +93,17 @@ export interface PaymentPayload {
   company: string;
   amount: number;
   invoiceId?: string;
-  referenceNo?: string;
-  referenceDate?: string;
+  paymentDate?: string;
+  modeOfPayment?: string;
+  partyType?: 'Customer' | 'Supplier' | string;
+  categoryId?: string;
 }
 
 export interface OptionItem {
   id: string;
   name: string;
   company?: string;
+  categoryId?: string;
 }
 
 export interface InvoiceOption {
@@ -107,6 +112,12 @@ export interface InvoiceOption {
   customer: string;
   company: string;
   outstanding: number;
+}
+
+export interface UploadedFileInfo {
+  fileName: string;
+  fileUrl?: string | null;
+  fileId?: string | null;
 }
 
 export interface ItemOption {

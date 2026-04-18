@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
+import { VendorOpsCategorySummaryRow, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
 import { VendorOpsService } from './vendor-ops.service';
 
 @Component({
@@ -29,6 +29,11 @@ export class VendorOpsPageComponent implements OnInit {
   selectedVendor: VendorOpsDetail | null = null;
   selectedVendorOrders: VendorOpsOrderRow[] = [];
   ledger: VendorOpsLedgerEntry[] = [];
+  ledgerCategorySummary: VendorOpsCategorySummaryRow[] = [];
+  selectedCategoryId = '';
+  categoryLedger: VendorOpsLedgerEntry[] = [];
+  categoryLedgerBalance = 0;
+  isLoadingCategoryLedger = false;
   isLoadingSummary = false;
   isLoadingDetail = false;
   errorMessage = '';
@@ -83,6 +88,15 @@ export class VendorOpsPageComponent implements OnInit {
     });
   }
 
+  downloadAllCategoryLedgers(): void {
+    this.vendorOpsService.downloadAllVendorsLedgerCategoriesSummary().subscribe({
+      next: blob => this.saveBlob(blob, 'vendor-ledger-categories-all.csv'),
+      error: () => {
+        this.errorMessage = 'Unable to download vendor ledgers by category.';
+      }
+    });
+  }
+
   downloadLedger(): void {
     const vendorId = this.selectedVendor?.vendor?.vendorId;
     if (!vendorId) {
@@ -94,6 +108,62 @@ export class VendorOpsPageComponent implements OnInit {
         this.errorMessage = 'Unable to download vendor ledger.';
       }
     });
+  }
+
+  downloadCategorySummary(): void {
+    const vendorId = this.selectedVendor?.vendor?.vendorId;
+    if (!vendorId) {
+      return;
+    }
+    this.vendorOpsService.downloadVendorLedgerCategoriesSummary(vendorId).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-categories-${this.toFileSegment(vendorId)}.csv`),
+      error: () => {
+        this.errorMessage = 'Unable to download category ledger summary.';
+      }
+    });
+  }
+
+  downloadCategoryLedger(): void {
+    const vendorId = this.selectedVendor?.vendor?.vendorId;
+    const categoryId = this.selectedCategoryId;
+    if (!vendorId || !categoryId) {
+      return;
+    }
+    this.vendorOpsService.downloadVendorLedgerByCategory(vendorId, categoryId).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}-${this.toFileSegment(categoryId)}.csv`),
+      error: () => {
+        this.errorMessage = 'Unable to download category ledger.';
+      }
+    });
+  }
+
+  viewCategoryLedger(categoryId: string): void {
+    const vendorId = this.selectedVendor?.vendor?.vendorId;
+    const id = (categoryId || '').trim();
+    if (!vendorId || !id || this.isLoadingCategoryLedger) {
+      return;
+    }
+    this.selectedCategoryId = id;
+    this.isLoadingCategoryLedger = true;
+    this.vendorOpsService.getVendorLedgerByCategory(vendorId, id)
+      .pipe(finalize(() => (this.isLoadingCategoryLedger = false)))
+      .subscribe({
+        next: response => {
+          this.categoryLedger = response.entries ?? [];
+          this.categoryLedgerBalance = Number(response.balance ?? 0) || 0;
+        },
+        error: () => {
+          this.categoryLedger = [];
+          this.categoryLedgerBalance = 0;
+          this.errorMessage = 'Unable to load category ledger.';
+        }
+      });
+  }
+
+  clearCategoryLedger(): void {
+    this.selectedCategoryId = '';
+    this.categoryLedger = [];
+    this.categoryLedgerBalance = 0;
   }
 
   get filteredVendors(): VendorOpsSummaryRow[] {
@@ -176,9 +246,13 @@ export class VendorOpsPageComponent implements OnInit {
     this.vendorOpsService.getVendorLedger(vendorId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];
+        this.ledgerCategorySummary = response.categorySummary ?? [];
+        this.clearCategoryLedger();
       },
       error: () => {
         this.ledger = [];
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
       }
     });
   }

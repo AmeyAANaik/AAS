@@ -78,6 +78,11 @@ export interface BranchOpsLedgerEntry {
   runningBalance: number;
 }
 
+export interface BranchOpsCategorySummaryRow {
+  category: string;
+  amount: number;
+}
+
 export interface BranchOpsAnalytics {
   branchId: string;
   ordersByStatus: Array<{ status: string; count: number }>;

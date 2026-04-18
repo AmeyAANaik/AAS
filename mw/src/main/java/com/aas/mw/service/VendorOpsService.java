@@ -267,7 +267,308 @@ public class VendorOpsService {
                 "vendorId", vendorId,
                 "vendorName", preferredVendorName(vendor),
                 "balance", balance,
+                "categorySummary", buildCategorySummaryFromPurchaseInvoices(purchaseInvoices),
                 "entries", entries);
+    }
+
+    public Map<String, Object> getVendorLedgerByCategory(String vendorId, String categoryId) {
+        String normalizedCategory = categoryId == null ? "" : categoryId.trim();
+        if (normalizedCategory.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId is required.");
+        }
+        Map<String, Object> vendor = unwrap(erpNextClient.getResource(SUPPLIER, vendorId));
+        if (vendor.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found.");
+        }
+
+        List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(vendorId);
+        List<Map<String, Object>> invoiceEntries = buildCategoryLedgerEntriesFromPurchaseInvoices(purchaseInvoices, normalizedCategory);
+        List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
+                fetchSupplierPaymentsByCategory(vendorId, normalizedCategory));
+        List<Map<String, Object>> entries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
+        double balance = entries.isEmpty() ? 0.0 : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
+
+        return Map.of(
+                "vendorId", vendorId,
+                "vendorName", preferredVendorName(vendor),
+                "categoryId", normalizedCategory,
+                "categoryLabel", normalizedCategory,
+                "balance", balance,
+                "entries", entries);
+    }
+
+    public List<Map<String, Object>> getAllVendorCategorySummaries() {
+        List<Map<String, Object>> vendors = fetchVendors();
+        Map<String, String> vendorNames = vendors.stream()
+                .collect(Collectors.toMap(
+                        vendor -> asText(vendor.get("name")),
+                        this::preferredVendorName,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+
+        List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(null);
+        ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
+        Map<String, CategoryWeights> orderCache = new HashMap<>();
+        Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
+
+        for (Map<String, Object> invoice : purchaseInvoices) {
+            if (asInt(invoice.get("docstatus")) == 2) {
+                continue;
+            }
+            String supplierId = asText(invoice.get("supplier"));
+            if (!hasText(supplierId)) {
+                continue;
+            }
+            double dueBase = asDouble(invoice.get("outstanding_amount"));
+            if (dueBase <= 0) {
+                dueBase = asDouble(invoice.get("grand_total"));
+            }
+            if (dueBase <= 0) {
+                continue;
+            }
+            String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
+            Map<String, Double> shares = new HashMap<>();
+            if (!hasText(sourceOrderId)) {
+                shares.put("Uncategorized", dueBase);
+            } else {
+                CategoryWeights weights = orderCache.computeIfAbsent(
+                        sourceOrderId,
+                        key -> computeSalesOrderCategoryWeights(key, resolver));
+                if (weights.total() <= 0 || weights.weights().isEmpty()) {
+                    shares.put("Uncategorized", dueBase);
+                } else {
+                    for (Map.Entry<String, Double> entry : weights.weights().entrySet()) {
+                        shares.put(entry.getKey(), dueBase * (entry.getValue() / weights.total()));
+                    }
+                }
+            }
+            Map<String, Double> vendorTotals = totals.computeIfAbsent(supplierId, key -> new LinkedHashMap<>());
+            for (Map.Entry<String, Double> entry : shares.entrySet()) {
+                vendorTotals.merge(entry.getKey(), entry.getValue(), Double::sum);
+            }
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Double>> vendorEntry : totals.entrySet()) {
+            String id = vendorEntry.getKey();
+            String name = vendorNames.getOrDefault(id, id);
+            for (Map.Entry<String, Double> categoryEntry : vendorEntry.getValue().entrySet()) {
+                rows.add(Map.of(
+                        "vendorId", id,
+                        "vendorName", name,
+                        "category", categoryEntry.getKey(),
+                        "amount", round(categoryEntry.getValue())));
+            }
+        }
+        return rows.stream()
+                .sorted(Comparator
+                        .comparing((Map<String, Object> row) -> asText(row.get("vendorName")))
+                        .thenComparing(row -> asText(row.get("category"))))
+                .toList();
+    }
+
+    private List<Map<String, Object>> buildCategorySummaryFromPurchaseInvoices(List<Map<String, Object>> purchaseInvoices) {
+        if (purchaseInvoices == null || purchaseInvoices.isEmpty()) {
+            return List.of();
+        }
+        ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
+        Map<String, CategoryWeights> orderCache = new HashMap<>();
+        Map<String, Double> totals = new LinkedHashMap<>();
+
+        for (Map<String, Object> invoice : purchaseInvoices) {
+            if (asInt(invoice.get("docstatus")) == 2) {
+                continue;
+            }
+            double base = asDouble(invoice.get("outstanding_amount"));
+            if (base <= 0) {
+                base = asDouble(invoice.get("grand_total"));
+            }
+            if (base <= 0) {
+                continue;
+            }
+            String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
+            if (!hasText(sourceOrderId)) {
+                totals.merge("Uncategorized", base, Double::sum);
+                continue;
+            }
+            CategoryWeights weights = orderCache.computeIfAbsent(
+                    sourceOrderId,
+                    key -> computeSalesOrderCategoryWeights(key, resolver));
+            if (weights.total() <= 0 || weights.weights().isEmpty()) {
+                totals.merge("Uncategorized", base, Double::sum);
+                continue;
+            }
+            for (Map.Entry<String, Double> entry : weights.weights().entrySet()) {
+                double share = base * (entry.getValue() / weights.total());
+                totals.merge(entry.getKey(), share, Double::sum);
+            }
+        }
+
+        return totals.entrySet().stream()
+                .map(entry -> Map.<String, Object>of("category", entry.getKey(), "amount", round(entry.getValue())))
+                .sorted((left, right) -> Double.compare(asDouble(right.get("amount")), asDouble(left.get("amount"))))
+                .toList();
+    }
+
+    private CategoryWeights computeSalesOrderCategoryWeights(String salesOrderId, ItemGroupResolver resolver) {
+        Map<String, Object> order = unwrap(erpNextClient.getResource(SALES_ORDER, salesOrderId));
+        List<Map<String, Object>> items = childItems(order.get("items"));
+        if (items.isEmpty()) {
+            return new CategoryWeights(Map.of(), 0.0);
+        }
+        Map<String, Double> weights = new HashMap<>();
+        double total = 0.0;
+        for (Map<String, Object> item : items) {
+            double qty = asDouble(item.get("qty"));
+            double rate = asDouble(item.get("aas_vendor_rate"));
+            if (rate <= 0) {
+                rate = asDouble(item.get("rate"));
+            }
+            if (qty <= 0 || rate <= 0) {
+                continue;
+            }
+            double amount = qty * rate;
+            String group = asText(item.get("item_group"));
+            if (!hasText(group)) {
+                group = resolver.resolve(asText(item.get("item_code")));
+            }
+            if (!hasText(group)) {
+                group = "Uncategorized";
+            }
+            weights.merge(group, amount, Double::sum);
+            total += amount;
+        }
+        return new CategoryWeights(weights, total);
+    }
+
+    private record CategoryWeights(Map<String, Double> weights, double total) {}
+
+    private List<Map<String, Object>> buildCategoryLedgerEntriesFromPurchaseInvoices(List<Map<String, Object>> purchaseInvoices, String categoryId) {
+        if (purchaseInvoices == null || purchaseInvoices.isEmpty() || categoryId == null || categoryId.isBlank()) {
+            return List.of();
+        }
+        ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
+        Map<String, CategoryWeights> orderCache = new HashMap<>();
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (Map<String, Object> invoice : purchaseInvoices) {
+            if (asInt(invoice.get("docstatus")) == 2) {
+                continue;
+            }
+            double dueBase = asDouble(invoice.get("outstanding_amount"));
+            if (dueBase <= 0) {
+                dueBase = asDouble(invoice.get("grand_total"));
+            }
+            if (dueBase <= 0) {
+                continue;
+            }
+            String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
+            double share = 0.0;
+            if (!hasText(sourceOrderId)) {
+                share = "Uncategorized".equals(categoryId) ? dueBase : 0.0;
+            } else {
+                CategoryWeights weights = orderCache.computeIfAbsent(
+                        sourceOrderId,
+                        key -> computeSalesOrderCategoryWeights(key, resolver));
+                if (weights.total() > 0 && weights.weights().containsKey(categoryId)) {
+                    share = dueBase * (weights.weights().get(categoryId) / weights.total());
+                }
+            }
+            if (share <= 0) {
+                continue;
+            }
+            double credit = round(share);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(invoice.get("posting_date")));
+            row.put("voucherType", invoiceVoucherType(invoice, "Purchase Invoice"));
+            row.put("voucherNo", asText(invoice.get("name")));
+            row.put("reference", asText(invoice.get("bill_no")));
+            row.put("debit", 0.0);
+            row.put("credit", credit);
+            row.put("netChange", credit);
+            entries.add(row);
+        }
+        return entries;
+    }
+
+    private List<Map<String, Object>> buildCategoryLedgerEntriesFromPayments(List<Map<String, Object>> payments) {
+        if (payments == null || payments.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (Map<String, Object> payment : payments) {
+            if (!isSubmitted(payment)) {
+                continue;
+            }
+            double amount = round(resolvePaymentAmount(payment));
+            if (amount <= 0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(payment.get("posting_date")));
+            row.put("voucherType", "Payment Entry");
+            row.put("voucherNo", asText(payment.get("name")));
+            row.put("reference", asText(payment.get("reference_no")));
+            row.put("debit", amount);
+            row.put("credit", 0.0);
+            row.put("netChange", round(-amount));
+            entries.add(row);
+        }
+        return entries;
+    }
+
+    private List<Map<String, Object>> mergeAndFinalizeLedger(
+            List<Map<String, Object>> invoiceEntries,
+            List<Map<String, Object>> paymentEntries,
+            boolean includeRunningBalance) {
+        List<Map<String, Object>> entries = new ArrayList<>();
+        if (invoiceEntries != null) {
+            entries.addAll(invoiceEntries);
+        }
+        if (paymentEntries != null) {
+            entries.addAll(paymentEntries);
+        }
+        entries.sort(Comparator
+                .comparing((Map<String, Object> row) -> asText(row.get("date")))
+                .thenComparing(row -> asText(row.get("voucherType")))
+                .thenComparing(row -> asText(row.get("voucherNo"))));
+        if (!includeRunningBalance) {
+            return entries;
+        }
+        double runningBalance = 0.0;
+        for (Map<String, Object> entry : entries) {
+            runningBalance = round(runningBalance + asDouble(entry.get("netChange")));
+            entry.put("runningBalance", runningBalance);
+        }
+        return entries;
+    }
+
+    private static class ItemGroupResolver {
+        private final ErpNextClient erpNextClient;
+        private final Map<String, String> cache = new HashMap<>();
+
+        ItemGroupResolver(ErpNextClient erpNextClient) {
+            this.erpNextClient = erpNextClient;
+        }
+
+        String resolve(String itemCode) {
+            String key = itemCode == null ? "" : itemCode.trim();
+            if (key.isBlank()) {
+                return "";
+            }
+            if (cache.containsKey(key)) {
+                return cache.get(key);
+            }
+            String group = "";
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) erpNextClient.getResource("Item", key).getOrDefault("data", Map.of());
+                group = doc == null ? "" : String.valueOf(doc.getOrDefault("item_group", "")).trim();
+            } catch (Exception ignored) {
+                group = "";
+            }
+            cache.put(key, group);
+            return group;
+        }
     }
 
     public List<Map<String, Object>> getAllVendorLedgerEntries() {
@@ -486,6 +787,25 @@ public class VendorOpsService {
         params.put("order_by", "posting_date asc");
         List<Map<String, Object>> payments = listResourcesPaged(PAYMENT_ENTRY, params);
         return filterPaymentsLinkedToInvoices(payments, purchaseInvoices);
+    }
+
+    private List<Map<String, Object>> fetchSupplierPaymentsByCategory(String vendorId, String categoryId) {
+        if (!hasText(vendorId) || !hasText(categoryId)) {
+            return List.of();
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put(
+                "fields",
+                "[\"name\",\"party\",\"party_type\",\"posting_date\",\"paid_amount\",\"received_amount\","
+                        + "\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\",\"aas_category\"]");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("party_type", "=", "Supplier"));
+        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of("party", "=", vendorId));
+        filters.add(List.of("aas_category", "=", categoryId));
+        params.put("filters", toJson(filters));
+        params.put("order_by", "posting_date asc");
+        return listResourcesPaged(PAYMENT_ENTRY, params);
     }
 
     private List<Map<String, Object>> filterPaymentsLinkedToInvoices(

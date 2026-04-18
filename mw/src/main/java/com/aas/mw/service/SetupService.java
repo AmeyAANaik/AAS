@@ -742,6 +742,62 @@ public class SetupService {
                 "Float",
                 null,
                 "rate");
+        boolean paymentReviewStatusField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_review_status",
+                "Review Status",
+                "Select",
+                "UNDER_REVIEW\nAPPROVED\nREJECTED",
+                "party");
+        boolean paymentCategoryField = ensureCustomField(
+                "Payment Entry",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "aas_payment_review_status");
+        boolean paymentDueAmountField = ensureCustomField(
+                "Payment Entry",
+                "aas_due_amount",
+                "Due Amount",
+                "Currency",
+                null,
+                "aas_category");
+        boolean paymentReviewNotesField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_review_notes",
+                "Review Notes",
+                "Small Text",
+                null,
+                "aas_payment_review_status");
+        boolean paymentCreatedByField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_created_by",
+                "Created By",
+                "Data",
+                null,
+                "aas_payment_review_notes");
+        boolean paymentCreatedAtField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_created_at",
+                "Created At",
+                "Datetime",
+                null,
+                "aas_payment_created_by");
+        boolean paymentReviewedByField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_reviewed_by",
+                "Reviewed By",
+                "Data",
+                null,
+                "aas_payment_created_at");
+        boolean paymentReviewedAtField = ensureCustomField(
+                "Payment Entry",
+                "aas_payment_reviewed_at",
+                "Reviewed At",
+                "Datetime",
+                null,
+                "aas_payment_reviewed_by");
         Map<String, Object> result = new HashMap<>();
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
@@ -754,6 +810,14 @@ public class SetupService {
         result.put("soItemMrpFieldCreated", soItemMrpField);
         result.put("soItemGstFieldCreated", soItemGstField);
         result.put("siItemGstFieldCreated", siItemGstField);
+        result.put("paymentReviewStatusFieldCreated", paymentReviewStatusField);
+        result.put("paymentCategoryFieldCreated", paymentCategoryField);
+        result.put("paymentDueAmountFieldCreated", paymentDueAmountField);
+        result.put("paymentReviewNotesFieldCreated", paymentReviewNotesField);
+        result.put("paymentCreatedByFieldCreated", paymentCreatedByField);
+        result.put("paymentCreatedAtFieldCreated", paymentCreatedAtField);
+        result.put("paymentReviewedByFieldCreated", paymentReviewedByField);
+        result.put("paymentReviewedAtFieldCreated", paymentReviewedAtField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
         result.put("branchSalesOrderFieldCreated", branchSalesOrderField);

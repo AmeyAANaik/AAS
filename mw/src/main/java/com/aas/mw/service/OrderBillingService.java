@@ -200,10 +200,23 @@ public class OrderBillingService {
         double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellTotal);
         Map<String, Object> salesInvoice = createSalesInvoice(orderId, customer, company, invoiceItems, orderData, marginPercent);
 
+        double sellTotalWithTax = sellTotal;
+        String salesInvoiceId = extractDocName(salesInvoice);
+        if (!salesInvoiceId.isBlank()) {
+            Map<String, Object> invoiceDoc = unwrap(erpNextClient.getResource(SALES_INVOICE, salesInvoiceId));
+            double roundedTotal = asDouble(invoiceDoc.get("rounded_total"));
+            double grandTotal = asDouble(invoiceDoc.get("grand_total"));
+            if (roundedTotal > 0) {
+                sellTotalWithTax = roundedTotal;
+            } else if (grandTotal > 0) {
+                sellTotalWithTax = grandTotal;
+            }
+        }
+
         Map<String, Object> update = new HashMap<>();
         update.put("aas_so_branch", "");
         update.put("aas_si_branch", extractDocName(salesInvoice));
-        update.put("aas_sell_order_total", sellTotal);
+        update.put("aas_sell_order_total", sellTotalWithTax);
         update.put("aas_status", "SELL_ORDER_CREATED");
         update.put("items", sellItems);
         update.put("aas_margin_percent", marginPercent);

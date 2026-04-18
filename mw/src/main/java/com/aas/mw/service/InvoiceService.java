@@ -228,12 +228,20 @@ public class InvoiceService {
     }
 
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
+        return listInvoices("Customer", customer, fromDate, toDate);
+    }
+
+    public List<Map<String, Object>> listInvoices(String partyType, String partyId, String fromDate, String toDate) {
+        InvoiceContext ctx = resolveInvoiceContext(normalizePartyType(partyType));
+        if (ctx.isSupplier()) {
+            return listPurchaseInvoices(partyId, fromDate, toDate);
+        }
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
-        if (customer != null && !customer.isBlank()) {
-            filters.add(List.of("customer", "=", customer));
+        if (partyId != null && !partyId.isBlank()) {
+            filters.add(List.of("customer", "=", partyId));
         }
         if (fromDate != null && !fromDate.isBlank()) {
             filters.add(List.of("posting_date", ">=", fromDate));
@@ -250,6 +258,77 @@ public class InvoiceService {
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
                 .toList();
     }
+
+    private List<Map<String, Object>> listPurchaseInvoices(String supplier, String fromDate, String toDate) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\"]");
+        params.put("order_by", "posting_date desc");
+        List<List<String>> filters = new ArrayList<>();
+        if (supplier != null && !supplier.isBlank()) {
+            filters.add(List.of("supplier", "=", supplier));
+        }
+        if (fromDate != null && !fromDate.isBlank()) {
+            filters.add(List.of("posting_date", ">=", fromDate));
+        }
+        if (toDate != null && !toDate.isBlank()) {
+            filters.add(List.of("posting_date", "<=", toDate));
+        }
+        // Exclude cancelled.
+        filters.add(List.of("docstatus", "!=", "2"));
+        params.put("filters", toJson(filters));
+
+        String privilegedSession = operationalReadSession();
+        List<Map<String, Object>> rows = privilegedSession == null
+                ? erpNextClient.listResources("Purchase Invoice", params)
+                : erpNextClient.listResourcesWithSession("Purchase Invoice", params, privilegedSession);
+
+        return rows.stream()
+                .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
+                .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
+                .map(this::mapSupplierToCustomerField)
+                .toList();
+    }
+
+    private Map<String, Object> mapSupplierToCustomerField(Map<String, Object> invoice) {
+        if (invoice == null || invoice.isEmpty()) {
+            return invoice;
+        }
+        if (invoice.containsKey("customer")) {
+            return invoice;
+        }
+        Map<String, Object> mapped = new HashMap<>(invoice);
+        Object supplier = mapped.get("supplier");
+        mapped.put("customer", supplier);
+        return mapped;
+    }
+
+    public byte[] downloadPdf(String invoiceId, String partyType) {
+        String normalized = normalizePartyType(partyType);
+        if ("Supplier".equalsIgnoreCase(normalized)) {
+            byte[] pdf = erpNextClient.downloadPdf("Purchase Invoice", invoiceId);
+            if (pdf == null || pdf.length < 4 || pdf[0] != '%' || pdf[1] != 'P' || pdf[2] != 'D' || pdf[3] != 'F') {
+                String snippet = pdf == null ? "" : new String(pdf, 0, Math.min(pdf.length, 240));
+                throw new IllegalStateException("ERPNext did not return a valid PDF for " + invoiceId + ". " + snippet);
+            }
+            return pdf;
+        }
+        return downloadPdf(invoiceId);
+    }
+
+    private InvoiceContext resolveInvoiceContext(String partyType) {
+        boolean supplier = "Supplier".equalsIgnoreCase(partyType);
+        return new InvoiceContext(supplier);
+    }
+
+    private String normalizePartyType(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.equalsIgnoreCase("Supplier") || normalized.equalsIgnoreCase("Vendor")) {
+            return "Supplier";
+        }
+        return "Customer";
+    }
+
+    private record InvoiceContext(boolean isSupplier) {}
 
     public byte[] downloadPdf(String invoiceId) {
         String printFormat = resolveInvoicePrintFormat(invoiceId);

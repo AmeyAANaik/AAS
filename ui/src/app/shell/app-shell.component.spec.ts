@@ -7,6 +7,7 @@ import { CompanyContextService } from '../shared/company-context.service';
 import { UserAccessService } from '../shared/user-access.service';
 import { BerryThemeService } from '../shared/services/berry-theme.service';
 import { MasterDataReviewService } from '../master-data-review/master-data-review.service';
+import { BillReviewService } from '../bill-review/bill-review.service';
 
 describe('AppShellComponent', () => {
   let fixture: ComponentFixture<AppShellComponent>;
@@ -50,6 +51,13 @@ describe('AppShellComponent', () => {
           provide: MasterDataReviewService,
           useValue: {
             getPendingCount: () => of({ pendingCount: 4 }),
+            refresh$
+          }
+        },
+        {
+          provide: BillReviewService,
+          useValue: {
+            getPendingCount: () => of({ pendingCount: 3 }),
             refresh$
           }
         }

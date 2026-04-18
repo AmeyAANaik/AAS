@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { VendorOpsAnalytics, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
+import { VendorOpsAnalytics, VendorOpsCategorySummaryRow, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
 
 @Injectable({ providedIn: 'root' })
 export class VendorOpsService {
@@ -46,8 +46,8 @@ export class VendorOpsService {
     });
   }
 
-  getVendorLedger(vendorId: string): Observable<{ balance: number; entries: VendorOpsLedgerEntry[] }> {
-    return this.http.get<{ balance: number; entries: VendorOpsLedgerEntry[] }>(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger`, {
+  getVendorLedger(vendorId: string): Observable<{ balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }> {
+    return this.http.get<{ balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }>(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger`, {
       headers: this.authHeaders()
     });
   }
@@ -61,6 +61,37 @@ export class VendorOpsService {
 
   downloadVendorLedger(vendorId: string): Observable<Blob> {
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  getVendorLedgerByCategory(vendorId: string, categoryId: string): Observable<{ balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }> {
+    const params = new HttpParams().set('categoryId', categoryId);
+    return this.http.get<{ balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }>(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category`, {
+      headers: this.authHeaders(),
+      params
+    });
+  }
+
+  downloadVendorLedgerByCategory(vendorId: string, categoryId: string): Observable<Blob> {
+    const params = new HttpParams().set('categoryId', categoryId);
+    return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category/export`, {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  downloadVendorLedgerCategoriesSummary(vendorId: string): Observable<Blob> {
+    return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/categories/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadAllVendorsLedgerCategoriesSummary(): Observable<Blob> {
+    return this.http.get('/api/vendor-ops/ledger/categories/export', {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

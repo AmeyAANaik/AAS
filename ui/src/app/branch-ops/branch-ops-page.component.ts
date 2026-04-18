@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
+import { BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
 import { BranchOpsService } from './branch-ops.service';
 
 @Component({
@@ -29,6 +29,11 @@ export class BranchOpsPageComponent implements OnInit {
   selectedBranch: BranchOpsDetail | null = null;
   selectedBranchOrders: BranchOpsOrderRow[] = [];
   ledger: BranchOpsLedgerEntry[] = [];
+  ledgerCategorySummary: BranchOpsCategorySummaryRow[] = [];
+  selectedCategoryId = '';
+  categoryLedger: BranchOpsLedgerEntry[] = [];
+  categoryLedgerBalance = 0;
+  isLoadingCategoryLedger = false;
   isLoadingSummary = false;
   isLoadingDetail = false;
   errorMessage = '';
@@ -83,6 +88,15 @@ export class BranchOpsPageComponent implements OnInit {
     });
   }
 
+  downloadAllCategoryLedgers(): void {
+    this.branchOpsService.downloadAllBranchesLedgerCategoriesSummary().subscribe({
+      next: blob => this.saveBlob(blob, 'branch-ledger-categories-all.csv'),
+      error: () => {
+        this.errorMessage = 'Unable to download branch ledgers by category.';
+      }
+    });
+  }
+
   downloadLedger(): void {
     const branchId = this.selectedBranch?.branch?.branchId;
     if (!branchId) {
@@ -94,6 +108,62 @@ export class BranchOpsPageComponent implements OnInit {
         this.errorMessage = 'Unable to download branch ledger.';
       }
     });
+  }
+
+  downloadCategorySummary(): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    if (!branchId) {
+      return;
+    }
+    this.branchOpsService.downloadBranchLedgerCategoriesSummary(branchId).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-categories-${this.toFileSegment(branchId)}.csv`),
+      error: () => {
+        this.errorMessage = 'Unable to download category ledger summary.';
+      }
+    });
+  }
+
+  downloadCategoryLedger(): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    const categoryId = this.selectedCategoryId;
+    if (!branchId || !categoryId) {
+      return;
+    }
+    this.branchOpsService.downloadBranchLedgerByCategory(branchId, categoryId).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}-${this.toFileSegment(categoryId)}.csv`),
+      error: () => {
+        this.errorMessage = 'Unable to download category ledger.';
+      }
+    });
+  }
+
+  viewCategoryLedger(categoryId: string): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    const id = (categoryId || '').trim();
+    if (!branchId || !id || this.isLoadingCategoryLedger) {
+      return;
+    }
+    this.selectedCategoryId = id;
+    this.isLoadingCategoryLedger = true;
+    this.branchOpsService.getBranchLedgerByCategory(branchId, id)
+      .pipe(finalize(() => (this.isLoadingCategoryLedger = false)))
+      .subscribe({
+        next: response => {
+          this.categoryLedger = response.entries ?? [];
+          this.categoryLedgerBalance = Number(response.balance ?? 0) || 0;
+        },
+        error: () => {
+          this.categoryLedger = [];
+          this.categoryLedgerBalance = 0;
+          this.errorMessage = 'Unable to load category ledger.';
+        }
+      });
+  }
+
+  clearCategoryLedger(): void {
+    this.selectedCategoryId = '';
+    this.categoryLedger = [];
+    this.categoryLedgerBalance = 0;
   }
 
   get filteredBranches(): BranchOpsSummaryRow[] {
@@ -176,9 +246,13 @@ export class BranchOpsPageComponent implements OnInit {
     this.branchOpsService.getBranchLedger(branchId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];
+        this.ledgerCategorySummary = response.categorySummary ?? [];
+        this.clearCategoryLedger();
       },
       error: () => {
         this.ledger = [];
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
       }
     });
   }

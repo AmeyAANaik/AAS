@@ -4,9 +4,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
 import { Branch } from '../../branches/branch.model';
 import { BranchService } from '../../branches/branch.service';
+import { CategoryService } from '../../categories/category.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
 import { formatUiError } from '../../shared/error-message.util';
+import { VendorService } from '../../vendors/vendor.service';
 import { InvoiceDeliveryDialogComponent, InvoiceDeliveryDialogResult } from '../invoice-delivery-dialog/invoice-delivery-dialog.component';
 import { BillsService } from '../bills.service';
 import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
@@ -18,14 +20,17 @@ import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption,
 })
 export class BillsPageComponent implements OnInit {
   filtersForm: FormGroup = this.fb.group({
+    partyType: ['Customer'],
     customer: [''],
-    from: [''],
-    to: ['']
+    from: [null],
+    to: [null]
   });
 
   invoices: InvoiceView[] = [];
   invoiceOptions: InvoiceOption[] = [];
   customers: OptionItem[] = [];
+  vendors: OptionItem[] = [];
+  categories: OptionItem[] = [];
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
   private customerCompanies = new Map<string, string>();
@@ -40,17 +45,36 @@ export class BillsPageComponent implements OnInit {
     private fb: FormBuilder,
     private billsService: BillsService,
     private branchService: BranchService,
+    private categoryService: CategoryService,
     private itemService: ItemService,
     private orderService: OrderService,
+    private vendorService: VendorService,
     private readonly dialog: MatDialog
   ) {
-    const today = this.formatDate(new Date());
+    const today = new Date();
     this.filtersForm.patchValue({ from: today, to: today });
   }
 
   ngOnInit(): void {
     this.loadReferenceData();
     this.loadInvoices();
+  }
+
+  get isSupplierInvoiceMode(): boolean {
+    return String(this.filtersForm.get('partyType')?.value ?? '').toLowerCase() === 'supplier';
+  }
+
+  get partyFilterLabel(): string {
+    return this.isSupplierInvoiceMode ? 'Vendor' : 'Branch';
+  }
+
+  get partyFilterOptions(): OptionItem[] {
+    return this.isSupplierInvoiceMode ? this.vendors : this.customers;
+  }
+
+  onInvoicePartyTypeChange(): void {
+    const partyType = this.isSupplierInvoiceMode ? 'Supplier' : 'Customer';
+    this.filtersForm.patchValue({ partyType, customer: '' }, { emitEvent: false });
   }
 
   loadReferenceData(): void {
@@ -102,11 +126,41 @@ export class BillsPageComponent implements OnInit {
         }));
       }
     });
+
+    this.vendorService.listVendors().subscribe({
+      next: vendors => {
+        this.vendors = (vendors ?? []).map(vendor => {
+          const id = String(vendor.name ?? '').trim();
+          const name = String(vendor.supplier_name ?? vendor.name ?? '').trim();
+          return {
+            id,
+            name: name || id,
+            categoryId: String(vendor.aas_category ?? '').trim() || undefined
+          };
+        });
+      }
+    });
+
+    this.categoryService.listCategories().subscribe({
+      next: categories => {
+        this.categories = (categories ?? []).map(category => {
+          const id = String(category.name ?? '').trim();
+          const name = String(category.item_group_name ?? category.name ?? '').trim();
+          return { id, name: name || id };
+        });
+      }
+    });
   }
 
   loadInvoices(): void {
     this.isLoading = true;
-    const filters = this.filtersForm.getRawValue() as InvoiceFilters;
+    const raw = this.filtersForm.getRawValue() as { partyType?: string; customer?: string; from?: unknown; to?: unknown };
+    const filters: InvoiceFilters = {
+      partyType: raw.partyType || undefined,
+      partyId: raw.customer || undefined,
+      from: this.formatApiDate(raw.from),
+      to: this.formatApiDate(raw.to)
+    };
     this.billsService
       .listInvoices(filters)
       .pipe(finalize(() => (this.isLoading = false)))
@@ -138,7 +192,7 @@ export class BillsPageComponent implements OnInit {
     if (!invoice?.id) {
       return;
     }
-    this.billsService.downloadInvoicePdf(invoice.id).subscribe({
+    this.billsService.downloadInvoicePdf(invoice.id, this.filtersForm.get('partyType')?.value || 'Customer').subscribe({
       next: blob => {
         if (!blob) {
           return;
@@ -205,7 +259,13 @@ export class BillsPageComponent implements OnInit {
   }
 
   downloadCsv(): void {
-    const filters = this.filtersForm.getRawValue() as InvoiceFilters;
+    const raw = this.filtersForm.getRawValue() as { partyType?: string; customer?: string; from?: unknown; to?: unknown };
+    const filters: InvoiceFilters = {
+      partyType: raw.partyType || undefined,
+      partyId: raw.customer || undefined,
+      from: this.formatApiDate(raw.from),
+      to: this.formatApiDate(raw.to)
+    };
     this.billsService.exportInvoices(filters).subscribe({
       next: blob => {
         if (!blob) {
@@ -233,6 +293,9 @@ export class BillsPageComponent implements OnInit {
   }
 
   canDelete(invoice: InvoiceView): boolean {
+    if (this.isSupplierInvoiceMode) {
+      return false;
+    }
     return !!invoice.id;
   }
 
@@ -348,11 +411,18 @@ export class BillsPageComponent implements OnInit {
     return { total, paid, open, totalAmount };
   }
 
-  private formatDate(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  private formatApiDate(value: unknown): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    const text = String(value).trim();
+    return text || undefined;
   }
 
   private formatError(err: unknown, fallback: string): string {

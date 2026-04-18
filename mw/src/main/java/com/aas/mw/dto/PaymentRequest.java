@@ -1,5 +1,6 @@
 package com.aas.mw.dto;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -13,7 +14,16 @@ public class PaymentRequest {
     private String company;
 
     @NotNull
+    @DecimalMin(value = "0.01")
     private BigDecimal amount;
+
+    private String paymentDate;
+
+    private String modeOfPayment;
+
+    private String partyType;
+
+    private String categoryId;
 
     private String referenceNo;
 
@@ -43,6 +53,38 @@ public class PaymentRequest {
 
     public void setAmount(BigDecimal amount) {
         this.amount = amount;
+    }
+
+    public String getPaymentDate() {
+        return paymentDate;
+    }
+
+    public void setPaymentDate(String paymentDate) {
+        this.paymentDate = paymentDate;
+    }
+
+    public String getModeOfPayment() {
+        return modeOfPayment;
+    }
+
+    public void setModeOfPayment(String modeOfPayment) {
+        this.modeOfPayment = modeOfPayment;
+    }
+
+    public String getPartyType() {
+        return partyType;
+    }
+
+    public void setPartyType(String partyType) {
+        this.partyType = partyType;
+    }
+
+    public String getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(String categoryId) {
+        this.categoryId = categoryId;
     }
 
     public String getReferenceNo() {

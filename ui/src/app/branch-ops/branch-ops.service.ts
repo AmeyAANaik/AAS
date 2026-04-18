@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { BranchOpsAnalytics, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
+import { BranchOpsAnalytics, BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
 
 @Injectable({ providedIn: 'root' })
 export class BranchOpsService {
@@ -46,8 +46,8 @@ export class BranchOpsService {
     });
   }
 
-  getBranchLedger(branchId: string): Observable<{ balance: number; entries: BranchOpsLedgerEntry[] }> {
-    return this.http.get<{ balance: number; entries: BranchOpsLedgerEntry[] }>(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger`, {
+  getBranchLedger(branchId: string): Observable<{ balance: number; entries: BranchOpsLedgerEntry[]; categorySummary: BranchOpsCategorySummaryRow[] }> {
+    return this.http.get<{ balance: number; entries: BranchOpsLedgerEntry[]; categorySummary: BranchOpsCategorySummaryRow[] }>(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger`, {
       headers: this.authHeaders()
     });
   }
@@ -61,6 +61,37 @@ export class BranchOpsService {
 
   downloadBranchLedger(branchId: string): Observable<Blob> {
     return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  getBranchLedgerByCategory(branchId: string, categoryId: string): Observable<{ balance: number; entries: BranchOpsLedgerEntry[]; categoryId: string; categoryLabel: string }> {
+    const params = new HttpParams().set('categoryId', categoryId);
+    return this.http.get<{ balance: number; entries: BranchOpsLedgerEntry[]; categoryId: string; categoryLabel: string }>(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/category`, {
+      headers: this.authHeaders(),
+      params
+    });
+  }
+
+  downloadBranchLedgerByCategory(branchId: string, categoryId: string): Observable<Blob> {
+    const params = new HttpParams().set('categoryId', categoryId);
+    return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/category/export`, {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  downloadBranchLedgerCategoriesSummary(branchId: string): Observable<Blob> {
+    return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/categories/export`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadAllBranchesLedgerCategoriesSummary(): Observable<Blob> {
+    return this.http.get('/api/branch-ops/ledger/categories/export', {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

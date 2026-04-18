@@ -74,6 +74,48 @@ public class BranchOpsController {
                 .body(csv);
     }
 
+    @GetMapping("/{branchId}/ledger/category")
+    public ResponseEntity<Map<String, Object>> branchLedgerByCategory(
+            @PathVariable String branchId,
+            @RequestParam String categoryId) {
+        return ResponseEntity.ok(branchOpsService.getBranchLedgerByCategory(branchId, categoryId));
+    }
+
+    @GetMapping("/{branchId}/ledger/category/export")
+    public ResponseEntity<String> exportBranchLedgerByCategory(
+            @PathVariable String branchId,
+            @RequestParam String categoryId) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(branchId, categoryId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
+        String csv = CsvUtil.toCsv(entries);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-" + sanitizeFileName(branchId) + "-" + sanitizeFileName(categoryId) + ".csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    @GetMapping("/{branchId}/ledger/categories/export")
+    public ResponseEntity<String> exportBranchCategoryLedgerSummary(@PathVariable String branchId) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
+        String csv = CsvUtil.toCsv(categories);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-categories-" + sanitizeFileName(branchId) + ".csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    @GetMapping("/ledger/categories/export")
+    public ResponseEntity<String> exportAllBranchesCategoryLedgers() {
+        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchCategorySummaries());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-categories-all.csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
     private String sanitizeFileName(String value) {
         if (value == null || value.isBlank()) {
             return "unknown";

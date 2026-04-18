@@ -89,6 +89,11 @@ export interface VendorOpsLedgerEntry {
   runningBalance: number;
 }
 
+export interface VendorOpsCategorySummaryRow {
+  category: string;
+  amount: number;
+}
+
 export interface VendorOpsAnalytics {
   vendorId: string;
   ordersByStatus: Array<{ status: string; count: number }>;

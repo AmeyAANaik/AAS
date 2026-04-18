@@ -39,18 +39,30 @@ public class InvoiceController {
 
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> listInvoices(
+            @RequestParam(required = false) String partyType,
+            @RequestParam(required = false) String partyId,
             @RequestParam(required = false) String customer,
             @RequestParam(required = false, name = "from") String fromDate,
             @RequestParam(required = false, name = "to") String toDate) {
-        return ResponseEntity.ok(invoiceService.listInvoices(customer, fromDate, toDate));
+        String resolvedPartyId = partyId;
+        if (resolvedPartyId == null || resolvedPartyId.isBlank()) {
+            resolvedPartyId = customer;
+        }
+        return ResponseEntity.ok(invoiceService.listInvoices(partyType, resolvedPartyId, fromDate, toDate));
     }
 
     @GetMapping("/export")
     public ResponseEntity<String> exportInvoices(
+            @RequestParam(required = false) String partyType,
+            @RequestParam(required = false) String partyId,
             @RequestParam(required = false) String customer,
             @RequestParam(required = false, name = "from") String fromDate,
             @RequestParam(required = false, name = "to") String toDate) {
-        String csv = CsvUtil.toCsv(invoiceService.listInvoices(customer, fromDate, toDate));
+        String resolvedPartyId = partyId;
+        if (resolvedPartyId == null || resolvedPartyId.isBlank()) {
+            resolvedPartyId = customer;
+        }
+        String csv = CsvUtil.toCsv(invoiceService.listInvoices(partyType, resolvedPartyId, fromDate, toDate));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invoices.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -58,8 +70,10 @@ public class InvoiceController {
     }
 
     @GetMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadPdf(@PathVariable String id) {
-        byte[] pdf = invoiceService.downloadPdf(id);
+    public ResponseEntity<byte[]> downloadPdf(
+            @PathVariable String id,
+            @RequestParam(required = false) String partyType) {
+        byte[] pdf = invoiceService.downloadPdf(id, partyType);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invoice-" + id + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)

@@ -37,22 +37,33 @@
     </div>
     <mat-card-content>
       <form [formGroup]="filtersForm" class="form-grid">
+        <div class="inline-toggle">
+          <mat-button-toggle-group formControlName="partyType" (change)="onInvoicePartyTypeChange()" appearance="standard" class="toggle-group">
+            <mat-button-toggle value="Customer">Branch (Customer)</mat-button-toggle>
+            <mat-button-toggle value="Supplier">Vendor (Supplier)</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Branch</mat-label>
+          <mat-label>{{ partyFilterLabel }}</mat-label>
           <mat-select formControlName="customer">
-            <mat-option value="">All branches</mat-option>
-            <mat-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</mat-option>
+            <mat-option value="">{{ isSupplierInvoiceMode ? 'All vendors' : 'All branches' }}</mat-option>
+            <mat-option *ngFor="let party of partyFilterOptions" [value]="party.id">{{ party.name }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>From</mat-label>
-          <input matInput type="date" formControlName="from" />
+          <input matInput [matDatepicker]="fromPicker" formControlName="from" />
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
         </mat-form-field>
 
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>To</mat-label>
-          <input matInput type="date" formControlName="to" />
+          <input matInput [matDatepicker]="toPicker" formControlName="to" />
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
         </mat-form-field>
 
         <div class="form-actions">
@@ -115,24 +126,26 @@
                   aria-label="Download invoice PDF">
                   <img src="assets/icons/pdf.svg" alt="" class="row-action-icon pdf-action-icon" aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  class="row-action-button delivery-channel-button email-icon-button"
-                  (click)="openDeliveryDialog(invoice, 'email')"
-                  [disabled]="!canSendEmail(invoice)"
-                  [matTooltip]="canSendEmail(invoice) ? ('Email ' + invoice.emailRecipient) : 'Add branch invoice email to enable email sending'"
-                  [attr.aria-label]="canSendEmail(invoice) ? ('Send invoice by email to ' + invoice.emailRecipient) : 'Email sending unavailable'">
-                  <img src="assets/icons/email.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  class="row-action-button delivery-channel-button whatsapp-icon-button"
-                  (click)="openDeliveryDialog(invoice, 'whatsapp')"
-                  [disabled]="!canSendWhatsApp(invoice)"
-                  [matTooltip]="canSendWhatsApp(invoice) ? ('WhatsApp ' + invoice.whatsappRecipient) : 'Add branch WhatsApp number or group to enable WhatsApp sharing'"
-                  [attr.aria-label]="canSendWhatsApp(invoice) ? ('Send invoice by WhatsApp to ' + invoice.whatsappRecipient) : 'WhatsApp sending unavailable'">
-                  <img src="assets/icons/whatsapp.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
-                </button>
+                <ng-container *ngIf="!isSupplierInvoiceMode">
+                  <button
+                    type="button"
+                    class="row-action-button delivery-channel-button email-icon-button"
+                    (click)="openDeliveryDialog(invoice, 'email')"
+                    [disabled]="!canSendEmail(invoice)"
+                    [matTooltip]="canSendEmail(invoice) ? ('Email ' + invoice.emailRecipient) : 'Add branch invoice email to enable email sending'"
+                    [attr.aria-label]="canSendEmail(invoice) ? ('Send invoice by email to ' + invoice.emailRecipient) : 'Email sending unavailable'">
+                    <img src="assets/icons/email.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="row-action-button delivery-channel-button whatsapp-icon-button"
+                    (click)="openDeliveryDialog(invoice, 'whatsapp')"
+                    [disabled]="!canSendWhatsApp(invoice)"
+                    [matTooltip]="canSendWhatsApp(invoice) ? ('WhatsApp ' + invoice.whatsappRecipient) : 'Add branch WhatsApp number or group to enable WhatsApp sharing'"
+                    [attr.aria-label]="canSendWhatsApp(invoice) ? ('Send invoice by WhatsApp to ' + invoice.whatsappRecipient) : 'WhatsApp sending unavailable'">
+                    <img src="assets/icons/whatsapp.svg" alt="" class="row-action-icon delivery-channel-icon" aria-hidden="true" />
+                  </button>
+                </ng-container>
                 <span class="destructive-action-divider" aria-hidden="true"></span>
                 <button
                   *ngIf="canDelete(invoice)"
@@ -188,6 +201,8 @@
       </mat-expansion-panel-header>
       <app-payment-form
         [customers]="customers"
+        [vendors]="vendors"
+        [categories]="categories"
         [invoices]="invoiceOptions"
         (created)="onPaymentCreated()">
       </app-payment-form>

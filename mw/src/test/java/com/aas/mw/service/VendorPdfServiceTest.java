@@ -156,7 +156,7 @@ class VendorPdfServiceTest {
         verify(erpNextClient).createResource(eq("Item"), createCaptor.capture());
         assertEquals("PENDING_REVIEW", createCaptor.getValue().get("aas_review_status"));
         assertEquals("SO-0001", createCaptor.getValue().get("aas_review_source_order"));
-        assertEquals("sample.pdf", createCaptor.getValue().get("aas_review_source_invoice_ref"));
+        assertEquals("vendor_order.pdf", createCaptor.getValue().get("aas_review_source_invoice_ref"));
         assertEquals(1, createCaptor.getValue().get("aas_review_default_margin_used"));
         assertEquals(7.0, createCaptor.getValue().get("aas_margin_percent"));
         assertTrue(String.valueOf(createCaptor.getValue().get("aas_review_created_at")).startsWith("20"));

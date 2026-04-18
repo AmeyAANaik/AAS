@@ -1,0 +1,395 @@
+package com.aas.mw.service;
+
+import com.aas.mw.client.ErpNextClient;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PaymentDueService {
+
+    private final ErpNextClient erpNextClient;
+    private static final String UNCATEGORIZED = "Uncategorized";
+    private static final String PAYMENT_ENTRY = "Payment Entry";
+    private static final String FIELD_REVIEW_STATUS = "aas_payment_review_status";
+    private static final String FIELD_CATEGORY = "aas_category";
+
+    public PaymentDueService(ErpNextClient erpNextClient) {
+        this.erpNextClient = erpNextClient;
+    }
+
+    public Map<String, Object> dueByCategory(String partyType, String partyId, String categoryId) {
+        String normalizedPartyType = normalizePartyType(partyType);
+        String normalizedPartyId = partyId == null ? "" : partyId.trim();
+        String normalizedCategoryId = categoryId == null ? "" : categoryId.trim();
+        if (normalizedPartyId.isBlank()) {
+            throw new IllegalArgumentException("partyId is required.");
+        }
+        if (normalizedCategoryId.isBlank()) {
+            throw new IllegalArgumentException("categoryId is required.");
+        }
+
+        BigDecimal selectedDue = "Supplier".equalsIgnoreCase(normalizedPartyType)
+                ? dueByCategoryForSupplier(normalizedPartyId, normalizedCategoryId)
+                : dueByCategoryForCustomer(normalizedPartyId, normalizedCategoryId);
+
+        BigDecimal underReviewAmount = underReviewAmount(normalizedPartyType, normalizedPartyId, normalizedCategoryId, null);
+        BigDecimal availableDueAmount = selectedDue.subtract(underReviewAmount).max(BigDecimal.ZERO);
+        Map<String, Object> response = new HashMap<>();
+        response.put("partyType", normalizedPartyType);
+        response.put("partyId", normalizedPartyId);
+        response.put("categoryId", normalizedCategoryId);
+        response.put("dueAmount", selectedDue);
+        response.put("underReviewAmount", underReviewAmount);
+        response.put("availableDueAmount", availableDueAmount);
+        return response;
+    }
+
+    private BigDecimal dueByCategoryForCustomer(String customerId, String categoryId) {
+        InvoiceContext ctx = resolveInvoiceContext("Customer");
+        List<Map<String, Object>> openInvoices = fetchDraftInvoices(ctx.invoiceDoctype(), ctx.partyField(), customerId);
+        Map<String, BigDecimal> dueByCategory = new HashMap<>();
+        ItemGroupResolver itemGroupResolver = new ItemGroupResolver(erpNextClient);
+
+        for (Map<String, Object> row : openInvoices) {
+            String invoiceId = asText(row.get("name"));
+            if (invoiceId.isBlank()) {
+                continue;
+            }
+            Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource(ctx.invoiceDoctype(), invoiceId));
+            int docstatus = asInt(firstNonNull(invoice.get("docstatus"), row.get("docstatus")));
+            if (docstatus != 0) {
+                continue;
+            }
+            BigDecimal dueBase = asDecimal(firstNonNull(invoice.get("grand_total"), row.get("grand_total")));
+            if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            List<Map<String, Object>> items = childItems(invoice.get("items"));
+            distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory);
+        }
+        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
+    }
+
+    private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {
+        List<Map<String, Object>> purchaseInvoices = fetchDraftPurchaseInvoices(supplierId);
+        Map<String, BigDecimal> dueByCategory = new HashMap<>();
+        ItemGroupResolver itemGroupResolver = new ItemGroupResolver(erpNextClient);
+        Map<String, CategoryWeights> orderCache = new HashMap<>();
+
+        for (Map<String, Object> row : purchaseInvoices) {
+            String invoiceId = asText(row.get("name"));
+            if (invoiceId.isBlank()) {
+                continue;
+            }
+            int docstatus = asInt(row.get("docstatus"));
+            if (docstatus != 0) {
+                continue;
+            }
+            BigDecimal dueBase = asDecimal(row.get("grand_total"));
+            if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource("Purchase Invoice", invoiceId));
+            String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
+            if (sourceOrderId.isBlank()) {
+                dueByCategory.merge(UNCATEGORIZED, dueBase, BigDecimal::add);
+                continue;
+            }
+            CategoryWeights weights = orderCache.computeIfAbsent(
+                    sourceOrderId,
+                    key -> computeSalesOrderCategoryWeights(key, itemGroupResolver));
+            if (weights.total().compareTo(BigDecimal.ZERO) <= 0 || weights.weights().isEmpty()) {
+                dueByCategory.merge(UNCATEGORIZED, dueBase, BigDecimal::add);
+                continue;
+            }
+            for (Map.Entry<String, BigDecimal> entry : weights.weights().entrySet()) {
+                BigDecimal share = dueBase.multiply(entry.getValue())
+                        .divide(weights.total(), 6, java.math.RoundingMode.HALF_UP);
+                dueByCategory.merge(entry.getKey(), share, BigDecimal::add);
+            }
+        }
+        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
+    }
+
+    private List<Map<String, Object>> fetchDraftPurchaseInvoices(String supplierId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"grand_total\",\"docstatus\"]");
+        params.put("limit_page_length", 500);
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("supplier", "=", supplierId));
+        filters.add(List.of("docstatus", "=", "0"));
+        params.put("filters", toJson(filters));
+        return erpNextClient.listResources("Purchase Invoice", params);
+    }
+
+    private CategoryWeights computeSalesOrderCategoryWeights(String salesOrderId, ItemGroupResolver itemGroupResolver) {
+        Map<String, Object> order = unwrapDoc(erpNextClient.getResource("Sales Order", salesOrderId));
+        List<Map<String, Object>> items = childItems(order.get("items"));
+        if (items.isEmpty()) {
+            return new CategoryWeights(Map.of(), BigDecimal.ZERO);
+        }
+        Map<String, BigDecimal> weights = new HashMap<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (Map<String, Object> item : items) {
+            BigDecimal qty = asDecimal(item.get("qty"));
+            BigDecimal rate = asDecimal(firstNonNull(item.get("aas_vendor_rate"), item.get("rate")));
+            if (qty.compareTo(BigDecimal.ZERO) <= 0 || rate.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal amount = qty.multiply(rate);
+            String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+            if (group.isBlank()) {
+                String code = asText(item.get("item_code"));
+                group = itemGroupResolver.resolve(code);
+            }
+            if (group.isBlank()) {
+                group = UNCATEGORIZED;
+            }
+            weights.merge(group, amount, BigDecimal::add);
+            total = total.add(amount);
+        }
+        return new CategoryWeights(weights, total);
+    }
+
+    private List<Map<String, Object>> fetchDraftInvoices(String doctype, String partyField, String partyId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"grand_total\",\"docstatus\"]");
+        params.put("limit_page_length", 500);
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of(partyField, "=", partyId));
+        filters.add(List.of("docstatus", "=", "0"));
+        params.put("filters", toJson(filters));
+        return erpNextClient.listResources(doctype, params);
+    }
+
+    private void distributeOutstandingByItemGroup(
+            BigDecimal outstanding,
+            List<Map<String, Object>> items,
+            ItemGroupResolver itemGroupResolver,
+            Map<String, BigDecimal> dueByCategory) {
+        if (items.isEmpty()) {
+            dueByCategory.merge(UNCATEGORIZED, outstanding, BigDecimal::add);
+            return;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        List<Line> lines = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            BigDecimal amount = asDecimal(firstNonNull(
+                    item.get("base_amount"),
+                    firstNonNull(item.get("amount"),
+                            firstNonNull(item.get("net_amount"), item.get("base_net_amount")))));
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+            if (group.isBlank()) {
+                String code = asText(item.get("item_code"));
+                group = itemGroupResolver.resolve(code);
+            }
+            if (group.isBlank()) {
+                group = UNCATEGORIZED;
+            }
+            lines.add(new Line(group, amount));
+            total = total.add(amount);
+        }
+        if (lines.isEmpty() || total.compareTo(BigDecimal.ZERO) <= 0) {
+            dueByCategory.merge(UNCATEGORIZED, outstanding, BigDecimal::add);
+            return;
+        }
+        for (Line line : lines) {
+            BigDecimal share = outstanding.multiply(line.amount()).divide(total, 6, java.math.RoundingMode.HALF_UP);
+            dueByCategory.merge(line.group(), share, BigDecimal::add);
+        }
+    }
+
+    private InvoiceContext resolveInvoiceContext(String partyType) {
+        if ("Supplier".equalsIgnoreCase(partyType)) {
+            return new InvoiceContext("Purchase Invoice", "supplier");
+        }
+        return new InvoiceContext("Sales Invoice", "customer");
+    }
+
+    private String normalizePartyType(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.equalsIgnoreCase("Supplier") || normalized.equalsIgnoreCase("Vendor")) {
+            return "Supplier";
+        }
+        return "Customer";
+    }
+
+    private BigDecimal underReviewAmount(String partyType, String partyId, String categoryId, String excludePaymentId) {
+        String normalizedPartyId = partyId == null ? "" : partyId.trim();
+        String normalizedCategoryId = categoryId == null ? "" : categoryId.trim();
+        if (normalizedPartyId.isBlank() || normalizedCategoryId.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"paid_amount\",\"received_amount\"]");
+            params.put("limit_page_length", 500);
+            List<List<String>> filters = new ArrayList<>();
+            filters.add(List.of("docstatus", "=", "0"));
+            filters.add(List.of(FIELD_REVIEW_STATUS, "=", "UNDER_REVIEW"));
+            filters.add(List.of("party_type", "=", partyType));
+            filters.add(List.of("party", "=", normalizedPartyId));
+            filters.add(List.of(FIELD_CATEGORY, "=", normalizedCategoryId));
+            if (excludePaymentId != null && !excludePaymentId.isBlank()) {
+                filters.add(List.of("name", "!=", excludePaymentId.trim()));
+            }
+            params.put("filters", toJson(filters));
+            List<Map<String, Object>> rows = erpNextClient.listResources(PAYMENT_ENTRY, params);
+            BigDecimal total = BigDecimal.ZERO;
+            for (Map<String, Object> row : rows) {
+                BigDecimal paid = asDecimal(row.get("paid_amount"));
+                if (paid.compareTo(BigDecimal.ZERO) <= 0) {
+                    paid = asDecimal(row.get("received_amount"));
+                }
+                if (paid.compareTo(BigDecimal.ZERO) > 0) {
+                    total = total.add(paid);
+                }
+            }
+            return total;
+        } catch (Exception ex) {
+            String message = String.valueOf(ex.getMessage() == null ? "" : ex.getMessage()).toLowerCase();
+            if (message.contains("field not permitted in query")) {
+                return BigDecimal.ZERO;
+            }
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private String toJson(List<List<String>> filters) {
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < filters.size(); i++) {
+            List<String> entry = filters.get(i);
+            builder.append("[");
+            for (int j = 0; j < entry.size(); j++) {
+                builder.append("\"").append(escape(entry.get(j))).append("\"");
+                if (j < entry.size() - 1) {
+                    builder.append(",");
+                }
+            }
+            builder.append("]");
+            if (i < filters.size() - 1) {
+                builder.append(",");
+            }
+        }
+        builder.append("]");
+        return builder.toString();
+    }
+
+    private String escape(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first != null ? first : second;
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private BigDecimal asDecimal(Object value) {
+        if (value instanceof BigDecimal number) {
+            return number;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (Exception ex) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private int asInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (Exception ex) {
+            return 0;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> childItems(Object value) {
+        if (value instanceof List<?> list) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (Object entry : list) {
+                if (entry instanceof Map<?, ?> map) {
+                    out.add((Map<String, Object>) map);
+                }
+            }
+            return out;
+        }
+        return List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapDoc(Map<String, Object> response) {
+        if (response == null) {
+            return Map.of();
+        }
+        Object data = response.get("data");
+        if (data instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        Object message = response.get("message");
+        if (message instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return response;
+    }
+
+    private record InvoiceContext(String invoiceDoctype, String partyField) {}
+
+    private record Line(String group, BigDecimal amount) {}
+
+    private record CategoryWeights(Map<String, BigDecimal> weights, BigDecimal total) {}
+
+    private static class ItemGroupResolver {
+        private final ErpNextClient erpNextClient;
+        private final Map<String, String> cache = new HashMap<>();
+
+        ItemGroupResolver(ErpNextClient erpNextClient) {
+            this.erpNextClient = erpNextClient;
+        }
+
+        String resolve(String itemCode) {
+            String key = itemCode == null ? "" : itemCode.trim();
+            if (key.isBlank()) {
+                return "";
+            }
+            if (cache.containsKey(key)) {
+                return cache.get(key);
+            }
+            String group = "";
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) erpNextClient.getResource("Item", key).getOrDefault("data", Map.of());
+                group = doc == null ? "" : String.valueOf(doc.getOrDefault("item_group", "")).trim();
+            } catch (Exception ignored) {
+                group = "";
+            }
+            cache.put(key, group);
+            return group;
+        }
+    }
+}

@@ -15,14 +15,14 @@
     </div>
     <div class="header-right">
       <a
-        *ngIf="canAccess(masterDataReviewFeature)"
+        *ngIf="canSeeReviewsChip"
         class="header-chip notification-chip"
-        routerLink="/master-data-review"
+        [routerLink]="reviewsRoute"
         routerLinkActive="active-chip"
-        [attr.aria-label]="'Master data review notifications: ' + masterDataReviewCount">
+        [attr.aria-label]="'Reviews pending: ' + totalReviewCount">
         <span class="material-icons" aria-hidden="true">notifications</span>
         <span>Reviews</span>
-        <span class="notification-count" *ngIf="masterDataReviewCount > 0">{{ masterDataReviewCount }}</span>
+        <span class="notification-count" *ngIf="totalReviewCount > 0">{{ totalReviewCount }}</span>
       </a>
       <button class="header-chip theme-chip" type="button" (click)="toggleTheme()" [title]="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
         <span class="material-icons" aria-hidden="true">{{ currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>

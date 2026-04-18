@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { InvoiceCreatePayload, InvoiceDeliveryPreview, InvoiceDeliveryRequest, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload } from './bills.model';
+import { InvoiceCreatePayload, InvoiceDeliveryPreview, InvoiceDeliveryRequest, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload, UploadedFileInfo } from './bills.model';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +13,12 @@ export class BillsService {
 
   listInvoices(filters: InvoiceFilters): Observable<InvoiceSummary[]> {
     let params = new HttpParams();
+    if (filters.partyType) {
+      params = params.set('partyType', filters.partyType);
+    }
+    if (filters.partyId) {
+      params = params.set('partyId', filters.partyId);
+    }
     if (filters.customer) {
       params = params.set('customer', filters.customer);
     }
@@ -39,9 +45,14 @@ export class BillsService {
       .pipe(map(response => response?.data ?? null));
   }
 
-  downloadInvoicePdf(invoiceId: string): Observable<Blob> {
+  downloadInvoicePdf(invoiceId: string, partyType?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (partyType) {
+      params = params.set('partyType', partyType);
+    }
     return this.http.get(`/api/invoices/${invoiceId}/pdf`, {
       headers: this.authHeaders(),
+      params,
       responseType: 'blob'
     });
   }
@@ -72,6 +83,12 @@ export class BillsService {
 
   exportInvoices(filters: InvoiceFilters): Observable<Blob> {
     let params = new HttpParams();
+    if (filters.partyType) {
+      params = params.set('partyType', filters.partyType);
+    }
+    if (filters.partyId) {
+      params = params.set('partyId', filters.partyId);
+    }
     if (filters.customer) {
       params = params.set('customer', filters.customer);
     }
@@ -90,6 +107,35 @@ export class BillsService {
 
   createPayment(payload: PaymentPayload): Observable<Record<string, unknown>> {
     return this.http.post<Record<string, unknown>>('/api/payments', payload, { headers: this.authHeaders() });
+  }
+
+  createPaymentWithAttachments(payload: PaymentPayload, files: File[]): Observable<{ payment: Record<string, unknown>; files: UploadedFileInfo[] }> {
+    const form = new FormData();
+    form.append('payment', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'payment.json');
+    (files ?? []).forEach(file => form.append('files', file, file.name));
+    return this.http.post<{ payment: Record<string, unknown>; files: UploadedFileInfo[] }>('/api/payments/with-attachments', form, {
+      headers: this.authHeaders()
+    });
+  }
+
+  uploadPaymentAttachments(paymentId: string, files: File[]): Observable<{ paymentId: string; files: UploadedFileInfo[] }> {
+    const form = new FormData();
+    (files ?? []).forEach(file => form.append('files', file, file.name));
+    return this.http.post<{ paymentId: string; files: UploadedFileInfo[] }>(`/api/payments/${paymentId}/attachments`, form, {
+      headers: this.authHeaders()
+    });
+  }
+
+  dueByCategory(
+    partyType: string,
+    partyId: string,
+    categoryId: string
+  ): Observable<{ dueAmount: number; underReviewAmount?: number; availableDueAmount?: number }> {
+    const params = new HttpParams()
+      .set('partyType', partyType)
+      .set('partyId', partyId)
+      .set('categoryId', categoryId);
+    return this.http.get<{ dueAmount: number; underReviewAmount?: number; availableDueAmount?: number }>('/api/payments/due-by-category', { headers: this.authHeaders(), params });
   }
 
   private authHeaders(): HttpHeaders {

@@ -1,0 +1,55 @@
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Subject } from 'rxjs';
+import { tap } from 'rxjs/operators';
+import { AuthTokenService } from '../shared/auth-token.service';
+import { BillReviewDetail, BillReviewListItem, ReviewDecisionRequest } from './bill-review.model';
+
+@Injectable({ providedIn: 'root' })
+export class BillReviewService {
+  private readonly refreshSubject = new Subject<void>();
+  readonly refresh$ = this.refreshSubject.asObservable();
+
+  constructor(
+    private readonly http: HttpClient,
+    private readonly tokenStore: AuthTokenService
+  ) {}
+
+  getPendingCount() {
+    return this.http.get<{ pendingCount: number }>('/api/bill-review/count', { headers: this.authHeaders() });
+  }
+
+  listPayments(status = 'UNDER_REVIEW', partyType = '') {
+    let params = new HttpParams();
+    if (status.trim()) {
+      params = params.set('status', status.trim());
+    }
+    if (partyType.trim()) {
+      params = params.set('partyType', partyType.trim());
+    }
+    return this.http.get<BillReviewListItem[]>('/api/bill-review/payments', { headers: this.authHeaders(), params });
+  }
+
+  getDetail(paymentId: string) {
+    return this.http.get<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}`, { headers: this.authHeaders() });
+  }
+
+  approve(paymentId: string, payload: ReviewDecisionRequest) {
+    return this.http.put<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}/approve`, payload ?? {}, { headers: this.authHeaders() })
+      .pipe(tap(() => this.refreshSubject.next()));
+  }
+
+  reject(paymentId: string, payload: ReviewDecisionRequest) {
+    return this.http.put<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}/reject`, payload ?? {}, { headers: this.authHeaders() })
+      .pipe(tap(() => this.refreshSubject.next()));
+  }
+
+  notifyRefresh(): void {
+    this.refreshSubject.next();
+  }
+
+  private authHeaders(): HttpHeaders {
+    const token = this.tokenStore.getToken();
+    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
+  }
+}

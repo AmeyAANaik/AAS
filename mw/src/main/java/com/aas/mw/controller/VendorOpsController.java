@@ -74,6 +74,48 @@ public class VendorOpsController {
                 .body(csv);
     }
 
+    @GetMapping("/{vendorId}/ledger/category")
+    public ResponseEntity<Map<String, Object>> vendorLedgerByCategory(
+            @PathVariable String vendorId,
+            @RequestParam String categoryId) {
+        return ResponseEntity.ok(vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId));
+    }
+
+    @GetMapping("/{vendorId}/ledger/category/export")
+    public ResponseEntity<String> exportVendorLedgerByCategory(
+            @PathVariable String vendorId,
+            @RequestParam String categoryId) {
+        Map<String, Object> ledger = vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
+        String csv = CsvUtil.toCsv(entries);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"vendor-ledger-" + sanitizeFileName(vendorId) + "-" + sanitizeFileName(categoryId) + ".csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    @GetMapping("/{vendorId}/ledger/categories/export")
+    public ResponseEntity<String> exportVendorCategoryLedgerSummary(@PathVariable String vendorId) {
+        Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
+        String csv = CsvUtil.toCsv(categories);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"vendor-ledger-categories-" + sanitizeFileName(vendorId) + ".csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    @GetMapping("/ledger/categories/export")
+    public ResponseEntity<String> exportAllVendorsCategoryLedgers() {
+        String csv = CsvUtil.toCsv(vendorOpsService.getAllVendorCategorySummaries());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"vendor-ledger-categories-all.csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
     private String sanitizeFileName(String value) {
         if (value == null || value.isBlank()) {
             return "unknown";
