@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Ivy UX MWE - Professional</title>
+  <title>Ivy UX MWE - All Core Flows</title>
   <style>
     :root{--p:#5b6bff;--bg:#eef2f6;--s:#fff;--b:#e6ebf1;--t:#1d2630;--m:#5b6b79}
     body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--t)}
-    .wrap{max-width:1100px;margin:20px auto;padding:0 12px}
+    .wrap{max-width:1160px;margin:20px auto;padding:0 12px}
     .head{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px}
     .tabs{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
     .tab{border:1px solid var(--b);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
@@ -21,55 +21,63 @@
     .s{border:1px solid var(--b);border-radius:9px;padding:10px;margin-top:8px;background:#f8fbff}
     .r{display:flex;justify-content:space-between;gap:8px;align-items:center}
     button{border:0;background:var(--p);color:#fff;border-radius:8px;padding:7px 10px}
-    @media(max-width:800px){.k{grid-template-columns:1fr 1fr}}
+    @media(max-width:900px){.k{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="head">
-      <h1>Ivy Sales Extension — Professional MWE</h1>
-      <p>Sales Person, Distributor, Retailer and Manager workflows with Suggestion System</p>
+      <h1>Ivy Sales Extension — Professional MWE (All Flows)</h1>
+      <p>Execution, Monthly Reports, Recommendation Studio, and P&L</p>
     </div>
+
     <div class="tabs">
-      <button class="tab active" data-to="sales">Sales Person</button>
-      <button class="tab" data-to="dist">Distributor</button>
-      <button class="tab" data-to="ret">Retailer</button>
-      <button class="tab" data-to="mgr">Manager</button>
+      <button class="tab active" data-to="execution">Execution</button>
+      <button class="tab" data-to="reports">Monthly Reports</button>
+      <button class="tab" data-to="suggestions">Suggestions</button>
+      <button class="tab" data-to="pnl">P&L</button>
     </div>
 
-    <section class="screen active card" id="sales">
-      <h2>Sales Person View</h2>
-      <div class="k"><div><strong>18</strong><br><small>Planned</small></div><div><strong>11</strong><br><small>Visited</small></div><div><strong>9</strong><br><small>Productive</small></div><div><strong>₹1.58L</strong><br><small>Day Value</small></div></div>
-      <p>Workflow: Beat -> Check-in -> Visit/Audit -> Order -> Collection -> Checkout</p>
-      <div class="s r"><div><strong>Suggested:</strong> IVY-LASSI-200ML • 86% confidence</div><button>Accept + Add</button></div>
+    <section class="screen active card" id="execution">
+      <h2>Execution (Sales Person / Distributor / Retailer / Manager)</h2>
+      <div class="k"><div><strong>18</strong><br><small>Planned Visits</small></div><div><strong>11</strong><br><small>Completed</small></div><div><strong>9</strong><br><small>Productive</small></div><div><strong>₹1.58L</strong><br><small>Order Value</small></div></div>
+      <p>Role-aware daily execution with beat, visit, order, collection, conversion, and manager oversight.</p>
     </section>
 
-    <section class="screen card" id="dist">
-      <h2>Distributor View</h2>
-      <div class="k"><div><strong>54</strong><br><small>Open Orders</small></div><div><strong>39</strong><br><small>Dispatch Ready</small></div><div><strong>₹8.4L</strong><br><small>Pending Collection</small></div><div><strong>93%</strong><br><small>Fill Rate</small></div></div>
-      <p>Workflow: Secondary Order Queue -> SO Conversion -> Dispatch -> Collection follow-up</p>
-    </section>
-
-    <section class="screen card" id="ret">
-      <h2>Retailer View</h2>
-      <div class="k"><div><strong>16 Apr</strong><br><small>Last Order</small></div><div><strong>₹18,200</strong><br><small>Avg Basket</small></div><div><strong>₹34,880</strong><br><small>Outstanding</small></div><div><strong>3</strong><br><small>Active Schemes</small></div></div>
-      <p>Workflow: Reorder suggestions -> Place order -> Invoice visibility -> Payment</p>
-      <div class="s r"><div><strong>Suggested:</strong> IVY-PANEER-200G • Cross-sell</div><button>Add to Cart</button></div>
-    </section>
-
-    <section class="screen card" id="mgr">
-      <h2>Manager View</h2>
+    <section class="screen card" id="reports">
+      <h2>Monthly Reports</h2>
       <table>
-        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <thead><tr><th>Month</th><th>Sales</th><th>Collections</th><th>Coverage</th></tr></thead>
         <tbody>
-          <tr><td>Route Coverage</td><td>92%</td></tr>
-          <tr><td>Productive Visit Ratio</td><td>74%</td></tr>
-          <tr><td>Collection Efficiency</td><td>61%</td></tr>
-          <tr><td>Suggestion Acceptance</td><td>48%</td></tr>
+          <tr><td>Jan</td><td>₹37L</td><td>₹24L</td><td>84%</td></tr>
+          <tr><td>Feb</td><td>₹40L</td><td>₹27L</td><td>86%</td></tr>
+          <tr><td>Mar</td><td>₹44L</td><td>₹29L</td><td>89%</td></tr>
+          <tr><td>Apr</td><td>₹48.2L</td><td>₹31.4L</td><td>92%</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="screen card" id="suggestions">
+      <h2>Recommendation Studio</h2>
+      <div class="s r"><div><strong>Suggested:</strong> IVY-LASSI-200ML • 86% confidence • Replenishment due</div><button>Accept + Add</button></div>
+      <div class="s r"><div><strong>Next Push:</strong> IVY-PANEER-200G • 74% confidence • Cross-sell</div><button>Push to Rep</button></div>
+      <p>Suggestions are based on prior order history, outlet segment, scheme, and days-since-last-order.</p>
+    </section>
+
+    <section class="screen card" id="pnl">
+      <h2>P&L Snapshot</h2>
+      <table>
+        <thead><tr><th>Line Item</th><th>Amount</th><th>%</th></tr></thead>
+        <tbody>
+          <tr><td>Revenue</td><td>₹48,20,000</td><td>100%</td></tr>
+          <tr><td>COGS</td><td>₹33,70,000</td><td>69.9%</td></tr>
+          <tr><td>Gross Profit</td><td>₹14,50,000</td><td>30.1%</td></tr>
+          <tr><td>Net Profit</td><td>₹9,60,000</td><td>19.9%</td></tr>
         </tbody>
       </table>
     </section>
   </div>
+
   <script>
     const tabs=[...document.querySelectorAll('.tab')], screens=[...document.querySelectorAll('.screen')];
     tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));screens.forEach(s=>s.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.to).classList.add('active');});

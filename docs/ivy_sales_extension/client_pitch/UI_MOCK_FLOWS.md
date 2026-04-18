@@ -112,3 +112,37 @@ Use this as a storyboard for Figma/PPT screens.
 - pending sync count
 - last successful sync timestamp
 - per-record status chips (Pending/Failed/Resolved)
+
+
+## 7) Monthly Reports Flow
+
+```text
+[Monthly Reports Dashboard]
+   -> [Select Month / Region / Persona]
+      -> [Sales + Collection KPIs]
+         -> [MoM Trend]
+            -> [Export PDF/CSV]
+```
+
+## 8) P&L Flow
+
+```text
+[P&L Analytics]
+   -> [Revenue]
+   -> [COGS]
+   -> [Gross Profit]
+   -> [Operating/Distribution Cost]
+   -> [Net Profit]
+      -> [Channel-wise Drilldown]
+```
+
+## 9) Recommendation Studio Flow
+
+```text
+[Suggestion Engine Panel]
+   -> [Apply Segment/Type Filter]
+      -> [Generate Suggestions]
+         -> [Show Reason + Confidence + Expected Uplift]
+            -> [Accept/Reject Tracking]
+               -> [Manager Insight Dashboard]
+```
