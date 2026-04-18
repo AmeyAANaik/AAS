@@ -148,18 +148,82 @@ const hierarchyProfiles = {
 };
 
 const territoryInsights = {
-  'bangalore-urban': { attainment: '112%', outlets: 324, monthlySales: '₹9.2L', gap: 'Strong performance; push premium cross-sell.' },
-  mysore: { attainment: '91%', outlets: 188, monthlySales: '₹4.1L', gap: 'Increase productive visits and reorder compliance.' },
-  'chennai-north': { attainment: '108%', outlets: 276, monthlySales: '₹8.6L', gap: 'Maintain current scheme-led momentum.' },
-  coimbatore: { attainment: '74%', outlets: 143, monthlySales: '₹2.9L', gap: 'Low coverage zone; ASM intervention needed.' },
-  madurai: { attainment: '88%', outlets: 169, monthlySales: '₹3.8L', gap: 'Improve fill-rate and repeat order cycle.' },
-  'hyderabad-east': { attainment: '116%', outlets: 301, monthlySales: '₹9.8L', gap: 'High growth; expand portfolio push.' },
+  'bangalore-urban': {
+    attainment: '112%',
+    outlets: 324,
+    monthlySales: '₹9.2L',
+    gap: 'Strong performance; push premium cross-sell.',
+    team: [
+      { name: 'Roshni N', role: 'Sales Rep', sales: '₹2.4L', accept: '56%' },
+      { name: 'Ajay P', role: 'Sales Rep', sales: '₹1.8L', accept: '49%' },
+      { name: 'Sana M', role: 'Sales Rep', sales: '₹2.0L', accept: '52%' },
+    ],
+    outletsTop: ['Sagar Stores', 'Lakshmi Mart', 'SRS Super'],
+  },
+  mysore: {
+    attainment: '91%',
+    outlets: 188,
+    monthlySales: '₹4.1L',
+    gap: 'Increase productive visits and reorder compliance.',
+    team: [
+      { name: 'Karthik V', role: 'Sales Rep', sales: '₹1.2L', accept: '43%' },
+      { name: 'Nisha R', role: 'Sales Rep', sales: '₹1.0L', accept: '41%' },
+    ],
+    outletsTop: ['City Traders', 'Royal Mart'],
+  },
+  'chennai-north': {
+    attainment: '108%',
+    outlets: 276,
+    monthlySales: '₹8.6L',
+    gap: 'Maintain current scheme-led momentum.',
+    team: [
+      { name: 'Arun S', role: 'ASM', sales: '₹3.1L', accept: '58%' },
+      { name: 'Priya K', role: 'Sales Rep', sales: '₹1.9L', accept: '54%' },
+    ],
+    outletsTop: ['Metro Fresh', 'North Bazaar', 'KVR Stores'],
+  },
+  coimbatore: {
+    attainment: '74%',
+    outlets: 143,
+    monthlySales: '₹2.9L',
+    gap: 'Low coverage zone; ASM intervention needed.',
+    team: [
+      { name: 'Meera D', role: 'ASM', sales: '₹1.1L', accept: '32%' },
+      { name: 'Rahul T', role: 'Sales Rep', sales: '₹0.8L', accept: '29%' },
+    ],
+    outletsTop: ['Coimbatore Wholesale', 'Annai Stores'],
+  },
+  madurai: {
+    attainment: '88%',
+    outlets: 169,
+    monthlySales: '₹3.8L',
+    gap: 'Improve fill-rate and repeat order cycle.',
+    team: [
+      { name: 'Vimal A', role: 'Sales Rep', sales: '₹1.3L', accept: '39%' },
+      { name: 'Deepa M', role: 'Sales Rep', sales: '₹1.1L', accept: '37%' },
+    ],
+    outletsTop: ['Southline Retail', 'Temple Market'],
+  },
+  'hyderabad-east': {
+    attainment: '116%',
+    outlets: 301,
+    monthlySales: '₹9.8L',
+    gap: 'High growth; expand portfolio push.',
+    team: [
+      { name: 'Kiran R', role: 'ASM', sales: '₹3.4L', accept: '61%' },
+      { name: 'Suman G', role: 'Sales Rep', sales: '₹2.2L', accept: '57%' },
+      { name: 'Latha P', role: 'Sales Rep', sales: '₹1.9L', accept: '55%' },
+    ],
+    outletsTop: ['East Hyper', 'Metro Basket', 'A1 Traders'],
+  },
 };
 
 const roleScope = document.getElementById('role-scope');
 const hierarchySummary = document.getElementById('hierarchy-summary');
 const subordinateList = document.getElementById('subordinate-list');
 const territoryDetail = document.getElementById('territory-detail');
+const subordinatePerformanceBody = document.getElementById('subordinate-performance-body');
+const territoryOutletList = document.getElementById('territory-outlet-list');
 const mapNodes = document.querySelectorAll('.map-node[data-territory]');
 let selectedTerritory = 'bangalore-urban';
 
@@ -168,6 +232,8 @@ function renderTerritoryDetail() {
   const info = territoryInsights[selectedTerritory];
   if (!info) {
     territoryDetail.innerHTML = '<div class="summary-pill">No territory data.</div>';
+    if (subordinatePerformanceBody) subordinatePerformanceBody.innerHTML = '';
+    if (territoryOutletList) territoryOutletList.innerHTML = '';
     return;
   }
   territoryDetail.innerHTML = `
@@ -176,6 +242,16 @@ function renderTerritoryDetail() {
     <div class="summary-pill"><strong>Monthly Sales:</strong> ${info.monthlySales}</div>
     <div class="summary-pill"><strong>Insight:</strong> ${info.gap}</div>
   `;
+
+  if (subordinatePerformanceBody) {
+    subordinatePerformanceBody.innerHTML = info.team
+      .map((member) => `<tr><td>${member.name}</td><td>${member.role}</td><td>${member.sales}</td><td>${member.accept}</td></tr>`)
+      .join('');
+  }
+
+  if (territoryOutletList) {
+    territoryOutletList.innerHTML = info.outletsTop.map((outlet) => `<li>${outlet}</li>`).join('');
+  }
 }
 
 function renderHierarchyScope() {
