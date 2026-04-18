@@ -6,6 +6,7 @@ Use these files to present the Ivy Sales Extension proposal to the client:
 2. `UI_MOCK_FLOWS.md` — flow storyboard and UX sequence
 3. `FIGMA_HANDOFF_SPEC.md` — exact frame/component guidance for Figma build
 4. `mock_ui/index.html` — **actual interactive UX mock prototype** (HTML/CSS/JS)
+5. `mock_ui/mwe.html` — **minimal working example (MWE) mock** for quick demos
 
 ## How to use
 - Open `mock_ui/index.html` in browser for live UX flow demo.

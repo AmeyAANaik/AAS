@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ivy UX MWE</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f4f7fb; margin:0; }
+    .wrap { max-width: 980px; margin: 24px auto; padding: 0 12px; }
+    .head { background:#fff; border:1px solid #d9e3f0; border-radius:12px; padding:14px; }
+    .tabs { display:flex; gap:8px; margin:12px 0; flex-wrap:wrap; }
+    .tab { border:1px solid #b8c9e3; background:#fff; color:#24508f; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .tab.active { background:#24508f; color:#fff; }
+    .screen { display:none; background:#fff; border:1px solid #d9e3f0; border-radius:12px; padding:14px; }
+    .screen.active { display:block; }
+    .kpis { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+    .kpi { border:1px solid #d9e3f0; border-radius:10px; padding:10px; background:#f8fbff; }
+    .kpi h3 { margin:0; color:#24508f; }
+    .list { display:grid; gap:8px; }
+    .row { border:1px solid #e0e8f3; border-radius:8px; padding:10px; display:flex; justify-content:space-between; align-items:center; }
+    button { border:none; background:#24508f; color:#fff; border-radius:8px; padding:7px 10px; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { border-bottom:1px solid #e7edf6; padding:8px; text-align:left; }
+    .grid2 { display:grid; grid-template-columns:1.2fr 1fr; gap:10px; }
+    @media (max-width: 760px) { .kpis { grid-template-columns:1fr 1fr; } .grid2 { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="head">
+      <h1 style="margin:0">Ivy Sales Extension — MWE UI Mock</h1>
+      <p style="margin:6px 0 0;color:#5f6f87">Minimal demo screens for client walkthrough</p>
+    </section>
+
+    <div class="tabs">
+      <button class="tab active" data-to="beat">Rep Beat</button>
+      <button class="tab" data-to="order">Order + Recommendations</button>
+      <button class="tab" data-to="manager">Manager Dashboard</button>
+    </div>
+
+    <section class="screen active" id="beat">
+      <h2>Rep — Today’s Beat</h2>
+      <div class="kpis">
+        <div class="kpi"><h3>18</h3><small>Planned</small></div>
+        <div class="kpi"><h3>11</h3><small>Visited</small></div>
+        <div class="kpi"><h3>7</h3><small>Pending</small></div>
+        <div class="kpi"><h3>9</h3><small>Productive</small></div>
+      </div>
+      <div class="list">
+        <div class="row"><div><strong>Sagar Stores</strong><br><small>09:30 AM • Gold</small></div><button>Start Visit</button></div>
+        <div class="row"><div><strong>Lakshmi Mart</strong><br><small>10:10 AM • Silver</small></div><button>Start Visit</button></div>
+      </div>
+    </section>
+
+    <section class="screen" id="order">
+      <h2>Rep — Secondary Order + Recommendations</h2>
+      <div class="grid2">
+        <article>
+          <table>
+            <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td>IVY-MILK-1L</td><td>12</td><td>52</td><td>624</td></tr>
+              <tr><td>IVY-CURD-500G</td><td>18</td><td>24</td><td>432</td></tr>
+            </tbody>
+          </table>
+          <p><strong>Total:</strong> ₹1,056</p>
+          <button>Submit Order</button>
+        </article>
+        <article>
+          <div class="row"><div><strong>IVY-LASSI-200ML</strong><br><small>Replenishment due • 86% confidence</small></div><button>Accept</button></div>
+          <div class="row"><div><strong>IVY-GHEE-500ML</strong><br><small>Cross-sell • 72% confidence</small></div><button>Accept</button></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="screen" id="manager">
+      <h2>Manager — Control Tower</h2>
+      <div class="kpis">
+        <div class="kpi"><h3>92%</h3><small>Route Coverage</small></div>
+        <div class="kpi"><h3>74%</h3><small>Productive Visits</small></div>
+        <div class="kpi"><h3>₹12.4L</h3><small>Order Value</small></div>
+        <div class="kpi"><h3>61%</h3><small>Collection Eff.</small></div>
+      </div>
+      <table>
+        <thead><tr><th>Rep</th><th>Planned</th><th>Visited</th><th>Productive</th></tr></thead>
+        <tbody>
+          <tr><td>Roshni N</td><td>24</td><td>22</td><td>17</td></tr>
+          <tr><td>Ajay P</td><td>20</td><td>18</td><td>13</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const screens = document.querySelectorAll('.screen');
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      screens.forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.to).classList.add('active');
+    }));
+  </script>
+</body>
+</html>
