@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ivy Sales Extension - Professional UX Mock</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">IS</div>
+        <div>
+          <h1>Ivy Sales Extension</h1>
+          <p>AAS Berry UX • FMCG role hierarchy</p>
+        </div>
+      </div>
+
+      <nav class="menu">
+        <button class="menu-item active" data-view="execution-view">Execution Dashboard</button>
+        <button class="menu-item" data-view="territory-map-view">Territory Map View</button>
+        <button class="menu-item" data-view="monthly-report-view">Monthly Reports</button>
+        <button class="menu-item" data-view="recommendation-view">Recommendation Studio</button>
+        <button class="menu-item" data-view="pnl-view">P&L Analytics</button>
+      </nav>
+
+      <div class="status-card">
+        <h3>Sync Health</h3>
+        <p><strong>Online:</strong> 142 devices</p>
+        <p><strong>Pending Sync:</strong> 27 records</p>
+        <p><strong>Conflicts:</strong> 3</p>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Client Demo Workspace</h2>
+          <p>Professional UX aligned to existing app + Ivy Mobility feature expectations</p>
+        </div>
+        <div class="top-actions">
+          <span class="chip">Demo Tenant • South Zone</span>
+          <span class="chip blue">Live Preview</span>
+        </div>
+      </header>
+
+      <!-- 1) EXECUTION FLOW -->
+      <section class="workspace-view active" id="execution-view">
+        <section class="persona-tabs">
+          <button class="tab active" data-persona="salesperson">Sales Person View</button>
+          <button class="tab" data-persona="distributor">Distributor View</button>
+          <button class="tab" data-persona="retailer">Retailer View</button>
+          <button class="tab" data-persona="manager">Manager View</button>
+        </section>
+
+        <section class="persona active" id="salesperson">
+          <div class="kpi-grid">
+            <article class="kpi-card"><small>Today Planned</small><h3 id="kpi-planned">18</h3><p id="kpi-priority">3 high-priority outlets</p></article>
+            <article class="kpi-card"><small>Visits Completed</small><h3 id="kpi-completed">11</h3><p id="kpi-route">61% route completion</p></article>
+            <article class="kpi-card"><small>Productive Visits</small><h3 id="kpi-productive">9</h3><p id="kpi-strike">Strike rate 81.8%</p></article>
+            <article class="kpi-card"><small>Day Order Value</small><h3 id="kpi-value">₹1.58L</h3><p id="kpi-change">+12% vs yesterday</p></article>
+          </div>
+
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-head"><h3>Today’s Beat & Visit Actions</h3><button id="optimize-route">Optimize Route</button></div>
+              <div class="scope-controls two-col">
+                <label>Sales Person
+                  <select id="salesperson-filter">
+                    <option value="roshni">Roshni N</option>
+                    <option value="ajay">Ajay P</option>
+                    <option value="sana">Sana M</option>
+                  </select>
+                </label>
+                <label>Route Preference
+                  <select id="route-mode">
+                    <option value="shortest">Shortest Distance</option>
+                    <option value="traffic">Traffic Optimized</option>
+                    <option value="priority">Priority Outlets First</option>
+                  </select>
+                </label>
+              </div>
+              <div class="summary-pill" id="route-summary">Optimized path: 18.4 km • ETA 5h 20m • 18 outlets</div>
+              <div id="beat-list"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-head"><h3>Order + Smart Suggestions</h3><button>Open Full Screen</button></div>
+              <table>
+                <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
+                <tbody>
+                  <tr><td>IVY-MILK-1L</td><td>12</td><td>52</td><td>624</td></tr>
+                  <tr><td>IVY-CURD-500G</td><td>18</td><td>24</td><td>432</td></tr>
+                </tbody>
+              </table>
+
+              <div class="suggestion-toolbar">
+                <label>Outlet Segment
+                  <select id="segment-filter">
+                    <option value="all">All</option>
+                    <option value="gold">Gold</option>
+                    <option value="silver">Silver</option>
+                    <option value="platinum">Platinum</option>
+                  </select>
+                </label>
+                <label>Suggestion Type
+                  <select id="type-filter">
+                    <option value="all">All</option>
+                    <option value="replenishment">Replenishment</option>
+                    <option value="cross-sell">Cross-sell</option>
+                    <option value="scheme">Scheme-driven</option>
+                  </select>
+                </label>
+                <button id="refresh-suggestions">Generate Suggestions</button>
+              </div>
+
+              <div class="suggestion-stats">
+                <span class="badge blue">Shown: <strong id="shown-count">0</strong></span>
+                <span class="badge green">Accepted: <strong id="accepted-count">0</strong></span>
+                <span class="badge red">Rejected: <strong id="rejected-count">0</strong></span>
+              </div>
+
+              <div id="suggestion-list" class="suggestion-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="persona" id="distributor">
+          <div class="kpi-grid">
+            <article class="kpi-card"><small>Open Secondary Orders</small><h3>54</h3><p>Awaiting conversion</p></article>
+            <article class="kpi-card"><small>Dispatch Ready</small><h3>39</h3><p>Ready in warehouse</p></article>
+            <article class="kpi-card"><small>Pending Collections</small><h3>₹8.4L</h3><p>Overdue: ₹1.7L</p></article>
+            <article class="kpi-card"><small>Fill Rate</small><h3>93%</h3><p>Target: 95%</p></article>
+          </div>
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-head"><h3>Order Conversion Queue</h3><button>Bulk Convert</button></div>
+              <div class="list-item"><div><strong>SO-DRAFT-211</strong><p>Retailer: Sagar Stores • Value ₹24,300</p></div><button>Convert to SO</button></div>
+              <div class="list-item"><div><strong>SO-DRAFT-212</strong><p>Retailer: Lakshmi Mart • Value ₹17,880</p></div><button>Convert to SO</button></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head"><h3>Van Stock + Allocation Risks</h3><button>View Warehouse</button></div>
+              <table>
+                <thead><tr><th>SKU</th><th>Available</th><th>Allocated</th><th>Risk</th></tr></thead>
+                <tbody>
+                  <tr><td>IVY-MILK-1L</td><td>440</td><td>378</td><td><span class="badge green">Safe</span></td></tr>
+                  <tr><td>IVY-LASSI-200ML</td><td>120</td><td>112</td><td><span class="badge red">Low</span></td></tr>
+                </tbody>
+              </table>
+            </article>
+          </div>
+        </section>
+
+        <section class="persona" id="retailer">
+          <div class="kpi-grid">
+            <article class="kpi-card"><small>Last Order Date</small><h3>16 Apr</h3><p>2 days ago</p></article>
+            <article class="kpi-card"><small>Average Basket</small><h3>₹18,200</h3><p>Monthly trend +8%</p></article>
+            <article class="kpi-card"><small>Outstanding</small><h3>₹34,880</h3><p>Due in 6 days</p></article>
+            <article class="kpi-card"><small>Offer Eligibility</small><h3>3</h3><p>Active schemes</p></article>
+          </div>
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-head"><h3>Retailer Reorder Assistant</h3><button id="retailer-refresh">Refresh Suggestions</button></div>
+              <div id="retailer-suggestions" class="suggestion-list"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-head"><h3>Invoice & Collection Snapshot</h3><button>Pay Now</button></div>
+              <table>
+                <thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+                <tbody>
+                  <tr><td>ACC-SINV-421</td><td>₹18,450</td><td><span class="badge amber">Partial</span></td><td>22 Apr</td></tr>
+                  <tr><td>ACC-SINV-397</td><td>₹16,430</td><td><span class="badge red">Overdue</span></td><td>12 Apr</td></tr>
+                </tbody>
+              </table>
+            </article>
+          </div>
+        </section>
+
+        <section class="persona" id="manager">
+          <div class="kpi-grid">
+            <article class="kpi-card"><small>Route Coverage</small><h3>92%</h3><p>South zone daily</p></article>
+            <article class="kpi-card"><small>Rep Productivity</small><h3>74%</h3><p>Productive visit ratio</p></article>
+            <article class="kpi-card"><small>Collection Efficiency</small><h3>61%</h3><p>Month-to-date</p></article>
+            <article class="kpi-card"><small>Suggestion Acceptance</small><h3>48%</h3><p>Target 55%</p></article>
+          </div>
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-head"><h3>Team Performance</h3><button>View All Reps</button></div>
+              <table>
+                <thead><tr><th>Rep</th><th>Planned</th><th>Visited</th><th>Productive</th><th>Value</th></tr></thead>
+                <tbody>
+                  <tr><td>Roshni N</td><td>24</td><td>22</td><td>17</td><td>₹2.4L</td></tr>
+                  <tr><td>Ajay P</td><td>20</td><td>18</td><td>13</td><td>₹1.8L</td></tr>
+                </tbody>
+              </table>
+            </article>
+            <article class="panel">
+              <div class="panel-head"><h3>Operational Alerts</h3><button>Take Action</button></div>
+              <ul class="alerts">
+                <li>7 overdue collections above ₹10,000</li>
+                <li>2 reps below 60% productive visits</li>
+                <li>Distributor fill rate below SLA for Lassi SKU</li>
+                <li>Incentive approvals pending for 14 entries</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <!-- 2) TERRITORY MAP + HIERARCHY FLOW -->
+      <section class="workspace-view" id="territory-map-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Territory Map & Hierarchy Visibility</h3>
+            <div class="scope-controls">
+              <label>Role Scope
+                <select id="role-scope">
+                  <option value="salesperson">Sales Person</option>
+                  <option value="asm">Area Sales Manager (ASM)</option>
+                  <option value="rsm">Regional Sales Manager (RSM)</option>
+                  <option value="nsm">National Sales Head</option>
+                </select>
+              </label>
+              <label>Territory
+                <select id="territory-filter">
+                  <option value="south-1">South Cluster 1</option>
+                  <option value="south-2">South Cluster 2</option>
+                  <option value="west-1">West Cluster 1</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="map-grid">
+            <article class="map-card">
+              <h4>Territory Heat Map (Mock)</h4>
+              <div class="mock-map" id="territory-map">
+                <button class="map-node high active" data-territory="bangalore-urban">Bangalore Urban</button>
+                <button class="map-node medium" data-territory="mysore">Mysore</button>
+                <button class="map-node high" data-territory="chennai-north">Chennai North</button>
+                <button class="map-node low" data-territory="coimbatore">Coimbatore</button>
+                <button class="map-node medium" data-territory="madurai">Madurai</button>
+                <button class="map-node high" data-territory="hyderabad-east">Hyderabad East</button>
+              </div>
+              <p class="note">Color intensity represents monthly sales attainment vs target.</p>
+            </article>
+
+            <article class="map-card">
+              <h4>Hierarchy Scope</h4>
+              <div id="hierarchy-summary" class="summary-stack"></div>
+              <h4 style="margin-top:12px;">Subordinate Team</h4>
+              <ul id="subordinate-list" class="alerts"></ul>
+              <h4 style="margin-top:12px;">Selected Territory Drilldown</h4>
+              <div id="territory-detail" class="summary-stack"></div>
+              <h4 style="margin-top:12px;">Subordinate Performance</h4>
+              <table id="subordinate-performance-table">
+                <thead><tr><th>Name</th><th>Role</th><th>Sales</th><th>Reco Accept</th></tr></thead>
+                <tbody id="subordinate-performance-body"></tbody>
+              </table>
+              <h4 style="margin-top:12px;">Top Outlets in Territory</h4>
+              <ul id="territory-outlet-list" class="alerts"></ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3) MONTHLY REPORT FLOW -->
+      <section class="workspace-view" id="monthly-report-view">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Monthly Sales</small><h3>₹48.2L</h3><p>+8.6% vs last month</p></article>
+          <article class="kpi-card"><small>Monthly Collections</small><h3>₹31.4L</h3><p>65.1% realization</p></article>
+          <article class="kpi-card"><small>Productive Visits</small><h3>1,284</h3><p>Across 42 reps</p></article>
+          <article class="kpi-card"><small>Active Outlets</small><h3>3,920</h3><p>+214 new this month</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Monthly Report by Persona</h3><button>Export PDF</button></div>
+            <table>
+              <thead><tr><th>Persona</th><th>Primary KPI</th><th>Month Value</th><th>Trend</th></tr></thead>
+              <tbody>
+                <tr><td>Sales Person</td><td>Order Value</td><td>₹16.8L</td><td><span class="badge green">+11%</span></td></tr>
+                <tr><td>Distributor</td><td>Fill Rate</td><td>93%</td><td><span class="badge amber">-1.2%</span></td></tr>
+                <tr><td>Retailer</td><td>Repeat Orders</td><td>2,142</td><td><span class="badge green">+6%</span></td></tr>
+                <tr><td>Manager</td><td>Route Coverage</td><td>90.4%</td><td><span class="badge green">+4.1%</span></td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Month-on-Month Snapshot</h3><button>Export CSV</button></div>
+            <div class="bar-list">
+              <div class="bar-row"><span>Jan</span><div class="bar"><i style="width:63%"></i></div><strong>₹37L</strong></div>
+              <div class="bar-row"><span>Feb</span><div class="bar"><i style="width:68%"></i></div><strong>₹40L</strong></div>
+              <div class="bar-row"><span>Mar</span><div class="bar"><i style="width:74%"></i></div><strong>₹44L</strong></div>
+              <div class="bar-row"><span>Apr</span><div class="bar"><i style="width:81%"></i></div><strong>₹48.2L</strong></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 4) RECOMMENDATION SYSTEM FLOW -->
+      <section class="workspace-view" id="recommendation-view">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Suggestions Generated</small><h3>14,382</h3><p>MTD all territories</p></article>
+          <article class="kpi-card"><small>Acceptance Rate</small><h3>48%</h3><p>Target 55%</p></article>
+          <article class="kpi-card"><small>Cross-sell Uplift</small><h3>+9.3%</h3><p>Accepted suggestion impact</p></article>
+          <article class="kpi-card"><small>Missed Opportunity</small><h3>₹3.1L</h3><p>Rejected but high-score</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Sales Person Insight Feed</h3><button>Refresh Model</button></div>
+            <div class="suggestion-item">
+              <strong>Why IVY-LASSI-200ML was suggested</strong>
+              <p>Outlet bought this SKU 5 times in last 8 weeks. Days-since-last-order exceeded normal frequency (14-day cycle).</p>
+              <div class="suggestion-meta">
+                <span class="badge blue">Pattern: Replenishment</span>
+                <span class="badge amber">Confidence: 86%</span>
+                <span>Expected uplift: ₹4,200</span>
+              </div>
+            </div>
+            <div class="suggestion-item">
+              <strong>Next Product Push Recommendation</strong>
+              <p>Bundle suggestion: IVY-MILK-1L + IVY-PANEER-200G shows 31% conversion in similar outlets.</p>
+              <div class="suggestion-meta">
+                <span class="badge blue">Pattern: Cross-sell</span>
+                <span class="badge amber">Confidence: 74%</span>
+                <span>Expected uplift: ₹2,150</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Ivy-style Feature Coverage</h3><button>Compare Matrix</button></div>
+            <table>
+              <thead><tr><th>Capability</th><th>Status in Mock</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td>Outlet history driven suggestion</td><td><span class="badge green">Included</span></td><td>Reason + confidence shown</td></tr>
+                <tr><td>Cross-sell / next-best-product</td><td><span class="badge green">Included</span></td><td>Bundle logic represented</td></tr>
+                <tr><td>Scheme-aware prompts</td><td><span class="badge amber">Planned</span></td><td>Rule toggle in next iteration</td></tr>
+                <tr><td>Rep accept/reject tracking</td><td><span class="badge green">Included</span></td><td>Action counters captured</td></tr>
+              </tbody>
+            </table>
+          </article>
+        </div>
+      </section>
+
+      <!-- 5) P&L FLOW -->
+      <section class="workspace-view" id="pnl-view">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Total Revenue</small><h3>₹48.2L</h3><p>Month-to-date</p></article>
+          <article class="kpi-card"><small>COGS</small><h3>₹33.7L</h3><p>69.9% of revenue</p></article>
+          <article class="kpi-card"><small>Gross Profit</small><h3>₹14.5L</h3><p>Margin 30.1%</p></article>
+          <article class="kpi-card"><small>Net Profit</small><h3>₹9.6L</h3><p>After distribution expense</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>P&L Statement (Monthly)</h3><button>Download XLS</button></div>
+            <table>
+              <thead><tr><th>Line Item</th><th>Amount</th><th>% of Revenue</th></tr></thead>
+              <tbody>
+                <tr><td>Revenue</td><td>₹48,20,000</td><td>100%</td></tr>
+                <tr><td>Cost of Goods Sold</td><td>₹33,70,000</td><td>69.9%</td></tr>
+                <tr><td><strong>Gross Profit</strong></td><td><strong>₹14,50,000</strong></td><td><strong>30.1%</strong></td></tr>
+                <tr><td>Field Operations Cost</td><td>₹2,60,000</td><td>5.4%</td></tr>
+                <tr><td>Distributor Incentives</td><td>₹1,40,000</td><td>2.9%</td></tr>
+                <tr><td>Sales Incentives</td><td>₹90,000</td><td>1.9%</td></tr>
+                <tr><td><strong>Net Profit</strong></td><td><strong>₹9,60,000</strong></td><td><strong>19.9%</strong></td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>P&L by Channel</h3><button>Drill Down</button></div>
+            <div class="bar-list">
+              <div class="bar-row"><span>General Trade</span><div class="bar"><i style="width:78%"></i></div><strong>₹5.1L NP</strong></div>
+              <div class="bar-row"><span>Modern Trade</span><div class="bar"><i style="width:58%"></i></div><strong>₹3.0L NP</strong></div>
+              <div class="bar-row"><span>HORECA</span><div class="bar"><i style="width:31%"></i></div><strong>₹1.5L NP</strong></div>
+            </div>
+            <p class="note">NP = Net Profit. Channel-level P&L helps manager and distributor prioritize high-yield segments.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="prototype.js"></script>
+</body>
+</html>

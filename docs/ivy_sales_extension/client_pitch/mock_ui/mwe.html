@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Ivy UX MWE - All Core Flows</title>
+  <style>
+    :root{--p:#5b6bff;--bg:#eef2f6;--s:#fff;--b:#e6ebf1;--t:#1d2630;--m:#5b6b79}
+    body{margin:0;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--t)}
+    .wrap{max-width:1160px;margin:20px auto;padding:0 12px}
+    .head{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px}
+    .tabs{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+    .tab{border:1px solid var(--b);background:#fff;border-radius:8px;padding:8px 12px;cursor:pointer}
+    .tab.active{background:var(--p);color:#fff}
+    .card{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px}
+    .screen{display:none}.screen.active{display:block}
+    .k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+    .k div{border:1px solid #dbe3f3;border-radius:10px;padding:10px;background:#f8fbff}
+    h1,h2{margin:0} p{color:var(--m)}
+    table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #edf1f7;text-align:left}
+    .s{border:1px solid var(--b);border-radius:9px;padding:10px;margin-top:8px;background:#f8fbff}
+    .r{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    button{border:0;background:var(--p);color:#fff;border-radius:8px;padding:7px 10px}
+    @media(max-width:900px){.k{grid-template-columns:1fr 1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <h1>Ivy Sales Extension — Professional MWE (All Flows)</h1>
+      <p>Execution, Territory Map, Monthly Reports, Recommendation Studio, and P&L</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-to="execution">Execution</button>
+      <button class="tab" data-to="map">Territory Map</button>
+      <button class="tab" data-to="reports">Monthly Reports</button>
+      <button class="tab" data-to="suggestions">Suggestions</button>
+      <button class="tab" data-to="pnl">P&L</button>
+    </div>
+
+    <section class="screen active card" id="execution">
+      <h2>Execution (Sales Person / Distributor / Retailer / Manager)</h2>
+      <div class="k"><div><strong>18</strong><br><small>Planned Visits</small></div><div><strong>11</strong><br><small>Completed</small></div><div><strong>9</strong><br><small>Productive</small></div><div><strong>₹1.58L</strong><br><small>Order Value</small></div></div>
+      <p>Role-aware daily execution with beat, visit, order, collection, conversion, and manager oversight.</p>
+    </section>
+
+    <section class="screen card" id="map">
+      <h2>Territory Map + Hierarchy Scope</h2>
+      <p>Sales Person sees own route, ASM sees area team, RSM sees region, NSM sees national rollup.</p>
+      <div class="s">Scope example: <strong>RSM South</strong> -> ASMs: Bangalore, Chennai, Hyderabad</div>
+    </section>
+
+    <section class="screen card" id="reports">
+      <h2>Monthly Reports</h2>
+      <table>
+        <thead><tr><th>Month</th><th>Sales</th><th>Collections</th><th>Coverage</th></tr></thead>
+        <tbody>
+          <tr><td>Jan</td><td>₹37L</td><td>₹24L</td><td>84%</td></tr>
+          <tr><td>Feb</td><td>₹40L</td><td>₹27L</td><td>86%</td></tr>
+          <tr><td>Mar</td><td>₹44L</td><td>₹29L</td><td>89%</td></tr>
+          <tr><td>Apr</td><td>₹48.2L</td><td>₹31.4L</td><td>92%</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="screen card" id="suggestions">
+      <h2>Recommendation Studio</h2>
+      <div class="s r"><div><strong>Suggested:</strong> IVY-LASSI-200ML • 86% confidence • Replenishment due</div><button>Accept + Add</button></div>
+      <div class="s r"><div><strong>Next Push:</strong> IVY-PANEER-200G • 74% confidence • Cross-sell</div><button>Push to Rep</button></div>
+      <p>Suggestions are based on prior order history, outlet segment, scheme, and days-since-last-order.</p>
+    </section>
+
+    <section class="screen card" id="pnl">
+      <h2>P&L Snapshot</h2>
+      <table>
+        <thead><tr><th>Line Item</th><th>Amount</th><th>%</th></tr></thead>
+        <tbody>
+          <tr><td>Revenue</td><td>₹48,20,000</td><td>100%</td></tr>
+          <tr><td>COGS</td><td>₹33,70,000</td><td>69.9%</td></tr>
+          <tr><td>Gross Profit</td><td>₹14,50,000</td><td>30.1%</td></tr>
+          <tr><td>Net Profit</td><td>₹9,60,000</td><td>19.9%</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    const tabs=[...document.querySelectorAll('.tab')], screens=[...document.querySelectorAll('.screen')];
+    tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.classList.remove('active'));screens.forEach(s=>s.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.to).classList.add('active');});
+  </script>
+</body>
+</html>
