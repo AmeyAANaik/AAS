@@ -147,9 +147,36 @@ const hierarchyProfiles = {
   },
 };
 
+const territoryInsights = {
+  'bangalore-urban': { attainment: '112%', outlets: 324, monthlySales: '₹9.2L', gap: 'Strong performance; push premium cross-sell.' },
+  mysore: { attainment: '91%', outlets: 188, monthlySales: '₹4.1L', gap: 'Increase productive visits and reorder compliance.' },
+  'chennai-north': { attainment: '108%', outlets: 276, monthlySales: '₹8.6L', gap: 'Maintain current scheme-led momentum.' },
+  coimbatore: { attainment: '74%', outlets: 143, monthlySales: '₹2.9L', gap: 'Low coverage zone; ASM intervention needed.' },
+  madurai: { attainment: '88%', outlets: 169, monthlySales: '₹3.8L', gap: 'Improve fill-rate and repeat order cycle.' },
+  'hyderabad-east': { attainment: '116%', outlets: 301, monthlySales: '₹9.8L', gap: 'High growth; expand portfolio push.' },
+};
+
 const roleScope = document.getElementById('role-scope');
 const hierarchySummary = document.getElementById('hierarchy-summary');
 const subordinateList = document.getElementById('subordinate-list');
+const territoryDetail = document.getElementById('territory-detail');
+const mapNodes = document.querySelectorAll('.map-node[data-territory]');
+let selectedTerritory = 'bangalore-urban';
+
+function renderTerritoryDetail() {
+  if (!territoryDetail) return;
+  const info = territoryInsights[selectedTerritory];
+  if (!info) {
+    territoryDetail.innerHTML = '<div class="summary-pill">No territory data.</div>';
+    return;
+  }
+  territoryDetail.innerHTML = `
+    <div class="summary-pill"><strong>Attainment:</strong> ${info.attainment}</div>
+    <div class="summary-pill"><strong>Active Outlets:</strong> ${info.outlets}</div>
+    <div class="summary-pill"><strong>Monthly Sales:</strong> ${info.monthlySales}</div>
+    <div class="summary-pill"><strong>Insight:</strong> ${info.gap}</div>
+  `;
+}
 
 function renderHierarchyScope() {
   if (!roleScope || !hierarchySummary || !subordinateList) return;
@@ -164,9 +191,19 @@ function renderHierarchyScope() {
   subordinateList.innerHTML = profile.subordinates.map((entry) => `<li>${entry}</li>`).join('');
 }
 
+mapNodes.forEach((node) => {
+  node.addEventListener('click', () => {
+    mapNodes.forEach((n) => n.classList.remove('active'));
+    node.classList.add('active');
+    selectedTerritory = node.dataset.territory || selectedTerritory;
+    renderTerritoryDetail();
+  });
+});
+
 roleScope?.addEventListener('change', renderHierarchyScope);
 document.getElementById('territory-filter')?.addEventListener('change', renderHierarchyScope);
 
 renderSuggestions();
 renderRetailerSuggestions();
 renderHierarchyScope();
+renderTerritoryDetail();

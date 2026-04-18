@@ -95,10 +95,11 @@ th { color: var(--muted); font-weight: 600; }
 .map-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
 .map-card { border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--surface-soft); }
 .mock-map { min-height: 230px; border: 1px dashed #cfd8e8; border-radius: 10px; padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; align-content: start; }
-.map-node { padding: 8px; border-radius: 8px; font-size: 12px; text-align: center; font-weight: 600; }
+.map-node { border: 1px solid transparent; padding: 8px; border-radius: 8px; font-size: 12px; text-align: center; font-weight: 600; cursor: pointer; }
 .map-node.high { background: rgba(44,168,127,0.18); color: #1a7854; }
 .map-node.medium { background: rgba(250,173,20,0.2); color: #9a6602; }
 .map-node.low { background: rgba(240,81,109,0.2); color: #b21f4c; }
+.map-node.active { outline: 2px solid var(--primary); transform: translateY(-1px); }
 .summary-stack { display: grid; gap: 8px; }
 .summary-pill { border: 1px solid var(--border); background: #fff; border-radius: 8px; padding: 8px; font-size: 12px; color: var(--muted); }
 

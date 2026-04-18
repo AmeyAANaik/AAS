@@ -220,13 +220,13 @@
           <div class="map-grid">
             <article class="map-card">
               <h4>Territory Heat Map (Mock)</h4>
-              <div class="mock-map">
-                <div class="map-node high">Bangalore Urban</div>
-                <div class="map-node medium">Mysore</div>
-                <div class="map-node high">Chennai North</div>
-                <div class="map-node low">Coimbatore</div>
-                <div class="map-node medium">Madurai</div>
-                <div class="map-node high">Hyderabad East</div>
+              <div class="mock-map" id="territory-map">
+                <button class="map-node high active" data-territory="bangalore-urban">Bangalore Urban</button>
+                <button class="map-node medium" data-territory="mysore">Mysore</button>
+                <button class="map-node high" data-territory="chennai-north">Chennai North</button>
+                <button class="map-node low" data-territory="coimbatore">Coimbatore</button>
+                <button class="map-node medium" data-territory="madurai">Madurai</button>
+                <button class="map-node high" data-territory="hyderabad-east">Hyderabad East</button>
               </div>
               <p class="note">Color intensity represents monthly sales attainment vs target.</p>
             </article>
@@ -236,6 +236,8 @@
               <div id="hierarchy-summary" class="summary-stack"></div>
               <h4 style="margin-top:12px;">Subordinate Team</h4>
               <ul id="subordinate-list" class="alerts"></ul>
+              <h4 style="margin-top:12px;">Selected Territory Drilldown</h4>
+              <div id="territory-detail" class="summary-stack"></div>
             </article>
           </div>
         </div>
