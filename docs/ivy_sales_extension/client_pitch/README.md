@@ -20,3 +20,5 @@ This pack is text/web-asset based (no binary files) to remain PR-compatible in e
 ## Professional UX update
 - `mock_ui/index.html` now includes role-based professional views aligned with existing AAS style: **Sales Person**, **Distributor**, **Retailer**, and **Manager**.
 - `mock_ui/mwe.html` is a compact MWE with the same four persona workflows.
+
+- Suggestion System is now embedded in both mocks with filters, confidence, reason codes, and Accept/Reject actions.

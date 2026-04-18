@@ -18,6 +18,9 @@
     .k div{border:1px solid #dbe3f3;border-radius:10px;padding:10px;background:#f8fbff}
     h1,h2{margin:0} p{color:var(--m)}
     table{width:100%;border-collapse:collapse}th,td{padding:8px;border-bottom:1px solid #edf1f7;text-align:left}
+    .s{border:1px solid var(--b);border-radius:9px;padding:10px;margin-top:8px;background:#f8fbff}
+    .r{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    button{border:0;background:var(--p);color:#fff;border-radius:8px;padding:7px 10px}
     @media(max-width:800px){.k{grid-template-columns:1fr 1fr}}
   </style>
 </head>
@@ -25,7 +28,7 @@
   <div class="wrap">
     <div class="head">
       <h1>Ivy Sales Extension — Professional MWE</h1>
-      <p>Sales Person, Distributor, Retailer and Manager workflows</p>
+      <p>Sales Person, Distributor, Retailer and Manager workflows with Suggestion System</p>
     </div>
     <div class="tabs">
       <button class="tab active" data-to="sales">Sales Person</button>
@@ -38,6 +41,7 @@
       <h2>Sales Person View</h2>
       <div class="k"><div><strong>18</strong><br><small>Planned</small></div><div><strong>11</strong><br><small>Visited</small></div><div><strong>9</strong><br><small>Productive</small></div><div><strong>₹1.58L</strong><br><small>Day Value</small></div></div>
       <p>Workflow: Beat -> Check-in -> Visit/Audit -> Order -> Collection -> Checkout</p>
+      <div class="s r"><div><strong>Suggested:</strong> IVY-LASSI-200ML • 86% confidence</div><button>Accept + Add</button></div>
     </section>
 
     <section class="screen card" id="dist">
@@ -49,7 +53,8 @@
     <section class="screen card" id="ret">
       <h2>Retailer View</h2>
       <div class="k"><div><strong>16 Apr</strong><br><small>Last Order</small></div><div><strong>₹18,200</strong><br><small>Avg Basket</small></div><div><strong>₹34,880</strong><br><small>Outstanding</small></div><div><strong>3</strong><br><small>Active Schemes</small></div></div>
-      <p>Workflow: Reorder recommendations -> Place order -> Invoice visibility -> Payment</p>
+      <p>Workflow: Reorder suggestions -> Place order -> Invoice visibility -> Payment</p>
+      <div class="s r"><div><strong>Suggested:</strong> IVY-PANEER-200G • Cross-sell</div><button>Add to Cart</button></div>
     </section>
 
     <section class="screen card" id="mgr">
@@ -60,7 +65,7 @@
           <tr><td>Route Coverage</td><td>92%</td></tr>
           <tr><td>Productive Visit Ratio</td><td>74%</td></tr>
           <tr><td>Collection Efficiency</td><td>61%</td></tr>
-          <tr><td>Recommendation Acceptance</td><td>48%</td></tr>
+          <tr><td>Suggestion Acceptance</td><td>48%</td></tr>
         </tbody>
       </table>
     </section>

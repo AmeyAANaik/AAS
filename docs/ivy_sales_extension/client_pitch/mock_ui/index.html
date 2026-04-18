@@ -23,7 +23,7 @@
         <button class="menu-item">Sales Visits</button>
         <button class="menu-item">Secondary Orders</button>
         <button class="menu-item">Collections</button>
-        <button class="menu-item">Recommendations</button>
+        <button class="menu-item">Suggestions</button>
         <button class="menu-item">Incentives</button>
       </nav>
 
@@ -80,7 +80,7 @@
           </article>
 
           <article class="panel">
-            <div class="panel-head"><h3>Order + Recommended SKUs</h3><button>Open Full Screen</button></div>
+            <div class="panel-head"><h3>Order + Suggestion System</h3><button>Open Full Screen</button></div>
             <table>
               <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
               <tbody>
@@ -88,14 +88,34 @@
                 <tr><td>IVY-CURD-500G</td><td>18</td><td>24</td><td>432</td></tr>
               </tbody>
             </table>
-            <div class="recommendation">
-              <div>
-                <strong>IVY-LASSI-200ML</strong>
-                <p>Reason: Replenishment due in 14-day cycle</p>
-              </div>
-              <span class="badge amber">86% confidence</span>
-              <div class="actions"><button class="ghost">Reject</button><button>Accept + Add</button></div>
+
+            <div class="suggestion-toolbar">
+              <label>Outlet Segment
+                <select id="segment-filter">
+                  <option value="all">All</option>
+                  <option value="gold">Gold</option>
+                  <option value="silver">Silver</option>
+                  <option value="platinum">Platinum</option>
+                </select>
+              </label>
+              <label>Suggestion Type
+                <select id="type-filter">
+                  <option value="all">All</option>
+                  <option value="replenishment">Replenishment</option>
+                  <option value="cross-sell">Cross-sell</option>
+                  <option value="scheme">Scheme-driven</option>
+                </select>
+              </label>
+              <button id="refresh-suggestions">Generate Suggestions</button>
             </div>
+
+            <div class="suggestion-stats">
+              <span class="badge blue">Shown: <strong id="shown-count">0</strong></span>
+              <span class="badge green">Accepted: <strong id="accepted-count">0</strong></span>
+              <span class="badge red">Rejected: <strong id="rejected-count">0</strong></span>
+            </div>
+
+            <div id="suggestion-list" class="suggestion-list"></div>
           </article>
         </div>
       </section>
@@ -140,17 +160,8 @@
 
         <div class="content-grid">
           <article class="panel">
-            <div class="panel-head"><h3>Retailer Reorder Assistant</h3><button>Reorder All</button></div>
-            <div class="recommendation">
-              <div><strong>IVY-MILK-1L</strong><p>Suggested qty 24 based on last 3 orders</p></div>
-              <span class="badge blue">Fast Moving</span>
-              <button>Add</button>
-            </div>
-            <div class="recommendation">
-              <div><strong>IVY-LASSI-200ML</strong><p>Suggested qty 18 (stockout risk detected)</p></div>
-              <span class="badge amber">Stockout Risk</span>
-              <button>Add</button>
-            </div>
+            <div class="panel-head"><h3>Retailer Reorder Assistant</h3><button id="retailer-refresh">Refresh Suggestions</button></div>
+            <div id="retailer-suggestions" class="suggestion-list"></div>
           </article>
 
           <article class="panel">
@@ -171,7 +182,7 @@
           <article class="kpi-card"><small>Route Coverage</small><h3>92%</h3><p>South zone daily</p></article>
           <article class="kpi-card"><small>Rep Productivity</small><h3>74%</h3><p>Productive visit ratio</p></article>
           <article class="kpi-card"><small>Collection Efficiency</small><h3>61%</h3><p>Month-to-date</p></article>
-          <article class="kpi-card"><small>Recommendation Acceptance</small><h3>48%</h3><p>Target 55%</p></article>
+          <article class="kpi-card"><small>Suggestion Acceptance</small><h3>48%</h3><p>Target 55%</p></article>
         </div>
 
         <div class="content-grid">
@@ -188,12 +199,12 @@
           </article>
 
           <article class="panel">
-            <div class="panel-head"><h3>Operational Alerts</h3><button>Take Action</button></div>
+            <div class="panel-head"><h3>Suggestion Insights</h3><button>Download Report</button></div>
             <ul class="alerts">
-              <li>7 overdue collections above ₹10,000</li>
-              <li>2 reps below 60% productive visits</li>
-              <li>Distributor fill rate below SLA for Lassi SKU</li>
-              <li>Incentive approvals pending for 14 entries</li>
+              <li>Top accepted: IVY-LASSI-200ML (86%)</li>
+              <li>Top rejected: IVY-GHEE-500ML (price resistance)</li>
+              <li>Gold segment acceptance: 62%</li>
+              <li>Scheme-driven suggestion uplift: +9%</li>
             </ul>
           </article>
         </div>
