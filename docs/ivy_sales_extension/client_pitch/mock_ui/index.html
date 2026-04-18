@@ -3,184 +3,203 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Ivy Sales Extension - UX Mock Prototype</title>
+  <title>Ivy Sales Extension - Professional UX Mock</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div>
-      <h1>Ivy Sales Extension</h1>
-      <p>Client UX Mock Prototype</p>
-    </div>
-    <div class="pill">Demo Mode</div>
-  </header>
-
-  <nav class="tabs">
-    <button class="tab active" data-screen="rep-beat">Rep: Today Beat</button>
-    <button class="tab" data-screen="rep-visit">Rep: Visit + Audit</button>
-    <button class="tab" data-screen="rep-order">Rep: Order + Recommendations</button>
-    <button class="tab" data-screen="rep-collection">Rep: Collection</button>
-    <button class="tab" data-screen="rep-sync">Rep: Sync Center</button>
-    <button class="tab" data-screen="manager">Manager: Control Tower</button>
-  </nav>
-
-  <main>
-    <section class="screen active" id="rep-beat">
-      <div class="mobile-frame">
-        <div class="mobile-header">
-          <span>Mon, 18 Apr</span>
-          <span class="status green">Online</span>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">IS</div>
+        <div>
+          <h1>Ivy Sales Extension</h1>
+          <p>AAS Berry UX style mock</p>
         </div>
-        <h2>Today’s Beat Plan</h2>
+      </div>
+
+      <nav class="menu">
+        <button class="menu-item active">Dashboard</button>
+        <button class="menu-item">Beat Planning</button>
+        <button class="menu-item">Sales Visits</button>
+        <button class="menu-item">Secondary Orders</button>
+        <button class="menu-item">Collections</button>
+        <button class="menu-item">Recommendations</button>
+        <button class="menu-item">Incentives</button>
+      </nav>
+
+      <div class="status-card">
+        <h3>Sync Health</h3>
+        <p><strong>Online:</strong> 142 devices</p>
+        <p><strong>Pending Sync:</strong> 27 records</p>
+        <p><strong>Conflicts:</strong> 3</p>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2>Client Demo Workspace</h2>
+          <p>Professional UX aligned to existing AAS theme</p>
+        </div>
+        <div class="top-actions">
+          <span class="chip">Demo Tenant • South Zone</span>
+          <span class="chip blue">Live Preview</span>
+        </div>
+      </header>
+
+      <section class="persona-tabs">
+        <button class="tab active" data-persona="salesperson">Sales Person View</button>
+        <button class="tab" data-persona="distributor">Distributor View</button>
+        <button class="tab" data-persona="retailer">Retailer View</button>
+        <button class="tab" data-persona="manager">Manager View</button>
+      </section>
+
+      <section class="persona active" id="salesperson">
         <div class="kpi-grid">
-          <article class="kpi"><h3>18</h3><p>Planned</p></article>
-          <article class="kpi"><h3>11</h3><p>Visited</p></article>
-          <article class="kpi"><h3>7</h3><p>Pending</p></article>
-          <article class="kpi"><h3>9</h3><p>Productive</p></article>
+          <article class="kpi-card"><small>Today Planned</small><h3>18</h3><p>3 high-priority outlets</p></article>
+          <article class="kpi-card"><small>Visits Completed</small><h3>11</h3><p>61% route completion</p></article>
+          <article class="kpi-card"><small>Productive Visits</small><h3>9</h3><p>Strike rate 81.8%</p></article>
+          <article class="kpi-card"><small>Day Order Value</small><h3>₹1.58L</h3><p>+12% vs yesterday</p></article>
         </div>
-        <h3>Outlet Sequence</h3>
-        <div class="list">
-          <article class="list-item"><div><strong>001 • Sagar Stores</strong><p>Due 09:30 • Segment: Gold</p></div><button>Start Visit</button></article>
-          <article class="list-item"><div><strong>002 • Lakshmi Mart</strong><p>Due 10:10 • Segment: Silver</p></div><button>Start Visit</button></article>
-          <article class="list-item"><div><strong>003 • SRS Super</strong><p>Due 10:50 • Segment: Platinum</p></div><button>Start Visit</button></article>
-        </div>
-      </div>
-    </section>
 
-    <section class="screen" id="rep-visit">
-      <div class="mobile-frame">
-        <div class="mobile-header">
-          <span>Outlet: Sagar Stores</span>
-          <span class="status blue">Checked-in</span>
-        </div>
-        <h2>Visit & Audit</h2>
-        <form class="form">
-          <label>Visit Outcome<select><option>Productive</option><option>Non-Productive</option></select></label>
-          <label>Stockout Flag<select><option>No</option><option>Yes</option></select></label>
-          <label>Promo Compliance<select><option>Compliant</option><option>Partial</option><option>Not Available</option></select></label>
-          <label>Share of Shelf (%)<input type="number" value="42"></label>
-          <label>Competitor Activity<textarea>Competitor push on premium packs.</textarea></label>
-          <label>Photo Evidence<input type="file"></label>
-        </form>
-        <div class="actions">
-          <button class="ghost">Save Draft</button>
-          <button>Submit Visit</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="rep-order">
-      <div class="desktop-frame two-col">
-        <section>
-          <h2>Secondary Order Entry</h2>
-          <table>
-            <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
-            <tbody>
-              <tr><td>IVY-MILK-1L</td><td>12</td><td>52</td><td>624</td></tr>
-              <tr><td>IVY-CURD-500G</td><td>18</td><td>24</td><td>432</td></tr>
-              <tr><td>IVY-BUTTER-200G</td><td>9</td><td>58</td><td>522</td></tr>
-            </tbody>
-          </table>
-          <div class="summary">
-            <span>Total Qty: 39</span>
-            <span>Order Value: ₹1,578</span>
-          </div>
-          <button>Submit Secondary Order</button>
-        </section>
-
-        <aside>
-          <h2>Recommended SKUs</h2>
-          <article class="card rec">
-            <h3>IVY-LASSI-200ML</h3>
-            <p>Reason: Replenishment due (last ordered 14 days ago)</p>
-            <div class="row"><span class="status amber">Confidence 86%</span><span>Suggested Qty: 24</span></div>
-            <div class="actions"><button class="ghost">Reject</button><button>Accept</button></div>
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Today’s Beat & Visit Actions</h3><button>Open Route</button></div>
+            <div class="list-item">
+              <div><strong>001 • Sagar Stores</strong><p>Due 09:30 • Gold Segment</p></div>
+              <div class="actions"><button class="ghost">Check-in</button><button>Start Visit</button></div>
+            </div>
+            <div class="list-item">
+              <div><strong>002 • Lakshmi Mart</strong><p>Due 10:10 • Silver Segment</p></div>
+              <div class="actions"><button class="ghost">Audit</button><button>Capture Order</button></div>
+            </div>
+            <div class="list-item">
+              <div><strong>003 • SRS Super</strong><p>Due 10:50 • Platinum Segment</p></div>
+              <div class="actions"><button class="ghost">Collection</button><button>Checkout</button></div>
+            </div>
           </article>
-          <article class="card rec">
-            <h3>IVY-GHEE-500ML</h3>
-            <p>Reason: Cross-sell with current basket mix</p>
-            <div class="row"><span class="status amber">Confidence 72%</span><span>Suggested Qty: 6</span></div>
-            <div class="actions"><button class="ghost">Reject</button><button>Accept</button></div>
-          </article>
-        </aside>
-      </div>
-    </section>
 
-    <section class="screen" id="rep-collection">
-      <div class="mobile-frame">
-        <h2>Collection Entry</h2>
-        <div class="card">
-          <p><strong>Invoice:</strong> ACC-SINV-2026-00421</p>
-          <p><strong>Outstanding:</strong> ₹18,450</p>
-        </div>
-        <form class="form">
-          <label>Amount Collected<input type="number" value="12000"></label>
-          <label>Mode of Payment<select><option>Bank Transfer</option><option>Cash</option><option>UPI</option></select></label>
-          <label>Reference No.<input type="text" value="UTR89332211"></label>
-          <label>Proof Attachment<input type="file"></label>
-        </form>
-        <div class="alert">Validation: amount must be ≤ outstanding</div>
-        <button>Submit Collection</button>
-      </div>
-    </section>
-
-    <section class="screen" id="rep-sync">
-      <div class="mobile-frame">
-        <h2>Sync Center</h2>
-        <div class="kpi-grid">
-          <article class="kpi"><h3>5</h3><p>Pending</p></article>
-          <article class="kpi"><h3>2</h3><p>Failed</p></article>
-          <article class="kpi"><h3>38</h3><p>Synced</p></article>
-          <article class="kpi"><h3>10:14</h3><p>Last Sync</p></article>
-        </div>
-        <div class="list">
-          <article class="list-item"><div><strong>Visit #V-1028</strong><p>Conflict on checkout timestamp</p></div><button>Resolve</button></article>
-          <article class="list-item"><div><strong>Order #SO-DRAFT-221</strong><p>Retry failed due to network timeout</p></div><button>Retry</button></article>
-        </div>
-        <div class="actions">
-          <button class="ghost">Retry All</button>
-          <button>Sync Now</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="manager">
-      <div class="desktop-frame">
-        <h2>Manager Control Tower</h2>
-        <div class="kpi-grid large">
-          <article class="kpi"><h3>92%</h3><p>Route Coverage</p></article>
-          <article class="kpi"><h3>74%</h3><p>Productive Visits</p></article>
-          <article class="kpi"><h3>₹12.4L</h3><p>Secondary Orders</p></article>
-          <article class="kpi"><h3>61%</h3><p>Collection Efficiency</p></article>
-          <article class="kpi"><h3>48%</h3><p>Rec. Acceptance</p></article>
-          <article class="kpi"><h3>₹3.8L</h3><p>Incentive Earned</p></article>
-        </div>
-
-        <div class="two-col">
-          <article class="card">
-            <h3>Rep Productivity</h3>
+          <article class="panel">
+            <div class="panel-head"><h3>Order + Recommended SKUs</h3><button>Open Full Screen</button></div>
             <table>
-              <thead><tr><th>Rep</th><th>Planned</th><th>Visited</th><th>Productive</th></tr></thead>
+              <thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead>
               <tbody>
-                <tr><td>Roshni N</td><td>24</td><td>22</td><td>17</td></tr>
-                <tr><td>Ajay P</td><td>20</td><td>18</td><td>13</td></tr>
-                <tr><td>Sana M</td><td>19</td><td>17</td><td>14</td></tr>
+                <tr><td>IVY-MILK-1L</td><td>12</td><td>52</td><td>624</td></tr>
+                <tr><td>IVY-CURD-500G</td><td>18</td><td>24</td><td>432</td></tr>
+              </tbody>
+            </table>
+            <div class="recommendation">
+              <div>
+                <strong>IVY-LASSI-200ML</strong>
+                <p>Reason: Replenishment due in 14-day cycle</p>
+              </div>
+              <span class="badge amber">86% confidence</span>
+              <div class="actions"><button class="ghost">Reject</button><button>Accept + Add</button></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="persona" id="distributor">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Open Secondary Orders</small><h3>54</h3><p>Awaiting conversion</p></article>
+          <article class="kpi-card"><small>Dispatch Ready</small><h3>39</h3><p>Ready in warehouse</p></article>
+          <article class="kpi-card"><small>Pending Collections</small><h3>₹8.4L</h3><p>Overdue: ₹1.7L</p></article>
+          <article class="kpi-card"><small>Fill Rate</small><h3>93%</h3><p>Target: 95%</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Order Conversion Queue</h3><button>Bulk Convert</button></div>
+            <div class="list-item"><div><strong>SO-DRAFT-211</strong><p>Retailer: Sagar Stores • Value ₹24,300</p></div><button>Convert to SO</button></div>
+            <div class="list-item"><div><strong>SO-DRAFT-212</strong><p>Retailer: Lakshmi Mart • Value ₹17,880</p></div><button>Convert to SO</button></div>
+            <div class="list-item"><div><strong>SO-DRAFT-213</strong><p>Retailer: SRS Super • Value ₹33,120</p></div><button>Convert to SO</button></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Dispatch Planning & Van Stock</h3><button>View Warehouse</button></div>
+            <table>
+              <thead><tr><th>SKU</th><th>Available</th><th>Allocated</th><th>Risk</th></tr></thead>
+              <tbody>
+                <tr><td>IVY-MILK-1L</td><td>440</td><td>378</td><td><span class="badge green">Safe</span></td></tr>
+                <tr><td>IVY-LASSI-200ML</td><td>120</td><td>112</td><td><span class="badge red">Low</span></td></tr>
+                <tr><td>IVY-BUTTER-200G</td><td>89</td><td>72</td><td><span class="badge amber">Watch</span></td></tr>
               </tbody>
             </table>
           </article>
-          <article class="card">
-            <h3>Alerts</h3>
-            <ul>
+        </div>
+      </section>
+
+      <section class="persona" id="retailer">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Last Order Date</small><h3>16 Apr</h3><p>2 days ago</p></article>
+          <article class="kpi-card"><small>Average Basket</small><h3>₹18,200</h3><p>Monthly trend +8%</p></article>
+          <article class="kpi-card"><small>Outstanding</small><h3>₹34,880</h3><p>Due in 6 days</p></article>
+          <article class="kpi-card"><small>Offer Eligibility</small><h3>3</h3><p>Active schemes</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Retailer Reorder Assistant</h3><button>Reorder All</button></div>
+            <div class="recommendation">
+              <div><strong>IVY-MILK-1L</strong><p>Suggested qty 24 based on last 3 orders</p></div>
+              <span class="badge blue">Fast Moving</span>
+              <button>Add</button>
+            </div>
+            <div class="recommendation">
+              <div><strong>IVY-LASSI-200ML</strong><p>Suggested qty 18 (stockout risk detected)</p></div>
+              <span class="badge amber">Stockout Risk</span>
+              <button>Add</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Invoice & Collection Snapshot</h3><button>Pay Now</button></div>
+            <table>
+              <thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Due</th></tr></thead>
+              <tbody>
+                <tr><td>ACC-SINV-421</td><td>₹18,450</td><td><span class="badge amber">Partial</span></td><td>22 Apr</td></tr>
+                <tr><td>ACC-SINV-397</td><td>₹16,430</td><td><span class="badge red">Overdue</span></td><td>12 Apr</td></tr>
+              </tbody>
+            </table>
+          </article>
+        </div>
+      </section>
+
+      <section class="persona" id="manager">
+        <div class="kpi-grid">
+          <article class="kpi-card"><small>Route Coverage</small><h3>92%</h3><p>South zone daily</p></article>
+          <article class="kpi-card"><small>Rep Productivity</small><h3>74%</h3><p>Productive visit ratio</p></article>
+          <article class="kpi-card"><small>Collection Efficiency</small><h3>61%</h3><p>Month-to-date</p></article>
+          <article class="kpi-card"><small>Recommendation Acceptance</small><h3>48%</h3><p>Target 55%</p></article>
+        </div>
+
+        <div class="content-grid">
+          <article class="panel">
+            <div class="panel-head"><h3>Team Performance</h3><button>View All Reps</button></div>
+            <table>
+              <thead><tr><th>Rep</th><th>Planned</th><th>Visited</th><th>Productive</th><th>Value</th></tr></thead>
+              <tbody>
+                <tr><td>Roshni N</td><td>24</td><td>22</td><td>17</td><td>₹2.4L</td></tr>
+                <tr><td>Ajay P</td><td>20</td><td>18</td><td>13</td><td>₹1.8L</td></tr>
+                <tr><td>Sana M</td><td>19</td><td>17</td><td>14</td><td>₹2.0L</td></tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article class="panel">
+            <div class="panel-head"><h3>Operational Alerts</h3><button>Take Action</button></div>
+            <ul class="alerts">
               <li>7 overdue collections above ₹10,000</li>
               <li>2 reps below 60% productive visits</li>
-              <li>Recommendation acceptance dropped 8% WoW</li>
-              <li>Incentive approval pending for 14 entries</li>
+              <li>Distributor fill rate below SLA for Lassi SKU</li>
+              <li>Incentive approvals pending for 14 entries</li>
             </ul>
           </article>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+    </div>
+  </div>
 
   <script src="prototype.js"></script>
 </body>

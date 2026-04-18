@@ -15,3 +15,8 @@ Use these files to present the Ivy Sales Extension proposal to the client:
 
 ## Note
 This pack is text/web-asset based (no binary files) to remain PR-compatible in environments that block binary uploads.
+
+
+## Professional UX update
+- `mock_ui/index.html` now includes role-based professional views aligned with existing AAS style: **Sales Person**, **Distributor**, **Retailer**, and **Manager**.
+- `mock_ui/mwe.html` is a compact MWE with the same four persona workflows.
