@@ -146,3 +146,21 @@ Use this as a storyboard for Figma/PPT screens.
             -> [Accept/Reject Tracking]
                -> [Manager Insight Dashboard]
 ```
+
+
+## 10) Territory Map & Hierarchy Scope Flow
+
+```text
+[Role Scope Selector]
+   -> [Sales Person | ASM | RSM | NSM]
+      -> [Territory Filter]
+         -> [Map Heat Zones]
+            -> [Subordinate Tree]
+               -> [Scoped KPI + Drilldown]
+```
+
+### Visibility rule (FMCG hierarchy)
+- Sales person: only own route/outlets
+- ASM: own area + all reps in area
+- RSM/Region head: all ASMs/reps in region
+- NSM/National: all regions with drilldown

@@ -13,12 +13,13 @@
         <div class="logo">IS</div>
         <div>
           <h1>Ivy Sales Extension</h1>
-          <p>AAS Berry UX • Ivy-style workflow</p>
+          <p>AAS Berry UX • FMCG role hierarchy</p>
         </div>
       </div>
 
       <nav class="menu">
         <button class="menu-item active" data-view="execution-view">Execution Dashboard</button>
+        <button class="menu-item" data-view="territory-map-view">Territory Map View</button>
         <button class="menu-item" data-view="monthly-report-view">Monthly Reports</button>
         <button class="menu-item" data-view="recommendation-view">Recommendation Studio</button>
         <button class="menu-item" data-view="pnl-view">P&L Analytics</button>
@@ -192,7 +193,55 @@
         </section>
       </section>
 
-      <!-- 2) MONTHLY REPORT FLOW -->
+      <!-- 2) TERRITORY MAP + HIERARCHY FLOW -->
+      <section class="workspace-view" id="territory-map-view">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Territory Map & Hierarchy Visibility</h3>
+            <div class="scope-controls">
+              <label>Role Scope
+                <select id="role-scope">
+                  <option value="salesperson">Sales Person</option>
+                  <option value="asm">Area Sales Manager (ASM)</option>
+                  <option value="rsm">Regional Sales Manager (RSM)</option>
+                  <option value="nsm">National Sales Head</option>
+                </select>
+              </label>
+              <label>Territory
+                <select id="territory-filter">
+                  <option value="south-1">South Cluster 1</option>
+                  <option value="south-2">South Cluster 2</option>
+                  <option value="west-1">West Cluster 1</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="map-grid">
+            <article class="map-card">
+              <h4>Territory Heat Map (Mock)</h4>
+              <div class="mock-map">
+                <div class="map-node high">Bangalore Urban</div>
+                <div class="map-node medium">Mysore</div>
+                <div class="map-node high">Chennai North</div>
+                <div class="map-node low">Coimbatore</div>
+                <div class="map-node medium">Madurai</div>
+                <div class="map-node high">Hyderabad East</div>
+              </div>
+              <p class="note">Color intensity represents monthly sales attainment vs target.</p>
+            </article>
+
+            <article class="map-card">
+              <h4>Hierarchy Scope</h4>
+              <div id="hierarchy-summary" class="summary-stack"></div>
+              <h4 style="margin-top:12px;">Subordinate Team</h4>
+              <ul id="subordinate-list" class="alerts"></ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3) MONTHLY REPORT FLOW -->
       <section class="workspace-view" id="monthly-report-view">
         <div class="kpi-grid">
           <article class="kpi-card"><small>Monthly Sales</small><h3>₹48.2L</h3><p>+8.6% vs last month</p></article>
@@ -227,7 +276,7 @@
         </div>
       </section>
 
-      <!-- 3) RECOMMENDATION SYSTEM FLOW -->
+      <!-- 4) RECOMMENDATION SYSTEM FLOW -->
       <section class="workspace-view" id="recommendation-view">
         <div class="kpi-grid">
           <article class="kpi-card"><small>Suggestions Generated</small><h3>14,382</h3><p>MTD all territories</p></article>
@@ -274,7 +323,7 @@
         </div>
       </section>
 
-      <!-- 4) P&L FLOW -->
+      <!-- 5) P&L FLOW -->
       <section class="workspace-view" id="pnl-view">
         <div class="kpi-grid">
           <article class="kpi-card"><small>Total Revenue</small><h3>₹48.2L</h3><p>Month-to-date</p></article>

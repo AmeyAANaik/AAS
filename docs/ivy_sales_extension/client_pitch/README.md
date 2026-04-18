@@ -19,9 +19,12 @@ This pack is text/web-asset based (no binary files) to remain PR-compatible in e
 ## Professional UX update
 - `mock_ui/index.html` includes role-based professional views aligned with existing AAS style: **Sales Person**, **Distributor**, **Retailer**, and **Manager**.
 - Added full flow workspaces in sidebar:
+  - Territory Map View
   - Execution Dashboard
   - Monthly Reports
   - Recommendation Studio
   - P&L Analytics
 - Suggestion System is embedded with filters, confidence, reason codes, expected uplift, and Accept/Reject tracking.
 - `mock_ui/mwe.html` is a compact MWE with persona workflows and suggestion examples.
+
+- FMCG hierarchy visibility model added: Sales person -> ASM -> RSM -> NSM scoped data access.

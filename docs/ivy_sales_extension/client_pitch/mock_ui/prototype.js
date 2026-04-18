@@ -1,7 +1,6 @@
 // Workspace (sidebar) navigation
 const workspaceButtons = document.querySelectorAll('.menu-item[data-view]');
 const workspaceViews = document.querySelectorAll('.workspace-view');
-
 workspaceButtons.forEach((button) => {
   button.addEventListener('click', () => {
     workspaceButtons.forEach((b) => b.classList.remove('active'));
@@ -124,5 +123,50 @@ function renderRetailerSuggestions() {
 
 document.getElementById('retailer-refresh')?.addEventListener('click', renderRetailerSuggestions);
 
+// Territory map + hierarchy role scoping
+const hierarchyProfiles = {
+  salesperson: {
+    visibleData: 'Own route outlets only (beat-level visibility).',
+    territory: 'South Cluster 1 / Route A',
+    subordinates: ['No subordinate team. Individual contributor scope.'],
+  },
+  asm: {
+    visibleData: 'Area-level outlets and all reps under assigned area.',
+    territory: 'South Cluster 1 (Bangalore + Mysore)',
+    subordinates: ['Rep: Roshni N', 'Rep: Ajay P', 'Rep: Sana M'],
+  },
+  rsm: {
+    visibleData: 'Region-level totals, area rollups, and ASM visibility.',
+    territory: 'South Region (Karnataka + Tamil Nadu)',
+    subordinates: ['ASM: Kiran R', 'ASM: Meera D', 'ASM: Arun S'],
+  },
+  nsm: {
+    visibleData: 'National rollup, regional comparison, and deep drilldown.',
+    territory: 'All India',
+    subordinates: ['RSM South', 'RSM West', 'RSM North', 'RSM East'],
+  },
+};
+
+const roleScope = document.getElementById('role-scope');
+const hierarchySummary = document.getElementById('hierarchy-summary');
+const subordinateList = document.getElementById('subordinate-list');
+
+function renderHierarchyScope() {
+  if (!roleScope || !hierarchySummary || !subordinateList) return;
+  const key = roleScope.value;
+  const profile = hierarchyProfiles[key] || hierarchyProfiles.salesperson;
+
+  hierarchySummary.innerHTML = `
+    <div class="summary-pill"><strong>Visible Data:</strong> ${profile.visibleData}</div>
+    <div class="summary-pill"><strong>Territory Scope:</strong> ${profile.territory}</div>
+  `;
+
+  subordinateList.innerHTML = profile.subordinates.map((entry) => `<li>${entry}</li>`).join('');
+}
+
+roleScope?.addEventListener('change', renderHierarchyScope);
+document.getElementById('territory-filter')?.addEventListener('change', renderHierarchyScope);
+
 renderSuggestions();
 renderRetailerSuggestions();
+renderHierarchyScope();
