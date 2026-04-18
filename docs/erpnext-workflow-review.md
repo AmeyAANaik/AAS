@@ -66,3 +66,61 @@
 - Add backend tests around `inferGstIncludedInLineAmounts` and `sumOrderItemsTotal` using real sample invoices.
 - Persist parser-level flags such as `rate_includes_tax` / `amount_includes_tax` from vendor template extraction to avoid ambiguous matching.
 - Consider showing both pre-tax and with-tax preview values in the order review UI, not only in the final PDF.
+
+## 2026-04-18 App Context And Flow Mapping Review
+
+### Scope Reviewed
+- Application context baseline and currently implemented flow surface
+- Core workflow endpoints for orders, billing, payments, vendor ops, branch ops, and reports
+- Middleware state-machine and role enforcement that gate transitions
+- Core flow documentation images generated for quick operational context
+
+### Files Inspected
+- `docs/archived/PROJECT_CONTEXT.md`
+- `docs/archived/system-architecture-analysis.md`
+- `mw/src/main/java/com/aas/mw/config/SecurityConfig.java`
+- `mw/src/main/java/com/aas/mw/service/OrderFlowStateMachine.java`
+- `mw/src/main/java/com/aas/mw/controller/OrdersController.java`
+- `mw/src/main/java/com/aas/mw/controller/VendorAssignmentController.java`
+- `mw/src/main/java/com/aas/mw/controller/InvoiceController.java`
+- `mw/src/main/java/com/aas/mw/controller/PaymentsController.java`
+- `mw/src/main/java/com/aas/mw/controller/VendorOpsController.java`
+- `mw/src/main/java/com/aas/mw/controller/BranchOpsController.java`
+- `mw/src/main/java/com/aas/mw/controller/ReportsController.java`
+- `docs/CORE_FLOWS/APP_CONTEXT_AND_FLOWS.md`
+- `docs/CORE_FLOWS/images/*.png`
+
+### Current Implementation Summary
+- AAS remains middleware-mediated (`UI -> MW -> ERPNext`) with ERPNext as system of record.
+- Order lifecycle transitions are enforced in backend state-machine methods and reflect a staged order-to-bill-to-invoice pipeline.
+- Vendor and branch operations modules expose summary/detail/order/ledger endpoints with CSV exports for finance operations.
+- Billing supports invoice creation and GST item tax-template handling, while payments now emphasize attachment-backed payment submission.
+- Reporting endpoints are middleware-computed aggregations rather than direct ERP report passthrough.
+
+### ERPNext Alignment Notes
+- **Aligned:** Core ERPNext doctypes are reused for accounting artifacts (`Sales Order`, `Purchase Invoice`, `Sales Invoice`, `Payment Entry`) rather than replacing them with custom storage.
+- **Aligned:** Transition controls are enforced in backend services (`OrderFlowStateMachine`), not only in UI gating.
+- **Aligned with caveat:** Workflow status tracking continues in `aas_status`, which is acceptable for orchestration but must stay synchronized with underlying ERP document state semantics.
+
+### Findings
+1. Backend transition guardrails are explicit and generally ERP-safe for the documented sequence.
+   - `OrderFlowStateMachine` constrains assignment, PDF upload, bill capture, and sell-order creation by source state.
+
+2. Security configuration is role-granular on most sensitive endpoints and includes helper/admin separation for vendor bill processing.
+   - `SecurityConfig` constrains vendor assignment and invoicing to admin-level actions while allowing controlled operational roles for reads and payment evidence uploads.
+
+3. Payment workflow semantics have hardened around evidence attachment but can diverge from older docs that mention plain `POST /api/payments` as the main path.
+   - `PaymentsController` now returns an error on bare `POST /api/payments` and requires multipart evidence upload at `/api/payments/with-attachments`.
+
+4. Core flows are documented with generated image artifacts for faster onboarding and review.
+   - Added `docs/CORE_FLOWS/APP_CONTEXT_AND_FLOWS.md` with five generated flow images.
+
+### Gaps To Close
+- Update any remaining older flow docs that still present `POST /api/payments` as a normal successful path without mandatory attachments.
+- Consider un-archiving or reintroducing canonical top-level context docs (`PROJECT_CONTEXT.md`, `docs/system-architecture-analysis.md`) at expected locations to reduce drift against skill references.
+- Add a lightweight automated check ensuring flow docs and endpoint semantics stay consistent when controllers change.
+
+### Proposed Follow-Up Work
+- Add a docs consistency pass specifically for payment endpoints and invoice settlement behavior.
+- Add regression tests for role-based access to order/invoice/payment state-changing routes.
+- Extend generated flow images with version/date stamps embedded in each image footer to support documentation audits.
