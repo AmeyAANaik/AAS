@@ -123,6 +123,74 @@ function renderRetailerSuggestions() {
 
 document.getElementById('retailer-refresh')?.addEventListener('click', renderRetailerSuggestions);
 
+
+// Salesperson-scoped beat data + shortest path mock
+const salesProfiles = {
+  roshni: {
+    kpi: { planned: 18, completed: 11, productive: 9, value: '₹1.58L', priority: '3 high-priority outlets', route: '61% route completion', strike: 'Strike rate 81.8%', change: '+12% vs yesterday' },
+    routeSummary: 'Optimized path: 18.4 km • ETA 5h 20m • 18 outlets',
+    beats: [
+      { code: '001', name: 'Sagar Stores', due: '09:30', segment: 'Gold', primary: 'Start Visit', secondary: 'Check-in' },
+      { code: '002', name: 'Lakshmi Mart', due: '10:10', segment: 'Silver', primary: 'Capture Order', secondary: 'Audit' },
+      { code: '003', name: 'SRS Super', due: '10:50', segment: 'Platinum', primary: 'Checkout', secondary: 'Collection' },
+    ],
+  },
+  ajay: {
+    kpi: { planned: 20, completed: 13, productive: 10, value: '₹1.32L', priority: '2 high-priority outlets', route: '65% route completion', strike: 'Strike rate 76.9%', change: '+6% vs yesterday' },
+    routeSummary: 'Optimized path: 21.1 km • ETA 6h 05m • 20 outlets',
+    beats: [
+      { code: '004', name: 'Metro Bazaar', due: '09:20', segment: 'Gold', primary: 'Start Visit', secondary: 'Check-in' },
+      { code: '005', name: 'Green Mart', due: '10:05', segment: 'Silver', primary: 'Capture Order', secondary: 'Audit' },
+      { code: '006', name: 'City Retail', due: '10:45', segment: 'Gold', primary: 'Checkout', secondary: 'Collection' },
+    ],
+  },
+  sana: {
+    kpi: { planned: 19, completed: 15, productive: 12, value: '₹1.74L', priority: '4 high-priority outlets', route: '79% route completion', strike: 'Strike rate 80.0%', change: '+15% vs yesterday' },
+    routeSummary: 'Optimized path: 16.9 km • ETA 5h 02m • 19 outlets',
+    beats: [
+      { code: '007', name: 'A1 Traders', due: '09:10', segment: 'Platinum', primary: 'Start Visit', secondary: 'Check-in' },
+      { code: '008', name: 'Nova Stores', due: '09:55', segment: 'Gold', primary: 'Capture Order', secondary: 'Audit' },
+      { code: '009', name: 'Prime Mart', due: '10:35', segment: 'Silver', primary: 'Checkout', secondary: 'Collection' },
+    ],
+  },
+};
+
+const salespersonFilter = document.getElementById('salesperson-filter');
+const routeMode = document.getElementById('route-mode');
+const beatList = document.getElementById('beat-list');
+const routeSummary = document.getElementById('route-summary');
+
+function renderSalespersonView() {
+  const key = salespersonFilter?.value || 'roshni';
+  const profile = salesProfiles[key] || salesProfiles.roshni;
+
+  document.getElementById('kpi-planned').textContent = String(profile.kpi.planned);
+  document.getElementById('kpi-completed').textContent = String(profile.kpi.completed);
+  document.getElementById('kpi-productive').textContent = String(profile.kpi.productive);
+  document.getElementById('kpi-value').textContent = profile.kpi.value;
+  document.getElementById('kpi-priority').textContent = profile.kpi.priority;
+  document.getElementById('kpi-route').textContent = profile.kpi.route;
+  document.getElementById('kpi-strike').textContent = profile.kpi.strike;
+  document.getElementById('kpi-change').textContent = profile.kpi.change;
+
+  const mode = routeMode?.value || 'shortest';
+  const modeLabel = mode === 'traffic' ? 'Traffic optimized' : mode === 'priority' ? 'Priority-first' : 'Shortest path';
+  if (routeSummary) routeSummary.textContent = `${modeLabel}: ${profile.routeSummary}`;
+
+  if (beatList) {
+    beatList.innerHTML = profile.beats.map((b) => `
+      <div class="list-item">
+        <div><strong>${b.code} • ${b.name}</strong><p>Due ${b.due} • ${b.segment} Segment</p></div>
+        <div class="actions"><button class="ghost fixed-btn">${b.secondary}</button><button class="fixed-btn">${b.primary}</button></div>
+      </div>
+    `).join('');
+  }
+}
+
+salespersonFilter?.addEventListener('change', renderSalespersonView);
+routeMode?.addEventListener('change', renderSalespersonView);
+document.getElementById('optimize-route')?.addEventListener('click', renderSalespersonView);
+
 // Territory map + hierarchy role scoping
 const hierarchyProfiles = {
   salesperson: {
@@ -279,6 +347,7 @@ mapNodes.forEach((node) => {
 roleScope?.addEventListener('change', renderHierarchyScope);
 document.getElementById('territory-filter')?.addEventListener('change', renderHierarchyScope);
 
+renderSalespersonView();
 renderSuggestions();
 renderRetailerSuggestions();
 renderHierarchyScope();

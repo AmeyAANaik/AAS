@@ -56,18 +56,33 @@
 
         <section class="persona active" id="salesperson">
           <div class="kpi-grid">
-            <article class="kpi-card"><small>Today Planned</small><h3>18</h3><p>3 high-priority outlets</p></article>
-            <article class="kpi-card"><small>Visits Completed</small><h3>11</h3><p>61% route completion</p></article>
-            <article class="kpi-card"><small>Productive Visits</small><h3>9</h3><p>Strike rate 81.8%</p></article>
-            <article class="kpi-card"><small>Day Order Value</small><h3>₹1.58L</h3><p>+12% vs yesterday</p></article>
+            <article class="kpi-card"><small>Today Planned</small><h3 id="kpi-planned">18</h3><p id="kpi-priority">3 high-priority outlets</p></article>
+            <article class="kpi-card"><small>Visits Completed</small><h3 id="kpi-completed">11</h3><p id="kpi-route">61% route completion</p></article>
+            <article class="kpi-card"><small>Productive Visits</small><h3 id="kpi-productive">9</h3><p id="kpi-strike">Strike rate 81.8%</p></article>
+            <article class="kpi-card"><small>Day Order Value</small><h3 id="kpi-value">₹1.58L</h3><p id="kpi-change">+12% vs yesterday</p></article>
           </div>
 
           <div class="content-grid">
             <article class="panel">
-              <div class="panel-head"><h3>Today’s Beat & Visit Actions</h3><button>Open Route</button></div>
-              <div class="list-item"><div><strong>001 • Sagar Stores</strong><p>Due 09:30 • Gold Segment</p></div><div class="actions"><button class="ghost">Check-in</button><button>Start Visit</button></div></div>
-              <div class="list-item"><div><strong>002 • Lakshmi Mart</strong><p>Due 10:10 • Silver Segment</p></div><div class="actions"><button class="ghost">Audit</button><button>Capture Order</button></div></div>
-              <div class="list-item"><div><strong>003 • SRS Super</strong><p>Due 10:50 • Platinum Segment</p></div><div class="actions"><button class="ghost">Collection</button><button>Checkout</button></div></div>
+              <div class="panel-head"><h3>Today’s Beat & Visit Actions</h3><button id="optimize-route">Optimize Route</button></div>
+              <div class="scope-controls two-col">
+                <label>Sales Person
+                  <select id="salesperson-filter">
+                    <option value="roshni">Roshni N</option>
+                    <option value="ajay">Ajay P</option>
+                    <option value="sana">Sana M</option>
+                  </select>
+                </label>
+                <label>Route Preference
+                  <select id="route-mode">
+                    <option value="shortest">Shortest Distance</option>
+                    <option value="traffic">Traffic Optimized</option>
+                    <option value="priority">Priority Outlets First</option>
+                  </select>
+                </label>
+              </div>
+              <div class="summary-pill" id="route-summary">Optimized path: 18.4 km • ETA 5h 20m • 18 outlets</div>
+              <div id="beat-list"></div>
             </article>
 
             <article class="panel">
