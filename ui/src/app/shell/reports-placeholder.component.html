@@ -1,31 +1,60 @@
 <div class="reports-page">
-  <app-page-header title="Reports" subtitle="Run operational and finance reports using MW data only.">
-    <button mat-stroked-button color="primary" (click)="run()" [disabled]="isLoading">Run</button>
-    <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="isLoading">Export CSV</button>
-  </app-page-header>
+  <app-page-header title="Reports" subtitle="Run company reports using MW data."></app-page-header>
 
   <mat-card>
-    <mat-card-title>Report filters</mat-card-title>
+    <mat-card-title>Reports</mat-card-title>
     <mat-card-content>
-      <form [formGroup]="reportForm" class="form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Report type</mat-label>
-          <mat-select formControlName="reportType">
-            <mat-option *ngFor="let report of reportTypes" [value]="report.id">
-              {{ report.label }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
+      <div class="catalog-grid" *ngIf="catalog.length; else catalogEmpty">
+        <button
+          type="button"
+          class="report-card"
+          *ngFor="let report of catalog"
+          [class.selected]="report.id === selectedReport?.id"
+          (click)="selectReport(report)">
+          <div class="report-title">{{ report.label }}</div>
+          <div class="report-desc">{{ report.description }}</div>
+        </button>
+      </div>
+      <ng-template #catalogEmpty>
+        <div class="feedback">No reports available.</div>
+      </ng-template>
 
+      <mat-divider></mat-divider>
+
+      <form class="filters-row" [formGroup]="reportForm">
         <mat-form-field appearance="outline">
           <mat-label>From</mat-label>
-          <input matInput type="date" formControlName="from" />
+          <input matInput [matDatepicker]="fromPicker" formControlName="from" />
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>To</mat-label>
-          <input matInput type="date" formControlName="to" />
+          <input matInput [matDatepicker]="toPicker" formControlName="to" />
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
         </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="supportsGroupBy()">
+          <mat-label>Group by</mat-label>
+          <mat-select formControlName="groupBy">
+            <mat-option value="day">Day</mat-option>
+            <mat-option value="week">Week</mat-option>
+            <mat-option value="month">Month</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="actions-row">
+          <button mat-flat-button color="primary" (click)="run()" [disabled]="!canApply()">
+            <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
+            <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
+          </button>
+          <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="!canExport()">
+            Export CSV
+          </button>
+          <button mat-stroked-button type="button" (click)="clear()" [disabled]="isLoading">Clear</button>
+        </div>
       </form>
     </mat-card-content>
   </mat-card>
@@ -37,26 +66,46 @@
     <mat-card-content>
       <div class="feedback loading" *ngIf="isLoading">Running report...</div>
       <div class="feedback" *ngIf="!isLoading && status">{{ status }}</div>
+      <ul class="feedback-details" *ngIf="!isLoading && errorDetails.length">
+        <li *ngFor="let detail of errorDetails">{{ detail }}</li>
+      </ul>
+
+      <div *ngIf="chartData" class="chart-wrap">
+        <canvas baseChart [data]="chartData" [type]="chartType" [options]="chartOptions"></canvas>
+      </div>
+
       <div *ngIf="rows.length; else emptyState" class="result-table-wrap">
         <table class="result-table">
           <thead>
             <tr>
-              <th *ngFor="let column of columns">{{ column }}</th>
+              <th *ngFor="let column of columns">{{ formatHeader(column) }}</th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let row of rows">
-              <td *ngFor="let column of columns">{{ formatCell(row[column]) }}</td>
+              <td *ngFor="let column of columns">
+                <ng-container *ngIf="isProfitColumn(column); else normalCell">
+                  <span class="profit-cell" [ngClass]="signClass(row[column])">
+                    <span class="profit-icon">{{ signIcon(row[column]) }}</span>
+                    <span>{{ formatCell(row[column]) }}</span>
+                  </span>
+                </ng-container>
+                <ng-template #normalCell>{{ formatCell(row[column]) }}</ng-template>
+              </td>
             </tr>
           </tbody>
+          <tfoot *ngIf="totalsRow && rows.length > 1">
+            <tr class="totals-row">
+              <td *ngFor="let column of columns">{{ formatCell(totalsRow[column]) }}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       <ng-template #emptyState>
         <app-empty-state
           icon="bar_chart"
           title="No results yet"
-          message="Select a report type and date range to run a report."
-          hint="Results will appear here once the MW report runs.">
+          message="Select a report and date range to run a report.">
         </app-empty-state>
       </ng-template>
     </mat-card-content>

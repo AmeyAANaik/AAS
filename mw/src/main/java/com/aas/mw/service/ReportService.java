@@ -2,11 +2,14 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -119,7 +122,7 @@ public class ReportService {
                 continue;
             }
             String name = asString(order.get("name"));
-            Map<String, Object> full = erpNextClient.getResource("Sales Order", name);
+            Map<String, Object> full = unwrapResource(erpNextClient.getResource("Sales Order", name));
             Object items = full.get("items");
             if (items instanceof List<?> list) {
                 for (Object itemObj : list) {
@@ -144,6 +147,149 @@ public class ReportService {
             map.put("margin_total", round(categoryMargins.getOrDefault(entry.getKey(), 0.0)));
             return map;
         }).toList();
+    }
+
+    public List<Map<String, Object>> companyBranchSalesProfit(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        List<Map<String, Object>> orders = fetchSalesOrders(range);
+        Map<String, OrderCost> costMap = computeOrderCosts(orders);
+        Map<String, BranchSalesProfit> aggregated = new HashMap<>();
+        for (Map<String, Object> order : orders) {
+            String shop = asString(order.get("customer"));
+            if (shop.isBlank()) {
+                continue;
+            }
+            BranchSalesProfit entry = aggregated.computeIfAbsent(shop, ignored -> new BranchSalesProfit());
+            entry.orders += 1;
+            entry.salesTotal += asDouble(order.get("grand_total"));
+            OrderCost cost = costMap.getOrDefault(asString(order.get("name")), OrderCost.empty());
+            entry.costTotal += cost.costTotal();
+        }
+        return aggregated.entrySet().stream()
+                .map(e -> {
+                    BranchSalesProfit entry = e.getValue();
+                    double profitTotal = entry.salesTotal - entry.costTotal;
+                    double profitPercent = entry.salesTotal > 0 ? (profitTotal / entry.salesTotal) * 100.0 : 0.0;
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("shop", e.getKey());
+                    map.put("orders", entry.orders);
+                    map.put("sales_total", round(entry.salesTotal));
+                    map.put("cost_total", round(entry.costTotal));
+                    map.put("profit_total", round(profitTotal));
+                    map.put("profit_percent", round(profitPercent));
+                    return map;
+                })
+                .sorted((a, b) -> Double.compare(asDouble(b.get("sales_total")), asDouble(a.get("sales_total"))))
+                .toList();
+    }
+
+    public List<Map<String, Object>> companyOverallSalesProfit(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        List<Map<String, Object>> orders = fetchSalesOrders(range);
+        Map<String, OrderCost> costMap = computeOrderCosts(orders);
+        int ordersCount = 0;
+        double salesTotal = 0.0;
+        double costTotal = 0.0;
+        for (Map<String, Object> order : orders) {
+            ordersCount += 1;
+            salesTotal += asDouble(order.get("grand_total"));
+            OrderCost cost = costMap.getOrDefault(asString(order.get("name")), OrderCost.empty());
+            costTotal += cost.costTotal();
+        }
+        double profitTotal = salesTotal - costTotal;
+        double profitPercent = salesTotal > 0 ? (profitTotal / salesTotal) * 100.0 : 0.0;
+        Map<String, Object> row = new HashMap<>();
+        row.put("sales_total", round(salesTotal));
+        row.put("cost_total", round(costTotal));
+        row.put("profit_total", round(profitTotal));
+        row.put("profit_percent", round(profitPercent));
+        row.put("orders", ordersCount);
+        return List.of(row);
+    }
+
+    public List<Map<String, Object>> companySupplierExpenses(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        Map<String, Double> totals = paymentSummaryRange("Supplier", range);
+        return totals.entrySet().stream()
+                .map(e -> Map.<String, Object>of("vendor", e.getKey(), "paid_total", round(e.getValue())))
+                .sorted((a, b) -> Double.compare(asDouble(b.get("paid_total")), asDouble(a.get("paid_total"))))
+                .toList();
+    }
+
+    public List<Map<String, Object>> companyBranchIncome(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        Map<String, Double> totals = paymentSummaryRange("Customer", range);
+        return totals.entrySet().stream()
+                .map(e -> Map.<String, Object>of("shop", e.getKey(), "paid_total", round(e.getValue())))
+                .sorted((a, b) -> Double.compare(asDouble(b.get("paid_total")), asDouble(a.get("paid_total"))))
+                .toList();
+    }
+
+    public List<Map<String, Object>> companySalesProfitTrend(String from, String to, String groupBy) {
+        DateRange range = resolveDateRange(from, to);
+        TrendGroupBy grouping = TrendGroupBy.parse(groupBy);
+        List<Map<String, Object>> orders = fetchSalesOrders(range);
+        Map<String, OrderCost> costMap = computeOrderCosts(orders);
+
+        Map<PeriodKey, BranchSalesProfit> aggregated = new HashMap<>();
+        for (Map<String, Object> order : orders) {
+            LocalDate txDate = parseDate(order.get("transaction_date"));
+            if (txDate == null) {
+                continue;
+            }
+            PeriodKey period = grouping.periodFor(txDate);
+            BranchSalesProfit entry = aggregated.computeIfAbsent(period, ignored -> new BranchSalesProfit());
+            entry.orders += 1;
+            entry.salesTotal += asDouble(order.get("grand_total"));
+            OrderCost cost = costMap.getOrDefault(asString(order.get("name")), OrderCost.empty());
+            entry.costTotal += cost.costTotal();
+        }
+
+        return aggregated.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> {
+                    PeriodKey period = e.getKey();
+                    BranchSalesProfit entry = e.getValue();
+                    double profitTotal = entry.salesTotal - entry.costTotal;
+                    double profitPercent = entry.salesTotal > 0 ? (profitTotal / entry.salesTotal) * 100.0 : 0.0;
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("period_start", period.start());
+                    row.put("period_end", period.end());
+                    row.put("orders", entry.orders);
+                    row.put("sales_total", round(entry.salesTotal));
+                    row.put("cost_total", round(entry.costTotal));
+                    row.put("profit_total", round(profitTotal));
+                    row.put("profit_percent", round(profitPercent));
+                    return row;
+                })
+                .toList();
+    }
+
+    DateRange resolveDateRange(String from, String to) {
+        LocalDate start;
+        LocalDate end;
+        if ((from == null || from.isBlank()) && (to == null || to.isBlank())) {
+            YearMonth now = YearMonth.now();
+            start = now.atDay(1);
+            end = now.atEndOfMonth();
+            return new DateRange(start.toString(), end.toString());
+        }
+        if (from == null || from.isBlank()) {
+            start = LocalDate.parse(to.trim());
+            end = start;
+        } else if (to == null || to.isBlank()) {
+            start = LocalDate.parse(from.trim());
+            end = start;
+        } else {
+            start = LocalDate.parse(from.trim());
+            end = LocalDate.parse(to.trim());
+        }
+        if (start.isAfter(end)) {
+            LocalDate tmp = start;
+            start = end;
+            end = tmp;
+        }
+        return new DateRange(start.toString(), end.toString());
     }
 
     private List<Map<String, Object>> paymentSummary(String partyType, String partyField, String party, String month) {
@@ -174,10 +320,13 @@ public class ReportService {
     }
 
     private List<Map<String, Object>> fetchSalesOrders(String month) {
+        return fetchSalesOrders(dateRange(month));
+    }
+
+    private List<Map<String, Object>> fetchSalesOrders(DateRange range) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"customer\",\"company\",\"transaction_date\",\"aas_vendor\",\"aas_status\",\"aas_is_deleted\",\"status\",\"grand_total\"]");
         params.put("order_by", "transaction_date desc");
-        DateRange range = dateRange(month);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("transaction_date", ">=", range.start()));
         filters.add(List.of("transaction_date", "<=", range.end()));
@@ -208,7 +357,7 @@ public class ReportService {
             if (name.isBlank()) {
                 continue;
             }
-            Map<String, Object> full = erpNextClient.getResource("Sales Order", name);
+            Map<String, Object> full = unwrapResource(erpNextClient.getResource("Sales Order", name));
             costMap.put(name, computeOrderCost(full));
         }
         return costMap;
@@ -218,6 +367,7 @@ public class ReportService {
         if (order == null) {
             return OrderCost.empty();
         }
+        order = unwrapResource(order);
         double costTotal = 0.0;
         double sellTotal = 0.0;
         Object items = order.get("items");
@@ -243,6 +393,19 @@ public class ReportService {
         return new OrderCost(round(costTotal), round(marginTotal), round(marginPercent));
     }
 
+    private Map<String, Object> unwrapResource(Map<String, Object> resource) {
+        if (resource == null) {
+            return Map.of();
+        }
+        Object data = resource.get("data");
+        if (data instanceof Map<?, ?> map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> unwrapped = (Map<String, Object>) map;
+            return unwrapped;
+        }
+        return resource;
+    }
+
     private DateRange dateRange(String month) {
         YearMonth ym;
         if (month == null || month.isBlank()) {
@@ -253,6 +416,40 @@ public class ReportService {
         LocalDate start = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
         return new DateRange(start.toString(), end.toString());
+    }
+
+    private Map<String, Double> paymentSummaryRange(String partyType, DateRange range) {
+        Objects.requireNonNull(range, "range");
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"party\",\"paid_amount\",\"posting_date\",\"party_type\"]");
+        params.put("order_by", "posting_date desc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("party_type", "=", partyType));
+        filters.add(List.of("posting_date", ">=", range.start()));
+        filters.add(List.of("posting_date", "<=", range.end()));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> entries = erpNextClient.listResources("Payment Entry", params);
+        Map<String, Double> totals = new HashMap<>();
+        for (Map<String, Object> entry : entries) {
+            String party = asString(entry.get("party"));
+            if (party.isBlank()) {
+                continue;
+            }
+            totals.put(party, totals.getOrDefault(party, 0.0) + asDouble(entry.get("paid_amount")));
+        }
+        return totals;
+    }
+
+    private LocalDate parseDate(Object value) {
+        String text = asString(value).trim();
+        if (text.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(text);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String toJson(List<List<String>> filters) {
@@ -298,12 +495,71 @@ public class ReportService {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    private record DateRange(String start, String end) {
+    record DateRange(String start, String end) {
     }
 
     private record OrderCost(double costTotal, double marginTotal, double marginPercent) {
         static OrderCost empty() {
             return new OrderCost(0.0, 0.0, 0.0);
+        }
+    }
+
+    private static final class BranchSalesProfit {
+        int orders;
+        double salesTotal;
+        double costTotal;
+    }
+
+    private enum TrendGroupBy {
+        DAY {
+            @Override
+            PeriodKey periodFor(LocalDate date) {
+                String key = date.toString();
+                return new PeriodKey(key, key);
+            }
+        },
+        WEEK {
+            @Override
+            PeriodKey periodFor(LocalDate date) {
+                LocalDate start = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                LocalDate end = start.plusDays(6);
+                return new PeriodKey(start.toString(), end.toString());
+            }
+        },
+        MONTH {
+            @Override
+            PeriodKey periodFor(LocalDate date) {
+                YearMonth ym = YearMonth.from(date);
+                LocalDate start = ym.atDay(1);
+                LocalDate end = ym.atEndOfMonth();
+                return new PeriodKey(start.toString(), end.toString());
+            }
+        };
+
+        abstract PeriodKey periodFor(LocalDate date);
+
+        static TrendGroupBy parse(String raw) {
+            String key = raw == null ? "" : raw.trim().toLowerCase();
+            return switch (key) {
+                case "week", "weekly" -> WEEK;
+                case "month", "monthly" -> MONTH;
+                case "day", "daily", "" -> DAY;
+                default -> DAY;
+            };
+        }
+    }
+
+    private record PeriodKey(String start, String end) implements Comparable<PeriodKey> {
+        @Override
+        public int compareTo(PeriodKey other) {
+            if (other == null) {
+                return 1;
+            }
+            int byStart = start.compareTo(other.start);
+            if (byStart != 0) {
+                return byStart;
+            }
+            return end.compareTo(other.end);
         }
     }
 }

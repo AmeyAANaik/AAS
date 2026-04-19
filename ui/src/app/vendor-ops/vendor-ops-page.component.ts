@@ -11,6 +11,7 @@ import { VendorOpsService } from './vendor-ops.service';
   styleUrl: './vendor-ops-page.component.scss'
 })
 export class VendorOpsPageComponent implements OnInit {
+  private readonly hiddenCategoryLabels = new Set(['all item groups']);
   private readonly settledThreshold = 0.01;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly summaryColumns = ['vendor', 'pendingOrders', 'awaitingPdf', 'awaitingBillCapture', 'inProgress', 'pendingBillAmount', 'lastActivity', 'templateStatus', 'ledgerBalance', 'actions'];
@@ -246,7 +247,17 @@ export class VendorOpsPageComponent implements OnInit {
     this.vendorOpsService.getVendorLedger(vendorId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];
-        this.ledgerCategorySummary = response.categorySummary ?? [];
+        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
+          const category = String(row?.category ?? '').trim();
+          if (!category) {
+            return false;
+          }
+          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
+            return false;
+          }
+          const amount = Number(row?.amount ?? 0) || 0;
+          return amount > 0;
+        });
         this.clearCategoryLedger();
       },
       error: () => {

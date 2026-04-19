@@ -14,6 +14,7 @@ import {
   styleUrl: './company-settings-page.component.scss'
 })
 export class CompanySettingsPageComponent implements OnInit {
+  private readonly maxImageBytes = 10 * 1024 * 1024;
   readonly form = this.fb.group({
     name: [{ value: '', disabled: true }],
     abbr: ['', Validators.required],
@@ -111,6 +112,11 @@ export class CompanySettingsPageComponent implements OnInit {
       input.value = '';
       return;
     }
+    if (file.size > this.maxImageBytes) {
+      this.errorMessage = 'Logo file is too large. Please upload an image up to 10 MB.';
+      input.value = '';
+      return;
+    }
     this.isUploadingLogo = true;
     this.errorMessage = '';
     this.message = '';
@@ -141,6 +147,11 @@ export class CompanySettingsPageComponent implements OnInit {
     }
     if (!file.type.startsWith('image/')) {
       this.errorMessage = 'Please choose an image file for the company signature.';
+      input.value = '';
+      return;
+    }
+    if (file.size > this.maxImageBytes) {
+      this.errorMessage = 'Signature file is too large. Please upload an image up to 10 MB.';
       input.value = '';
       return;
     }

@@ -12,6 +12,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -57,30 +59,160 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<Map<String, Object>> handleFeign(FeignException ex) {
+        FeignErrorInfo info = extractFeignInfo(ex);
         Map<String, Object> body = new HashMap<>();
         body.put("error", "request_failed");
-        body.put("message", extractFeignMessage(ex));
+        body.put("message", info.message());
+        if (!info.details().isEmpty()) {
+            body.put("details", info.details());
+        }
         return ResponseEntity.status(HttpStatus.valueOf(ex.status())).body(body);
     }
 
-    private String extractFeignMessage(FeignException ex) {
+    @ExceptionHandler({MaxUploadSizeExceededException.class, MultipartException.class})
+    public ResponseEntity<Map<String, Object>> handleUploadSize(Exception ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "file_too_large");
+        body.put("message", "File size exceeds the maximum allowed size.");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
+    private FeignErrorInfo extractFeignInfo(FeignException ex) {
+        List<String> details = new java.util.ArrayList<>();
         String content = ex.contentUTF8();
         if (content != null && !content.isBlank()) {
             try {
                 Map<String, Object> payload = objectMapper.readValue(content, new TypeReference<>() {});
-                String message = sanitizeMessage(firstText(payload.get("message"), payload.get("error")));
+                String message = sanitizeMessage(extractErpMessage(payload, details));
                 if (!message.isBlank()) {
-                    return message;
+                    return new FeignErrorInfo(message, List.copyOf(details));
                 }
             } catch (Exception ignored) {
                 String sanitized = sanitizeMessage(content);
                 if (!sanitized.isBlank()) {
-                    return sanitized;
+                    return new FeignErrorInfo(sanitized, List.of());
                 }
             }
         }
         String message = sanitizeMessage(ex.getMessage());
-        return message.isBlank() ? "Request failed." : message;
+        return new FeignErrorInfo(message.isBlank() ? "Request failed." : message, List.copyOf(details));
+    }
+
+    private String extractErpMessage(Map<String, Object> payload, List<String> details) {
+        if (payload == null) {
+            return "";
+        }
+
+        // ERPNext sometimes includes server messages as JSON strings.
+        details.addAll(extractServerMessages(payload.get("_server_messages")));
+        String reportFromDetails = extractReportNameFromDetails(details);
+        if (!reportFromDetails.isBlank()) {
+            return "Report \"" + reportFromDetails + "\" not found in the system. Create the Query Report and try again.";
+        }
+
+        String exception = firstText(payload.get("exception"), payload.get("exc"), payload.get("exc_type"));
+        String message = firstText(payload.get("message"), payload.get("error"), payload.get("exc_type"), exception);
+
+        String lower = (exception + " " + message).toLowerCase();
+        if (lower.contains("field not permitted in query:")) {
+            return "System setup is incomplete. Please run setup again and refresh the page.";
+        }
+        if (lower.contains("permissionerror") || lower.contains("not permitted") || lower.contains("not allowed")) {
+            return "You don’t have permission to run this report.";
+        }
+        if (lower.contains("doesnotexisterror") && lower.contains("report")) {
+            String reportName = extractReportNameFromError(exception + " " + message);
+            if (!reportName.isBlank()) {
+                return "Report \"" + reportName + "\" not found in the system. Create the Query Report and try again.";
+            }
+            return "The requested report was not found in the system. Create the Query Report and try again.";
+        }
+        if (lower.contains("report") && lower.contains("not found")) {
+            String reportName = extractReportNameFromError(exception + " " + message);
+            if (!reportName.isBlank()) {
+                return "Report \"" + reportName + "\" not found in the system. Create the Query Report and try again.";
+            }
+        }
+
+        if (!details.isEmpty()) {
+            // Prefer a concise top-level message if we already have structured details.
+            return firstText(payload.get("message"), payload.get("error"), "Request failed.");
+        }
+
+        return message;
+    }
+
+    private String extractReportNameFromDetails(List<String> details) {
+        if (details == null || details.isEmpty()) {
+            return "";
+        }
+        for (String detail : details) {
+            String name = extractReportNameFromError(detail);
+            if (!name.isBlank()) {
+                return name;
+            }
+            if (detail == null) {
+                continue;
+            }
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("(?i)report\\s+([^\\\"]+?)\\s+not\\s+found")
+                    .matcher(detail);
+            if (matcher.find()) {
+                return matcher.group(1).trim();
+            }
+        }
+        return "";
+    }
+
+    private List<String> extractServerMessages(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        String text = String.valueOf(raw).trim();
+        if (text.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> messages = objectMapper.readValue(text, new TypeReference<List<String>>() {});
+            List<String> flattened = new java.util.ArrayList<>();
+            for (String entry : messages) {
+                if (entry == null || entry.isBlank()) {
+                    continue;
+                }
+                try {
+                    Map<String, Object> msg = objectMapper.readValue(entry, new TypeReference<Map<String, Object>>() {});
+                    String message = firstText(msg.get("message"), msg.get("title"));
+                    if (!message.isBlank()) {
+                        flattened.add(message);
+                    }
+                } catch (Exception ignored) {
+                    flattened.add(entry);
+                }
+            }
+            return List.copyOf(flattened);
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private String extractReportNameFromError(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        // Heuristic: Report "NAME" or Report NAME not found
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?i)report\\s+\\\"([^\\\"]+)\\\"")
+                .matcher(raw);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        matcher = java.util.regex.Pattern
+                .compile("(?i)report\\s+([A-Za-z0-9 _\\-]+)\\s+not\\s+found")
+                .matcher(raw);
+        if (matcher.find()) {
+            return matcher.group(1).trim();
+        }
+        return "";
     }
 
     private String firstText(Object... values) {
@@ -147,4 +279,6 @@ public class ApiExceptionHandler {
         }
         return "";
     }
+
+    private record FeignErrorInfo(String message, List<String> details) {}
 }

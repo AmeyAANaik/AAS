@@ -44,6 +44,10 @@ npm test
 npm run test:e2e
 ```
 
+### Unit test networking note
+
+`npm test` uses `karma.conf.cjs`, which binds Karma to `127.0.0.1:9877` to avoid environments that disallow listening on `0.0.0.0:9876`.
+
 ## Key Files
 
 - `src/main.ts`

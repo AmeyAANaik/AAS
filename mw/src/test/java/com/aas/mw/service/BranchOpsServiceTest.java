@@ -100,6 +100,49 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void getBranchLedgerCategorySummaryDoesNotExposeAllItemGroups() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-001",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 100.0,
+                                "outstanding_amount", 100.0,
+                                "docstatus", 1)));
+
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        when(erpNextClient.getResource("Sales Invoice", "SINV-001"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-001",
+                        "customer", "BRANCH-1",
+                        "grand_total", 100.0,
+                        "outstanding_amount", 100.0,
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_group", "All Item Groups",
+                                "amount", 100.0)))));
+
+        when(erpNextClient.getResource("Item", "ITEM-1"))
+                .thenReturn(Map.of("data", Map.of("item_group", "Raw Material")));
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+
+        assertThat(categories)
+                .extracting(row -> String.valueOf(row.get("category")))
+                .doesNotContain("All Item Groups")
+                .contains("Raw Material");
+    }
+
+    @Test
     void getBranchLedgerOnlyUsesPaymentsLinkedToBranchInvoices() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

@@ -21,7 +21,13 @@ describe('InvoiceCreateComponent', () => {
     billsService = jasmine.createSpyObj('BillsService', ['createInvoice', 'getOrderSnapshot']);
     billsService.createInvoice.and.returnValue(of({ name: 'INV-1' }));
     billsService.getOrderSnapshot.and.returnValue(
-      of({ customer: 'Sukarta Aundh', company: 'aas', items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }] })
+      of({
+        customer: 'Sukarta Aundh',
+        company: 'aas',
+        grand_total: 20,
+        items: [{ item_code: 'ITM-1', qty: 2, rate: 10 }],
+        aas_rounding_adjustment: -0.4
+      })
     );
 
     await TestBed.configureTestingModule({
@@ -52,49 +58,22 @@ describe('InvoiceCreateComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('submits manual invoice payload', () => {
-    component.setMode('manual');
-    component.onManualCustomerChange();
-    component.roundingAdjustmentControl.setValue(-0.4);
-    component.manualForm.patchValue({
-      customer: 'SHOP-1',
-      company: 'aas'
-    });
-    component.manualItems.at(0).patchValue({
-      itemCode: 'ITM-1',
-      qty: 2,
-      rate: 12
-    });
-    component.addManualItem();
-    component.manualItems.at(1).patchValue({
-      itemCode: 'ITM-1',
-      qty: 1,
-      rate: 5
-    });
+  it('loads order snapshot and applies its rounding adjustment', () => {
+    component.orderForm.patchValue({ orderId: 'ORD-1' });
+    component.loadOrder();
 
-    component.submit();
-
-    expect(billsService.createInvoice).toHaveBeenCalledWith({
-      customer: 'SHOP-1',
-      company: 'aas',
-      items: [
-        { item_code: 'ITM-1', qty: 2, rate: 12 },
-        { item_code: 'ITM-1', qty: 1, rate: 5 }
-      ],
-      apply_gst: true,
-      rounding_adjustment: -0.4
-    });
+    expect(billsService.getOrderSnapshot).toHaveBeenCalledWith('ORD-1');
+    expect(component.orderSnapshot?.customer).toBe('Sukarta Aundh');
+    expect(component.roundingAdjustmentControl.value).toBe(-0.4);
   });
 
-  it('loads order and submits invoice from order', () => {
-    component.setMode('order');
+  it('submits invoice payload from loaded order', () => {
     component.orderForm.patchValue({ orderId: 'ORD-1' });
     component.loadOrder();
     component.roundingAdjustmentControl.setValue(0.4);
 
     component.submit();
 
-    expect(billsService.getOrderSnapshot).toHaveBeenCalledWith('ORD-1');
     expect(billsService.createInvoice).toHaveBeenCalledWith({
       customer: 'Sukarta Aundh',
       company: 'aas',

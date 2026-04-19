@@ -11,6 +11,7 @@ import { BranchOpsService } from './branch-ops.service';
   styleUrl: './branch-ops-page.component.scss'
 })
 export class BranchOpsPageComponent implements OnInit {
+  private readonly hiddenCategoryLabels = new Set(['all item groups']);
   private readonly settledThreshold = 0.01;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly summaryColumns = ['branch', 'pendingOrders', 'awaitingVendorAssignment', 'awaitingVendorResponse', 'inProgress', 'openReceivableAmount', 'lastActivity', 'location', 'ledgerBalance', 'actions'];
@@ -246,7 +247,17 @@ export class BranchOpsPageComponent implements OnInit {
     this.branchOpsService.getBranchLedger(branchId).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];
-        this.ledgerCategorySummary = response.categorySummary ?? [];
+        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
+          const category = String(row?.category ?? '').trim();
+          if (!category) {
+            return false;
+          }
+          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
+            return false;
+          }
+          const amount = Number(row?.amount ?? 0) || 0;
+          return amount > 0;
+        });
         this.clearCategoryLedger();
       },
       error: () => {

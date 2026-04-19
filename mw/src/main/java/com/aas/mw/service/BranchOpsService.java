@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class BranchOpsService {
+    private static final String ALL_ITEM_GROUPS = "All Item Groups";
 
     private static final int ERP_PAGE_SIZE = 500;
     private static final String CUSTOMER = "Customer";
@@ -323,9 +324,11 @@ public class BranchOpsService {
                     continue;
                 }
                 String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+                group = normalizeItemGroup(group);
                 if (!hasText(group)) {
                     group = resolver.resolve(asText(item.get("item_code")));
                 }
+                group = normalizeItemGroup(group);
                 if (!hasText(group)) {
                     group = "Uncategorized";
                 }
@@ -342,6 +345,7 @@ public class BranchOpsService {
             }
         }
         return totals.entrySet().stream()
+                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
                 .map(entry -> Map.<String, Object>of("category", entry.getKey(), "amount", round(entry.getValue())))
                 .sorted((left, right) -> Double.compare(asDouble(right.get("amount")), asDouble(left.get("amount"))))
                 .toList();
@@ -458,9 +462,11 @@ public class BranchOpsService {
                 continue;
             }
             String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+            group = normalizeItemGroup(group);
             if (!hasText(group)) {
                 group = resolver.resolve(asText(item.get("item_code")));
             }
+            group = normalizeItemGroup(group);
             if (!hasText(group)) {
                 group = "Uncategorized";
             }
@@ -501,9 +507,18 @@ public class BranchOpsService {
             } catch (Exception ignored) {
                 group = "";
             }
+            group = normalizeItemGroup(group);
             cache.put(key, group);
             return group;
         }
+    }
+
+    private static String normalizeItemGroup(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isBlank()) {
+            return "";
+        }
+        return ALL_ITEM_GROUPS.equalsIgnoreCase(text) ? "" : text;
     }
 
     public List<Map<String, Object>> getAllBranchLedgerEntries() {

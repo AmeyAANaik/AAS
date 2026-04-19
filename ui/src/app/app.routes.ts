@@ -3,7 +3,6 @@ import { authGuard } from './auth/auth.guard';
 import { featureGuard } from './auth/feature.guard';
 import { LoginComponent } from './auth/login/login.component';
 import { AppShellComponent } from './shell/app-shell.component';
-import { ReportsPlaceholderComponent } from './shell/reports-placeholder.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
@@ -63,7 +62,12 @@ export const routes: Routes = [
       { path: 'branches', loadChildren: () => import('./branches/branches.module').then(m => m.BranchesModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
       { path: 'categories', loadChildren: () => import('./categories/categories.module').then(m => m.CategoriesModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
       { path: 'items', loadChildren: () => import('./items/items.module').then(m => m.ItemsModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
-      { path: 'reports', component: ReportsPlaceholderComponent, canMatch: [featureGuard], data: { feature: 'reports.view' } },
+      {
+        path: 'reports',
+        loadComponent: () => import('./shell/reports-placeholder.component').then(m => m.ReportsPlaceholderComponent),
+        canMatch: [featureGuard],
+        data: { feature: 'reports.view' }
+      },
       { path: '', redirectTo: 'admin/dashboard', pathMatch: 'full' }
     ]
   },

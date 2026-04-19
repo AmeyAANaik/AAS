@@ -1,7 +1,17 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
+
+export interface ReportsCatalogItem {
+  id: string;
+  label: string;
+  description: string;
+  path: string;
+  supportsExport: boolean;
+  supportedGroupBy?: string[];
+  defaultGroupBy?: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -9,19 +19,23 @@ import { AuthTokenService } from '../shared/auth-token.service';
 export class ReportsService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
 
-  runReport(reportType: string, month: string): Observable<Array<Record<string, unknown>>> {
-    const params = new HttpParams().set('month', month);
-    return this.http.get<Array<Record<string, unknown>>>(`/api/reports/${reportType}`, {
-      headers: this.authHeaders(),
-      params
+  getCatalog(): Observable<ReportsCatalogItem[]> {
+    return this.http.get<ReportsCatalogItem[]>(`/api/reports/catalog`, {
+      headers: this.authHeaders()
     });
   }
 
-  exportReport(reportType: string, month: string): Observable<Blob> {
-    const params = new HttpParams().set('month', month);
-    return this.http.get(`/api/reports/${reportType}/export`, {
+  runReport(path: string, params: { from?: string; to?: string; groupBy?: string } = {}): Observable<Array<Record<string, unknown>>> {
+    return this.http.get<Array<Record<string, unknown>>>(`/api/reports/${path}`, {
       headers: this.authHeaders(),
-      params,
+      params: this.queryParams(params)
+    });
+  }
+
+  exportReport(path: string, params: { from?: string; to?: string; groupBy?: string } = {}): Observable<Blob> {
+    return this.http.get(`/api/reports/${path}/export`, {
+      headers: this.authHeaders(),
+      params: this.queryParams(params),
       responseType: 'blob'
     });
   }
@@ -32,5 +46,19 @@ export class ReportsService {
       return new HttpHeaders();
     }
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
+  }
+
+  private queryParams(input: { from?: string; to?: string; groupBy?: string }): Record<string, string> {
+    const params: Record<string, string> = {};
+    if (input.from) {
+      params['from'] = input.from;
+    }
+    if (input.to) {
+      params['to'] = input.to;
+    }
+    if (input.groupBy) {
+      params['groupBy'] = input.groupBy;
+    }
+    return params;
   }
 }
