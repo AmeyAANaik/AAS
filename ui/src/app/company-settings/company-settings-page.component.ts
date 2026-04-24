@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
-import { CompanyContextService, CompanyIdentity } from '../shared/company-context.service';
+import { CompanyContextService, CompanyIdentity, OpeningBalancePreview, OpeningBalanceApplyResult } from '../shared/company-context.service';
 import {
   AccessControlService,
   AccessFeatureDefinition,
@@ -42,10 +42,19 @@ export class CompanySettingsPageComponent implements OnInit {
   isSaving = false;
   isUploadingLogo = false;
   isUploadingSignature = false;
+  isOpeningBalancePreviewing = false;
+  isOpeningBalanceApplying = false;
   isLoadingAccess = false;
   isSavingAccess = false;
   message = '';
   errorMessage = '';
+  openingBalanceMessage = '';
+  openingBalanceError = '';
+  openingBalanceCutoverDate = new Date().toISOString().slice(0, 10);
+  openingBalanceFile: File | null = null;
+  openingBalanceFileName = '';
+  openingBalancePreview: OpeningBalancePreview | null = null;
+  openingBalanceApplyResult: OpeningBalanceApplyResult | null = null;
   accessMessage = '';
   accessErrorMessage = '';
   featureCatalog: AccessFeatureDefinition[] = [];
@@ -173,6 +182,103 @@ export class CompanySettingsPageComponent implements OnInit {
         },
         error: () => {
           this.errorMessage = 'Unable to upload company signature.';
+        }
+      });
+  }
+
+  onOpeningBalanceFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    this.openingBalanceMessage = '';
+    this.openingBalanceError = '';
+    this.openingBalancePreview = null;
+    this.openingBalanceApplyResult = null;
+    if (!file) {
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith('.csv') && !file.type.includes('csv')) {
+      this.openingBalanceError = 'Please choose a CSV file.';
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+    this.openingBalanceFile = file;
+    this.openingBalanceFileName = file.name;
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  downloadOpeningBalanceTemplate(): void {
+    const template = [
+      'record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref',
+      'ACCOUNT,ACC-EXAMPLE-1,1000,0,Main - CC,,,,' ,
+      'ACCOUNT,ACC-EXAMPLE-2,0,1000,Main - CC,,,,' ,
+      'SUPPLIER,,,,,SUPPLIER-0001,25000,,',
+      'CUSTOMER,,,,,CUSTOMER-0001,15000,,'
+    ].join('\n');
+
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'aas-opening-balances-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  previewOpeningBalances(): void {
+    if (!this.companyId || !this.openingBalanceFile || !this.openingBalanceCutoverDate) {
+      this.openingBalanceError = 'Select a cutover date and CSV file first.';
+      return;
+    }
+    this.isOpeningBalancePreviewing = true;
+    this.openingBalanceError = '';
+    this.openingBalanceMessage = '';
+    this.openingBalancePreview = null;
+    this.openingBalanceApplyResult = null;
+    this.companyContextService.previewOpeningBalances(this.companyId, this.openingBalanceFile, this.openingBalanceCutoverDate)
+      .pipe(finalize(() => (this.isOpeningBalancePreviewing = false)))
+      .subscribe({
+        next: preview => {
+          this.openingBalancePreview = preview;
+          if (preview.isValid) {
+            this.openingBalanceMessage = 'Preview ready. Review totals and apply when ready.';
+          } else {
+            this.openingBalanceError = 'Preview found validation errors. Fix the CSV and preview again.';
+          }
+        },
+        error: err => {
+          const message = String(err?.error?.message ?? err?.message ?? '').trim();
+          this.openingBalanceError = message || 'Unable to preview opening balances.';
+        }
+      });
+  }
+
+  applyOpeningBalances(): void {
+    if (!this.companyId || !this.openingBalanceFile || !this.openingBalanceCutoverDate) {
+      this.openingBalanceError = 'Select a cutover date and CSV file first.';
+      return;
+    }
+    if (!this.openingBalancePreview?.isValid) {
+      this.openingBalanceError = 'Run a valid preview before applying.';
+      return;
+    }
+    this.isOpeningBalanceApplying = true;
+    this.openingBalanceError = '';
+    this.openingBalanceMessage = '';
+    this.openingBalanceApplyResult = null;
+    this.companyContextService.applyOpeningBalances(this.companyId, this.openingBalanceFile, this.openingBalanceCutoverDate)
+      .pipe(finalize(() => (this.isOpeningBalanceApplying = false)))
+      .subscribe({
+        next: result => {
+          this.openingBalanceApplyResult = result;
+          this.openingBalanceMessage = 'Opening balances created in ERPNext as drafts.';
+        },
+        error: err => {
+          const message = String(err?.error?.message ?? err?.message ?? '').trim();
+          this.openingBalanceError = message || 'Unable to apply opening balances.';
         }
       });
   }

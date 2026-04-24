@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import com.aas.mw.service.OpeningBalanceValidationException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -38,6 +39,15 @@ public class ApiExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("error", "bad_request");
         body.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(OpeningBalanceValidationException.class)
+    public ResponseEntity<Map<String, Object>> handleOpeningBalanceValidation(OpeningBalanceValidationException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", "validation_error");
+        body.put("message", ex.getMessage());
+        body.put("details", ex.getErrors());
         return ResponseEntity.badRequest().body(body);
     }
 

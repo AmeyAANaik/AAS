@@ -254,6 +254,94 @@
         </div>
       </section>
 
+      <section class="form-section">
+        <div class="section-copy">
+          <div class="section-title">Opening balances</div>
+          <div class="section-subtitle">Import a go-live snapshot (trial balance + outstanding party dues) to start ledgers correctly for this company.</div>
+        </div>
+
+        <div class="opening-balance-panel">
+          <div class="state error" *ngIf="openingBalanceError">{{ openingBalanceError }}</div>
+          <div class="state success" *ngIf="openingBalanceMessage">{{ openingBalanceMessage }}</div>
+
+          <div class="opening-balance-controls">
+            <mat-form-field appearance="outline">
+              <mat-label>Go-live (cutover) date</mat-label>
+              <input matInput type="date" [(ngModel)]="openingBalanceCutoverDate" name="openingBalanceCutoverDate" />
+            </mat-form-field>
+
+            <div class="file-picker">
+              <input #openingFileInput type="file" accept=".csv,text/csv" hidden (change)="onOpeningBalanceFileSelected($event)" />
+              <button mat-stroked-button type="button" (click)="openingFileInput.click()" [disabled]="isOpeningBalancePreviewing || isOpeningBalanceApplying">
+                {{ openingBalanceFileName ? 'Replace CSV' : 'Choose CSV' }}
+              </button>
+              <div class="file-name">{{ openingBalanceFileName || 'No CSV selected' }}</div>
+            </div>
+          </div>
+
+          <div class="opening-balance-actions">
+            <button mat-button type="button" (click)="downloadOpeningBalanceTemplate()">Download CSV template</button>
+            <span class="action-spacer"></span>
+            <button mat-stroked-button color="primary" type="button" (click)="previewOpeningBalances()"
+              [disabled]="!openingBalanceFile || !openingBalanceCutoverDate || isOpeningBalancePreviewing || isOpeningBalanceApplying">
+              {{ isOpeningBalancePreviewing ? 'Previewing...' : 'Preview' }}
+            </button>
+            <button mat-flat-button color="primary" type="button" (click)="applyOpeningBalances()"
+              [disabled]="!openingBalancePreview?.isValid || isOpeningBalanceApplying || isOpeningBalancePreviewing">
+              {{ isOpeningBalanceApplying ? 'Applying...' : 'Apply (Create Drafts)' }}
+            </button>
+          </div>
+
+          <div class="opening-balance-preview" *ngIf="openingBalancePreview as preview">
+            <div class="preview-header">
+              <div>
+                <div class="preview-title">Preview</div>
+                <div class="preview-subtitle">
+                  {{ preview.isValid ? 'Ready to apply' : 'Fix errors and preview again' }} • Cutover: {{ preview.cutoverDate }}
+                </div>
+              </div>
+              <div class="preview-badge" [class.ok]="preview.isValid" [class.bad]="!preview.isValid">
+                {{ preview.isValid ? 'Valid' : 'Invalid' }}
+              </div>
+            </div>
+
+            <div class="preview-metrics" *ngIf="preview.summary as s">
+              <div class="metric">
+                <div class="metric-label">Account rows</div>
+                <div class="metric-value">{{ s['accountRows'] }}</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Supplier rows</div>
+                <div class="metric-value">{{ s['supplierRows'] }}</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Customer rows</div>
+                <div class="metric-value">{{ s['customerRows'] }}</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Debit total</div>
+                <div class="metric-value">{{ s['debitTotal'] }}</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Credit total</div>
+                <div class="metric-value">{{ s['creditTotal'] }}</div>
+              </div>
+            </div>
+
+            <div class="preview-errors" *ngIf="preview.errors?.length">
+              <div class="errors-title">Validation errors</div>
+              <div class="error-row" *ngFor="let err of preview.errors | slice:0:12">
+                <span class="err-meta">Row {{ err.row || '-' }} • {{ err.field }}</span>
+                <span class="err-message">{{ err.message }}</span>
+              </div>
+              <div class="errors-more" *ngIf="preview.errors.length > 12">
+                Showing 12 of {{ preview.errors.length }} errors.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div class="actions settings-actions">
         <div class="save-note">Changes are written back to the application company record.</div>
         <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="isSaving || isLoading">

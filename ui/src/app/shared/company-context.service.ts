@@ -40,6 +40,21 @@ export type CompanyContext = {
   branches: Array<{ name: string; customer_name?: string; aas_branch_location?: string }>;
 };
 
+export type OpeningBalancePreview = {
+  companyId: string;
+  cutoverDate: string;
+  isValid: boolean;
+  errors: Array<{ row: number; field: string; message: string }>;
+  summary?: Record<string, unknown>;
+  planned?: Record<string, unknown>;
+};
+
+export type OpeningBalanceApplyResult = {
+  companyId: string;
+  cutoverDate: string;
+  created: Record<string, unknown>;
+};
+
 @Injectable({ providedIn: 'root' })
 export class CompanyContextService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
@@ -75,6 +90,28 @@ export class CompanyContextService {
     formData.append('file', file);
     return this.http.post<CompanyIdentity>(
       `/api/companies/${encodeURIComponent(id)}/signature`,
+      formData,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  previewOpeningBalances(companyId: string, file: File, cutoverDate: string): Observable<OpeningBalancePreview> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('cutoverDate', cutoverDate);
+    return this.http.post<OpeningBalancePreview>(
+      `/api/companies/${encodeURIComponent(companyId)}/opening-balances/preview`,
+      formData,
+      { headers: this.authHeaders() }
+    );
+  }
+
+  applyOpeningBalances(companyId: string, file: File, cutoverDate: string): Observable<OpeningBalanceApplyResult> {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    formData.append('cutoverDate', cutoverDate);
+    return this.http.post<OpeningBalanceApplyResult>(
+      `/api/companies/${encodeURIComponent(companyId)}/opening-balances/apply`,
       formData,
       { headers: this.authHeaders() }
     );

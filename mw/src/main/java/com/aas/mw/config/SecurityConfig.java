@@ -43,6 +43,7 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/setup/**").hasRole("ADMIN")
+                .requestMatchers(new AntPathRequestMatcher("/api/companies/*/opening-balances/**", "POST")).hasRole("ADMIN")
                 .requestMatchers("/api/admin/access/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/vendors").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/vendors/*").hasRole("ADMIN")
