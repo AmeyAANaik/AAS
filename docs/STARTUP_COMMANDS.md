@@ -317,6 +317,13 @@ docker compose -f pwd.yml restart
 
 This removes ERP volumes and recreates the site with the defaults from `mw/src/main/resources/application.properties`.
 
+Before wiping, back up Item master data + Item Groups (includes margins):
+
+```bash
+cd /Users/roshninaik/Projects/AAS
+ERP_USERNAME=Administrator ERP_PASSWORD=admin node scripts/seed/backup-items-and-groups.mjs
+```
+
 ```bash
 cd /Users/roshninaik/Projects/AAS/erpmodule
 docker compose -f pwd.yml down -v
