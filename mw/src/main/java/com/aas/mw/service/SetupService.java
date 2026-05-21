@@ -90,6 +90,9 @@ public class SetupService {
             {% if customer_doc and customer_doc.aas_invoice_email %}{% set _ = branch_lines.append("Invoice Email: " ~ customer_doc.aas_invoice_email) %}{% endif %}
             {% if customer_doc and customer_doc.aas_whatsapp_number %}{% set _ = branch_lines.append("WhatsApp: " ~ customer_doc.aas_whatsapp_number) %}{% endif %}
             {% if customer_doc and (not customer_doc.aas_whatsapp_number) and customer_doc.aas_whatsapp_group_name %}{% set _ = branch_lines.append("WhatsApp Group: " ~ customer_doc.aas_whatsapp_group_name) %}{% endif %}
+            {% set branch_tax_id = (customer_doc.tax_id or customer_doc.gstin) if customer_doc else "" %}
+            {% if branch_tax_id %}{% set _ = branch_lines.append("GSTIN: " ~ branch_tax_id) %}{% endif %}
+            {% if customer_doc and customer_doc.aas_food_license_no %}{% set _ = branch_lines.append("FSSAI No: " ~ customer_doc.aas_food_license_no) %}{% endif %}
             {% set rounding_adjustment = frappe.utils.flt(doc.aas_rounding_adjustment if doc.aas_rounding_adjustment else doc.rounding_adjustment, 2) %}
             {% set invoice_total = frappe.utils.flt(doc.grand_total if doc.grand_total else 0, 2) %}
             {% set grand_total = frappe.utils.flt(invoice_total + rounding_adjustment, 2) %}

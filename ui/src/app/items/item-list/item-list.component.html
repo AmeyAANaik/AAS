@@ -1,6 +1,12 @@
 <div class="item-page">
   <app-page-header title="Items" subtitle="Manage items category by category.">
-    <button mat-flat-button color="primary" class="item-primary-action" (click)="openCreate()">
+    <button
+      mat-flat-button
+      color="primary"
+      class="item-primary-action"
+      type="button"
+      (click)="openCreate()"
+      [disabled]="isLoadingItems || !categoryRows.length">
       <mat-icon>add</mat-icon>
       <span>Create item</span>
     </button>

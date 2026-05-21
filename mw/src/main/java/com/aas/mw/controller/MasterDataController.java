@@ -1,6 +1,7 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.service.MasterDataService;
+import com.aas.mw.service.UomService;
 import com.aas.mw.service.UserService;
 import com.aas.mw.service.ErpSessionStore;
 import com.aas.mw.dto.FieldsRequest;
@@ -32,14 +33,17 @@ import com.aas.mw.service.ItemMarginImportService;
 public class MasterDataController {
 
     private final MasterDataService masterDataService;
+    private final UomService uomService;
     private final UserService userService;
     private final ItemMarginImportService itemMarginImportService;
 
     public MasterDataController(
             MasterDataService masterDataService,
+            UomService uomService,
             UserService userService,
             ItemMarginImportService itemMarginImportService) {
         this.masterDataService = masterDataService;
+        this.uomService = uomService;
         this.userService = userService;
         this.itemMarginImportService = itemMarginImportService;
     }
@@ -106,6 +110,12 @@ public class MasterDataController {
     @GetMapping("/shops")
     public ResponseEntity<List<Map<String, Object>>> listShops() {
         return ResponseEntity.ok(masterDataService.listShops());
+    }
+
+    @GetMapping("/uoms")
+    public ResponseEntity<List<Map<String, Object>>> listUoms(
+            @RequestParam(value = "refresh", required = false, defaultValue = "0") int refresh) {
+        return ResponseEntity.ok(uomService.listUoms(refresh == 1));
     }
 
     @GetMapping("/companies")

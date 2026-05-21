@@ -288,6 +288,8 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-value-cell\""));
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
                     assertTrue(html.contains("<tbody>"));
+                    assertTrue(html.contains("GSTIN: "));
+                    assertTrue(html.contains("FSSAI No: "));
                     assertTrue(!html.contains("class=\"label\""));
                     assertTrue(!html.contains("class=\"value\""));
                     return true;

@@ -106,18 +106,24 @@ public class InvoiceFieldMappingService {
             String camelotText,
             List<InvoiceTemplateModelProperties.TemplateField> itemFields,
             List<InvoiceTemplateModelProperties.TemplateField> summaryFields) {
-        if (!enabled || generatorBaseUrl.isBlank() || generatorModel.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
+        String traceId = buildTraceId(vendorId);
+        if (!enabled) {
+            return new MappingResult(List.of(), List.of(), "Invoice template generator is disabled.", generatorType, generatorModel, 0);
+        }
+        if (generatorBaseUrl.isBlank()) {
+            return new MappingResult(List.of(), List.of(), "Invoice template generator base URL is not configured.", generatorType, generatorModel, 0);
+        }
+        if (generatorModel.isBlank()) {
+            return new MappingResult(List.of(), List.of(), "Invoice template generator model is not configured.", generatorType, generatorModel, 0);
         }
         if (parserText == null || parserText.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
+            return new MappingResult(List.of(), List.of(), "Native layout payload is empty (no parser text).", generatorType, generatorModel, 0);
         }
         if (requiresApiKey() && generatorApiKey.isBlank()) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
+            return new MappingResult(List.of(), List.of(), "Invoice template generator API key is not configured.", generatorType, generatorModel, 0);
         }
         try {
             String prompt = buildPrompt(vendorId, vendorName, parserText, camelotText, itemFields, summaryFields);
-            String traceId = buildTraceId(vendorId);
             logDebugRequest(vendorId, traceId, prompt, parserText, camelotText);
             String rawResponse = request(prompt, vendorId, traceId);
             logDebugRawCompletion(vendorId, traceId, rawResponse);
@@ -128,7 +134,21 @@ public class InvoiceFieldMappingService {
             int totalItemCount = asInt(parsed.get("totalItemCount"));
             return new MappingResult(itemMappings, summaryMappings, notes, generatorType, generatorModel, totalItemCount);
         } catch (Exception ex) {
-            return new MappingResult(List.of(), List.of(), "", generatorType, generatorModel, 0);
+            log.warn(
+                    "Invoice field mapping generation failed vendorId={} traceId={} generatorType={} model={} baseUrl={}",
+                    blankSafe(vendorId),
+                    traceId,
+                    generatorType,
+                    generatorModel,
+                    generatorBaseUrl,
+                    ex);
+            return new MappingResult(
+                    List.of(),
+                    List.of(),
+                    "Invoice template generator request failed. Check server logs with traceId=" + traceId + ".",
+                    generatorType,
+                    generatorModel,
+                    0);
         }
     }
 
@@ -136,6 +156,7 @@ public class InvoiceFieldMappingService {
             String vendorId,
             String vendorName,
             String nativeLayoutPayload) {
+        String traceId = buildTraceId(vendorId);
         if (!enabled || generatorBaseUrl.isBlank() || generatorModel.isBlank()) {
             return emptyLayoutRules();
         }
@@ -147,7 +168,6 @@ public class InvoiceFieldMappingService {
         }
         try {
             String prompt = buildLayoutRulePrompt(vendorId, vendorName, nativeLayoutPayload);
-            String traceId = buildTraceId(vendorId);
             logDebugRequest(vendorId, traceId, prompt, nativeLayoutPayload, "");
             String rawResponse = request(prompt, vendorId, traceId);
             logDebugRawCompletion(vendorId, traceId, rawResponse);
@@ -163,6 +183,14 @@ public class InvoiceFieldMappingService {
                     generatorType,
                     generatorModel);
         } catch (Exception ex) {
+            log.warn(
+                    "Invoice layout rule generation failed vendorId={} traceId={} generatorType={} model={} baseUrl={}",
+                    blankSafe(vendorId),
+                    traceId,
+                    generatorType,
+                    generatorModel,
+                    generatorBaseUrl,
+                    ex);
             return emptyLayoutRules();
         }
     }

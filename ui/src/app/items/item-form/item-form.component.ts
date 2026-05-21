@@ -1,5 +1,7 @@
 import { Component, EventEmitter, Input, OnChanges, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Observable } from 'rxjs';
+import { map, startWith } from 'rxjs/operators';
 import { Category } from '../../categories/category.model';
 import { ItemFormValue, ItemView } from '../item.model';
 
@@ -10,7 +12,8 @@ import { ItemFormValue, ItemView } from '../item.model';
 })
 export class ItemFormComponent implements OnChanges {
   private readonly defaultMarginPercent = 7;
-  readonly measureUnits = ['Nos', 'KG', 'GMS', 'LTR', 'ML', 'PCS', 'BOX', 'PACK', 'BAG', 'DOZEN'];
+  readonly measureUnits: string[] = ['Nos', 'Kg', 'Gram', 'Litre', 'Ml', 'Pcs', 'Box', 'Pack', 'Bag', 'Dozen'];
+  readonly filteredMeasureUnits$: Observable<string[]>;
   @Input() item: ItemView | null = null;
   @Input() categories: Category[] = [];
   @Input() initialCategory = '';
@@ -33,7 +36,12 @@ export class ItemFormComponent implements OnChanges {
     marginPercent: [this.defaultMarginPercent, [Validators.required, Validators.min(0), Validators.max(100)]]
   });
 
-  constructor(private fb: FormBuilder) {}
+  constructor(private fb: FormBuilder) {
+    this.filteredMeasureUnits$ = this.form.get('measureUnit')!.valueChanges.pipe(
+      startWith(this.form.get('measureUnit')!.value),
+      map(value => this.filterMeasureUnits(value))
+    );
+  }
 
   ngOnChanges(): void {
     if (this.item) {
@@ -52,6 +60,7 @@ export class ItemFormComponent implements OnChanges {
   }
 
   submit(): void {
+    this.normalizeMeasureUnitControl();
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -62,6 +71,82 @@ export class ItemFormComponent implements OnChanges {
   clear(): void {
     this.resetFormState();
     this.reset.emit();
+  }
+
+  normalizeMeasureUnitControl(): void {
+    const raw = String(this.form.get('measureUnit')?.value ?? '');
+    const normalized = this.normalizeMeasureUnit(raw);
+    if (!normalized) {
+      return;
+    }
+    if (!this.measureUnits.some(unit => unit.toLowerCase() === normalized.toLowerCase())) {
+      this.measureUnits.push(normalized);
+      this.measureUnits.sort((left, right) => left.localeCompare(right));
+    }
+    this.form.get('measureUnit')?.setValue(normalized, { emitEvent: false });
+  }
+
+  private filterMeasureUnits(value: unknown): string[] {
+    const search = String(value ?? '').trim().toLowerCase();
+    if (!search) {
+      return [...this.measureUnits];
+    }
+    return this.measureUnits.filter(unit => unit.toLowerCase().includes(search));
+  }
+
+  private normalizeMeasureUnit(value: string): string {
+    const normalized = (value ?? '').trim();
+    if (!normalized) {
+      return '';
+    }
+    const upper = normalized.toUpperCase();
+    switch (upper) {
+      case 'KG':
+      case 'KGS':
+      case 'KILOGRAM':
+      case 'KILOGRAMS':
+        return 'Kg';
+      case 'GM':
+      case 'GMS':
+      case 'GRAM':
+      case 'GRAMS':
+        return 'Gram';
+      case 'ML':
+      case 'MILLILITRE':
+      case 'MILLILITRES':
+      case 'MILLILITER':
+      case 'MILLILITERS':
+        return 'Ml';
+      case 'LTR':
+      case 'LITRE':
+      case 'LITRES':
+      case 'LITER':
+      case 'LITERS':
+        return 'Litre';
+      case 'PCS':
+      case 'PC':
+      case 'PIECE':
+      case 'PIECES':
+      case 'NOS':
+      case 'NO':
+      case 'NUMBER':
+      case 'NUMBERS':
+      case 'UNIT':
+      case 'UNITS':
+        return 'Nos';
+      case 'TIN':
+      case 'TINS':
+        return 'Tin';
+      case 'PACK':
+      case 'PACKS':
+      case 'PKT':
+      case 'PKTS':
+      case 'PACKET':
+      case 'PACKETS':
+        return 'Pack';
+      default:
+        return upper.substring(0, 1) + upper.substring(1).toLowerCase();
+    }
   }
 
   private resetFormState(): void {

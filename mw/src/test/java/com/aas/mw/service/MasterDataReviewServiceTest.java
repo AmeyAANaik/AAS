@@ -19,13 +19,19 @@ class MasterDataReviewServiceTest {
 
     private ErpNextClient erpNextClient;
     private OrderService orderService;
+    private UomService uomService;
     private MasterDataReviewService service;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
         orderService = mock(OrderService.class);
-        service = new MasterDataReviewService(erpNextClient, orderService);
+        uomService = mock(UomService.class);
+        when(uomService.normalizeUom(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> {
+            Object raw = invocation.getArgument(0);
+            return raw == null ? "" : raw.toString().trim();
+        });
+        service = new MasterDataReviewService(erpNextClient, orderService, uomService);
     }
 
     @Test

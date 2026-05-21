@@ -34,6 +34,7 @@ public class MasterDataService {
     private final InvoiceTemplateModelService invoiceTemplateModelService;
     private final CatalogRoutingService catalogRoutingService;
     private final ErpNextFileService erpNextFileService;
+    private final UomService uomService;
     private final String erpPublicBaseUrl;
 
     public MasterDataService(
@@ -46,6 +47,7 @@ public class MasterDataService {
             InvoiceTemplateModelService invoiceTemplateModelService,
             CatalogRoutingService catalogRoutingService,
             ErpNextFileService erpNextFileService,
+            UomService uomService,
             @Value("${erpnext.public-base-url:${erpnext.base-url}}") String erpPublicBaseUrl) {
         this.erpNextClient = erpNextClient;
         this.vendorFieldRegistry = vendorFieldRegistry;
@@ -56,6 +58,7 @@ public class MasterDataService {
         this.invoiceTemplateModelService = invoiceTemplateModelService;
         this.catalogRoutingService = catalogRoutingService;
         this.erpNextFileService = erpNextFileService;
+        this.uomService = uomService;
         this.erpPublicBaseUrl = erpPublicBaseUrl;
     }
 
@@ -129,7 +132,7 @@ public class MasterDataService {
                 "fields",
                 "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
                         + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\","
-                        + "\"aas_invoice_email\",\"aas_whatsapp_number\",\"disabled\"]");
+                        + "\"aas_invoice_email\",\"aas_whatsapp_number\",\"tax_id\",\"aas_food_license_no\",\"disabled\"]");
         return erpNextClient.listResources("Customer", params);
     }
 
@@ -273,6 +276,8 @@ public class MasterDataService {
         profile.put("invoice_email", asText(branch.get("aas_invoice_email")));
         profile.put("whatsapp_number", asText(branch.get("aas_whatsapp_number")));
         profile.put("credit_days", branch.getOrDefault("aas_credit_days", 0));
+        profile.put("tax_id", firstText(branch.get("tax_id"), branch.get("gstin")));
+        profile.put("fssai_no", asText(branch.get("aas_food_license_no")));
         profile.put("logo_url", firstText(branch.get("image"), branch.get("logo")));
         return profile;
     }
@@ -415,13 +420,41 @@ public class MasterDataService {
         payload.put("aas_vendor_hsn_code", catalogRoutingService.normalizeCodeSegment(vendorHsnCode));
         payload.remove("vendor_hsn_code");
         payload.putIfAbsent("stock_uom", "Nos");
+        String uom = uomService.normalizeUom(asText(payload.get("stock_uom")).isBlank() ? "Nos" : asText(payload.get("stock_uom")));
+        if (!uom.isBlank()) {
+            uomService.ensureUomExists(uom);
+            payload.put("stock_uom", uom);
+        }
         payload.putIfAbsent("is_stock_item", 1);
         return erpNextClient.createResource("Item", payload);
     }
 
     public Map<String, Object> updateShop(String id, FieldsRequest request) {
-        Map<String, Object> payload = new HashMap<>(request.getFields());
-        payload.put("disabled", 0);
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Shop id is required.");
+        }
+        Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
+        Map<String, Object> payload = new HashMap<>();
+        Set<String> allowed = Set.of(
+                "customer_name",
+                "aas_branch_location",
+                "aas_whatsapp_group_name",
+                "aas_credit_days",
+                "aas_invoice_email",
+                "aas_whatsapp_number",
+                "tax_id",
+                "aas_food_license_no",
+                "disabled");
+        for (String key : allowed) {
+            if (fields.containsKey(key)) {
+                payload.put(key, fields.get(key));
+            }
+        }
+        // Never allow branch ID updates; Customer.name is treated as the immutable branch id across AAS.
+        payload.remove("name");
+        if (payload.isEmpty()) {
+            return unwrapResource(erpNextClient.getResource("Customer", id));
+        }
         return erpNextClient.updateResource("Customer", id, payload);
     }
 
@@ -436,6 +469,15 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "aas_gst_percent");
         if (payload.isEmpty()) {
             return unwrapResource(erpNextClient.getResource("Item", id));
+        }
+        if (payload.containsKey("stock_uom")) {
+            String normalized = uomService.normalizeUom(asText(payload.get("stock_uom")));
+            if (!normalized.isBlank()) {
+                uomService.ensureUomExists(normalized);
+                payload.put("stock_uom", normalized);
+            } else {
+                payload.remove("stock_uom");
+            }
         }
         return erpNextClient.updateResource("Item", id, payload);
     }

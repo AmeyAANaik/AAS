@@ -175,7 +175,10 @@
 
             <label class="field">
               <span>UOM</span>
-              <input [(ngModel)]="formModel.stock_uom" />
+              <input [(ngModel)]="formModel.stock_uom" list="review-uom-options" />
+              <datalist id="review-uom-options">
+                <option *ngFor="let uom of uoms" [value]="uom"></option>
+              </datalist>
             </label>
 
             <label class="field">

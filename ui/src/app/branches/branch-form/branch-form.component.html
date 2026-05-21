@@ -44,6 +44,19 @@
             <mat-hint>Used to calculate invoice due dates.</mat-hint>
             <mat-error *ngIf="form.get('creditDays')?.hasError('min')">Credit days cannot be negative.</mat-error>
           </mat-form-field>
+
+          <div class="section-title">Compliance</div>
+          <mat-form-field appearance="outline">
+            <mat-label>GSTIN / Tax ID</mat-label>
+            <input matInput formControlName="taxId" />
+            <mat-hint>Printed on invoices where applicable.</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>FSSAI No</mat-label>
+            <input matInput formControlName="fssaiNo" />
+            <mat-hint>Food safety license number for this branch.</mat-hint>
+          </mat-form-field>
         </div>
       </div>
 

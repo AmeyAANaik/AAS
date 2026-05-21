@@ -18,10 +18,12 @@ public class MasterDataReviewService {
 
     private final ErpNextClient erpNextClient;
     private final OrderService orderService;
+    private final UomService uomService;
 
-    public MasterDataReviewService(ErpNextClient erpNextClient, OrderService orderService) {
+    public MasterDataReviewService(ErpNextClient erpNextClient, OrderService orderService, UomService uomService) {
         this.erpNextClient = erpNextClient;
         this.orderService = orderService;
+        this.uomService = uomService;
     }
 
     public Map<String, Object> getPendingCount() {
@@ -81,7 +83,14 @@ public class MasterDataReviewService {
         Map<String, Object> payload = new HashMap<>();
         putIfHasText(payload, "item_name", request.getItem_name());
         putIfHasText(payload, "item_group", request.getItem_group());
-        putIfHasText(payload, "stock_uom", request.getStock_uom());
+        String requestedUom = request.getStock_uom();
+        if (requestedUom != null && !requestedUom.trim().isEmpty()) {
+            String normalizedUom = uomService.normalizeUom(requestedUom);
+            if (!normalizedUom.isBlank()) {
+                uomService.ensureUomExists(normalizedUom);
+                payload.put("stock_uom", normalizedUom);
+            }
+        }
         putIfHasText(payload, "aas_packaging_unit", request.getAas_packaging_unit());
         putIfHasText(payload, "aas_vendor_hsn_code", request.getAas_vendor_hsn_code());
         if (request.getAas_margin_percent() != null) {

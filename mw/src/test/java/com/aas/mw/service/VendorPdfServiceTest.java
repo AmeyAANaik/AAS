@@ -56,6 +56,7 @@ class VendorPdfServiceTest {
     private NativeLayoutInvoiceService nativeLayoutInvoiceService;
     private OrderFlowStateMachine orderFlowStateMachine;
     private CatalogRoutingService catalogRoutingService;
+    private UomService uomService;
     private VendorPdfService service;
 
     @BeforeEach
@@ -66,6 +67,11 @@ class VendorPdfServiceTest {
         nativeLayoutInvoiceService = mock(NativeLayoutInvoiceService.class);
         orderFlowStateMachine = new OrderFlowStateMachine();
         catalogRoutingService = mock(CatalogRoutingService.class);
+        uomService = mock(UomService.class);
+        when(uomService.normalizeUom(any())).thenAnswer(invocation -> {
+            Object raw = invocation.getArgument(0);
+            return raw == null ? "" : raw.toString().trim();
+        });
         when(catalogRoutingService.normalizeCodeSegment(any())).thenAnswer(invocation -> {
             Object raw = invocation.getArgument(0);
             String value = raw == null ? "" : raw.toString().trim().toUpperCase(Locale.ROOT);
@@ -99,6 +105,7 @@ class VendorPdfServiceTest {
                 orderFlowStateMachine,
                 catalogRoutingService,
                 new OrderPricingService(),
+                uomService,
                 7.0);
     }
 

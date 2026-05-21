@@ -8,6 +8,7 @@ import { finalize, Subscription } from 'rxjs';
 import { CategoryService } from '../categories/category.service';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { formatUiError } from '../shared/error-message.util';
+import { UomService } from '../shared/uom.service';
 import {
   ApproveMasterDataReviewRequest,
   MasterDataReviewDetail,
@@ -36,6 +37,7 @@ export class MasterDataReviewPageComponent implements OnInit, OnDestroy {
   selectedItem: MasterDataReviewDetail | null = null;
   summary: MasterDataReviewSummary = { pendingCount: 0, approvedCount: 0, defaultMarginCount: 0, totalCount: 0 };
   categories: string[] = [];
+  uoms: string[] = [];
   selectedStatus = 'PENDING_REVIEW';
   searchTerm = '';
   isLoading = false;
@@ -60,11 +62,13 @@ export class MasterDataReviewPageComponent implements OnInit, OnDestroy {
 
   constructor(
     private readonly reviewService: MasterDataReviewService,
-    private readonly categoryService: CategoryService
+    private readonly categoryService: CategoryService,
+    private readonly uomService: UomService
   ) {}
 
   ngOnInit(): void {
     this.loadCategories();
+    this.loadUoms();
     this.loadQueue();
     this.subscriptions.add(this.reviewService.refresh$.subscribe(() => this.loadQueue()));
   }
@@ -182,6 +186,20 @@ export class MasterDataReviewPageComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.categories = [];
+      }
+    });
+  }
+
+  private loadUoms(): void {
+    this.uomService.listUoms().subscribe({
+      next: rows => {
+        this.uoms = (rows ?? [])
+          .map(row => String(row.uom_name ?? row.name ?? '').trim())
+          .filter(Boolean)
+          .sort((left, right) => left.localeCompare(right));
+      },
+      error: () => {
+        this.uoms = [];
       }
     });
   }

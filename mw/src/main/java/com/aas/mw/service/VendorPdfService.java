@@ -49,6 +49,7 @@ public class VendorPdfService {
     private final OrderFlowStateMachine orderFlowStateMachine;
     private final CatalogRoutingService catalogRoutingService;
     private final OrderPricingService orderPricingService;
+    private final UomService uomService;
     private final double defaultMarginPercent;
 
     public VendorPdfService(
@@ -60,6 +61,7 @@ public class VendorPdfService {
             OrderFlowStateMachine orderFlowStateMachine,
             CatalogRoutingService catalogRoutingService,
             OrderPricingService orderPricingService,
+            UomService uomService,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.fileService = fileService;
@@ -69,6 +71,7 @@ public class VendorPdfService {
         this.orderFlowStateMachine = orderFlowStateMachine;
         this.catalogRoutingService = catalogRoutingService;
         this.orderPricingService = orderPricingService;
+        this.uomService = uomService;
         this.defaultMarginPercent = defaultMarginPercent;
     }
 
@@ -118,7 +121,7 @@ public class VendorPdfService {
         String parserText;
         String transportChargeText;
         NativeLayoutInvoiceService.ExtractionResult extractionResult = nativeLayoutInvoiceService.extract(pdfBytes, nativeProfile);
-        parsedItems = extractionResult.items();
+        parsedItems = coerceParsedItems(extractionResult.items());
         validateParsedTemplateOutput(parsedItems, extractionResult.finalAmount(), extractionResult.layoutText());
         finalAmount = extractionResult.finalAmount();
         invoiceDate = extractionResult.invoiceDate();
@@ -239,7 +242,9 @@ public class VendorPdfService {
             if (hasText(item.uom())) {
                 parsedColumns.add("uom");
             }
-            if (item.rate() > 0) {
+            // Some invoices (e.g. bill of supply / zero-GST) omit or print 0.00 for rate.
+            // We still consider the "rate" column present if it was derived from qty + amount.
+            if (item.rate() > 0 || (item.qty() > 0 && item.amount() > 0)) {
                 parsedColumns.add("rate");
             }
             if (item.gstPercent() != null) {
@@ -267,6 +272,49 @@ public class VendorPdfService {
             throw new IllegalStateException(
                     "Configured vendor template did not extract required summary fields: " + String.join(", ", missingSummaryFields) + ".");
         }
+    }
+
+    private List<ParsedItem> coerceParsedItems(List<ParsedItem> parsedItems) {
+        if (parsedItems == null || parsedItems.isEmpty()) {
+            return List.of();
+        }
+        boolean hasAnyGst = false;
+        for (ParsedItem item : parsedItems) {
+            if (item != null && item.gstPercent() != null) {
+                hasAnyGst = true;
+                break;
+            }
+        }
+        List<ParsedItem> coerced = new ArrayList<>(parsedItems.size());
+        for (ParsedItem item : parsedItems) {
+            if (item == null) {
+                continue;
+            }
+            double qty = item.qty();
+            double amount = item.amount();
+            double rate = item.rate();
+            if (rate <= 0 && qty > 0 && amount > 0) {
+                rate = amount / qty;
+            }
+            Double gstPercent = item.gstPercent();
+            // Treat missing GST as 0 only when the template extracted no GST values at all
+            // (common for bill-of-supply / zero-GST formats).
+            if (gstPercent == null && !hasAnyGst) {
+                gstPercent = 0.0;
+            }
+            coerced.add(new ParsedItem(
+                    item.name(),
+                    qty,
+                    rate,
+                    amount,
+                    item.hsn(),
+                    gstPercent,
+                    item.uom(),
+                    item.mrp(),
+                    item.rateBeforeTax(),
+                    item.rateAfterTax()));
+        }
+        return coerced;
     }
 
     private boolean hasText(String value) {
@@ -397,11 +445,11 @@ public class VendorPdfService {
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
             String vendorHsnCode = asText(catalogRoutingService.normalizeCodeSegment(item.hsn()));
-            String uom = normalizeUom(item.uom());
+            String uom = uomService.normalizeUom(item.uom());
             if (uom.isBlank()) {
                 uom = "Nos";
             }
-            ensureUomExists(uom);
+            uomService.ensureUomExists(uom);
             if (vendorHsnCode.isBlank()) {
                 throw new IllegalStateException(
                         "Vendor HSN code is required for parsed item \"" + itemName
@@ -627,7 +675,7 @@ public class VendorPdfService {
         payload.put("item_code", code);
         payload.put("item_name", itemName);
         payload.put("item_group", vendorResolution.categoryId());
-        payload.put("stock_uom", normalizeUom(asText(uom).isBlank() ? "Nos" : uom));
+        payload.put("stock_uom", uomService.normalizeUom(asText(uom).isBlank() ? "Nos" : uom));
         payload.put("is_stock_item", 1);
         payload.put("aas_vendor", vendorResolution.vendorId());
         payload.put("aas_vendor_hsn_code", vendorHsnCode);
@@ -649,35 +697,6 @@ public class VendorPdfService {
             return "";
         }
         return authentication.getName().trim();
-    }
-
-    private String normalizeUom(String raw) {
-        String normalized = asText(raw).trim().toUpperCase(Locale.ROOT);
-        if (normalized.isBlank()) {
-            return "";
-        }
-        return switch (normalized) {
-            case "KG", "KGS", "KILOGRAM", "KILOGRAMS" -> "Kg";
-            case "GM", "GMS", "GRAM", "GRAMS" -> "Gram";
-            case "LTR", "LITRE", "LITRES", "LITER", "LITERS" -> "Litre";
-            case "PCS", "PC", "PIECE", "PIECES", "NOS", "NO", "NUMBER", "NUMBERS", "UNIT", "UNITS" -> "Nos";
-            case "TIN", "TINS" -> "Tin";
-            case "PACK", "PACKS", "PKT", "PKTS", "PACKET", "PACKETS" -> "Pack";
-            default -> {
-                String titleCase = normalized.substring(0, 1) + normalized.substring(1).toLowerCase(Locale.ROOT);
-                yield titleCase;
-            }
-        };
-    }
-
-    private void ensureUomExists(String uomName) {
-        if (uomName == null || uomName.isBlank() || resourceExists("UOM", uomName)) {
-            return;
-        }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("uom_name", uomName);
-        payload.put("must_be_whole_number", "Nos".equalsIgnoreCase(uomName) ? 1 : 0);
-        erpNextClient.createResource("UOM", payload);
     }
 
     private boolean resourceExists(String itemCode) {

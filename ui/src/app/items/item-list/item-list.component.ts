@@ -67,10 +67,18 @@ export class ItemListComponent implements OnInit {
   }
 
   openCreate(): void {
+    if (this.isLoadingItems) {
+      this.statusMessage = 'Still loading items. Try again in a moment.';
+      return;
+    }
     this.openCategoryDialog(this.firstCreatableCategory);
   }
 
   openCategoryDialog(categoryName = ''): void {
+    if (!this.categories.length) {
+      this.statusMessage = 'No categories available yet. Refresh and try again.';
+      return;
+    }
     const dialogRef = this.dialog.open(ItemCategoryDialogComponent, {
       width: '1100px',
       maxWidth: '95vw',

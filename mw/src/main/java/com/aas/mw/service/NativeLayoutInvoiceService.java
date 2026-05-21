@@ -31,7 +31,7 @@ public class NativeLayoutInvoiceService {
 
     private static final Pattern MULTISPACE = Pattern.compile("\\s{2,}");
     private static final Pattern SUMMARY_LABEL = Pattern.compile(
-            "(?i)\\b(total|grand total|bill amount|transport|rounding off|round off|cgst|sgst|igst|taxable value)\\b");
+            "(?i)\\b(total|grand total|bill amount|net amount|gross amt|gross amount|gross amt\\.|transport|rounding off|round off|cgst|sgst|igst|taxable value)\\b");
     private static final Pattern AMOUNT_PATTERN = Pattern.compile("([0-9][0-9,]*\\.\\d{2})");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4}-\\d{2}-\\d{2})\\b");
     private static final Pattern DMY_DASH_PATTERN = Pattern.compile("\\b(\\d{1,2}-[A-Za-z]{3}-\\d{2,4})\\b");
@@ -264,7 +264,45 @@ public class NativeLayoutInvoiceService {
             splitCombinedRateAndUom(aligned, perIndex - 1, headers.size());
         }
 
+        padTrailingAmountColumns(headers, aligned);
         return aligned;
+    }
+
+    private void padTrailingAmountColumns(List<String> headers, List<String> cells) {
+        if (headers == null || headers.isEmpty() || cells == null || cells.isEmpty()) {
+            return;
+        }
+        int missing = headers.size() - cells.size();
+        if (missing <= 0 || missing > 4) {
+            return;
+        }
+        String lastHeader = normalizeHeader(headers.get(headers.size() - 1));
+        if (!(lastHeader.contains("amount") || lastHeader.contains("total") || lastHeader.contains("value"))) {
+            return;
+        }
+        String lastCell = blankSafe(cells.get(cells.size() - 1)).trim();
+        if (!looksLikeNumber(lastCell)) {
+            return;
+        }
+        // Common pattern: GST columns are blank in bill-of-supply layouts, so the split logic collapses
+        // consecutive whitespace and shifts the final amount left. Insert empty placeholders so the last
+        // numeric value stays aligned with the trailing Amount/Total column.
+        String amount = cells.remove(cells.size() - 1);
+        for (int index = 0; index < missing; index++) {
+            cells.add("");
+        }
+        cells.add(amount);
+    }
+
+    private boolean looksLikeNumber(String value) {
+        String text = blankSafe(value)
+                .replace(",", "")
+                .replace("₹", "")
+                .trim();
+        if (text.isBlank()) {
+            return false;
+        }
+        return text.matches("^[0-9]+(?:\\.[0-9]+)?$");
     }
 
     private int indexOfHeader(List<String> headers, String targetHeader) {
@@ -658,7 +696,12 @@ public class NativeLayoutInvoiceService {
             if (lowered.contains("transport")) {
                 labels.add("Transport");
             }
-            if (lowered.contains("grand total") || lowered.startsWith("total") || lowered.contains("bill amount")) {
+            if (lowered.contains("grand total")
+                    || lowered.startsWith("total")
+                    || lowered.contains("bill amount")
+                    || lowered.contains("net amount")
+                    || lowered.contains("gross amt")
+                    || lowered.contains("gross amount")) {
                 labels.add("Total");
             }
             if (lowered.contains("taxable value")) {

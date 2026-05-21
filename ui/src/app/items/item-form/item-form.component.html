@@ -41,9 +41,15 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Measure unit</mat-label>
-            <mat-select formControlName="measureUnit">
-              <mat-option *ngFor="let unit of measureUnits" [value]="unit">{{ unit }}</mat-option>
-            </mat-select>
+            <input
+              matInput
+              formControlName="measureUnit"
+              [matAutocomplete]="measureUnitAutocomplete"
+              (blur)="normalizeMeasureUnitControl()"
+              placeholder="Nos, Kg, Litre, etc." />
+            <mat-autocomplete #measureUnitAutocomplete="matAutocomplete" autoActiveFirstOption>
+              <mat-option *ngFor="let unit of (filteredMeasureUnits$ | async)" [value]="unit">{{ unit }}</mat-option>
+            </mat-autocomplete>
             <mat-error *ngIf="form.get('measureUnit')?.hasError('required')">Measure unit is required.</mat-error>
           </mat-form-field>
 

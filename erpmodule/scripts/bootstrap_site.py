@@ -83,6 +83,31 @@ def ensure_customer_fields() -> None:
     frappe.db.commit()
 
 
+def ensure_customer_naming_series() -> None:
+    series = "BR-.#####"
+    try:
+        selling_settings = frappe.get_doc("Selling Settings", "Selling Settings")
+        selling_settings.db_set("cust_master_name", "Naming Series", update_modified=False)
+        if hasattr(selling_settings, "customer_naming_series"):
+            selling_settings.db_set("customer_naming_series", series, update_modified=False)
+
+        customer_doctype = frappe.get_doc("DocType", "Customer")
+        if getattr(customer_doctype, "autoname", "") != "naming_series:":
+            customer_doctype.db_set("autoname", "naming_series:", update_modified=False)
+        frappe.db.commit()
+        return
+    except Exception:
+        frappe.db.rollback()
+
+    try:
+        customer_doctype = frappe.get_doc("DocType", "Customer")
+        customer_doctype.db_set("autoname", "naming_series:", update_modified=False)
+        frappe.db.commit()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+
 def main() -> None:
     for path in LOG_PATHS:
         path.mkdir(parents=True, exist_ok=True)
@@ -96,6 +121,7 @@ def main() -> None:
             setup_complete(setup_args())
             MARKER.touch()
         ensure_customer_fields()
+        ensure_customer_naming_series()
     finally:
         frappe.destroy()
 

@@ -2,6 +2,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { CategoryService } from '../categories/category.service';
+import { UomService } from '../shared/uom.service';
 import { MasterDataReviewPageComponent } from './master-data-review-page.component';
 import { MasterDataReviewService } from './master-data-review.service';
 
@@ -65,6 +66,12 @@ describe('MasterDataReviewPageComponent', () => {
           useValue: {
             listCategories: () => of([{ name: 'Grocery' }])
           }
+        },
+        {
+          provide: UomService,
+          useValue: {
+            listUoms: () => of([{ name: 'Litre', uom_name: 'Litre' }])
+          }
         }
       ]
     }).compileComponents();
@@ -84,5 +91,7 @@ describe('MasterDataReviewPageComponent', () => {
     expect(text).toContain('need review');
     const searchInput = element.querySelector('.search-shell input') as HTMLInputElement | null;
     expect(searchInput?.placeholder).toContain('Search item, code, order, invoice, category, or HSN');
+    const uomDatalist = element.querySelector('#review-uom-options') as HTMLDataListElement | null;
+    expect(uomDatalist).toBeTruthy();
   });
 });

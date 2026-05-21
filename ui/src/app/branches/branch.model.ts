@@ -6,6 +6,8 @@ export interface Branch {
   aas_credit_days?: number;
   aas_invoice_email?: string;
   aas_whatsapp_number?: string;
+  tax_id?: string;
+  aas_food_license_no?: string;
   disabled?: number | boolean;
 }
 
@@ -14,6 +16,8 @@ export interface BranchMetadata {
   whatsappGroupName?: string;
   invoiceEmail?: string;
   whatsappNumber?: string;
+  taxId?: string;
+  fssaiNo?: string;
 }
 
 export interface BranchFormValue {
@@ -23,6 +27,8 @@ export interface BranchFormValue {
   invoiceEmail: string;
   whatsappNumber: string;
   creditDays: number | null;
+  taxId: string;
+  fssaiNo: string;
 }
 
 export interface BranchView {
@@ -33,5 +39,7 @@ export interface BranchView {
   invoiceEmail: string;
   whatsappNumber: string;
   creditDays: number | null;
+  taxId: string;
+  fssaiNo: string;
   raw: Branch;
 }

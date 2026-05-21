@@ -20,7 +20,9 @@ export class BranchFormComponent implements OnChanges {
     whatsappGroupName: [''],
     invoiceEmail: ['', [Validators.email]],
     whatsappNumber: [''],
-    creditDays: [0, [Validators.min(0)]]
+    creditDays: [0, [Validators.min(0)]],
+    taxId: [''],
+    fssaiNo: ['']
   });
 
   constructor(private fb: FormBuilder) {}
@@ -33,14 +35,24 @@ export class BranchFormComponent implements OnChanges {
         whatsappGroupName: this.branch.whatsappGroupName,
         invoiceEmail: this.branch.invoiceEmail,
         whatsappNumber: this.branch.whatsappNumber,
-        creditDays: this.branch.creditDays ?? 0
+        creditDays: this.branch.creditDays ?? 0,
+        taxId: this.branch.taxId,
+        fssaiNo: this.branch.fssaiNo
       });
-      this.form.get('branchName')?.disable({ emitEvent: false });
       this.form.markAsPristine();
       return;
     }
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', invoiceEmail: '', whatsappNumber: '', creditDays: 0 });
+    this.form.reset({
+      branchName: '',
+      location: '',
+      whatsappGroupName: '',
+      invoiceEmail: '',
+      whatsappNumber: '',
+      creditDays: 0,
+      taxId: '',
+      fssaiNo: ''
+    });
   }
 
   submit(): void {
@@ -53,7 +65,16 @@ export class BranchFormComponent implements OnChanges {
 
   clear(): void {
     this.form.enable({ emitEvent: false });
-    this.form.reset({ branchName: '', location: '', whatsappGroupName: '', invoiceEmail: '', whatsappNumber: '', creditDays: 0 });
+    this.form.reset({
+      branchName: '',
+      location: '',
+      whatsappGroupName: '',
+      invoiceEmail: '',
+      whatsappNumber: '',
+      creditDays: 0,
+      taxId: '',
+      fssaiNo: ''
+    });
     this.reset.emit();
   }
 }

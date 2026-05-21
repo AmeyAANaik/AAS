@@ -35,7 +35,9 @@ public class ErpNextClient {
             "aas_review_created_by",
             "aas_review_notes",
             "aas_review_default_margin_used",
-            "aas_whatsapp_number");
+            "aas_whatsapp_number",
+            "aas_food_license_no",
+            "tax_id");
 
     private final ErpNextFeignClient feignClient;
 

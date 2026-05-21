@@ -22,12 +22,47 @@ describe('BranchFormComponent', () => {
   });
 
   it('marks form invalid when branch name is missing', () => {
-    component.form.setValue({ branchName: '', location: '', whatsappGroupName: '', invoiceEmail: '', whatsappNumber: '', creditDays: 0 });
+    component.form.setValue({
+      branchName: '',
+      location: '',
+      whatsappGroupName: '',
+      invoiceEmail: '',
+      whatsappNumber: '',
+      creditDays: 0,
+      taxId: '',
+      fssaiNo: ''
+    });
     expect(component.form.invalid).toBeTrue();
   });
 
   it('marks form valid when branch name is provided', () => {
-    component.form.setValue({ branchName: 'Branch A', location: '', whatsappGroupName: '', invoiceEmail: 'billing@example.com', whatsappNumber: '+919405925917', creditDays: 0 });
+    component.form.setValue({
+      branchName: 'Branch A',
+      location: '',
+      whatsappGroupName: '',
+      invoiceEmail: 'billing@example.com',
+      whatsappNumber: '+919405925917',
+      creditDays: 0,
+      taxId: '',
+      fssaiNo: ''
+    });
     expect(component.form.valid).toBeTrue();
+  });
+
+  it('keeps branch name editable when editing', () => {
+    component.branch = {
+      id: 'BR-000001',
+      name: 'Branch A',
+      location: '',
+      whatsappGroupName: '',
+      invoiceEmail: '',
+      whatsappNumber: '',
+      creditDays: 0,
+      taxId: '',
+      fssaiNo: '',
+      raw: {}
+    };
+    component.ngOnChanges();
+    expect(component.form.get('branchName')?.disabled).toBeFalse();
   });
 });

@@ -65,11 +65,14 @@ export class BranchListComponent implements OnInit {
     this.isSaving = true;
     if (this.selectedBranch) {
       const payload = {
+        customer_name: formValue.branchName.trim(),
         aas_branch_location: formValue.location,
         aas_whatsapp_group_name: formValue.whatsappGroupName,
         aas_invoice_email: formValue.invoiceEmail,
         aas_whatsapp_number: formValue.whatsappNumber,
-        aas_credit_days: formValue.creditDays ?? 0
+        aas_credit_days: formValue.creditDays ?? 0,
+        tax_id: formValue.taxId?.trim() || '',
+        aas_food_license_no: formValue.fssaiNo?.trim() || ''
       };
       this.branchService
         .updateBranch(this.selectedBranch.id, payload)
@@ -95,7 +98,9 @@ export class BranchListComponent implements OnInit {
       aas_whatsapp_group_name: formValue.whatsappGroupName,
       aas_invoice_email: formValue.invoiceEmail,
       aas_whatsapp_number: formValue.whatsappNumber,
-      aas_credit_days: formValue.creditDays ?? 0
+      aas_credit_days: formValue.creditDays ?? 0,
+      tax_id: formValue.taxId?.trim() || '',
+      aas_food_license_no: formValue.fssaiNo?.trim() || ''
     };
     this.branchService
       .createBranch(payload)
@@ -126,6 +131,8 @@ export class BranchListComponent implements OnInit {
       whatsappNumber: branch.aas_whatsapp_number ?? '',
       creditDays:
         typeof branch.aas_credit_days === 'number' ? branch.aas_credit_days : null,
+      taxId: String(branch.tax_id ?? '').trim(),
+      fssaiNo: String(branch.aas_food_license_no ?? '').trim(),
       raw: branch
     };
   }

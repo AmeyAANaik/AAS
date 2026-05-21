@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers(new AntPathRequestMatcher("/api/vendors/*/invoice-template", "DELETE")).hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/shops").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/shops/*").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/uoms").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/categories").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.PUT, "/api/categories/*").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.DELETE, "/api/categories/*").hasAnyRole("ADMIN", "HELPER")
