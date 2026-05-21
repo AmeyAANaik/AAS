@@ -369,11 +369,30 @@ public class MasterDataService {
     }
 
     public Map<String, Object> updateCategory(String id, FieldsRequest request) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Category id is required.");
+        }
         Map<String, Object> payload = new HashMap<>(request.getFields());
+        String requestedName = payload.containsKey("item_group_name") ? asText(payload.get("item_group_name")).trim() : "";
+        String categoryId = id.trim();
+
+        if (!requestedName.isBlank() && !requestedName.equals(categoryId)) {
+            payload.remove("item_group_name");
+            Map<String, Object> renamePayload = new HashMap<>();
+            renamePayload.put("doctype", "Item Group");
+            renamePayload.put("old_name", categoryId);
+            renamePayload.put("new_name", requestedName);
+            renamePayload.put("merge", 0);
+            erpNextClient.postMethod("frappe.client.rename_doc", renamePayload);
+            categoryId = requestedName;
+        }
         if (payload.containsKey("aas_category_code")) {
             payload.put("aas_category_code", catalogRoutingService.normalizeCodeSegment(asText(payload.get("aas_category_code"))));
         }
-        return erpNextClient.updateResource("Item Group", id, payload);
+        if (payload.isEmpty()) {
+            return erpNextClient.getResource("Item Group", categoryId);
+        }
+        return erpNextClient.updateResource("Item Group", categoryId, payload);
     }
 
     public Map<String, Object> deleteCategory(String id) {
