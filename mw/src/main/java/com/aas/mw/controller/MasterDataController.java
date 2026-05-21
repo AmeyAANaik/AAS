@@ -141,7 +141,15 @@ public class MasterDataController {
     @PutMapping("/companies/{id}")
     public ResponseEntity<Map<String, Object>> updateCompany(
             @PathVariable String id,
-            @Valid @RequestBody FieldsRequest request) {
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        Object session = httpRequest.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of(
+                            "error", "Session expired. Please log out and log in again.",
+                            "errorCode", "ERP_SESSION_MISSING"));
+        }
         return ResponseEntity.ok(masterDataService.updateCompanyProfile(id, request));
     }
 

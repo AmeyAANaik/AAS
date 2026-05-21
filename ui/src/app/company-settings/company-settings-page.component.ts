@@ -16,7 +16,7 @@ import {
 export class CompanySettingsPageComponent implements OnInit {
   private readonly maxImageBytes = 10 * 1024 * 1024;
   readonly form = this.fb.group({
-    name: [{ value: '', disabled: true }],
+    name: ['', Validators.required],
     abbr: ['', Validators.required],
     default_currency: ['', Validators.required],
     country: [''],
@@ -85,6 +85,7 @@ export class CompanySettingsPageComponent implements OnInit {
     this.message = '';
     const raw = this.form.getRawValue();
     this.companyContextService.updateCompany(this.companyId, {
+      name: String(raw.name ?? '').trim(),
       abbr: String(raw.abbr ?? '').trim(),
       default_currency: String(raw.default_currency ?? '').trim(),
       country: String(raw.country ?? '').trim(),
@@ -104,8 +105,9 @@ export class CompanySettingsPageComponent implements OnInit {
           this.applyCompany(company);
           this.message = 'Company details updated.';
         },
-        error: () => {
-          this.errorMessage = 'Unable to update company details.';
+        error: err => {
+          const message = String(err?.error?.error ?? err?.error?.message ?? err?.message ?? '').trim();
+          this.errorMessage = message || 'Unable to update company details.';
         }
       });
   }

@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { tap } from 'rxjs/operators';
 import { AuthTokenService } from './auth-token.service';
 
 export type CompanyIdentity = {
@@ -57,6 +58,8 @@ export type OpeningBalanceApplyResult = {
 
 @Injectable({ providedIn: 'root' })
 export class CompanyContextService {
+  readonly contextChanged$ = new Subject<void>();
+
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
 
   getContext(): Observable<CompanyContext> {
@@ -72,7 +75,7 @@ export class CompanyContextService {
       `/api/companies/${encodeURIComponent(id)}`,
       { fields },
       { headers: this.authHeaders() }
-    );
+    ).pipe(tap(() => this.contextChanged$.next()));
   }
 
   uploadCompanyLogo(id: string, file: File): Observable<CompanyIdentity> {
@@ -82,7 +85,7 @@ export class CompanyContextService {
       `/api/companies/${encodeURIComponent(id)}/logo`,
       formData,
       { headers: this.authHeaders() }
-    );
+    ).pipe(tap(() => this.contextChanged$.next()));
   }
 
   uploadCompanySignature(id: string, file: File): Observable<CompanyIdentity> {
@@ -92,7 +95,7 @@ export class CompanyContextService {
       `/api/companies/${encodeURIComponent(id)}/signature`,
       formData,
       { headers: this.authHeaders() }
-    );
+    ).pipe(tap(() => this.contextChanged$.next()));
   }
 
   previewOpeningBalances(companyId: string, file: File, cutoverDate: string): Observable<OpeningBalancePreview> {

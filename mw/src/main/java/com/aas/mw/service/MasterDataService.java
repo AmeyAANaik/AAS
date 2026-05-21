@@ -198,6 +198,7 @@ public class MasterDataService {
         }
         Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
         Map<String, Object> payload = new HashMap<>();
+        copyIfPresent(fields, payload, "company_name", "name");
         copyIfPresent(fields, payload, "abbr");
         copyIfPresent(fields, payload, "default_currency");
         copyIfPresent(fields, payload, "country");

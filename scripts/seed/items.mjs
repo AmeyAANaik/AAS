@@ -82,6 +82,72 @@ async function listAllItems(cookie) {
   return data.data || [];
 }
 
+async function getUom(cookie, uomName) {
+  const encoded = encodeURIComponent(uomName);
+  const res = await fetch(`${ERP_BASE_URL}/api/resource/UOM/${encoded}`, {
+    headers: { Cookie: cookie }
+  });
+
+  if (res.status === 404 || res.status === 417) {
+    return null;
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`ERP request failed: ${res.status} ${text}`);
+  }
+  const json = await res.json();
+  return json?.data || null;
+}
+
+async function createUom(cookie, uomName) {
+  const payload = {
+    uom_name: uomName,
+    must_be_whole_number: uomName.toLowerCase() === 'nos' ? 1 : 0
+  };
+  try {
+    await erpRequest('/api/resource/UOM', cookie, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    throw new Error(`Failed to create UOM "${uomName}": ${err?.message || err}`);
+  }
+}
+
+async function ensureUomsExist(cookie, items) {
+  const required = new Set();
+  for (const item of items) {
+    const uom = String(item.stock_uom || '').trim();
+    if (uom) {
+      required.add(uom);
+    }
+  }
+
+  const created = [];
+  const wouldCreate = [];
+  for (const uomName of [...required].sort((a, b) => a.localeCompare(b))) {
+    const existing = await getUom(cookie, uomName);
+    if (existing) {
+      continue;
+    }
+    if (DRY_RUN) {
+      wouldCreate.push(uomName);
+      continue;
+    }
+    await createUom(cookie, uomName);
+    created.push(uomName);
+  }
+
+  if (created.length) {
+    console.log(`UOMs created: ${created.length} (${created.join(', ')})`);
+  } else if (wouldCreate.length) {
+    console.log(`UOMs missing (DRY_RUN=1; would create): ${wouldCreate.length} (${wouldCreate.join(', ')})`);
+  } else {
+    console.log('UOMs created: 0');
+  }
+}
+
 async function upsertItem(cookie, payload, exists) {
   if (DRY_RUN) {
     return;
@@ -116,16 +182,10 @@ async function run() {
   const cookie = await loginErp();
   const items = await buildItems();
   const targetCodes = new Set(items.map(item => item.code));
-  const existing = await listAllItems(cookie);
-  const existingNames = new Set(existing.map(row => row.name));
+  await ensureUomsExist(cookie, items);
 
-  let disabled = 0;
-  for (const row of existing) {
-    if (!targetCodes.has(row.name) && row.disabled !== 1) {
-      await disableItem(cookie, row.name);
-      disabled += 1;
-    }
-  }
+  const existingBefore = await listAllItems(cookie);
+  const existingNames = new Set(existingBefore.map(row => row.name));
 
   let created = 0;
   let updated = 0;
@@ -158,7 +218,17 @@ async function run() {
   }
 
   const finalItems = await listAllItems(cookie);
-  const active = finalItems.filter(row => row.disabled !== 1 && targetCodes.has(row.name));
+
+  let disabled = 0;
+  for (const row of finalItems) {
+    if (!targetCodes.has(row.name) && row.disabled !== 1) {
+      await disableItem(cookie, row.name);
+      disabled += 1;
+    }
+  }
+
+  const refreshed = await listAllItems(cookie);
+  const active = refreshed.filter(row => row.disabled !== 1 && targetCodes.has(row.name));
   const missing = items.filter(item => !active.some(row => row.name === item.code));
 
   console.log(`Items disabled: ${disabled}`);

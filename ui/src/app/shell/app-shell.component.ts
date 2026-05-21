@@ -108,6 +108,7 @@ export class AppShellComponent implements OnDestroy {
   private readonly themeSubscription: Subscription;
   private readonly masterDataReviewSubscription: Subscription;
   private readonly billReviewSubscription: Subscription;
+  private readonly companyContextSubscription: Subscription;
 
   constructor(
     private router: Router,
@@ -128,6 +129,7 @@ export class AppShellComponent implements OnDestroy {
         this.closeUserMenu();
     });
     this.loadCompanyContext();
+    this.companyContextSubscription = this.companyContextService.contextChanged$.subscribe(() => this.loadCompanyContext());
     this.loadUserProfile();
     this.currentTheme = this.themeService.getCurrentTheme();
     this.themeSubscription = this.themeService.theme$.subscribe(theme => {
@@ -189,6 +191,7 @@ export class AppShellComponent implements OnDestroy {
     this.themeSubscription.unsubscribe();
     this.masterDataReviewSubscription.unsubscribe();
     this.billReviewSubscription.unsubscribe();
+    this.companyContextSubscription.unsubscribe();
   }
 
   private loadCompanyContext(): void {
