@@ -12,6 +12,7 @@ const USERNAME = process.env.MW_USERNAME || process.env.ERP_USERNAME || 'Adminis
 const PASSWORD = process.env.MW_PASSWORD || process.env.ERP_PASSWORD || 'admin';
 const DEFAULT_MARGIN = Number(process.env.DEFAULT_MARGIN ?? 7);
 const DRY_RUN = process.env.DRY_RUN === '1';
+const PRESERVE_OLD_ITEMS = (process.env.PRESERVE_OLD_ITEMS ?? '1') !== '0';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = path.join(SCRIPT_DIR, 'items.snapshot.json');
 
@@ -152,6 +153,9 @@ async function upsertItem(cookie, payload, exists) {
   if (DRY_RUN) {
     return;
   }
+  if (exists && PRESERVE_OLD_ITEMS) {
+    return;
+  }
   if (exists) {
     await erpRequest(`/api/resource/Item/${encodeURIComponent(payload.item_code)}`, cookie, {
       method: 'PUT',
@@ -189,6 +193,7 @@ async function run() {
 
   let created = 0;
   let updated = 0;
+  let skipped = 0;
   for (const item of items) {
     const exists = existingNames.has(item.code);
     const payload = {
@@ -211,7 +216,11 @@ async function run() {
     }
     await upsertItem(cookie, payload, exists);
     if (exists) {
-      updated += 1;
+      if (PRESERVE_OLD_ITEMS) {
+        skipped += 1;
+      } else {
+        updated += 1;
+      }
     } else {
       created += 1;
     }
@@ -220,10 +229,12 @@ async function run() {
   const finalItems = await listAllItems(cookie);
 
   let disabled = 0;
-  for (const row of finalItems) {
-    if (!targetCodes.has(row.name) && row.disabled !== 1) {
-      await disableItem(cookie, row.name);
-      disabled += 1;
+  if (!PRESERVE_OLD_ITEMS) {
+    for (const row of finalItems) {
+      if (!targetCodes.has(row.name) && row.disabled !== 1) {
+        await disableItem(cookie, row.name);
+        disabled += 1;
+      }
     }
   }
 
@@ -234,6 +245,9 @@ async function run() {
   console.log(`Items disabled: ${disabled}`);
   console.log(`Items created: ${created}`);
   console.log(`Items updated: ${updated}`);
+  if (PRESERVE_OLD_ITEMS) {
+    console.log(`Items skipped (existing): ${skipped}`);
+  }
   console.log(`Active items from list: ${active.length}`);
   if (missing.length) {
     console.log('Missing items:', missing.map(item => item.code).join(', '));
