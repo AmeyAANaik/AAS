@@ -149,6 +149,83 @@ async function ensureUomsExist(cookie, items) {
   }
 }
 
+async function getItemGroup(cookie, groupName) {
+  const encoded = encodeURIComponent(groupName);
+  const res = await fetch(`${ERP_BASE_URL}/api/resource/Item%20Group/${encoded}`, {
+    headers: { Cookie: cookie }
+  });
+
+  if (res.status === 404 || res.status === 417) {
+    return null;
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`ERP request failed: ${res.status} ${text}`);
+  }
+  const json = await res.json();
+  return json?.data || null;
+}
+
+async function createItemGroup(cookie, groupName, parentName) {
+  const payload = {
+    item_group_name: groupName,
+    parent_item_group: parentName || '',
+    is_group: parentName ? 0 : 1
+  };
+  try {
+    await erpRequest('/api/resource/Item Group', cookie, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    throw new Error(`Failed to create Item Group "${groupName}": ${err?.message || err}`);
+  }
+}
+
+async function ensureItemGroupsExist(cookie, items) {
+  const required = new Set();
+  for (const item of items) {
+    const group = String(item.item_group || '').trim();
+    if (group) {
+      required.add(group);
+    }
+  }
+  required.add('All Item Groups');
+
+  const created = [];
+  const wouldCreate = [];
+  const ordered = [...required].sort((a, b) => a.localeCompare(b));
+
+  for (const groupName of ordered) {
+    const existing = await getItemGroup(cookie, groupName);
+    if (existing) {
+      continue;
+    }
+
+    const parent = groupName === 'All Item Groups' ? '' : 'All Item Groups';
+    if (DRY_RUN) {
+      wouldCreate.push(groupName);
+      continue;
+    }
+    if (parent && !(await getItemGroup(cookie, parent))) {
+      await createItemGroup(cookie, parent, '');
+      created.push(parent);
+    }
+    await createItemGroup(cookie, groupName, parent);
+    created.push(groupName);
+  }
+
+  if (created.length) {
+    const uniq = [...new Set(created)];
+    console.log(`Item Groups created: ${uniq.length} (${uniq.join(', ')})`);
+  } else if (wouldCreate.length) {
+    console.log(`Item Groups missing (DRY_RUN=1; would create): ${wouldCreate.length} (${wouldCreate.join(', ')})`);
+  } else {
+    console.log('Item Groups created: 0');
+  }
+}
+
 async function upsertItem(cookie, payload, exists) {
   if (DRY_RUN) {
     return;
@@ -187,6 +264,7 @@ async function run() {
   const items = await buildItems();
   const targetCodes = new Set(items.map(item => item.code));
   await ensureUomsExist(cookie, items);
+  await ensureItemGroupsExist(cookie, items);
 
   const existingBefore = await listAllItems(cookie);
   const existingNames = new Set(existingBefore.map(row => row.name));
