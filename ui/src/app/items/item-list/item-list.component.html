@@ -61,7 +61,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let row" class="actions-cell">
-              <button mat-icon-button color="primary" class="item-icon-button" type="button" (click)="openCategoryDialog(row.name)" aria-label="Manage category items">
+              <button mat-icon-button color="primary" class="item-icon-button" type="button" (click)="openCategoryDialog(row.id)" aria-label="Manage category items">
                 <mat-icon>edit</mat-icon>
               </button>
             </td>

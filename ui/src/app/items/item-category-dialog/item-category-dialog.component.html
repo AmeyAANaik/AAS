@@ -6,7 +6,7 @@
       <mat-label>Category</mat-label>
       <mat-select [value]="selectedCategory" (valueChange)="onCategoryChange($event)">
         <mat-option *ngFor="let category of sortedCategories" [value]="category.name">
-          {{ category.name }}
+          {{ category.item_group_name ?? category.name }}
         </mat-option>
       </mat-select>
     </mat-form-field>
@@ -18,9 +18,9 @@
 
   <div class="feedback error" *ngIf="statusMessage">{{ statusMessage }}</div>
 
-  <div class="dialog-grid">
-    <div class="items-pane">
-      <div class="pane-title">Items in {{ selectedCategory || 'category' }}</div>
+    <div class="dialog-grid">
+      <div class="items-pane">
+      <div class="pane-title">Items in {{ selectedCategoryLabel || 'category' }}</div>
       <mat-form-field appearance="outline" class="item-search-field">
         <mat-label>Search items</mat-label>
         <input

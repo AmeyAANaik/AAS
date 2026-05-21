@@ -44,10 +44,7 @@ export class ItemListComponent implements OnInit {
       this.vendorService.listVendors().toPromise()
     ])
       .then(([categories, items, vendors]) => {
-        this.categories = (categories ?? []).map(category => ({
-          ...category,
-          name: category.name ?? category.item_group_name ?? ''
-        }));
+        this.categories = (categories ?? []).map(category => ({ ...category }));
         this.vendors = (vendors ?? []) as Array<Record<string, unknown>>;
         const mergedItems = this.metadataService.mergeMetadata((items ?? []) as Item[]);
         this.items = mergedItems.map(item => this.toViewModel(item as Item & { packagingUnit?: string }));
@@ -120,25 +117,32 @@ export class ItemListComponent implements OnInit {
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
 
-    const categoryNames = new Set<string>();
+    const categoryLabels = new Map<string, string>();
     for (const category of this.categories) {
-      const name = String(category.name ?? category.item_group_name ?? '').trim();
-      if (name) {
-        categoryNames.add(name);
+      const id = String(category.name ?? '').trim();
+      if (!id) {
+        continue;
       }
+      const label = String(category.item_group_name ?? category.name ?? '').trim() || id;
+      categoryLabels.set(id, label);
+    }
+
+    const categoryIds = new Set<string>();
+    for (const id of categoryLabels.keys()) {
+      categoryIds.add(id);
     }
     for (const item of this.items) {
       if (item.category) {
-        categoryNames.add(item.category);
+        categoryIds.add(item.category);
       }
     }
 
     const search = this.searchTerm.trim().toLowerCase();
-    this.categoryRows = [...categoryNames]
-      .map(name => ({
-        id: name,
-        name,
-        itemCount: counts.get(name) ?? 0
+    this.categoryRows = [...categoryIds]
+      .map(id => ({
+        id,
+        name: categoryLabels.get(id) ?? id,
+        itemCount: counts.get(id) ?? 0
       }))
       .filter(row => !search || row.name.toLowerCase().includes(search))
       .sort((left, right) => left.name.localeCompare(right.name));

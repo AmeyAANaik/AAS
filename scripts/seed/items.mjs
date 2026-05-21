@@ -25,7 +25,7 @@ async function buildItems() {
     code: String(item.code || '').trim(),
     hsn: String(item.hsn || '').trim(),
     name: String(item.name || item.code || '').trim(),
-    item_group: String(item.item_group || 'Raw Material').trim(),
+    item_group: String(item.item_group || 'Grocery').trim(),
     stock_uom: String(item.stock_uom || 'Nos').trim(),
     margin_percent: Number.isFinite(Number(item.margin_percent)) ? Number(item.margin_percent) : DEFAULT_MARGIN,
     vendor_rate: Number.isFinite(Number(item.vendor_rate)) ? Number(item.vendor_rate) : 0,

@@ -43,13 +43,18 @@ export class ItemCategoryDialogComponent implements OnInit {
 
   ngOnInit(): void {
     this.sortedCategories = [...this.data.categories].sort((left, right) =>
-      String(left.name ?? left.item_group_name ?? '').localeCompare(String(right.name ?? right.item_group_name ?? ''))
+      String(left.item_group_name ?? left.name ?? '').localeCompare(String(right.item_group_name ?? right.name ?? ''))
     );
     const firstCategory = this.sortedCategories[0]?.name ?? '';
     this.selectedCategory = this.data.initialCategory?.trim() || firstCategory;
     this.refreshVisibleItems();
     this.bumpFormVersion();
     this.itemSearchControl.valueChanges.subscribe(() => this.refreshVisibleItems());
+  }
+
+  get selectedCategoryLabel(): string {
+    const found = this.sortedCategories.find(entry => entry.name === this.selectedCategory);
+    return String(found?.item_group_name ?? found?.name ?? this.selectedCategory ?? '').trim() || this.selectedCategory;
   }
 
   onCategoryChange(categoryName: string): void {

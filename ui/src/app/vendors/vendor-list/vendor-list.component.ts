@@ -47,10 +47,7 @@ export class VendorListComponent implements OnInit {
     });
     this.categoryService.listCategories().subscribe({
       next: categories => {
-        this.categories = (categories ?? []).map(category => ({
-          ...category,
-          name: category.name ?? category.item_group_name ?? ''
-        }));
+        this.categories = (categories ?? []).map(category => ({ ...category }));
       }
     });
     this.loadVendors();
