@@ -264,6 +264,7 @@
         <div class="opening-balance-panel">
           <div class="state error" *ngIf="openingBalanceError">{{ openingBalanceError }}</div>
           <div class="state success" *ngIf="openingBalanceMessage">{{ openingBalanceMessage }}</div>
+          <div class="opening-balance-hint">CSV can use ERPNext IDs or exact names (names must be unique).</div>
 
           <div class="opening-balance-controls">
 	            <mat-form-field appearance="outline">

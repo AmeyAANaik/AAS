@@ -1,0 +1,7 @@
+record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+ACCOUNT,Cash - AAS,100000,0,Main - AAS,,,,,
+ACCOUNT,Opening Balance Equity - AAS,0,100000,Main - AAS,,,,,
+CUSTOMER,,,,,Sukarta Aundh,60000,,OB-CUST-FOOD,Grocery
+CUSTOMER,,,,,Sukarta Aundh,40000,,OB-CUST-BEV,Grocery
+SUPPLIER,,,,,Sanshray Foods,125000,OB-SUP-FOOD,,Grocery
+SUPPLIER,,,,,Sanshray Foods,115000,OB-SUP-BEV,,Grocery

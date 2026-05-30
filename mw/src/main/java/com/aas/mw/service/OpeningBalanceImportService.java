@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Map;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -36,6 +37,29 @@ public class OpeningBalanceImportService {
 
     public OpeningBalanceImportService(ErpNextClient erpNextClient) {
         this.erpNextClient = erpNextClient;
+    }
+
+    public String templateCsv(String companyId) {
+        normalizeRequired(companyId, "companyId");
+        String[] headers = {
+                "record_type",
+                "account",
+                "debit",
+                "credit",
+                "cost_center",
+                "party_id",
+                "amount",
+                "bill_no",
+                "invoice_ref",
+                "category"
+        };
+
+        StringBuilder builder = new StringBuilder();
+        builder.append(String.join(",", headers)).append("\n");
+        builder.append("ACCOUNT,Cash - ").append(escapeCompany(companyId)).append(",1000,0,Main - ").append(escapeCompany(companyId)).append(",,,,\n");
+        builder.append("SUPPLIER,,,,,SUPP-0001,500,OB-001,,GENERAL\n");
+        builder.append("CUSTOMER,,,,,CUST-0001,750,,OB-INV-001,GENERAL\n");
+        return builder.toString();
     }
 
     public Map<String, Object> preview(String companyId, MultipartFile file, String cutoverDate) {
@@ -224,6 +248,7 @@ public class OpeningBalanceImportService {
 
     private ValidationResult validate(String companyId, String postingDate, ParsedRows parsed) {
         List<Map<String, Object>> errors = new ArrayList<>();
+        NameResolver resolver = new NameResolver(erpNextClient);
 
         List<AccountAmount> accounts = new ArrayList<>();
         BigDecimal debitTotal = BigDecimal.ZERO;
@@ -237,18 +262,13 @@ public class OpeningBalanceImportService {
                 errors.add(error(row.rowNumber(), "debit/credit", "Exactly one of debit or credit must be > 0."));
                 continue;
             }
-            Map<String, Object> account = unwrapResourceSafe("Account", row.account());
-            if (account.isEmpty()) {
-                errors.add(error(row.rowNumber(), "account", "Account not found: " + row.account()));
-                continue;
-            }
-            String accountCompany = asText(account.get("company"));
-            if (!companyId.equals(accountCompany)) {
-                errors.add(error(row.rowNumber(), "account", "Account does not belong to company " + companyId + ": " + row.account()));
+            ResolveResult accountResolved = resolver.resolveAccount(companyId, row.account());
+            if (!accountResolved.isOk()) {
+                errors.add(error(row.rowNumber(), "account", accountResolved.message()));
                 continue;
             }
 
-            accounts.add(new AccountAmount(row.account(), debit, credit, row.costCenter()));
+            accounts.add(new AccountAmount(accountResolved.id(), debit, credit, row.costCenter()));
             debitTotal = debitTotal.add(debit);
             creditTotal = creditTotal.add(credit);
         }
@@ -267,18 +287,18 @@ public class OpeningBalanceImportService {
                 errors.add(error(row.rowNumber(), "category", "category is required."));
                 continue;
             }
-            Map<String, Object> itemGroup = unwrapResourceSafe("Item Group", category);
-            if (itemGroup.isEmpty()) {
-                errors.add(error(row.rowNumber(), "category", "Category not found: " + category));
+            ResolveResult categoryResolved = resolver.resolveItemGroup(category);
+            if (!categoryResolved.isOk()) {
+                errors.add(error(row.rowNumber(), "category", categoryResolved.message()));
                 continue;
             }
-            Map<String, Object> supplier = unwrapResourceSafe("Supplier", row.partyId());
-            if (supplier.isEmpty()) {
-                errors.add(error(row.rowNumber(), "party_id", "Supplier not found: " + row.partyId()));
+            ResolveResult supplierResolved = resolver.resolveSupplier(row.partyId());
+            if (!supplierResolved.isOk()) {
+                errors.add(error(row.rowNumber(), "party_id", supplierResolved.message()));
                 continue;
             }
-            String reference = resolveReference("SUPPLIER", postingDate, row.partyId(), category, row.reference());
-            suppliers.add(new PartyAmount("Supplier", row.partyId(), row.amount(), reference, category));
+            String reference = resolveReference("SUPPLIER", postingDate, supplierResolved.id(), categoryResolved.id(), row.reference());
+            suppliers.add(new PartyAmount("Supplier", supplierResolved.id(), row.amount(), reference, categoryResolved.id()));
         }
 
         List<PartyAmount> customers = new ArrayList<>();
@@ -292,18 +312,18 @@ public class OpeningBalanceImportService {
                 errors.add(error(row.rowNumber(), "category", "category is required."));
                 continue;
             }
-            Map<String, Object> itemGroup = unwrapResourceSafe("Item Group", category);
-            if (itemGroup.isEmpty()) {
-                errors.add(error(row.rowNumber(), "category", "Category not found: " + category));
+            ResolveResult categoryResolved = resolver.resolveItemGroup(category);
+            if (!categoryResolved.isOk()) {
+                errors.add(error(row.rowNumber(), "category", categoryResolved.message()));
                 continue;
             }
-            Map<String, Object> customer = unwrapResourceSafe("Customer", row.partyId());
-            if (customer.isEmpty()) {
-                errors.add(error(row.rowNumber(), "party_id", "Customer not found: " + row.partyId()));
+            ResolveResult customerResolved = resolver.resolveCustomer(row.partyId());
+            if (!customerResolved.isOk()) {
+                errors.add(error(row.rowNumber(), "party_id", customerResolved.message()));
                 continue;
             }
-            String reference = resolveReference("CUSTOMER", postingDate, row.partyId(), category, row.reference());
-            customers.add(new PartyAmount("Customer", row.partyId(), row.amount(), reference, category));
+            String reference = resolveReference("CUSTOMER", postingDate, customerResolved.id(), categoryResolved.id(), row.reference());
+            customers.add(new PartyAmount("Customer", customerResolved.id(), row.amount(), reference, categoryResolved.id()));
         }
 
         return new ValidationResult(List.copyOf(accounts), List.copyOf(suppliers), List.copyOf(customers), List.copyOf(errors));
@@ -427,7 +447,7 @@ public class OpeningBalanceImportService {
                 throw new IllegalStateException("Item lookup returned empty for " + itemCode);
             }
             String existingGroup = asText(existing.get("item_group"));
-            if (!existingGroup.isBlank() && !existingGroup.equals(normalizedCategory)) {
+            if (!existingGroup.isBlank() && !existingGroup.equals(normalizedCategory) && !existingGroup.equalsIgnoreCase(normalizedCategory)) {
                 throw new IllegalStateException("Opening balance item " + itemCode + " is mapped to a different category: " + existingGroup);
             }
             boolean disabled = asFlag(existing.get("disabled"));
@@ -577,6 +597,13 @@ public class OpeningBalanceImportService {
         return normalized;
     }
 
+    private String escapeCompany(String companyId) {
+        // Keep template simple: avoid commas/newlines breaking the CSV.
+        String text = companyId == null ? "" : companyId.trim();
+        text = text.replace("\n", " ").replace("\r", " ").replace(",", " ");
+        return text.isBlank() ? "COMPANY" : text;
+    }
+
     private String normalizeDateRequired(String value, String label) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isBlank()) {
@@ -690,4 +717,185 @@ public class OpeningBalanceImportService {
             List<PartyAmount> supplierEntries,
             List<PartyAmount> customerEntries,
             List<Map<String, Object>> errors) {}
+
+    record ResolveResult(boolean ok, String id, String message) {
+        static ResolveResult ok(String id) {
+            return new ResolveResult(true, id, "");
+        }
+
+        static ResolveResult error(String message) {
+            return new ResolveResult(false, "", message);
+        }
+
+        boolean isOk() {
+            return ok && id != null && !id.isBlank();
+        }
+    }
+
+    static class NameResolver {
+        private final ErpNextClient erpNextClient;
+        private final ObjectMapper mapper = new ObjectMapper();
+        private final Map<String, ResolveResult> cache = new HashMap<>();
+
+        NameResolver(ErpNextClient erpNextClient) {
+            this.erpNextClient = erpNextClient;
+        }
+
+        ResolveResult resolveAccount(String companyId, String input) {
+            String raw = normalizeInput(input);
+            if (raw.isBlank()) {
+                return ResolveResult.error("Account is required.");
+            }
+            String key = "Account:" + companyId + ":" + raw;
+            ResolveResult cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+
+            Map<String, Object> byId = Map.of();
+            try {
+                byId = unwrapSafe(erpNextClient.getResource("Account", raw));
+            } catch (Exception ignored) {
+                byId = Map.of();
+            }
+            if (!byId.isEmpty()) {
+                String accountCompany = asText(byId.get("company"));
+                if (!companyId.equals(accountCompany)) {
+                    ResolveResult res = ResolveResult.error("Account does not belong to company " + companyId + ": " + raw);
+                    cache.put(key, res);
+                    return res;
+                }
+                ResolveResult res = ResolveResult.ok(asText(byId.get("name")).isBlank() ? raw : asText(byId.get("name")));
+                cache.put(key, res);
+                return res;
+            }
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"account_name\",\"company\"]");
+            params.put("limit_page_length", 50);
+            params.put("filters", toJson(List.of(
+                    List.of("account_name", "=", raw),
+                    List.of("company", "=", companyId))));
+            List<Map<String, Object>> rows;
+            try {
+                rows = safeList(erpNextClient.listResources("Account", params));
+            } catch (Exception ignored) {
+                rows = List.of();
+            }
+            ResolveResult res = pickUnique("Account", raw, "account_name", rows);
+            cache.put(key, res);
+            return res;
+        }
+
+        ResolveResult resolveCustomer(String input) {
+            return resolveByNameOrId("Customer", "customer_name", input);
+        }
+
+        ResolveResult resolveSupplier(String input) {
+            return resolveByNameOrId("Supplier", "supplier_name", input);
+        }
+
+        ResolveResult resolveItemGroup(String input) {
+            return resolveByNameOrId("Item Group", "item_group_name", input);
+        }
+
+        private ResolveResult resolveByNameOrId(String doctype, String nameField, String input) {
+            String raw = normalizeInput(input);
+            if (raw.isBlank()) {
+                return ResolveResult.error(doctype + " is required.");
+            }
+            String key = doctype + ":" + raw;
+            ResolveResult cached = cache.get(key);
+            if (cached != null) {
+                return cached;
+            }
+
+            Map<String, Object> byId = Map.of();
+            try {
+                byId = unwrapSafe(erpNextClient.getResource(doctype, raw));
+            } catch (Exception ignored) {
+                byId = Map.of();
+            }
+            if (!byId.isEmpty()) {
+                String id = asText(byId.get("name"));
+                ResolveResult res = ResolveResult.ok(id.isBlank() ? raw : id);
+                cache.put(key, res);
+                return res;
+            }
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"" + nameField + "\"]");
+            params.put("limit_page_length", 50);
+            params.put("filters", toJson(List.of(List.of(nameField, "=", raw))));
+            List<Map<String, Object>> rows;
+            try {
+                rows = safeList(erpNextClient.listResources(doctype, params));
+            } catch (Exception ignored) {
+                rows = List.of();
+            }
+            ResolveResult res = pickUnique(doctype, raw, nameField, rows);
+            cache.put(key, res);
+            return res;
+        }
+
+        private ResolveResult pickUnique(String doctype, String input, String nameField, List<Map<String, Object>> rows) {
+            if (rows == null || rows.isEmpty()) {
+                return ResolveResult.error(doctype + " not found by name/id: " + input);
+            }
+            if (rows.size() == 1) {
+                String id = asText(rows.get(0).get("name"));
+                if (id.isBlank()) {
+                    return ResolveResult.error(doctype + " lookup returned empty id for: " + input);
+                }
+                return ResolveResult.ok(id);
+            }
+            List<String> matches = rows.stream()
+                    .filter(Objects::nonNull)
+                    .map(row -> {
+                        String id = asText(row.get("name"));
+                        String label = asText(row.get(nameField));
+                        if (label.isBlank() || label.equals(id)) {
+                            return id;
+                        }
+                        return id + " (" + label + ")";
+                    })
+                    .filter(s -> s != null && !s.isBlank())
+                    .distinct()
+                    .limit(10)
+                    .toList();
+            return ResolveResult.error(doctype + " name is ambiguous: " + input + ". Matches: " + String.join(", ", matches));
+        }
+
+        private String normalizeInput(String value) {
+            return value == null ? "" : value.trim();
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> unwrapSafe(Map<String, Object> response) {
+            if (response == null || response.isEmpty()) {
+                return Map.of();
+            }
+            Object data = response.get("data");
+            if (data instanceof Map<?, ?> map) {
+                return (Map<String, Object>) map;
+            }
+            return response;
+        }
+
+        private List<Map<String, Object>> safeList(List<Map<String, Object>> rows) {
+            return rows == null ? List.of() : rows;
+        }
+
+        private String asText(Object value) {
+            return value == null ? "" : String.valueOf(value).trim();
+        }
+
+        private String toJson(Object value) {
+            try {
+                return mapper.writeValueAsString(value);
+            } catch (Exception ex) {
+                return "[]";
+            }
+        }
+    }
 }

@@ -1,5 +1,7 @@
-company,posting_date,voucher_type,is_opening,user_remark,accounts.account,accounts.party_type,accounts.party,accounts.debit_in_account_currency,accounts.credit_in_account_currency,accounts.cost_center
-AAS,2025-04-01,Journal Entry,Yes,Opening balance as of 2025-04-01,Debtors - AAS,Customer,Sahyadri All-Day Dining,150000,0,Main - AAS
-AAS,2025-04-01,Journal Entry,Yes,Opening balance as of 2025-04-01,Creditors - AAS,Supplier,FreshHarvest Agro Foods,0,80000,Main - AAS
-AAS,2025-04-01,Journal Entry,Yes,Opening balance as of 2025-04-01,Cash - AAS,,,25000,0,Main - AAS
-AAS,2025-04-01,Journal Entry,Yes,Opening balance as of 2025-04-01,Capital Account - AAS,,,0,95000,Main - AAS
+record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+ACCOUNT,Cash - AAS,100000,0,Main - AAS,,,,,
+ACCOUNT,Opening Balance Equity - AAS,0,100000,Main - AAS,,,,,
+CUSTOMER,,,,,CUST-0001,60000,,OB-CUST-FOOD,Food
+CUSTOMER,,,,,CUST-0001,40000,,OB-CUST-BEV,Bev
+SUPPLIER,,,,,SUPP-0001,25000,OB-SUPP-FOOD,,Food
+SUPPLIER,,,,,SUPP-0001,15000,OB-SUPP-BEV,,Bev

@@ -147,8 +147,8 @@ export class CompanySettingsPageComponent implements OnInit {
           this.applyCompany(company);
           this.message = 'Company logo updated.';
         },
-        error: () => {
-          this.errorMessage = 'Unable to upload company logo.';
+        error: err => {
+          this.errorMessage = this.toUploadErrorMessage(err, 'Unable to upload company logo.');
         }
       });
   }
@@ -185,10 +185,25 @@ export class CompanySettingsPageComponent implements OnInit {
           this.applyCompany(company);
           this.message = 'Company signature updated.';
         },
-        error: () => {
-          this.errorMessage = 'Unable to upload company signature.';
+        error: err => {
+          this.errorMessage = this.toUploadErrorMessage(err, 'Unable to upload company signature.');
         }
       });
+  }
+
+  private toUploadErrorMessage(err: unknown, fallback: string): string {
+    const anyErr = err as any;
+    const status = Number(anyErr?.status ?? 0);
+    if (status === 413) {
+      return 'Upload failed: file is too large for the server. Ask admin to increase Nginx/Spring upload limits.';
+    }
+    if (status === 415) {
+      return 'Upload failed: unsupported file type.';
+    }
+    const apiMessage = String(anyErr?.error?.message ?? '').trim();
+    const apiError = String(anyErr?.error?.error ?? '').trim();
+    const rawMessage = String(anyErr?.message ?? '').trim();
+    return apiMessage || rawMessage || apiError || fallback;
   }
 
   onOpeningBalanceFileSelected(event: Event): void {
@@ -218,10 +233,10 @@ export class CompanySettingsPageComponent implements OnInit {
   downloadOpeningBalanceTemplate(): void {
     const template = [
       'record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category',
-      'ACCOUNT,ACC-EXAMPLE-1,1000,0,Main - CC,,,,,' ,
-      'ACCOUNT,ACC-EXAMPLE-2,0,1000,Main - CC,,,,,' ,
-      'SUPPLIER,,,,,SUPPLIER-0001,25000,,,CAT-A',
-      'CUSTOMER,,,,,CUSTOMER-0001,15000,,,CAT-A'
+      'ACCOUNT,Cash - Your Company,1000,0,Main - Your Company,,,,,',
+      'ACCOUNT,Opening Balance Equity - Your Company,0,1000,Main - Your Company,,,,,',
+      'SUPPLIER,,,,,FreshHarvest Agro Foods,25000,OB-SUP-001,,Food',
+      'CUSTOMER,,,,,Sahyadri All-Day Dining,15000,,OB-CUST-001,Food'
     ].join('\n');
 
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });
