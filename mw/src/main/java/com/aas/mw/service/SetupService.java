@@ -96,6 +96,9 @@ public class SetupService {
             {% set rounding_adjustment = frappe.utils.flt(doc.aas_rounding_adjustment if doc.aas_rounding_adjustment else doc.rounding_adjustment, 2) %}
             {% set invoice_total = frappe.utils.flt(doc.grand_total if doc.grand_total else 0, 2) %}
             {% set grand_total = frappe.utils.flt(invoice_total + rounding_adjustment, 2) %}
+            {% set category_doc = frappe.get_doc("Item Group", doc.aas_category) if doc.aas_category else None %}
+            {% set previous_due = frappe.utils.flt(doc.aas_previous_due if doc.aas_previous_due else 0, 2) %}
+            {% set current_pending = frappe.utils.flt(doc.aas_current_pending if doc.aas_current_pending else 0, 2) %}
             {% set bank_lines = [] %}
             {% if company_doc and company_doc.aas_bank_beneficiary_name %}{% set _ = bank_lines.append("A/C Name: " ~ company_doc.aas_bank_beneficiary_name) %}{% endif %}
             {% if company_doc and company_doc.aas_bank_name %}{% set _ = bank_lines.append("Bank: " ~ company_doc.aas_bank_name) %}{% endif %}
@@ -132,6 +135,7 @@ public class SetupService {
                       <tr><td class="aas-meta-label">Invoice Date</td><td>{{ frappe.utils.formatdate(doc.posting_date) }}</td></tr>
                       <tr><td class="aas-meta-label">Due Date</td><td>{{ frappe.utils.formatdate(doc.due_date) if doc.due_date else "-" }}</td></tr>
                       <tr><td class="aas-meta-label">Source Order</td><td>{{ doc.aas_source_sales_order or "-" }}</td></tr>
+                      <tr><td class="aas-meta-label">Category</td><td>{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or "-") }}</td></tr>
                     </table>
                   </div>
                 </td>
@@ -247,7 +251,40 @@ public class SetupService {
                 <td class="aas-summary-label-cell">Grand Total</td>
                 <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
               </tr>
+              {% if doc.aas_category %}
+              <tr>
+                <td class="aas-summary-label-cell">Previous Due (Category)</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(previous_due, currency=doc.currency) }}</td>
+              </tr>
+              <tr class="aas-summary-grand">
+                <td class="aas-summary-label-cell">Current Pending (Category)</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(current_pending if doc.aas_current_pending else (previous_due + grand_total), currency=doc.currency) }}</td>
+              </tr>
+              {% endif %}
               </tbody>
+            </table>
+            {% set open_invoices = frappe.get_list("Sales Invoice", filters=[["customer", "=", doc.customer], ["docstatus", "!=", 2], ["name", "!=", doc.name]], fields=["grand_total", "outstanding_amount", "docstatus"], limit_page_length=500) if doc.customer else [] %}
+            {% set dues_ns = namespace(pending=0.0) %}
+            {% for inv in open_invoices %}
+            {% set inv_amount = frappe.utils.flt(inv.outstanding_amount, 2) if (inv.docstatus == 1 and inv.outstanding_amount) else frappe.utils.flt(inv.grand_total, 2) %}
+            {% set dues_ns.pending = dues_ns.pending + inv_amount %}
+            {% endfor %}
+            <table class="aas-dues-summary" style="width: 360px; margin: 12px 0 24px auto; border-collapse: collapse; page-break-inside: avoid;">
+              <tr style="background: #f3f4f6;">
+                <td colspan="2" style="border: 1px solid #111827; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #4b5563;">Account Summary</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #111827; padding: 8px 10px; font-weight: 600; width: 58%;">Pending Dues</td>
+                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap; width: 42%;">{{ frappe.utils.fmt_money(dues_ns.pending, currency=doc.currency) }}</td>
+              </tr>
+              <tr>
+                <td style="border: 1px solid #111827; padding: 8px 10px; font-weight: 600;">Current Invoice</td>
+                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
+              </tr>
+              <tr style="font-weight: 700; background: #eef2ff; font-size: 13px;">
+                <td style="border: 1px solid #111827; padding: 8px 10px;">Total Outstanding</td>
+                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(frappe.utils.flt(dues_ns.pending + grand_total, 2), currency=doc.currency) }}</td>
+              </tr>
             </table>
             <table class="aas-footer-grid">
               <tr>
@@ -612,6 +649,27 @@ public class SetupService {
                 "Link",
                 "Item Group",
                 "customer");
+        boolean salesInvoiceCategoryField = ensureCustomField(
+                "Sales Invoice",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "aas_source_sales_order");
+        boolean salesInvoicePreviousDueField = ensureCustomField(
+                "Sales Invoice",
+                "aas_previous_due",
+                "Previous Due",
+                "Currency",
+                null,
+                "aas_category");
+        boolean salesInvoiceCurrentPendingField = ensureCustomField(
+                "Sales Invoice",
+                "aas_current_pending",
+                "Current Pending",
+                "Currency",
+                null,
+                "aas_previous_due");
         boolean categoryCodeField = ensureCustomField(
                 "Item Group",
                 "aas_category_code",
@@ -854,6 +912,9 @@ public class SetupService {
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
+        result.put("salesInvoiceCategoryFieldCreated", salesInvoiceCategoryField);
+        result.put("salesInvoicePreviousDueFieldCreated", salesInvoicePreviousDueField);
+        result.put("salesInvoiceCurrentPendingFieldCreated", salesInvoiceCurrentPendingField);
         result.put("categoryCodeFieldCreated", categoryCodeField);
         result.put("supplierGroupEnsured", ensureSupplierGroupRoot());
         result.put("vendorSupplierCustomFieldsChanged", ensureVendorSupplierCustomFields());

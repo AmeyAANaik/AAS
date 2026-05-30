@@ -266,10 +266,10 @@
           <div class="state success" *ngIf="openingBalanceMessage">{{ openingBalanceMessage }}</div>
 
           <div class="opening-balance-controls">
-            <mat-form-field appearance="outline">
-              <mat-label>Go-live (cutover) date</mat-label>
-              <input matInput type="date" [(ngModel)]="openingBalanceCutoverDate" name="openingBalanceCutoverDate" />
-            </mat-form-field>
+	            <mat-form-field appearance="outline">
+	              <mat-label>Go-live (cutover) date</mat-label>
+	              <input matInput type="date" [(ngModel)]="openingBalanceCutoverDate" name="openingBalanceCutoverDate" [ngModelOptions]="{ standalone: true }" />
+	            </mat-form-field>
 
             <div class="file-picker">
               <input #openingFileInput type="file" accept=".csv,text/csv" hidden (change)="onOpeningBalanceFileSelected($event)" />

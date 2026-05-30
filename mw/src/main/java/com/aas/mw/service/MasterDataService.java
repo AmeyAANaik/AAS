@@ -8,6 +8,8 @@ import com.aas.mw.meta.VendorFieldMapper;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -24,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class MasterDataService {
     private static final String SYSTEM_BRANCH_IMAGE_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
+    private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ErpNextClient erpNextClient;
     private final VendorFieldRegistry vendorFieldRegistry;
@@ -132,8 +135,41 @@ public class MasterDataService {
                 "fields",
                 "[\"name\",\"customer_name\",\"customer_type\",\"customer_group\",\"territory\","
                         + "\"aas_branch_location\",\"aas_whatsapp_group_name\",\"aas_credit_days\","
-                        + "\"aas_invoice_email\",\"aas_whatsapp_number\",\"tax_id\",\"aas_food_license_no\",\"disabled\"]");
-        return erpNextClient.listResources("Customer", params);
+                        + "\"aas_invoice_email\",\"aas_whatsapp_number\",\"tax_id\",\"aas_food_license_no\","
+                        + "\"aas_is_deleted\",\"aas_deleted_at\",\"disabled\"]");
+        return erpNextClient.listResources("Customer", params).stream()
+                .filter(this::isNotSoftDeletedBranch)
+                .toList();
+    }
+
+    private boolean isNotSoftDeletedBranch(Map<String, Object> branch) {
+        if (branch == null || branch.isEmpty()) {
+            return false;
+        }
+        if (asFlag(branch.get("aas_is_deleted")) || !asText(branch.get("aas_deleted_at")).isBlank()) {
+            return false;
+        }
+        String customerName = asText(branch.get("customer_name")).trim();
+        if (customerName.startsWith("[DELETED]")) {
+            return false;
+        }
+        // Some ERPNext role configurations allow updating these flags, but do not permit
+        // listing them in query fields. In that case, perform a targeted fetch for disabled
+        // branches to determine whether they're soft-deleted.
+        if (!branch.containsKey("aas_is_deleted") && !branch.containsKey("aas_deleted_at") && asFlag(branch.get("disabled"))) {
+            String branchId = asText(branch.get("name")).trim();
+            if (!branchId.isBlank()) {
+                try {
+                    Map<String, Object> full = unwrapResource(erpNextClient.getResource("Customer", branchId));
+                    if (asFlag(full.get("aas_is_deleted")) || !asText(full.get("aas_deleted_at")).isBlank()) {
+                        return false;
+                    }
+                } catch (Exception ignored) {
+                    // If we can't confirm deletion state, keep the branch visible.
+                }
+            }
+        }
+        return true;
     }
 
     public List<Map<String, Object>> listCompanies() {
@@ -197,8 +233,11 @@ public class MasterDataService {
             throw new IllegalArgumentException("Company id is required.");
         }
         Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
+        String companyId = id.trim();
+        String requestedDisplayName = asText(fields.getOrDefault("company_name", fields.getOrDefault("name", ""))).trim();
         Map<String, Object> payload = new HashMap<>();
         copyIfPresent(fields, payload, "company_name", "name");
+        copyIfPresent(fields, payload, "company_name");
         copyIfPresent(fields, payload, "abbr");
         copyIfPresent(fields, payload, "default_currency");
         copyIfPresent(fields, payload, "country");
@@ -214,11 +253,28 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "aas_bank_branch", "bank_branch");
         copyIfPresent(fields, payload, "aas_invoice_email", "invoice_email");
         copyIfPresent(fields, payload, "aas_whatsapp_number", "whatsapp_number");
-        if (payload.isEmpty()) {
-            return getCompanyProfile(id);
+
+        // ERPNext often uses the document name as the effective company label across the system.
+        // Attempt a rename when the requested display name differs from the current document id.
+        // If the rename fails (permissions/constraints), fall back to updating fields only.
+        if (!requestedDisplayName.isBlank() && !requestedDisplayName.equals(companyId)) {
+            try {
+                Map<String, Object> renamePayload = new HashMap<>();
+                renamePayload.put("doctype", "Company");
+                renamePayload.put("old_name", companyId);
+                renamePayload.put("new_name", requestedDisplayName);
+                renamePayload.put("merge", 0);
+                erpNextClient.postMethod("frappe.client.rename_doc", renamePayload);
+                companyId = requestedDisplayName;
+            } catch (Exception ignored) {
+                // Ignore rename failures and continue with field updates on the original id.
+            }
         }
-        erpNextClient.updateResource("Company", id, payload);
-        return getCompanyProfile(id);
+        if (payload.isEmpty()) {
+            return getCompanyProfile(companyId);
+        }
+        erpNextClient.updateResource("Company", companyId, payload);
+        return getCompanyProfile(companyId);
     }
 
     public Map<String, Object> uploadCompanyLogo(String id, MultipartFile file, String sessionCookie) {
@@ -454,6 +510,19 @@ public class MasterDataService {
             throw new IllegalArgumentException("Shop id is required.");
         }
         Map<String, Object> fields = request == null || request.getFields() == null ? Map.of() : request.getFields();
+        Map<String, Object> existing = unwrapResource(erpNextClient.getResource("Customer", id));
+        if (existing.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
+        }
+        if (asFlag(existing.get("aas_is_deleted"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Deleted branches cannot be modified.");
+        }
+        boolean wasDisabled = asFlag(existing.get("disabled"));
+        boolean requestedDisabled = fields.containsKey("disabled") && asFlag(fields.get("disabled"));
+        if (requestedDisabled && !wasDisabled) {
+            ensureBranchCanBeDisabled(id);
+        }
+
         Map<String, Object> payload = new HashMap<>();
         Set<String> allowed = Set.of(
                 "customer_name",
@@ -473,9 +542,79 @@ public class MasterDataService {
         // Never allow branch ID updates; Customer.name is treated as the immutable branch id across AAS.
         payload.remove("name");
         if (payload.isEmpty()) {
-            return unwrapResource(erpNextClient.getResource("Customer", id));
+            return existing;
         }
         return erpNextClient.updateResource("Customer", id, payload);
+    }
+
+    private void ensureBranchCanBeDisabled(String branchId) {
+        long openInvoiceCount = erpNextClient.getCount("Sales Invoice", Map.of(
+                "filters",
+                "[[\"Sales Invoice\",\"customer\",\"=\",\"" + escapeJson(branchId) + "\"],"
+                        + "[\"Sales Invoice\",\"docstatus\",\"!=\",2],"
+                        + "[\"Sales Invoice\",\"outstanding_amount\",\">\",0]]"));
+        if (openInvoiceCount > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot disable branch while unpaid invoices exist.");
+        }
+
+        long activeOrderCount = erpNextClient.getCount("Sales Order", Map.of(
+                "filters",
+                "[[\"Sales Order\",\"customer\",\"=\",\"" + escapeJson(branchId) + "\"],"
+                        + "[\"Sales Order\",\"aas_is_deleted\",\"!=\",1],"
+                        + "[\"Sales Order\",\"aas_status\",\"!=\",\"DELETED\"],"
+                        + "[\"Sales Order\",\"aas_status\",\"!=\",\"INVOICED\"]]"));
+        if (activeOrderCount > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot disable branch while active orders exist.");
+        }
+    }
+
+    public Map<String, Object> deleteShop(String id) {
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("Shop id is required.");
+        }
+        String branchId = id.trim();
+        Map<String, Object> existing = unwrapResource(erpNextClient.getResource("Customer", branchId));
+        if (existing.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
+        }
+        if (asFlag(existing.get("aas_is_deleted"))) {
+            return Map.of("branchId", branchId, "deleted", true);
+        }
+        if (!asFlag(existing.get("disabled"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only disabled branches can be deleted.");
+        }
+        ensureBranchCanBeDeleted(branchId);
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_is_deleted", 1);
+        payload.put("aas_deleted_at", LocalDateTime.now().format(ERP_DATE_TIME));
+        payload.put("disabled", 1);
+        erpNextClient.updateResource("Customer", branchId, payload);
+        try {
+            Map<String, Object> reloaded = unwrapResource(erpNextClient.getResource("Customer", branchId));
+            boolean deleteFieldsPresent = reloaded.containsKey("aas_is_deleted") || reloaded.containsKey("aas_deleted_at");
+            if (!deleteFieldsPresent) {
+                String currentName = asText(reloaded.get("customer_name")).isBlank()
+                        ? branchId
+                        : asText(reloaded.get("customer_name"));
+                String marked = currentName.startsWith("[DELETED] ") ? currentName : "[DELETED] " + currentName;
+                erpNextClient.updateResource("Customer", branchId, Map.of("customer_name", marked, "disabled", 1));
+            }
+        } catch (Exception ignore) {
+            // Best-effort marker; don't fail delete if ERP doesn't return updated doc.
+        }
+        return Map.of("branchId", branchId, "deleted", true);
+    }
+
+    private void ensureBranchCanBeDeleted(String branchId) {
+        // Deletion in AAS is a soft-delete (aas_is_deleted) and should be allowed even if
+        // historical invoices/orders/payments reference the branch. We only block deletion
+        // when there are unpaid invoices or active orders, matching the disable guardrails.
+        ensureBranchCanBeDisabled(branchId);
     }
 
     public Map<String, Object> updateItem(String id, FieldsRequest request) {

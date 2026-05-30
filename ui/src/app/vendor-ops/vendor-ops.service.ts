@@ -8,6 +8,17 @@ import { VendorOpsAnalytics, VendorOpsCategorySummaryRow, VendorOpsDetail, Vendo
 export class VendorOpsService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
 
+  private withDateRange(params: HttpParams, range?: { from?: string; to?: string }): HttpParams {
+    let next = params;
+    if (range?.from) {
+      next = next.set('from', range.from);
+    }
+    if (range?.to) {
+      next = next.set('to', range.to);
+    }
+    return next;
+  }
+
   getSummary(): Observable<{ totals: VendorOpsSummaryTotals; vendors: VendorOpsSummaryRow[] }> {
     return this.http.get<{ totals: VendorOpsSummaryTotals; vendors: VendorOpsSummaryRow[] }>('/api/vendor-ops/summary', {
       headers: this.authHeaders()
@@ -46,10 +57,15 @@ export class VendorOpsService {
     });
   }
 
-  getVendorLedger(vendorId: string): Observable<{ balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }> {
-    return this.http.get<{ balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }>(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger`, {
-      headers: this.authHeaders()
-    });
+  getVendorLedger(
+    vendorId: string,
+    range?: { from?: string; to?: string }
+  ): Observable<{ openingBalance?: number; closingBalance?: number; balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }> {
+    const params = this.withDateRange(new HttpParams(), range);
+    return this.http.get<{ openingBalance?: number; closingBalance?: number; balance: number; entries: VendorOpsLedgerEntry[]; categorySummary: VendorOpsCategorySummaryRow[] }>(
+      `/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger`,
+      { headers: this.authHeaders(), params }
+    );
   }
 
   downloadAllVendorLedgers(): Observable<Blob> {
@@ -59,23 +75,31 @@ export class VendorOpsService {
     });
   }
 
-  downloadVendorLedger(vendorId: string): Observable<Blob> {
+  downloadVendorLedger(vendorId: string, range?: { from?: string; to?: string }): Observable<Blob> {
+    const params = this.withDateRange(new HttpParams(), range);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/export`, {
       headers: this.authHeaders(),
+      params,
       responseType: 'blob'
     });
   }
 
-  getVendorLedgerByCategory(vendorId: string, categoryId: string): Observable<{ balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }> {
-    const params = new HttpParams().set('categoryId', categoryId);
-    return this.http.get<{ balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }>(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category`, {
-      headers: this.authHeaders(),
-      params
-    });
+  getVendorLedgerByCategory(
+    vendorId: string,
+    categoryId: string,
+    range?: { from?: string; to?: string }
+  ): Observable<{ openingBalance?: number; closingBalance?: number; balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }> {
+    let params = new HttpParams().set('categoryId', categoryId);
+    params = this.withDateRange(params, range);
+    return this.http.get<{ openingBalance?: number; closingBalance?: number; balance: number; entries: VendorOpsLedgerEntry[]; categoryId: string; categoryLabel: string }>(
+      `/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category`,
+      { headers: this.authHeaders(), params }
+    );
   }
 
-  downloadVendorLedgerByCategory(vendorId: string, categoryId: string): Observable<Blob> {
-    const params = new HttpParams().set('categoryId', categoryId);
+  downloadVendorLedgerByCategory(vendorId: string, categoryId: string, range?: { from?: string; to?: string }): Observable<Blob> {
+    let params = new HttpParams().set('categoryId', categoryId);
+    params = this.withDateRange(params, range);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category/export`, {
       headers: this.authHeaders(),
       params,
@@ -83,16 +107,20 @@ export class VendorOpsService {
     });
   }
 
-  downloadVendorLedgerCategoriesSummary(vendorId: string): Observable<Blob> {
+  downloadVendorLedgerCategoriesSummary(vendorId: string, range?: { from?: string; to?: string }): Observable<Blob> {
+    const params = this.withDateRange(new HttpParams(), range);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/categories/export`, {
       headers: this.authHeaders(),
+      params,
       responseType: 'blob'
     });
   }
 
-  downloadAllVendorsLedgerCategoriesSummary(): Observable<Blob> {
+  downloadAllVendorsLedgerCategoriesSummary(range?: { from?: string; to?: string }): Observable<Blob> {
+    const params = this.withDateRange(new HttpParams(), range);
     return this.http.get('/api/vendor-ops/ledger/categories/export', {
       headers: this.authHeaders(),
+      params,
       responseType: 'blob'
     });
   }

@@ -295,6 +295,16 @@ public class OrdersController {
         return ResponseEntity.ok(orderBillingService.createSellOrder(id, fields));
     }
 
+    @PostMapping("/{id}/sell-order/replace")
+    public ResponseEntity<Map<String, Object>> replaceSellOrder(
+            @PathVariable String id,
+            @RequestBody(required = false) FieldsRequest request) {
+        Map<String, Object> fields = request == null || request.getFields() == null
+                ? Map.of()
+                : request.getFields();
+        return ResponseEntity.ok(orderBillingService.createOrReplaceSellOrder(id, fields));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteOrder(@PathVariable String id) {
         return ResponseEntity.ok(orderService.deleteOrder(id));

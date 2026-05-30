@@ -4,11 +4,13 @@ import com.aas.mw.service.MasterDataService;
 import com.aas.mw.service.UomService;
 import com.aas.mw.service.UserService;
 import com.aas.mw.service.ErpSessionStore;
+import com.aas.mw.service.AuthenticationService;
 import com.aas.mw.dto.FieldsRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -36,16 +38,19 @@ public class MasterDataController {
     private final UomService uomService;
     private final UserService userService;
     private final ItemMarginImportService itemMarginImportService;
+    private final AuthenticationService authenticationService;
 
     public MasterDataController(
             MasterDataService masterDataService,
             UomService uomService,
             UserService userService,
-            ItemMarginImportService itemMarginImportService) {
+            ItemMarginImportService itemMarginImportService,
+            AuthenticationService authenticationService) {
         this.masterDataService = masterDataService;
         this.uomService = uomService;
         this.userService = userService;
         this.itemMarginImportService = itemMarginImportService;
+        this.authenticationService = authenticationService;
     }
 
     @GetMapping("/items")
@@ -143,13 +148,7 @@ public class MasterDataController {
             @PathVariable String id,
             @Valid @RequestBody FieldsRequest request,
             HttpServletRequest httpRequest) {
-        Object session = httpRequest.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
+        ensureErpSessionCookie(httpRequest);
         return ResponseEntity.ok(masterDataService.updateCompanyProfile(id, request));
     }
 
@@ -158,13 +157,7 @@ public class MasterDataController {
             @PathVariable String id,
             @RequestPart("file") MultipartFile file,
             HttpServletRequest request) {
-        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
+        String sessionCookie = ensureErpSessionCookie(request);
         return ResponseEntity.ok(masterDataService.uploadCompanyLogo(id, file, sessionCookie));
     }
 
@@ -173,14 +166,26 @@ public class MasterDataController {
             @PathVariable String id,
             @RequestPart("file") MultipartFile file,
             HttpServletRequest request) {
-        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
-        if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of(
-                            "error", "Session expired. Please log out and log in again.",
-                            "errorCode", "ERP_SESSION_MISSING"));
-        }
+        String sessionCookie = ensureErpSessionCookie(request);
         return ResponseEntity.ok(masterDataService.uploadCompanySignature(id, file, sessionCookie));
+    }
+
+    private String ensureErpSessionCookie(HttpServletRequest request) {
+        Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        if (session instanceof String sessionCookie && !sessionCookie.isBlank()) {
+            return sessionCookie;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities() != null
+                && auth.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .anyMatch("ROLE_ADMIN"::equals);
+        if (!isAdmin) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired. Please log out and log in again.");
+        }
+        String setupCookie = authenticationService.getSetupSessionCookie();
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, setupCookie);
+        return setupCookie;
     }
 
     @GetMapping("/users/{id}")
@@ -205,6 +210,11 @@ public class MasterDataController {
             @PathVariable String id,
             @Valid @RequestBody FieldsRequest request) {
         return ResponseEntity.ok(masterDataService.updateShop(id, request));
+    }
+
+    @DeleteMapping("/shops/{id}")
+    public ResponseEntity<Map<String, Object>> deleteShop(@PathVariable String id) {
+        return ResponseEntity.ok(masterDataService.deleteShop(id));
     }
 
     @PostMapping("/items")

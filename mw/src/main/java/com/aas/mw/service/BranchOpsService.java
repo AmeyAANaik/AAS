@@ -190,21 +190,34 @@ public class BranchOpsService {
     }
 
     public Map<String, Object> getBranchLedger(String branchId) {
+        return getBranchLedger(branchId, null, null);
+    }
+
+    public Map<String, Object> getBranchLedger(String branchId, String fromDate, String toDate) {
         Map<String, Object> branch = unwrap(erpNextClient.getResource(CUSTOMER, branchId));
         if (branch.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
         }
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> entries = buildLedgerEntries(invoices, fetchCustomerPayments(branchId, invoices));
+        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
+        List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        LedgerWindow window = sliceLedger(fullEntries, range);
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
-                "balance", getLedgerBalance(entries),
-                "categorySummary", buildCategorySummaryFromInvoices(invoices),
-                "entries", entries);
+                "openingBalance", window.openingBalance,
+                "closingBalance", window.closingBalance,
+                "balance", window.closingBalance,
+                "categorySummary", buildCategorySummaryFromInvoices(filterByPostingDate(invoices, range)),
+                "entries", window.entries);
     }
 
     public Map<String, Object> getBranchLedgerByCategory(String branchId, String categoryId) {
+        return getBranchLedgerByCategory(branchId, categoryId, null, null);
+    }
+
+    public Map<String, Object> getBranchLedgerByCategory(String branchId, String categoryId, String fromDate, String toDate) {
         String normalizedCategory = categoryId == null ? "" : categoryId.trim();
         if (normalizedCategory.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId is required.");
@@ -219,18 +232,107 @@ public class BranchOpsService {
         List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
                 fetchCustomerPaymentsByCategory(branchId, normalizedCategory),
                 false);
-        List<Map<String, Object>> entries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
+        List<Map<String, Object>> fullEntries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        LedgerWindow window = sliceLedger(fullEntries, range);
 
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
                 "categoryId", normalizedCategory,
                 "categoryLabel", normalizedCategory,
-                "balance", getLedgerBalance(entries),
-                "entries", entries);
+                "openingBalance", window.openingBalance,
+                "closingBalance", window.closingBalance,
+                "balance", window.closingBalance,
+                "entries", window.entries);
+    }
+
+    private List<Map<String, Object>> filterByPostingDate(List<Map<String, Object>> invoices, LedgerRange range) {
+        if (invoices == null || invoices.isEmpty() || range == null || !range.hasBounds()) {
+            return invoices == null ? List.of() : invoices;
+        }
+        return invoices.stream()
+                .filter(invoice -> withinDateRange(asText(invoice.get("posting_date")), range.fromInclusive, range.toInclusive))
+                .toList();
+    }
+
+    private LedgerWindow sliceLedger(List<Map<String, Object>> fullEntries, LedgerRange range) {
+        if (fullEntries == null || fullEntries.isEmpty() || range == null || !range.hasBounds()) {
+            double closing = fullEntries == null || fullEntries.isEmpty()
+                    ? 0.0
+                    : asDouble(fullEntries.get(fullEntries.size() - 1).get("runningBalance"));
+            return new LedgerWindow(0.0, closing, fullEntries == null ? List.of() : fullEntries);
+        }
+        double opening = 0.0;
+        List<Map<String, Object>> windowEntries = new ArrayList<>();
+        for (Map<String, Object> entry : fullEntries) {
+            String date = asText(entry.get("date"));
+            if (!hasText(date)) {
+                continue;
+            }
+            if (date.compareTo(range.fromInclusive) < 0) {
+                opening = round(opening + asDouble(entry.get("netChange")));
+                continue;
+            }
+            if (date.compareTo(range.toInclusive) > 0) {
+                continue;
+            }
+            windowEntries.add(entry);
+        }
+        double running = opening;
+        List<Map<String, Object>> rebased = new ArrayList<>();
+        for (Map<String, Object> entry : windowEntries) {
+            running = round(running + asDouble(entry.get("netChange")));
+            Map<String, Object> copy = new LinkedHashMap<>(entry);
+            copy.put("runningBalance", running);
+            rebased.add(copy);
+        }
+        return new LedgerWindow(opening, running, rebased);
+    }
+
+    private record LedgerWindow(double openingBalance, double closingBalance, List<Map<String, Object>> entries) {}
+
+    private record LedgerRange(String fromInclusive, String toInclusive) {
+        static LedgerRange parse(String fromDate, String toDate) {
+            String from = normalizeIsoDate(fromDate);
+            String to = normalizeIsoDate(toDate);
+            if (from.isBlank() && to.isBlank()) {
+                return new LedgerRange("", "");
+            }
+            if (from.isBlank() && !to.isBlank()) {
+                return new LedgerRange("0000-01-01", to);
+            }
+            if (!from.isBlank() && to.isBlank()) {
+                return new LedgerRange(from, "9999-12-31");
+            }
+            if (from.compareTo(to) > 0) {
+                return new LedgerRange(to, from);
+            }
+            return new LedgerRange(from, to);
+        }
+
+        boolean hasBounds() {
+            return !fromInclusive.isBlank() || !toInclusive.isBlank();
+        }
+
+        private static String normalizeIsoDate(String raw) {
+            String value = raw == null ? "" : raw.trim();
+            if (value.isBlank()) {
+                return "";
+            }
+            try {
+                return LocalDate.parse(value).toString();
+            } catch (DateTimeParseException ignored) {
+                return "";
+            }
+        }
     }
 
     public List<Map<String, Object>> getAllBranchCategorySummaries() {
+        return getAllBranchCategorySummaries(null, null);
+    }
+
+    public List<Map<String, Object>> getAllBranchCategorySummaries(String fromDate, String toDate) {
         List<Map<String, Object>> branches = fetchBranches();
         Map<String, String> branchNames = branches.stream()
                 .collect(Collectors.toMap(
@@ -239,7 +341,8 @@ public class BranchOpsService {
                         (left, right) -> left,
                         LinkedHashMap::new));
 
-        List<Map<String, Object>> invoices = fetchSalesInvoices(null);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        List<Map<String, Object>> invoices = filterByPostingDate(fetchSalesInvoices(null), range);
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
 
@@ -658,7 +761,9 @@ public class BranchOpsService {
     private List<Map<String, Object>> fetchBranches() {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"customer_name\",\"aas_branch_location\",\"aas_credit_days\",\"modified\"]");
-        return listResourcesPaged(CUSTOMER, params);
+        return listResourcesPaged(CUSTOMER, params).stream()
+                .filter(branch -> !asText(branch.get("customer_name")).trim().startsWith("[DELETED]"))
+                .toList();
     }
 
     private List<Map<String, Object>> fetchOrderRows(String branchId) {

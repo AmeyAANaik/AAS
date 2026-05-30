@@ -15,7 +15,7 @@
         <div class="toolbar">
           <mat-form-field appearance="outline">
             <mat-label>Search branch</mat-label>
-            <input matInput placeholder="Search by name or location" />
+            <input matInput [formControl]="searchControl" placeholder="Search by name, location, email, or WhatsApp" />
           </mat-form-field>
           <button mat-icon-button color="primary" class="refresh-action" (click)="loadBranches()" [disabled]="isLoading" aria-label="Refresh branches">
             <mat-icon>refresh</mat-icon>
@@ -26,7 +26,7 @@
       <div class="feedback error" *ngIf="!isLoading && statusMessage">{{ statusMessage }}</div>
 
       <div class="table-wrapper" *ngIf="!isLoading && branches.length; else emptyState">
-        <table mat-table [dataSource]="branches" class="mat-elevation-z1 pro-table">
+        <table mat-table [dataSource]="filteredBranches" class="mat-elevation-z1 pro-table">
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef>Branch name</th>
             <td mat-cell *matCellDef="let branch">{{ branch.name }}</td>
@@ -50,10 +50,45 @@
             <td mat-cell *matCellDef="let branch">{{ branch.creditDays ?? '—' }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let branch">
+              <mat-chip-set aria-label="Branch status">
+                <mat-chip class="status-chip deleted" *ngIf="branch.isDeleted">Deleted</mat-chip>
+                <mat-chip class="status-chip disabled" *ngIf="!branch.isDeleted && branch.disabled">Disabled</mat-chip>
+                <mat-chip class="status-chip active" *ngIf="!branch.isDeleted && !branch.disabled">Active</mat-chip>
+              </mat-chip-set>
+            </td>
+          </ng-container>
+
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef>Actions</th>
             <td mat-cell *matCellDef="let branch">
-              <button mat-button class="table-action" color="primary" (click)="selectBranch(branch)">Manage</button>
+              <div class="row-actions">
+                <button
+                  mat-icon-button
+                  class="table-action-icon"
+                  color="primary"
+                  (click)="selectBranch(branch)"
+                  [disabled]="branch.isDeleted"
+                  matTooltip="Manage"
+                  matTooltipPosition="above"
+                  aria-label="Manage branch">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button
+                  *ngIf="!branch.isDeleted"
+                  mat-icon-button
+                  class="table-action-icon"
+                  color="primary"
+                  (click)="toggleBranchDisabled(branch, !branch.disabled)"
+                  [disabled]="isTogglingStatus || isSaving || isLoading"
+                  [matTooltip]="branch.disabled ? 'Reactivate' : 'Disable'"
+                  matTooltipPosition="above"
+                  [attr.aria-label]="branch.disabled ? 'Reactivate branch' : 'Disable branch'">
+                  <mat-icon>{{ branch.disabled ? 'restart_alt' : 'block' }}</mat-icon>
+                </button>
+              </div>
             </td>
           </ng-container>
 

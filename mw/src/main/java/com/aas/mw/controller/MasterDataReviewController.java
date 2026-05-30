@@ -1,6 +1,7 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.dto.ApproveMasterDataReviewRequest;
+import com.aas.mw.dto.RejectMasterDataReviewRequest;
 import com.aas.mw.service.MasterDataReviewService;
 import java.util.List;
 import java.util.Map;
@@ -44,5 +45,12 @@ public class MasterDataReviewController {
             @PathVariable String itemId,
             @RequestBody ApproveMasterDataReviewRequest request) {
         return ResponseEntity.ok(masterDataReviewService.approveReviewItem(itemId, request));
+    }
+
+    @PutMapping("/items/{itemId}/reject")
+    public ResponseEntity<Map<String, Object>> rejectReviewItem(
+            @PathVariable String itemId,
+            @RequestBody RejectMasterDataReviewRequest request) {
+        return ResponseEntity.ok(masterDataReviewService.rejectReviewItem(itemId, request));
     }
 }

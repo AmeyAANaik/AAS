@@ -118,7 +118,9 @@ export class InvoiceCreateComponent {
         rate: Number(item.rate ?? 0)
       })),
       apply_gst: this.gstControl.value ?? true,
-      rounding_adjustment: this.roundingAdjustmentValue || undefined
+      rounding_adjustment: this.roundingAdjustmentValue || undefined,
+      aas_source_sales_order: String(this.orderSnapshot.name ?? '').trim() || undefined,
+      aas_category: String(this.orderSnapshot.aas_category ?? '').trim() || undefined
     };
     this.createInvoice(payload, customer);
   }

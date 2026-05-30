@@ -216,6 +216,9 @@
             <button mat-flat-button color="primary" (click)="approve()" [disabled]="isSaving">
               {{ isSaving ? 'Approving...' : 'Approve Item' }}
             </button>
+            <button mat-stroked-button color="warn" (click)="reject()" [disabled]="isSaving">
+              {{ isSaving ? 'Working...' : 'Reject' }}
+            </button>
           </div>
         </div>
       </div>

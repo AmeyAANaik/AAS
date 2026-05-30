@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,7 +23,7 @@ class InvoiceServiceTest {
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        invoiceService = new InvoiceService(erpNextClient, "", "Administrator", "admin");
+        invoiceService = new InvoiceService(erpNextClient, mock(PaymentDueService.class), "", "Administrator", "admin");
     }
 
     @Test
@@ -102,9 +104,7 @@ class InvoiceServiceTest {
 
     @Test
     void listInvoicesExcludesOldVersionInvoices() {
-        when(erpNextClient.listResources("Sales Invoice", Map.of(
-                "fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"aas_invoice_version_status\"]",
-                "order_by", "posting_date desc")))
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
                 .thenReturn(List.of(
                         Map.of("name", "SINV-CURRENT", "docstatus", 1, "status", "Unpaid", "aas_invoice_version_status", "CURRENT"),
                         Map.of("name", "SINV-OLD", "docstatus", 1, "status", "Unpaid", "aas_invoice_version_status", "OLD")));

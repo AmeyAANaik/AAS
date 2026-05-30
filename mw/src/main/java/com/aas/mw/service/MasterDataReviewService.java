@@ -2,6 +2,7 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.ApproveMasterDataReviewRequest;
+import com.aas.mw.dto.RejectMasterDataReviewRequest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -117,6 +118,25 @@ public class MasterDataReviewService {
         response.put("item", updated);
         response.put("detail", getReviewDetail(itemId));
         response.put("sourceOrderUpdated", sourceOrderUpdated);
+        response.put("pendingCount", getPendingCount().get("pendingCount"));
+        return response;
+    }
+
+    public Map<String, Object> rejectReviewItem(String itemId, RejectMasterDataReviewRequest request) {
+        Map<String, Object> current = unwrap(erpNextClient.getResource(ITEM, itemId));
+        if (current.isEmpty()) {
+            throw new IllegalArgumentException("Item not found.");
+        }
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_review_status", "REJECTED");
+        payload.put("aas_review_notes", asText(request == null ? "" : request.getReviewNotes()));
+
+        Map<String, Object> updated = unwrap(erpNextClient.updateResource(ITEM, itemId, payload));
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("item", updated);
+        response.put("detail", getReviewDetail(itemId));
         response.put("pendingCount", getPendingCount().get("pendingCount"));
         return response;
     }

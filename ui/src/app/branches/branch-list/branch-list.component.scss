@@ -67,6 +67,42 @@ table {
   width: 100%;
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.table-action-icon {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+
+.status-chip {
+  height: 22px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.status-chip.active {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(12, 109, 74);
+}
+
+.status-chip.disabled {
+  background: rgba(245, 158, 11, 0.12);
+  color: rgb(146, 88, 0);
+}
+
+.status-chip.deleted {
+  background: rgba(239, 68, 68, 0.12);
+  color: rgb(153, 27, 27);
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;

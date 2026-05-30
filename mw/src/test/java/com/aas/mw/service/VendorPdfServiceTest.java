@@ -55,6 +55,7 @@ class VendorPdfServiceTest {
     private VendorInvoiceTemplateResolver templateResolver;
     private NativeLayoutInvoiceService nativeLayoutInvoiceService;
     private OrderFlowStateMachine orderFlowStateMachine;
+    private OrderBillingService orderBillingService;
     private CatalogRoutingService catalogRoutingService;
     private UomService uomService;
     private VendorPdfService service;
@@ -66,6 +67,7 @@ class VendorPdfServiceTest {
         templateResolver = mock(VendorInvoiceTemplateResolver.class);
         nativeLayoutInvoiceService = mock(NativeLayoutInvoiceService.class);
         orderFlowStateMachine = new OrderFlowStateMachine();
+        orderBillingService = mock(OrderBillingService.class);
         catalogRoutingService = mock(CatalogRoutingService.class);
         uomService = mock(UomService.class);
         when(uomService.normalizeUom(any())).thenAnswer(invocation -> {
@@ -103,6 +105,7 @@ class VendorPdfServiceTest {
                 nativeLayoutInvoiceService,
                 new InvoiceTemplateModelService(new InvoiceTemplateModelProperties()),
                 orderFlowStateMachine,
+                orderBillingService,
                 catalogRoutingService,
                 new OrderPricingService(),
                 uomService,

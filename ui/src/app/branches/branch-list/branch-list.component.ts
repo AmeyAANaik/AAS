@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { FormControl } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { Branch, BranchFormValue, BranchView } from '../branch.model';
 import { BranchService } from '../branch.service';
@@ -11,13 +12,15 @@ import { formatUiError } from '../../shared/error-message.util';
   styleUrl: './branch-list.component.scss'
 })
 export class BranchListComponent implements OnInit {
-  displayedColumns: string[] = ['name', 'location', 'contacts', 'creditDays', 'actions'];
+  displayedColumns: string[] = ['name', 'location', 'contacts', 'creditDays', 'status', 'actions'];
   branches: BranchView[] = [];
   selectedBranch: BranchView | null = null;
   isFormOpen = false;
   isLoading = false;
   isSaving = false;
+  isTogglingStatus = false;
   statusMessage = '';
+  searchControl = new FormControl<string>('', { nonNullable: true });
 
   constructor(
     private branchService: BranchService,
@@ -28,6 +31,26 @@ export class BranchListComponent implements OnInit {
     this.loadBranches();
   }
 
+  get filteredBranches(): BranchView[] {
+    const term = this.searchControl.value.trim().toLowerCase();
+    if (!term) {
+      return this.branches;
+    }
+    return this.branches.filter(branch => {
+      const haystack = [
+        branch.name,
+        branch.location,
+        branch.invoiceEmail,
+        branch.whatsappNumber,
+        branch.whatsappGroupName
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }
+
   loadBranches(): void {
     this.isLoading = true;
     this.branchService
@@ -35,7 +58,9 @@ export class BranchListComponent implements OnInit {
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
         next: branches => {
-          this.branches = branches.map(branch => this.toViewModel(branch));
+          this.branches = branches
+            .map(branch => this.toViewModel(branch))
+            .filter(branch => !branch.isDeleted);
         },
         error: err => {
           this.statusMessage = this.formatError(err, 'Unable to load branches');
@@ -117,11 +142,44 @@ export class BranchListComponent implements OnInit {
           this.statusMessage = this.formatError(err, 'Unable to save branch');
           this.toastService.error(this.statusMessage);
         }
+    });
+  }
+
+  toggleBranchDisabled(branch: BranchView, disable: boolean): void {
+    this.statusMessage = '';
+    const actionLabel = disable ? 'disable' : 'reactivate';
+    const ok = window.confirm(`Are you sure you want to ${actionLabel} “${branch.name}”?`);
+    if (!ok) return;
+
+    this.isTogglingStatus = true;
+    const req$ = disable
+      ? this.branchService.disableBranch(branch.id)
+      : this.branchService.reactivateBranch(branch.id);
+
+    req$
+      .pipe(finalize(() => (this.isTogglingStatus = false)))
+      .subscribe({
+        next: () => {
+          const message = disable ? 'Branch disabled.' : 'Branch reactivated.';
+          this.toastService.success(message);
+          this.loadBranches();
+        },
+        error: err => {
+          const message = this.formatError(err, `Unable to ${actionLabel} branch`);
+          this.toastService.error(message);
+          this.statusMessage = message;
+        }
       });
   }
 
   private toViewModel(branch: Branch & { location?: string; whatsappGroupName?: string }): BranchView {
     const name = String(branch.customer_name ?? branch.name ?? '').trim();
+    const rawDeletedFlag = (branch as any).aas_is_deleted;
+    const isDeleted =
+      rawDeletedFlag === 1 ||
+      rawDeletedFlag === true ||
+      rawDeletedFlag === '1' ||
+      String(rawDeletedFlag ?? '').trim().toLowerCase() === 'true';
     return {
       id: String(branch.name ?? name),
       name: name || String(branch.name ?? ''),
@@ -133,6 +191,8 @@ export class BranchListComponent implements OnInit {
         typeof branch.aas_credit_days === 'number' ? branch.aas_credit_days : null,
       taxId: String(branch.tax_id ?? '').trim(),
       fssaiNo: String(branch.aas_food_license_no ?? '').trim(),
+      disabled: Boolean(branch.disabled === 1 || branch.disabled === true),
+      isDeleted,
       raw: branch
     };
   }

@@ -231,6 +231,15 @@
   color: var(--danger);
 }
 
+.user-menu-count {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10px;
+  box-shadow: none;
+}
+
 .shell-body {
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);

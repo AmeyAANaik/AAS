@@ -8,6 +8,8 @@ export interface Branch {
   aas_whatsapp_number?: string;
   tax_id?: string;
   aas_food_license_no?: string;
+  aas_is_deleted?: number | boolean;
+  aas_deleted_at?: string;
   disabled?: number | boolean;
 }
 
@@ -41,5 +43,7 @@ export interface BranchView {
   creditDays: number | null;
   taxId: string;
   fssaiNo: string;
+  disabled: boolean;
+  isDeleted: boolean;
   raw: Branch;
 }

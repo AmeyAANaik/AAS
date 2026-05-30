@@ -180,6 +180,30 @@ public class OrderBillingService {
     public Map<String, Object> createSellOrder(String orderId, Map<String, Object> fields) {
         Map<String, Object> orderData = unwrap(erpNextClient.getResource(SALES_ORDER, orderId));
         orderFlowStateMachine.ensureCanCreateSellOrder(asText(orderData.get("aas_status")));
+        return createSellOrderInternal(orderId, fields, orderData);
+    }
+
+    public Map<String, Object> createOrReplaceSellOrder(String orderId, Map<String, Object> fields) {
+        Map<String, Object> orderData = unwrap(erpNextClient.getResource(SALES_ORDER, orderId));
+        String normalizedStatus = orderFlowStateMachine.normalize(asText(orderData.get("aas_status")));
+        String existingSalesInvoiceId = asText(orderData.get("aas_si_branch")).trim();
+        if (!"VENDOR_BILL_CAPTURED".equals(normalizedStatus) && !"SELL_ORDER_CREATED".equals(normalizedStatus)) {
+            throw new IllegalStateException(
+                    "Sell order can only be created or replaced when status is VENDOR_BILL_CAPTURED or SELL_ORDER_CREATED.");
+        }
+        if ("SELL_ORDER_CREATED".equals(normalizedStatus)) {
+            ensureDraftInvoiceCanBeReplaced(SALES_INVOICE, existingSalesInvoiceId, "branch invoice");
+        }
+        Map<String, Object> result = createSellOrderInternal(orderId, fields, orderData);
+        if ("SELL_ORDER_CREATED".equals(normalizedStatus)) {
+            Map<String, Object> salesInvoice = result.get("salesInvoice") instanceof Map<?, ?> map ? castMap(map) : null;
+            String replacementSalesInvoiceId = extractDocName(salesInvoice);
+            archiveReplacedInvoice(SALES_INVOICE, existingSalesInvoiceId, replacementSalesInvoiceId);
+        }
+        return result;
+    }
+
+    private Map<String, Object> createSellOrderInternal(String orderId, Map<String, Object> fields, Map<String, Object> orderData) {
         String customer = asText(orderData.get("customer"));
         String company = asText(orderData.get("company"));
         if (customer.isBlank() || company.isBlank()) {
@@ -229,6 +253,33 @@ public class OrderBillingService {
                 "marginPercent", marginPercent,
                 "transportAppliedToInvoice", applyTransportToInvoice && transportCharge > 0,
                 "transportCharge", round(transportCharge));
+    }
+
+    private void ensureDraftInvoiceCanBeReplaced(String doctype, String invoiceId, String label) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return;
+        }
+        Map<String, Object> invoice = unwrap(erpNextClient.getResource(doctype, invoiceId));
+        int docstatus = (int) Math.round(asDouble(invoice.get("docstatus")));
+        if (docstatus != 0) {
+            throw new IllegalStateException(
+                    "Cannot replace sell order because the current " + label + " (" + invoiceId + ") is not draft.");
+        }
+    }
+
+    private void archiveReplacedInvoice(String doctype, String oldInvoiceId, String newInvoiceId) {
+        if (oldInvoiceId == null || oldInvoiceId.isBlank() || newInvoiceId == null || newInvoiceId.isBlank() || oldInvoiceId.equals(newInvoiceId)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_invoice_version_status", "OLD");
+        payload.put("aas_replaced_by", newInvoiceId);
+        erpNextClient.updateResource(doctype, oldInvoiceId, payload);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castMap(Map<?, ?> map) {
+        return (Map<String, Object>) map;
     }
 
     private Map<String, Object> createPurchaseInvoice(
@@ -293,6 +344,16 @@ public class OrderBillingService {
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
         payload.put("aas_invoice_version_status", INVOICE_VERSION_CURRENT);
+        String category = asText(sourceOrder.get("aas_category"));
+        if (!category.isBlank()) {
+            payload.put("aas_category", category);
+        }
+        int creditDays = resolveBranchCreditDays(customer);
+        if (creditDays > 0) {
+            String orderDate = resolveDate(sourceOrder.get("transaction_date"));
+            String dueDate = LocalDate.parse(orderDate).plusDays(creditDays).toString();
+            payload.put("due_date", dueDate);
+        }
         double roundingAdjustment = asDouble(sourceOrder.get("aas_rounding_adjustment"));
         if (Math.abs(roundingAdjustment) > 0.0001) {
             payload.put("aas_rounding_adjustment", roundingAdjustment);
@@ -524,6 +585,22 @@ public class OrderBillingService {
         item.put("aas_margin_percent", 0.0);
         item.put("aas_gst_percent", 0.0);
         return item;
+    }
+
+    private int resolveBranchCreditDays(String customer) {
+        if (customer == null || customer.isBlank()) {
+            return 0;
+        }
+        try {
+            Map<String, Object> customerDoc = unwrap(erpNextClient.getResource("Customer", customer));
+            int days = (int) asDouble(customerDoc.get("aas_credit_days"));
+            if (days <= 0) {
+                days = (int) asDouble(customerDoc.get("credit_days"));
+            }
+            return Math.max(days, 0);
+        } catch (Exception ex) {
+            return 0;
+        }
     }
 
     private String resolveDate(Object value) {

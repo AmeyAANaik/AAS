@@ -50,6 +50,16 @@
             <span class="material-icons" aria-hidden="true">person</span>
             User Details
           </a>
+          <a class="user-menu-link" *ngIf="canAccess(masterDataReviewFeature)" routerLink="/master-data-review" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">notifications_active</span>
+            Master Data Review
+            <span class="notification-count user-menu-count" *ngIf="masterDataReviewCount > 0">{{ masterDataReviewCount }}</span>
+          </a>
+          <a class="user-menu-link" *ngIf="canAccess(billReviewFeature)" routerLink="/bill-review" (click)="closeUserMenu()">
+            <span class="material-icons" aria-hidden="true">fact_check</span>
+            Bill Review
+            <span class="notification-count user-menu-count" *ngIf="billReviewCount > 0">{{ billReviewCount }}</span>
+          </a>
           <a class="user-menu-link" *ngIf="canAccess('company_settings.view')" routerLink="/company-settings" (click)="closeUserMenu()">
             <span class="material-icons" aria-hidden="true">business</span>
             Company Settings

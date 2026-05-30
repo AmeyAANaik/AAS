@@ -31,9 +31,12 @@ public class VendorPdfService {
 
     private static final String SALES_ORDER = "Sales Order";
     private static final String PURCHASE_ORDER = "Purchase Order";
+    private static final String PURCHASE_INVOICE = "Purchase Invoice";
+    private static final String SALES_INVOICE = "Sales Invoice";
     private static final String ITEM = "Item";
     private static final String WAREHOUSE = "Warehouse";
     private static final String COMPANY = "Company";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
     private static final Pattern NON_ALNUM_PATTERN = Pattern.compile("[^a-zA-Z0-9]+");
     private static final Pattern LEADING_SERIAL_PATTERN =
             Pattern.compile("^\\s*(\\d{1,3})(?:(?:\\s{2,})|(?=[A-Z(]))");
@@ -47,6 +50,7 @@ public class VendorPdfService {
     private final NativeLayoutInvoiceService nativeLayoutInvoiceService;
     private final InvoiceTemplateModelService invoiceTemplateModelService;
     private final OrderFlowStateMachine orderFlowStateMachine;
+    private final OrderBillingService orderBillingService;
     private final CatalogRoutingService catalogRoutingService;
     private final OrderPricingService orderPricingService;
     private final UomService uomService;
@@ -59,6 +63,7 @@ public class VendorPdfService {
             NativeLayoutInvoiceService nativeLayoutInvoiceService,
             InvoiceTemplateModelService invoiceTemplateModelService,
             OrderFlowStateMachine orderFlowStateMachine,
+            OrderBillingService orderBillingService,
             CatalogRoutingService catalogRoutingService,
             OrderPricingService orderPricingService,
             UomService uomService,
@@ -69,6 +74,7 @@ public class VendorPdfService {
         this.nativeLayoutInvoiceService = nativeLayoutInvoiceService;
         this.invoiceTemplateModelService = invoiceTemplateModelService;
         this.orderFlowStateMachine = orderFlowStateMachine;
+        this.orderBillingService = orderBillingService;
         this.catalogRoutingService = catalogRoutingService;
         this.orderPricingService = orderPricingService;
         this.uomService = uomService;
@@ -93,6 +99,7 @@ public class VendorPdfService {
         String category = asText(orderData.get("aas_category"));
         String currentStatus = asText(orderData.get("aas_status"));
         orderFlowStateMachine.ensureCanUploadVendorPdf(currentStatus);
+        String normalizedStatus = orderFlowStateMachine.normalize(currentStatus);
         if (vendor.isBlank()) {
             throw new IllegalStateException("Vendor must be assigned before uploading vendor PDF.");
         }
@@ -161,11 +168,23 @@ public class VendorPdfService {
             pdfInfo = new UploadedFileInfo(fallbackName, null, null);
         }
 
+        String previousPurchaseInvoiceId = asText(orderData.get("aas_pi_vendor")).trim();
+        String previousSalesInvoiceId = asText(orderData.get("aas_si_branch")).trim();
+        boolean isBillUpdate = "VENDOR_BILL_CAPTURED".equals(normalizedStatus) || "SELL_ORDER_CREATED".equals(normalizedStatus);
+        if (isBillUpdate) {
+            if (hasText(previousPurchaseInvoiceId)) {
+                ensureDraftInvoiceCanBeReplaced(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
+            }
+            if ("SELL_ORDER_CREATED".equals(normalizedStatus) && hasText(previousSalesInvoiceId)) {
+                ensureDraftInvoiceCanBeReplaced(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
+            }
+        }
+
         Map<String, Object> linkUpdate = new HashMap<>();
         linkUpdate.put("items", sourceOrderItems);
         linkUpdate.put("aas_margin_percent", marginPercent);
         linkUpdate.put("aas_po", purchaseOrderId);
-        linkUpdate.put("aas_status", "VENDOR_PDF_RECEIVED");
+        linkUpdate.put("aas_status", isBillUpdate ? normalizedStatus : "VENDOR_PDF_RECEIVED");
         linkUpdate.put("aas_vendor_bill_total", vendorBillTotal);
         linkUpdate.put("aas_vendor_bill_ref", vendorBillRef);
         linkUpdate.put("aas_transport_charge", transportCharge);
@@ -180,9 +199,42 @@ public class VendorPdfService {
             return null;
         });
 
+        Map<String, Object> replacementPurchaseInvoice = null;
+        Map<String, Object> replacementSalesInvoice = null;
+        if (isBillUpdate) {
+            Map<String, Object> vendorBill = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
+                    "vendor_bill_total", vendorBillTotal,
+                    "vendor_bill_ref", vendorBillRef,
+                    "vendor_bill_date", vendorBillDate == null ? "" : vendorBillDate,
+                    "transport_charge", transportCharge,
+                    "rounding_adjustment", 0.0));
+            replacementPurchaseInvoice = vendorBill.get("purchaseInvoice") instanceof Map<?, ?> map
+                    ? castMap(map)
+                    : null;
+            String replacementPurchaseInvoiceId = extractDocName(replacementPurchaseInvoice);
+            archiveReplacedInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, replacementPurchaseInvoiceId);
+
+            if ("SELL_ORDER_CREATED".equals(normalizedStatus)) {
+                boolean applyTransportToInvoice = shouldApplyTransportToReplacementInvoice(previousSalesInvoiceId);
+                Map<String, Object> sellOrder = orderBillingService.createOrReplaceSellOrder(orderId, Map.of(
+                        "apply_transport_to_invoice", applyTransportToInvoice));
+                replacementSalesInvoice = sellOrder.get("salesInvoice") instanceof Map<?, ?> map
+                        ? castMap(map)
+                        : null;
+                String replacementSalesInvoiceId = extractDocName(replacementSalesInvoice);
+                archiveReplacedInvoice(SALES_INVOICE, previousSalesInvoiceId, replacementSalesInvoiceId);
+            }
+        }
+
         Map<String, Object> response = new HashMap<>();
         response.put("orderId", orderId);
         response.put("purchaseOrder", purchaseOrder);
+        if (replacementPurchaseInvoice != null) {
+            response.put("purchaseInvoice", replacementPurchaseInvoice);
+        }
+        if (replacementSalesInvoice != null) {
+            response.put("salesInvoice", replacementSalesInvoice);
+        }
         response.put("sellPreview", Map.of(
                 "vendorTotal", sumAmount(baseItems),
                 "marginPercent", marginPercent,
@@ -219,6 +271,54 @@ public class VendorPdfService {
                 "fileUrl", pdfInfo.fileUrl(),
                 "fileId", pdfInfo.fileId()));
         return response;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castMap(Map<?, ?> map) {
+        return (Map<String, Object>) map;
+    }
+
+    private void ensureDraftInvoiceCanBeReplaced(String doctype, String invoiceId, String label) {
+        if (!hasText(invoiceId)) {
+            return;
+        }
+        Map<String, Object> invoice = unwrapResource(erpNextClient.getResource(doctype, invoiceId));
+        int docstatus = (int) Math.round(asDouble(invoice.get("docstatus")));
+        if (docstatus != 0) {
+            throw new IllegalStateException(
+                    "Cannot re-upload/re-parse because the current " + label + " (" + invoiceId + ") is not draft.");
+        }
+    }
+
+    private void archiveReplacedInvoice(String doctype, String oldInvoiceId, String newInvoiceId) {
+        if (!hasText(oldInvoiceId) || !hasText(newInvoiceId) || oldInvoiceId.equals(newInvoiceId)) {
+            return;
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("aas_invoice_version_status", "OLD");
+        payload.put("aas_replaced_by", asText(newInvoiceId));
+        erpNextClient.updateResource(doctype, oldInvoiceId, payload);
+    }
+
+    private boolean shouldApplyTransportToReplacementInvoice(String salesInvoiceId) {
+        if (!hasText(salesInvoiceId)) {
+            return false;
+        }
+        try {
+            Map<String, Object> salesInvoice = unwrapResource(erpNextClient.getResource(SALES_INVOICE, salesInvoiceId));
+            Object itemsObj = salesInvoice.get("items");
+            if (!(itemsObj instanceof List<?> list)) {
+                return false;
+            }
+            for (Object rowObj : list) {
+                if (rowObj instanceof Map<?, ?> row && TRANSPORT_ITEM_CODE.equals(asText(row.get("item_code")))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+            return false;
+        }
+        return false;
     }
 
     private void validateParsedTemplateOutput(
@@ -727,6 +827,7 @@ public class VendorPdfService {
             List<Map<String, Object>> items,
             Map<String, Object> originalOrder,
             String currentStatus) {
+        String normalizedStatus = orderFlowStateMachine.normalize(currentStatus);
         String warehouse = resolveWarehouse(originalOrder);
         if (warehouse.isBlank()) {
             warehouse = resolveDefaultWarehouse(company);
@@ -739,7 +840,9 @@ public class VendorPdfService {
         payload.put("items", poItems);
         payload.put("aas_source_sales_order", sourceOrderId);
         String existingPurchaseOrderId = asText(originalOrder.get("aas_po")).trim();
-        if ("VENDOR_PDF_RECEIVED".equals(orderFlowStateMachine.normalize(currentStatus))
+        if (("VENDOR_PDF_RECEIVED".equals(normalizedStatus)
+                || "VENDOR_BILL_CAPTURED".equals(normalizedStatus)
+                || "SELL_ORDER_CREATED".equals(normalizedStatus))
                 && !existingPurchaseOrderId.isBlank()
                 && resourceExists(PURCHASE_ORDER, existingPurchaseOrderId)) {
             Map<String, Object> existingPurchaseOrder = unwrapResource(erpNextClient.getResource(PURCHASE_ORDER, existingPurchaseOrderId));
@@ -1125,22 +1228,8 @@ public class VendorPdfService {
         try {
             return action.get();
         } catch (FeignException ex) {
-            throw new IllegalStateException("Failed to " + step + ": " + summarizeFeignError(ex), ex);
+            // Let the global API exception handler translate/sanitize ERPNext error payloads.
+            throw ex;
         }
-    }
-
-    private String summarizeFeignError(FeignException ex) {
-        String content = ex.contentUTF8();
-        if (content != null && !content.isBlank()) {
-            String compact = content.replaceAll("\\s+", " ").trim();
-            if (!compact.isBlank()) {
-                return compact;
-            }
-        }
-        String message = ex.getMessage();
-        if (message != null && !message.isBlank()) {
-            return message.replaceAll("\\s+", " ").trim();
-        }
-        return "ERP request failed with status " + ex.status() + ".";
     }
 }

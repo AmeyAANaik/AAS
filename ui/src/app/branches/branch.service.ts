@@ -22,6 +22,18 @@ export class BranchService {
     return this.http.put(`/api/shops/${encodeURIComponent(branchId)}`, { fields }, { headers: this.authHeaders() });
   }
 
+  deleteBranch(branchId: string): Observable<unknown> {
+    return this.http.delete(`/api/shops/${encodeURIComponent(branchId)}`, { headers: this.authHeaders() });
+  }
+
+  disableBranch(branchId: string): Observable<unknown> {
+    return this.updateBranch(branchId, { disabled: 1 });
+  }
+
+  reactivateBranch(branchId: string): Observable<unknown> {
+    return this.updateBranch(branchId, { disabled: 0 });
+  }
+
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     if (!token) {

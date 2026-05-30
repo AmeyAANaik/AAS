@@ -120,10 +120,18 @@ public class ApiExceptionHandler {
             return "Report \"" + reportFromDetails + "\" not found in the system. Create the Query Report and try again.";
         }
 
-        String exception = firstText(payload.get("exception"), payload.get("exc"), payload.get("exc_type"));
-        String message = firstText(payload.get("message"), payload.get("error"), payload.get("exc_type"), exception);
+        String excType = firstText(payload.get("exc_type"));
+        String exception = firstText(payload.get("exception"), payload.get("exc"));
+        String message = firstText(payload.get("message"), payload.get("error"));
 
-        String lower = (exception + " " + message).toLowerCase();
+        if (message.isBlank()) {
+            message = messageFromException(exception);
+        }
+        if (message.isBlank()) {
+            message = firstText(excType, exception);
+        }
+
+        String lower = (excType + " " + exception + " " + message).toLowerCase();
         if (lower.contains("field not permitted in query:")) {
             return "System setup is incomplete. Please run setup again and refresh the page.";
         }
@@ -146,10 +154,33 @@ public class ApiExceptionHandler {
 
         if (!details.isEmpty()) {
             // Prefer a concise top-level message if we already have structured details.
-            return firstText(payload.get("message"), payload.get("error"), "Request failed.");
+            return firstText(payload.get("message"), payload.get("error"), message, "Request failed.");
+        }
+
+        if ("partydisabled".equalsIgnoreCase(excType) && !message.isBlank()) {
+            return message;
         }
 
         return message;
+    }
+
+    private String messageFromException(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String text = raw.trim();
+        if (text.isBlank()) {
+            return "";
+        }
+        // ERPNext sometimes prefixes exceptions like: "frappe.exceptions.PartyDisabled: Customer X is disabled"
+        int idx = text.indexOf(':');
+        if (idx >= 0 && idx + 1 < text.length()) {
+            String candidate = text.substring(idx + 1).trim();
+            if (!candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return "";
     }
 
     private String extractReportNameFromDetails(List<String> details) {

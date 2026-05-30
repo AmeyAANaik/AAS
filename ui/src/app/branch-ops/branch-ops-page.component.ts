@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { FormControl } from '@angular/forms';
+import { FormControl, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
@@ -13,7 +13,12 @@ import { BranchOpsService } from './branch-ops.service';
 export class BranchOpsPageComponent implements OnInit {
   private readonly hiddenCategoryLabels = new Set(['all item groups']);
   private readonly settledThreshold = 0.01;
+  private readonly defaultLedgerDays = 30;
   readonly searchControl = new FormControl('', { nonNullable: true });
+  readonly ledgerDateRangeForm = new FormGroup({
+    from: new FormControl<Date | null>(null),
+    to: new FormControl<Date | null>(null)
+  });
   readonly summaryColumns = ['branch', 'pendingOrders', 'awaitingVendorAssignment', 'awaitingVendorResponse', 'inProgress', 'openReceivableAmount', 'lastActivity', 'location', 'ledgerBalance', 'actions'];
   readonly orderColumns = ['orderId', 'vendor', 'status', 'orderDate', 'parsedItems', 'vendorBillTotal', 'sellOrderTotal', 'invoiceId', 'actions'];
   readonly ledgerColumns = ['date', 'voucherType', 'voucherNo', 'reference', 'debit', 'credit', 'netChange', 'runningBalance'];
@@ -30,10 +35,14 @@ export class BranchOpsPageComponent implements OnInit {
   selectedBranch: BranchOpsDetail | null = null;
   selectedBranchOrders: BranchOpsOrderRow[] = [];
   ledger: BranchOpsLedgerEntry[] = [];
+  ledgerOpeningBalance = 0;
+  ledgerClosingBalance = 0;
   ledgerCategorySummary: BranchOpsCategorySummaryRow[] = [];
   selectedCategoryId = '';
   categoryLedger: BranchOpsLedgerEntry[] = [];
   categoryLedgerBalance = 0;
+  private forceSelectTopCategory = false;
+  private appliedLedgerRange: { from?: string; to?: string } = {};
   isLoadingCategoryLedger = false;
   isLoadingSummary = false;
   isLoadingDetail = false;
@@ -47,6 +56,7 @@ export class BranchOpsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSummary();
+    this.ensureDefaultLedgerRange();
     this.route.paramMap.subscribe(params => {
       const branchId = params.get('branchId');
       if (branchId) {
@@ -55,6 +65,8 @@ export class BranchOpsPageComponent implements OnInit {
         this.selectedBranch = null;
         this.selectedBranchOrders = [];
         this.ledger = [];
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
       }
     });
   }
@@ -90,23 +102,10 @@ export class BranchOpsPageComponent implements OnInit {
   }
 
   downloadAllCategoryLedgers(): void {
-    this.branchOpsService.downloadAllBranchesLedgerCategoriesSummary().subscribe({
+    this.branchOpsService.downloadAllBranchesLedgerCategoriesSummary(this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, 'branch-ledger-categories-all.csv'),
       error: () => {
         this.errorMessage = 'Unable to download branch ledgers by category.';
-      }
-    });
-  }
-
-  downloadLedger(): void {
-    const branchId = this.selectedBranch?.branch?.branchId;
-    if (!branchId) {
-      return;
-    }
-    this.branchOpsService.downloadBranchLedger(branchId).subscribe({
-      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}.csv`),
-      error: () => {
-        this.errorMessage = 'Unable to download branch ledger.';
       }
     });
   }
@@ -116,7 +115,7 @@ export class BranchOpsPageComponent implements OnInit {
     if (!branchId) {
       return;
     }
-    this.branchOpsService.downloadBranchLedgerCategoriesSummary(branchId).subscribe({
+    this.branchOpsService.downloadBranchLedgerCategoriesSummary(branchId, this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, `branch-ledger-categories-${this.toFileSegment(branchId)}.csv`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger summary.';
@@ -130,7 +129,7 @@ export class BranchOpsPageComponent implements OnInit {
     if (!branchId || !categoryId) {
       return;
     }
-    this.branchOpsService.downloadBranchLedgerByCategory(branchId, categoryId).subscribe({
+    this.branchOpsService.downloadBranchLedgerByCategory(branchId, categoryId, this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}-${this.toFileSegment(categoryId)}.csv`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger.';
@@ -146,16 +145,20 @@ export class BranchOpsPageComponent implements OnInit {
     }
     this.selectedCategoryId = id;
     this.isLoadingCategoryLedger = true;
-    this.branchOpsService.getBranchLedgerByCategory(branchId, id)
+    this.branchOpsService.getBranchLedgerByCategory(branchId, id, this.appliedLedgerRange)
       .pipe(finalize(() => (this.isLoadingCategoryLedger = false)))
       .subscribe({
         next: response => {
           this.categoryLedger = response.entries ?? [];
           this.categoryLedgerBalance = Number(response.balance ?? 0) || 0;
+          this.ledgerOpeningBalance = Number(response.openingBalance ?? 0) || 0;
+          this.ledgerClosingBalance = Number(response.closingBalance ?? response.balance ?? 0) || 0;
         },
         error: () => {
           this.categoryLedger = [];
           this.categoryLedgerBalance = 0;
+          this.ledgerOpeningBalance = 0;
+          this.ledgerClosingBalance = 0;
           this.errorMessage = 'Unable to load category ledger.';
         }
       });
@@ -165,6 +168,84 @@ export class BranchOpsPageComponent implements OnInit {
     this.selectedCategoryId = '';
     this.categoryLedger = [];
     this.categoryLedgerBalance = 0;
+    this.ledgerOpeningBalance = 0;
+    this.ledgerClosingBalance = 0;
+  }
+
+  applyLedgerDateRange(): void {
+    const fromValue = this.ledgerDateRangeForm.get('from')?.value ?? null;
+    const toValue = this.ledgerDateRangeForm.get('to')?.value ?? null;
+    const nextRange: { from?: string; to?: string } = {
+      from: this.toIsoDate(fromValue),
+      to: this.toIsoDate(toValue)
+    };
+    if (!nextRange.from) {
+      delete nextRange.from;
+    }
+    if (!nextRange.to) {
+      delete nextRange.to;
+    }
+    this.appliedLedgerRange = nextRange;
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  clearLedgerDateRange(): void {
+    this.applyDefaultLedgerRange();
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  get ledgerDelta(): number {
+    return (Number(this.ledgerClosingBalance) || 0) - (Number(this.ledgerOpeningBalance) || 0);
+  }
+
+  private reloadLedgers(): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    if (!branchId) {
+      return;
+    }
+    this.branchOpsService.getBranchLedger(branchId, this.appliedLedgerRange).subscribe({
+      next: response => {
+        this.ledger = response.entries ?? [];
+        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
+          const category = String(row?.category ?? '').trim();
+          if (!category) {
+            return false;
+          }
+          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
+            return false;
+          }
+          const amount = Number(row?.amount ?? 0) || 0;
+          return amount > 0;
+        });
+
+        if (!this.ledgerCategorySummary.length) {
+          this.clearCategoryLedger();
+          return;
+        }
+
+        const categoryIds = new Set(this.ledgerCategorySummary.map(row => row.category));
+        const topCategory = [...this.ledgerCategorySummary]
+          .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0]?.category;
+
+        const shouldSelectTop = this.forceSelectTopCategory || !this.selectedCategoryId || !categoryIds.has(this.selectedCategoryId);
+        this.forceSelectTopCategory = false;
+
+        if (shouldSelectTop && topCategory) {
+          this.viewCategoryLedger(topCategory);
+        } else if (this.selectedCategoryId) {
+          this.viewCategoryLedger(this.selectedCategoryId);
+        }
+      },
+      error: () => {
+        this.ledger = [];
+        this.ledgerOpeningBalance = 0;
+        this.ledgerClosingBalance = 0;
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
+      }
+    });
   }
 
   get filteredBranches(): BranchOpsSummaryRow[] {
@@ -224,6 +305,7 @@ export class BranchOpsPageComponent implements OnInit {
   private loadBranch(branchId: string): void {
     this.isLoadingDetail = true;
     this.errorMessage = '';
+    this.ensureDefaultLedgerRange();
     this.branchOpsService.getBranchDetail(branchId).subscribe({
       next: detail => {
         this.selectedBranch = detail;
@@ -244,28 +326,27 @@ export class BranchOpsPageComponent implements OnInit {
           this.errorMessage = 'Unable to load branch orders.';
         }
       });
-    this.branchOpsService.getBranchLedger(branchId).subscribe({
-      next: response => {
-        this.ledger = response.entries ?? [];
-        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
-          const category = String(row?.category ?? '').trim();
-          if (!category) {
-            return false;
-          }
-          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
-            return false;
-          }
-          const amount = Number(row?.amount ?? 0) || 0;
-          return amount > 0;
-        });
-        this.clearCategoryLedger();
-      },
-      error: () => {
-        this.ledger = [];
-        this.ledgerCategorySummary = [];
-        this.clearCategoryLedger();
-      }
-    });
+    this.clearCategoryLedger();
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  private ensureDefaultLedgerRange(): void {
+    if (this.appliedLedgerRange.from || this.appliedLedgerRange.to) {
+      return;
+    }
+    this.applyDefaultLedgerRange();
+  }
+
+  private applyDefaultLedgerRange(): void {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(from.getDate() - this.defaultLedgerDays);
+    this.ledgerDateRangeForm.setValue({ from, to: today });
+    this.appliedLedgerRange = {
+      from: this.toIsoDate(from),
+      to: this.toIsoDate(today)
+    };
   }
 
   private saveBlob(blob: Blob, fileName: string): void {
@@ -279,6 +360,16 @@ export class BranchOpsPageComponent implements OnInit {
 
   private toFileSegment(value: string): string {
     return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '_') || 'unknown';
+  }
+
+  private toIsoDate(date: Date | null): string | undefined {
+    if (!date) {
+      return undefined;
+    }
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private toSettlementLabel(state: 'settled' | 'open' | 'overdue'): string {

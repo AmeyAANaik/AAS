@@ -56,4 +56,18 @@ describe('MasterDataReviewService', () => {
 
     expect(refreshed).toBe(1);
   });
+
+  it('emits refresh event after rejection', () => {
+    let refreshed = 0;
+    service.refresh$.subscribe(() => refreshed++);
+
+    service.reject('ITEM-1', 'Rejected').subscribe();
+
+    const req = httpMock.expectOne('/api/master-data-review/items/ITEM-1/reject');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ reviewNotes: 'Rejected' });
+    req.flush({ detail: { id: 'ITEM-1' }, pendingCount: 2 });
+
+    expect(refreshed).toBe(1);
+  });
 });

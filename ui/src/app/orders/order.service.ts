@@ -160,6 +160,14 @@ export class OrderService {
     );
   }
 
+  replaceSellOrder(orderId: string, payload: CreateSellOrderPayload = {}): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(
+      `/api/orders/${orderId}/sell-order/replace`,
+      { fields: payload },
+      { headers: this.authHeaders() }
+    );
+  }
+
   getOrder(orderId: string): Observable<Record<string, unknown>> {
     return this.http.get<Record<string, unknown>>(`/api/orders/${encodeURIComponent(orderId)}`, { headers: this.authHeaders() });
   }

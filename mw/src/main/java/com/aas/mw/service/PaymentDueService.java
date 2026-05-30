@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 public class PaymentDueService {
 
     private final ErpNextClient erpNextClient;
-    private static final String UNCATEGORIZED = "Uncategorized";
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String FIELD_REVIEW_STATUS = "aas_payment_review_status";
     private static final String FIELD_CATEGORY = "aas_category";
@@ -96,15 +95,15 @@ public class PaymentDueService {
             Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource("Purchase Invoice", invoiceId));
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
             if (sourceOrderId.isBlank()) {
-                dueByCategory.merge(UNCATEGORIZED, dueBase, BigDecimal::add);
+                List<Map<String, Object>> items = childItems(invoice.get("items"));
+                distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory);
                 continue;
             }
             CategoryWeights weights = orderCache.computeIfAbsent(
                     sourceOrderId,
                     key -> computeSalesOrderCategoryWeights(key, itemGroupResolver));
             if (weights.total().compareTo(BigDecimal.ZERO) <= 0 || weights.weights().isEmpty()) {
-                dueByCategory.merge(UNCATEGORIZED, dueBase, BigDecimal::add);
-                continue;
+                throw new IllegalStateException("Unable to compute category weights for Sales Order " + sourceOrderId + ".");
             }
             for (Map.Entry<String, BigDecimal> entry : weights.weights().entrySet()) {
                 BigDecimal share = dueBase.multiply(entry.getValue())
@@ -130,7 +129,7 @@ public class PaymentDueService {
         Map<String, Object> order = unwrapDoc(erpNextClient.getResource("Sales Order", salesOrderId));
         List<Map<String, Object>> items = childItems(order.get("items"));
         if (items.isEmpty()) {
-            return new CategoryWeights(Map.of(), BigDecimal.ZERO);
+            throw new IllegalStateException("Sales Order " + salesOrderId + " has no items; cannot compute category weights.");
         }
         Map<String, BigDecimal> weights = new HashMap<>();
         BigDecimal total = BigDecimal.ZERO;
@@ -147,10 +146,14 @@ public class PaymentDueService {
                 group = itemGroupResolver.resolve(code);
             }
             if (group.isBlank()) {
-                group = UNCATEGORIZED;
+                String code = asText(item.get("item_code"));
+                throw new IllegalStateException("Unable to resolve category (item group) for Sales Order item " + (code.isBlank() ? "<unknown>" : code) + ".");
             }
             weights.merge(group, amount, BigDecimal::add);
             total = total.add(amount);
+        }
+        if (weights.isEmpty() || total.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalStateException("Sales Order " + salesOrderId + " has no category information; cannot compute category weights.");
         }
         return new CategoryWeights(weights, total);
     }
@@ -172,8 +175,7 @@ public class PaymentDueService {
             ItemGroupResolver itemGroupResolver,
             Map<String, BigDecimal> dueByCategory) {
         if (items.isEmpty()) {
-            dueByCategory.merge(UNCATEGORIZED, outstanding, BigDecimal::add);
-            return;
+            throw new IllegalStateException("Invoice has no items; cannot allocate by category.");
         }
         BigDecimal total = BigDecimal.ZERO;
         List<Line> lines = new ArrayList<>();
@@ -191,14 +193,14 @@ public class PaymentDueService {
                 group = itemGroupResolver.resolve(code);
             }
             if (group.isBlank()) {
-                group = UNCATEGORIZED;
+                String code = asText(item.get("item_code"));
+                throw new IllegalStateException("Unable to resolve category (item group) for item " + (code.isBlank() ? "<unknown>" : code) + ".");
             }
             lines.add(new Line(group, amount));
             total = total.add(amount);
         }
         if (lines.isEmpty() || total.compareTo(BigDecimal.ZERO) <= 0) {
-            dueByCategory.merge(UNCATEGORIZED, outstanding, BigDecimal::add);
-            return;
+            throw new IllegalStateException("Invoice has no allocatable item amounts; cannot allocate by category.");
         }
         for (Line line : lines) {
             BigDecimal share = outstanding.multiply(line.amount()).divide(total, 6, java.math.RoundingMode.HALF_UP);

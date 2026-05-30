@@ -43,7 +43,9 @@ describe('BranchListComponent', () => {
           useValue: jasmine.createSpyObj('BranchService', {
             listBranches: of([]),
             createBranch: of({}),
-            updateBranch: of({})
+            updateBranch: of({}),
+            disableBranch: of({}),
+            reactivateBranch: of({})
           })
         }
       ]
@@ -70,6 +72,8 @@ describe('BranchListComponent', () => {
       creditDays: 0,
       taxId: '',
       fssaiNo: '',
+      disabled: false,
+      isDeleted: false,
       raw: { name: 'BR-000001', customer_name: 'Old Name' }
     };
 

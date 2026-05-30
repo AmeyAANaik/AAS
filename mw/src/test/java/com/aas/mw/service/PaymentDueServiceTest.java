@@ -132,7 +132,7 @@ class PaymentDueServiceTest {
     }
 
     @Test
-    void allocatesSupplierDueToUncategorizedWhenSourceOrderMissing() {
+    void allocatesSupplierDueAcrossInvoiceItemGroupsWhenSourceOrderMissing() {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Purchase Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "PINV-2",
@@ -142,12 +142,16 @@ class PaymentDueServiceTest {
         when(erpNextClient.getResource("Purchase Invoice", "PINV-2"))
                 .thenReturn(Map.of("data", Map.of(
                         "name", "PINV-2",
-                        "aas_source_sales_order", "")));
+                        "aas_source_sales_order", "",
+                        "items", List.of(
+                                Map.of("item_code", "ITEM-1", "amount", new BigDecimal("30.00"), "item_group", "CAT-A"),
+                                Map.of("item_code", "ITEM-2", "amount", new BigDecimal("20.00"), "item_group", "CAT-B")
+                        ))));
 
-        Map<String, Object> response = paymentDueService.dueByCategory("Supplier", "SUP-1", "CAT-A");
-        Map<String, Object> uncategorized = paymentDueService.dueByCategory("Supplier", "SUP-1", "Uncategorized");
+        Map<String, Object> responseA = paymentDueService.dueByCategory("Supplier", "SUP-1", "CAT-A");
+        Map<String, Object> responseB = paymentDueService.dueByCategory("Supplier", "SUP-1", "CAT-B");
 
-        assertEquals(BigDecimal.ZERO, response.get("dueAmount"));
-        assertEquals(new BigDecimal("50.00"), uncategorized.get("dueAmount"));
+        assertEquals(new BigDecimal("30.000000"), responseA.get("dueAmount"));
+        assertEquals(new BigDecimal("20.000000"), responseB.get("dueAmount"));
     }
 }

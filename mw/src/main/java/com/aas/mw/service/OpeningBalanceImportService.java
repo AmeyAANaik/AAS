@@ -26,10 +26,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class OpeningBalanceImportService {
 
     private static final DateTimeFormatter REF_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
-    private static final String BILL_ITEM_CODE = "AAS-VENDOR-BILL";
     private static final String RECORD_ACCOUNT = "ACCOUNT";
     private static final String RECORD_SUPPLIER = "SUPPLIER";
     private static final String RECORD_CUSTOMER = "CUSTOMER";
+    private static final String OPENING_ITEM_PREFIX = "AAS-OPENING-ITEM-";
 
     private final ErpNextClient erpNextClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -64,7 +64,7 @@ public class OpeningBalanceImportService {
         }
 
         enforceNoDuplicates(validation, normalizedCompany, postingDate);
-        ensureBillItem();
+        ensureOpeningItems(validation);
 
         Map<String, Object> created = new LinkedHashMap<>();
         if (!validation.accountEntries().isEmpty()) {
@@ -135,6 +135,7 @@ public class OpeningBalanceImportService {
                 .map(row -> Map.of(
                         "doctype", "Purchase Invoice",
                         "supplier", row.partyId(),
+                        "category", row.category(),
                         "posting_date", postingDate,
                         "bill_no", row.reference(),
                         "grand_total", row.amount()))
@@ -144,6 +145,7 @@ public class OpeningBalanceImportService {
                 .map(row -> Map.of(
                         "doctype", "Sales Invoice",
                         "customer", row.partyId(),
+                        "category", row.category(),
                         "posting_date", postingDate,
                         "po_no", row.reference(),
                         "grand_total", row.amount()))
@@ -260,12 +262,23 @@ public class OpeningBalanceImportService {
                 errors.add(error(row.rowNumber(), "amount", "Amount must be > 0."));
                 continue;
             }
+            String category = row.category() == null ? "" : row.category().trim();
+            if (category.isBlank()) {
+                errors.add(error(row.rowNumber(), "category", "category is required."));
+                continue;
+            }
+            Map<String, Object> itemGroup = unwrapResourceSafe("Item Group", category);
+            if (itemGroup.isEmpty()) {
+                errors.add(error(row.rowNumber(), "category", "Category not found: " + category));
+                continue;
+            }
             Map<String, Object> supplier = unwrapResourceSafe("Supplier", row.partyId());
             if (supplier.isEmpty()) {
                 errors.add(error(row.rowNumber(), "party_id", "Supplier not found: " + row.partyId()));
                 continue;
             }
-            suppliers.add(new PartyAmount("Supplier", row.partyId(), row.amount(), resolveReference("SUPPLIER", postingDate, row.partyId(), row.reference())));
+            String reference = resolveReference("SUPPLIER", postingDate, row.partyId(), category, row.reference());
+            suppliers.add(new PartyAmount("Supplier", row.partyId(), row.amount(), reference, category));
         }
 
         List<PartyAmount> customers = new ArrayList<>();
@@ -274,24 +287,35 @@ public class OpeningBalanceImportService {
                 errors.add(error(row.rowNumber(), "amount", "Amount must be > 0."));
                 continue;
             }
+            String category = row.category() == null ? "" : row.category().trim();
+            if (category.isBlank()) {
+                errors.add(error(row.rowNumber(), "category", "category is required."));
+                continue;
+            }
+            Map<String, Object> itemGroup = unwrapResourceSafe("Item Group", category);
+            if (itemGroup.isEmpty()) {
+                errors.add(error(row.rowNumber(), "category", "Category not found: " + category));
+                continue;
+            }
             Map<String, Object> customer = unwrapResourceSafe("Customer", row.partyId());
             if (customer.isEmpty()) {
                 errors.add(error(row.rowNumber(), "party_id", "Customer not found: " + row.partyId()));
                 continue;
             }
-            customers.add(new PartyAmount("Customer", row.partyId(), row.amount(), resolveReference("CUSTOMER", postingDate, row.partyId(), row.reference())));
+            String reference = resolveReference("CUSTOMER", postingDate, row.partyId(), category, row.reference());
+            customers.add(new PartyAmount("Customer", row.partyId(), row.amount(), reference, category));
         }
 
         return new ValidationResult(List.copyOf(accounts), List.copyOf(suppliers), List.copyOf(customers), List.copyOf(errors));
     }
 
-    private String resolveReference(String type, String postingDate, String partyId, String provided) {
+    private String resolveReference(String type, String postingDate, String partyId, String category, String provided) {
         String candidate = provided == null ? "" : provided.trim();
         if (!candidate.isBlank()) {
             return candidate;
         }
         LocalDate date = LocalDate.parse(postingDate);
-        return "AAS-OPENING-" + REF_DATE.format(date) + "-" + partyId.trim();
+        return "AAS-OPENING-" + REF_DATE.format(date) + "-" + partyId.trim() + "-" + slug(category);
     }
 
     private Map<String, Object> buildJournalEntryPayload(String companyId, String postingDate, List<AccountAmount> rows) {
@@ -322,6 +346,7 @@ public class OpeningBalanceImportService {
 
     private Map<String, Object> buildPurchaseInvoicePayload(String companyId, String postingDate, PartyAmount row) {
         String companyCurrency = resolveCompanyCurrency(companyId);
+        String itemCode = openingItemCode(row.category());
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", row.partyId());
         payload.put("company", companyId);
@@ -332,7 +357,7 @@ public class OpeningBalanceImportService {
         payload.put("price_list_currency", companyCurrency);
         payload.put("plc_conversion_rate", 1.0);
         payload.put("items", List.of(Map.of(
-                "item_code", BILL_ITEM_CODE,
+                "item_code", itemCode,
                 "qty", 1,
                 "rate", row.amount(),
                 "amount", row.amount())));
@@ -342,6 +367,7 @@ public class OpeningBalanceImportService {
 
     private Map<String, Object> buildSalesInvoicePayload(String companyId, String postingDate, PartyAmount row) {
         String companyCurrency = resolveCompanyCurrency(companyId);
+        String itemCode = openingItemCode(row.category());
         Map<String, Object> payload = new HashMap<>();
         payload.put("customer", row.partyId());
         payload.put("company", companyId);
@@ -351,7 +377,7 @@ public class OpeningBalanceImportService {
         payload.put("price_list_currency", companyCurrency);
         payload.put("plc_conversion_rate", 1.0);
         payload.put("items", List.of(Map.of(
-                "item_code", BILL_ITEM_CODE,
+                "item_code", itemCode,
                 "qty", 1,
                 "rate", row.amount(),
                 "amount", row.amount())));
@@ -375,18 +401,46 @@ public class OpeningBalanceImportService {
         }
     }
 
-    private void ensureBillItem() {
+    private void ensureOpeningItems(ValidationResult validation) {
+        List<String> categories = new ArrayList<>();
+        for (PartyAmount row : validation.supplierEntries()) {
+            if (row.category() != null && !row.category().isBlank()) {
+                categories.add(row.category().trim());
+            }
+        }
+        for (PartyAmount row : validation.customerEntries()) {
+            if (row.category() != null && !row.category().isBlank()) {
+                categories.add(row.category().trim());
+            }
+        }
+        for (String category : categories.stream().distinct().toList()) {
+            ensureOpeningItemForCategory(category);
+        }
+    }
+
+    private void ensureOpeningItemForCategory(String category) {
+        String normalizedCategory = normalizeRequired(category, "category");
+        String itemCode = openingItemCode(normalizedCategory);
         try {
-            Map<String, Object> existing = unwrap(erpNextClient.getResource("Item", BILL_ITEM_CODE));
+            Map<String, Object> existing = unwrap(erpNextClient.getResource("Item", itemCode));
+            if (existing == null || existing.isEmpty()) {
+                throw new IllegalStateException("Item lookup returned empty for " + itemCode);
+            }
+            String existingGroup = asText(existing.get("item_group"));
+            if (!existingGroup.isBlank() && !existingGroup.equals(normalizedCategory)) {
+                throw new IllegalStateException("Opening balance item " + itemCode + " is mapped to a different category: " + existingGroup);
+            }
             boolean disabled = asFlag(existing.get("disabled"));
             if (disabled) {
-                erpNextClient.updateResource("Item", BILL_ITEM_CODE, Map.of("disabled", 0));
+                erpNextClient.updateResource("Item", itemCode, Map.of("disabled", 0));
             }
+        } catch (IllegalStateException ex) {
+            throw ex;
         } catch (Exception ex) {
             Map<String, Object> payload = new HashMap<>();
-            payload.put("item_code", BILL_ITEM_CODE);
-            payload.put("item_name", "Opening Balance Item");
-            payload.put("item_group", "All Item Groups");
+            payload.put("item_code", itemCode);
+            payload.put("item_name", "Opening Balance - " + normalizedCategory);
+            payload.put("item_group", normalizedCategory);
             payload.put("stock_uom", "Nos");
             payload.put("is_stock_item", 0);
             payload.put("is_sales_item", 1);
@@ -395,6 +449,21 @@ public class OpeningBalanceImportService {
             payload.put("description", "Synthetic item for opening balance invoices created by AAS.");
             erpNextClient.createResource("Item", payload);
         }
+    }
+
+    private String openingItemCode(String category) {
+        String code = OPENING_ITEM_PREFIX + slug(category);
+        return code.length() > 140 ? code.substring(0, 140) : code;
+    }
+
+    private String slug(String value) {
+        String raw = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        if (raw.isBlank()) {
+            return "NA";
+        }
+        String normalized = raw.replaceAll("[^A-Z0-9]+", "-");
+        normalized = normalized.replaceAll("(^-+|-+$)", "");
+        return normalized.isBlank() ? "NA" : normalized;
     }
 
     private ParsedRows parseCsv(MultipartFile file) {
@@ -441,18 +510,22 @@ public class OpeningBalanceImportService {
                         case RECORD_SUPPLIER -> {
                             requireHeader(parser, "party_id");
                             requireHeader(parser, "amount");
+                            requireHeader(parser, "category");
                             String partyId = value(record, "party_id");
                             BigDecimal amount = asDecimal(value(record, "amount"));
                             String billNo = value(record, "bill_no");
-                            suppliers.add(new PartyCsvRow(rowNumber, partyId, amount, billNo));
+                            String category = value(record, "category");
+                            suppliers.add(new PartyCsvRow(rowNumber, partyId, amount, billNo, category));
                         }
                         case RECORD_CUSTOMER -> {
                             requireHeader(parser, "party_id");
                             requireHeader(parser, "amount");
+                            requireHeader(parser, "category");
                             String partyId = value(record, "party_id");
                             BigDecimal amount = asDecimal(value(record, "amount"));
                             String invoiceRef = value(record, "invoice_ref");
-                            customers.add(new PartyCsvRow(rowNumber, partyId, amount, invoiceRef));
+                            String category = value(record, "category");
+                            customers.add(new PartyCsvRow(rowNumber, partyId, amount, invoiceRef, category));
                         }
                         default -> {
                             // Ignore unknown record types.
@@ -604,11 +677,11 @@ public class OpeningBalanceImportService {
 
     private record AccountCsvRow(long rowNumber, String account, BigDecimal debit, BigDecimal credit, String costCenter) {}
 
-    private record PartyCsvRow(long rowNumber, String partyId, BigDecimal amount, String reference) {}
+    private record PartyCsvRow(long rowNumber, String partyId, BigDecimal amount, String reference, String category) {}
 
     private record AccountAmount(String account, BigDecimal debit, BigDecimal credit, String costCenter) {}
 
-    private record PartyAmount(String partyType, String partyId, BigDecimal amount, String reference) {}
+    private record PartyAmount(String partyType, String partyId, BigDecimal amount, String reference, String category) {}
 
     private record ParsedRows(List<AccountCsvRow> accounts, List<PartyCsvRow> suppliers, List<PartyCsvRow> customers) {}
 

@@ -52,6 +52,16 @@ export class MasterDataReviewService {
     );
   }
 
+  reject(itemId: string, reviewNotes: string) {
+    return this.http.put<{ detail: MasterDataReviewDetail; pendingCount: number }>(
+      `/api/master-data-review/items/${encodeURIComponent(itemId)}/reject`,
+      { reviewNotes },
+      { headers: this.authHeaders() }
+    ).pipe(
+      tap(() => this.refreshSubject.next())
+    );
+  }
+
   notifyRefresh(): void {
     this.refreshSubject.next();
   }

@@ -52,6 +52,21 @@ public class AuthenticationService {
         return new AuthResponse(token, "Bearer", role.asKey());
     }
 
+    public String getSetupSessionCookie() {
+        if (erpSetupUsername == null || erpSetupUsername.isBlank() || erpSetupPassword == null || erpSetupPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "ERP setup credentials are not configured.");
+        }
+        return erpSessionStore.get(erpSetupUsername)
+                .orElseGet(() -> {
+                    String sessionCookie = erpNextClient.login(erpSetupUsername, erpSetupPassword);
+                    if (sessionCookie == null || sessionCookie.isBlank()) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unable to establish ERP session.");
+                    }
+                    erpSessionStore.put(erpSetupUsername, sessionCookie);
+                    return sessionCookie;
+                });
+    }
+
     private List<String> resolveUserRoles(String sessionCookie, String username) {
         List<String> roles = erpNextClient.getUserRoles(sessionCookie, username);
         if (roles != null && !roles.isEmpty()) {

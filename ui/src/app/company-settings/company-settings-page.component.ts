@@ -106,7 +106,10 @@ export class CompanySettingsPageComponent implements OnInit {
           this.message = 'Company details updated.';
         },
         error: err => {
-          const message = String(err?.error?.error ?? err?.error?.message ?? err?.message ?? '').trim();
+          const apiMessage = String(err?.error?.message ?? '').trim();
+          const apiErrorCode = String(err?.error?.error ?? '').trim();
+          const fallback = String(err?.message ?? '').trim();
+          const message = apiMessage || fallback || apiErrorCode;
           this.errorMessage = message || 'Unable to update company details.';
         }
       });
@@ -214,11 +217,11 @@ export class CompanySettingsPageComponent implements OnInit {
 
   downloadOpeningBalanceTemplate(): void {
     const template = [
-      'record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref',
-      'ACCOUNT,ACC-EXAMPLE-1,1000,0,Main - CC,,,,' ,
-      'ACCOUNT,ACC-EXAMPLE-2,0,1000,Main - CC,,,,' ,
-      'SUPPLIER,,,,,SUPPLIER-0001,25000,,',
-      'CUSTOMER,,,,,CUSTOMER-0001,15000,,'
+      'record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category',
+      'ACCOUNT,ACC-EXAMPLE-1,1000,0,Main - CC,,,,,' ,
+      'ACCOUNT,ACC-EXAMPLE-2,0,1000,Main - CC,,,,,' ,
+      'SUPPLIER,,,,,SUPPLIER-0001,25000,,,CAT-A',
+      'CUSTOMER,,,,,CUSTOMER-0001,15000,,,CAT-A'
     ].join('\n');
 
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8' });

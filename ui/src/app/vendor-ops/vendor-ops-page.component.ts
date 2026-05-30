@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { FormControl } from '@angular/forms';
+import { FormControl, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { VendorOpsCategorySummaryRow, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
@@ -13,8 +13,13 @@ import { VendorOpsService } from './vendor-ops.service';
 export class VendorOpsPageComponent implements OnInit {
   private readonly hiddenCategoryLabels = new Set(['all item groups']);
   private readonly settledThreshold = 0.01;
+  private readonly defaultLedgerDays = 30;
   readonly searchControl = new FormControl('', { nonNullable: true });
-  readonly summaryColumns = ['vendor', 'pendingOrders', 'awaitingPdf', 'awaitingBillCapture', 'inProgress', 'pendingBillAmount', 'lastActivity', 'templateStatus', 'ledgerBalance', 'actions'];
+  readonly ledgerDateRangeForm = new FormGroup({
+    from: new FormControl<Date | null>(null),
+    to: new FormControl<Date | null>(null)
+  });
+  readonly summaryColumns = ['vendor', 'pendingOrders', 'inProgress', 'pendingBillAmount', 'lastActivity', 'templateStatus', 'ledgerBalance', 'actions'];
   readonly orderColumns = ['orderId', 'branch', 'status', 'orderDate', 'parsedItems', 'vendorBillTotal', 'billRef', 'poNumber', 'actions'];
   readonly ledgerColumns = ['date', 'voucherType', 'voucherNo', 'reference', 'debit', 'credit', 'netChange', 'runningBalance'];
 
@@ -29,11 +34,14 @@ export class VendorOpsPageComponent implements OnInit {
   vendors: VendorOpsSummaryRow[] = [];
   selectedVendor: VendorOpsDetail | null = null;
   selectedVendorOrders: VendorOpsOrderRow[] = [];
-  ledger: VendorOpsLedgerEntry[] = [];
+  ledgerOpeningBalance = 0;
+  ledgerClosingBalance = 0;
   ledgerCategorySummary: VendorOpsCategorySummaryRow[] = [];
   selectedCategoryId = '';
   categoryLedger: VendorOpsLedgerEntry[] = [];
   categoryLedgerBalance = 0;
+  private forceSelectTopCategory = false;
+  private appliedLedgerRange: { from?: string; to?: string } = {};
   isLoadingCategoryLedger = false;
   isLoadingSummary = false;
   isLoadingDetail = false;
@@ -47,6 +55,7 @@ export class VendorOpsPageComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadSummary();
+    this.ensureDefaultLedgerRange();
     this.route.paramMap.subscribe(params => {
       const vendorId = params.get('vendorId');
       if (vendorId) {
@@ -54,7 +63,8 @@ export class VendorOpsPageComponent implements OnInit {
       } else {
         this.selectedVendor = null;
         this.selectedVendorOrders = [];
-        this.ledger = [];
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
       }
     });
   }
@@ -90,23 +100,10 @@ export class VendorOpsPageComponent implements OnInit {
   }
 
   downloadAllCategoryLedgers(): void {
-    this.vendorOpsService.downloadAllVendorsLedgerCategoriesSummary().subscribe({
+    this.vendorOpsService.downloadAllVendorsLedgerCategoriesSummary(this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, 'vendor-ledger-categories-all.csv'),
       error: () => {
         this.errorMessage = 'Unable to download vendor ledgers by category.';
-      }
-    });
-  }
-
-  downloadLedger(): void {
-    const vendorId = this.selectedVendor?.vendor?.vendorId;
-    if (!vendorId) {
-      return;
-    }
-    this.vendorOpsService.downloadVendorLedger(vendorId).subscribe({
-      next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}.csv`),
-      error: () => {
-        this.errorMessage = 'Unable to download vendor ledger.';
       }
     });
   }
@@ -116,7 +113,7 @@ export class VendorOpsPageComponent implements OnInit {
     if (!vendorId) {
       return;
     }
-    this.vendorOpsService.downloadVendorLedgerCategoriesSummary(vendorId).subscribe({
+    this.vendorOpsService.downloadVendorLedgerCategoriesSummary(vendorId, this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, `vendor-ledger-categories-${this.toFileSegment(vendorId)}.csv`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger summary.';
@@ -130,7 +127,7 @@ export class VendorOpsPageComponent implements OnInit {
     if (!vendorId || !categoryId) {
       return;
     }
-    this.vendorOpsService.downloadVendorLedgerByCategory(vendorId, categoryId).subscribe({
+    this.vendorOpsService.downloadVendorLedgerByCategory(vendorId, categoryId, this.appliedLedgerRange).subscribe({
       next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}-${this.toFileSegment(categoryId)}.csv`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger.';
@@ -146,16 +143,20 @@ export class VendorOpsPageComponent implements OnInit {
     }
     this.selectedCategoryId = id;
     this.isLoadingCategoryLedger = true;
-    this.vendorOpsService.getVendorLedgerByCategory(vendorId, id)
+    this.vendorOpsService.getVendorLedgerByCategory(vendorId, id, this.appliedLedgerRange)
       .pipe(finalize(() => (this.isLoadingCategoryLedger = false)))
       .subscribe({
         next: response => {
           this.categoryLedger = response.entries ?? [];
           this.categoryLedgerBalance = Number(response.balance ?? 0) || 0;
+          this.ledgerOpeningBalance = Number(response.openingBalance ?? 0) || 0;
+          this.ledgerClosingBalance = Number(response.closingBalance ?? response.balance ?? 0) || 0;
         },
         error: () => {
           this.categoryLedger = [];
           this.categoryLedgerBalance = 0;
+          this.ledgerOpeningBalance = 0;
+          this.ledgerClosingBalance = 0;
           this.errorMessage = 'Unable to load category ledger.';
         }
       });
@@ -165,6 +166,92 @@ export class VendorOpsPageComponent implements OnInit {
     this.selectedCategoryId = '';
     this.categoryLedger = [];
     this.categoryLedgerBalance = 0;
+    this.ledgerOpeningBalance = 0;
+    this.ledgerClosingBalance = 0;
+  }
+
+  applyLedgerDateRange(): void {
+    const fromValue = this.ledgerDateRangeForm.get('from')?.value ?? null;
+    const toValue = this.ledgerDateRangeForm.get('to')?.value ?? null;
+    const nextRange: { from?: string; to?: string } = {
+      from: this.toIsoDate(fromValue),
+      to: this.toIsoDate(toValue)
+    };
+    if (!nextRange.from) {
+      delete nextRange.from;
+    }
+    if (!nextRange.to) {
+      delete nextRange.to;
+    }
+    this.appliedLedgerRange = nextRange;
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  clearLedgerDateRange(): void {
+    this.applyDefaultLedgerRange();
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  get ledgerDelta(): number {
+    return (Number(this.ledgerClosingBalance) || 0) - (Number(this.ledgerOpeningBalance) || 0);
+  }
+
+  private reloadLedgers(): void {
+    const vendorId = this.selectedVendor?.vendor?.vendorId;
+    if (!vendorId) {
+      return;
+    }
+    this.vendorOpsService.getVendorLedger(vendorId, this.appliedLedgerRange).subscribe({
+      next: response => {
+        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
+          const category = String(row?.category ?? '').trim();
+          if (!category) {
+            return false;
+          }
+          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
+            return false;
+          }
+          const amount = Number(row?.amount ?? 0) || 0;
+          return amount > 0;
+        });
+
+        if (!this.ledgerCategorySummary.length) {
+          this.clearCategoryLedger();
+          this.ledgerOpeningBalance = 0;
+          this.ledgerClosingBalance = 0;
+          return;
+        }
+
+        const categoryIds = new Set(this.ledgerCategorySummary.map(row => row.category));
+        const topCategory = [...this.ledgerCategorySummary]
+          .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0]?.category;
+
+        const shouldSelectTop = this.forceSelectTopCategory || !this.selectedCategoryId || !categoryIds.has(this.selectedCategoryId);
+        this.forceSelectTopCategory = false;
+
+        if (shouldSelectTop && topCategory) {
+          this.viewCategoryLedger(topCategory);
+        } else if (this.selectedCategoryId) {
+          this.viewCategoryLedger(this.selectedCategoryId);
+        }
+      },
+      error: () => {
+        this.ledgerOpeningBalance = 0;
+        this.ledgerClosingBalance = 0;
+        this.ledgerCategorySummary = [];
+        this.clearCategoryLedger();
+      }
+    });
+  }
+
+  amountTone(value: unknown): 'pos' | 'neg' | 'zero' {
+    const num = Number(value ?? 0);
+    if (!Number.isFinite(num) || Math.abs(num) < 0.0001) {
+      return 'zero';
+    }
+    return num > 0 ? 'pos' : 'neg';
   }
 
   get filteredVendors(): VendorOpsSummaryRow[] {
@@ -224,6 +311,7 @@ export class VendorOpsPageComponent implements OnInit {
   private loadVendor(vendorId: string): void {
     this.isLoadingDetail = true;
     this.errorMessage = '';
+    this.ensureDefaultLedgerRange();
     this.vendorOpsService.getVendorDetail(vendorId).subscribe({
       next: detail => {
         this.selectedVendor = detail;
@@ -232,7 +320,7 @@ export class VendorOpsPageComponent implements OnInit {
         this.errorMessage = 'Unable to load vendor details.';
         this.selectedVendor = null;
       }
-    });
+      });
     this.vendorOpsService.getVendorOrders(vendorId)
       .pipe(finalize(() => (this.isLoadingDetail = false)))
       .subscribe({
@@ -244,28 +332,27 @@ export class VendorOpsPageComponent implements OnInit {
           this.selectedVendorOrders = [];
         }
       });
-    this.vendorOpsService.getVendorLedger(vendorId).subscribe({
-      next: response => {
-        this.ledger = response.entries ?? [];
-        this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
-          const category = String(row?.category ?? '').trim();
-          if (!category) {
-            return false;
-          }
-          if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
-            return false;
-          }
-          const amount = Number(row?.amount ?? 0) || 0;
-          return amount > 0;
-        });
-        this.clearCategoryLedger();
-      },
-      error: () => {
-        this.ledger = [];
-        this.ledgerCategorySummary = [];
-        this.clearCategoryLedger();
-      }
-    });
+    this.clearCategoryLedger();
+    this.forceSelectTopCategory = true;
+    this.reloadLedgers();
+  }
+
+  private ensureDefaultLedgerRange(): void {
+    if (this.appliedLedgerRange.from || this.appliedLedgerRange.to) {
+      return;
+    }
+    this.applyDefaultLedgerRange();
+  }
+
+  private applyDefaultLedgerRange(): void {
+    const today = new Date();
+    const from = new Date(today);
+    from.setDate(from.getDate() - this.defaultLedgerDays);
+    this.ledgerDateRangeForm.setValue({ from, to: today });
+    this.appliedLedgerRange = {
+      from: this.toIsoDate(from),
+      to: this.toIsoDate(today)
+    };
   }
 
   private saveBlob(blob: Blob, fileName: string): void {
@@ -279,6 +366,16 @@ export class VendorOpsPageComponent implements OnInit {
 
   private toFileSegment(value: string): string {
     return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '_') || 'unknown';
+  }
+
+  private toIsoDate(date: Date | null): string | undefined {
+    if (!date) {
+      return undefined;
+    }
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private toSettlementLabel(state: 'settled' | 'open' | 'overdue'): string {

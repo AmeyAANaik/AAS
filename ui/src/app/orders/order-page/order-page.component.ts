@@ -715,7 +715,10 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   get canManageVendorPdf(): boolean {
     const status = this.selectedOrder?.status ?? 'DRAFT';
-    return status === 'VENDOR_ASSIGNED' || status === 'VENDOR_PDF_RECEIVED';
+    return status === 'VENDOR_ASSIGNED'
+      || status === 'VENDOR_PDF_RECEIVED'
+      || status === 'VENDOR_BILL_CAPTURED'
+      || status === 'SELL_ORDER_CREATED';
   }
 
   getStatusLabel(status: UiOrderStatus): string {
@@ -1538,6 +1541,26 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.selectedOrder = { ...this.selectedOrder!, status: 'SELL_ORDER_CREATED' };
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to create sell order'))
+      });
+  }
+
+  replaceSellOrder(): void {
+    if (!this.selectedOrder) {
+      return;
+    }
+    this.errorMessage = '';
+    this.isItemsSaving = true;
+    this.orderService
+      .replaceSellOrder(this.selectedOrder.name, {
+        apply_transport_to_invoice: this.shouldApplyTransportToInvoice
+      })
+      .pipe(finalize(() => (this.isItemsSaving = false)))
+      .subscribe({
+        next: () => {
+          this.selectedOrder = { ...this.selectedOrder!, status: 'SELL_ORDER_CREATED' };
+          this.loadOrders();
+        },
+        error: err => (this.errorMessage = this.formatError(err, 'Unable to update sell order'))
       });
   }
 

@@ -23,9 +23,13 @@ public class OrderFlowStateMachine {
 
     public void ensureCanUploadVendorPdf(String currentStatus) {
         String normalized = normalize(currentStatus);
-        if (!VENDOR_ASSIGNED.equals(normalized) && !VENDOR_PDF_RECEIVED.equals(normalized)) {
+        if (!VENDOR_ASSIGNED.equals(normalized)
+                && !VENDOR_PDF_RECEIVED.equals(normalized)
+                && !VENDOR_BILL_CAPTURED.equals(normalized)
+                && !SELL_ORDER_CREATED.equals(normalized)) {
             throw new IllegalStateException(
-                    "Vendor PDF can only be uploaded when order status is VENDOR_ASSIGNED or VENDOR_PDF_RECEIVED.");
+                    "Vendor PDF can only be uploaded when order status is VENDOR_ASSIGNED, VENDOR_PDF_RECEIVED, "
+                            + "VENDOR_BILL_CAPTURED, or SELL_ORDER_CREATED.");
         }
     }
 
@@ -69,6 +73,9 @@ public class OrderFlowStateMachine {
         if (status == null || status.isBlank()) {
             return DRAFT;
         }
-        return status.trim().toUpperCase();
+        String normalized = status.trim().toUpperCase();
+        normalized = normalized.replaceAll("[^A-Z0-9]+", "_");
+        normalized = normalized.replaceAll("^_+|_+$", "");
+        return normalized.isBlank() ? DRAFT : normalized;
     }
 }

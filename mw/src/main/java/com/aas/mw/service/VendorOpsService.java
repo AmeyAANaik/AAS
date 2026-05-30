@@ -257,22 +257,34 @@ public class VendorOpsService {
     }
 
     public Map<String, Object> getVendorLedger(String vendorId) {
+        return getVendorLedger(vendorId, null, null);
+    }
+
+    public Map<String, Object> getVendorLedger(String vendorId, String fromDate, String toDate) {
         Map<String, Object> vendor = unwrap(erpNextClient.getResource(SUPPLIER, vendorId));
         if (vendor.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Vendor not found.");
         }
         List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(vendorId);
-        List<Map<String, Object>> entries = buildLedgerEntries(purchaseInvoices, fetchSupplierPayments(vendorId, purchaseInvoices));
-        double balance = entries.isEmpty() ? 0.0 : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
+        List<Map<String, Object>> payments = fetchSupplierPayments(vendorId, purchaseInvoices);
+        List<Map<String, Object>> fullEntries = buildLedgerEntries(purchaseInvoices, payments);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        LedgerWindow window = sliceLedger(fullEntries, range);
         return Map.of(
                 "vendorId", vendorId,
                 "vendorName", preferredVendorName(vendor),
-                "balance", balance,
-                "categorySummary", buildCategorySummaryFromPurchaseInvoices(purchaseInvoices),
-                "entries", entries);
+                "openingBalance", window.openingBalance,
+                "closingBalance", window.closingBalance,
+                "balance", window.closingBalance,
+                "categorySummary", buildCategorySummaryFromPurchaseInvoices(filterByPostingDate(purchaseInvoices, range)),
+                "entries", window.entries);
     }
 
     public Map<String, Object> getVendorLedgerByCategory(String vendorId, String categoryId) {
+        return getVendorLedgerByCategory(vendorId, categoryId, null, null);
+    }
+
+    public Map<String, Object> getVendorLedgerByCategory(String vendorId, String categoryId, String fromDate, String toDate) {
         String normalizedCategory = categoryId == null ? "" : categoryId.trim();
         if (normalizedCategory.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId is required.");
@@ -286,19 +298,107 @@ public class VendorOpsService {
         List<Map<String, Object>> invoiceEntries = buildCategoryLedgerEntriesFromPurchaseInvoices(purchaseInvoices, normalizedCategory);
         List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
                 fetchSupplierPaymentsByCategory(vendorId, normalizedCategory));
-        List<Map<String, Object>> entries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
-        double balance = entries.isEmpty() ? 0.0 : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
+        List<Map<String, Object>> fullEntries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        LedgerWindow window = sliceLedger(fullEntries, range);
 
         return Map.of(
                 "vendorId", vendorId,
                 "vendorName", preferredVendorName(vendor),
                 "categoryId", normalizedCategory,
                 "categoryLabel", normalizedCategory,
-                "balance", balance,
-                "entries", entries);
+                "openingBalance", window.openingBalance,
+                "closingBalance", window.closingBalance,
+                "balance", window.closingBalance,
+                "entries", window.entries);
+    }
+
+    private List<Map<String, Object>> filterByPostingDate(List<Map<String, Object>> invoices, LedgerRange range) {
+        if (invoices == null || invoices.isEmpty() || range == null || !range.hasBounds()) {
+            return invoices == null ? List.of() : invoices;
+        }
+        return invoices.stream()
+                .filter(invoice -> withinDateRange(asText(invoice.get("posting_date")), range.fromInclusive, range.toInclusive))
+                .toList();
+    }
+
+    private LedgerWindow sliceLedger(List<Map<String, Object>> fullEntries, LedgerRange range) {
+        if (fullEntries == null || fullEntries.isEmpty() || range == null || !range.hasBounds()) {
+            double closing = fullEntries == null || fullEntries.isEmpty()
+                    ? 0.0
+                    : asDouble(fullEntries.get(fullEntries.size() - 1).get("runningBalance"));
+            return new LedgerWindow(0.0, closing, fullEntries == null ? List.of() : fullEntries);
+        }
+        double opening = 0.0;
+        List<Map<String, Object>> windowEntries = new ArrayList<>();
+        for (Map<String, Object> entry : fullEntries) {
+            String date = asText(entry.get("date"));
+            if (!hasText(date)) {
+                continue;
+            }
+            if (date.compareTo(range.fromInclusive) < 0) {
+                opening = round(opening + asDouble(entry.get("netChange")));
+                continue;
+            }
+            if (date.compareTo(range.toInclusive) > 0) {
+                continue;
+            }
+            windowEntries.add(entry);
+        }
+        double running = opening;
+        List<Map<String, Object>> rebased = new ArrayList<>();
+        for (Map<String, Object> entry : windowEntries) {
+            running = round(running + asDouble(entry.get("netChange")));
+            Map<String, Object> copy = new LinkedHashMap<>(entry);
+            copy.put("runningBalance", running);
+            rebased.add(copy);
+        }
+        return new LedgerWindow(opening, running, rebased);
+    }
+
+    private record LedgerWindow(double openingBalance, double closingBalance, List<Map<String, Object>> entries) {}
+
+    private record LedgerRange(String fromInclusive, String toInclusive) {
+        static LedgerRange parse(String fromDate, String toDate) {
+            String from = normalizeIsoDate(fromDate);
+            String to = normalizeIsoDate(toDate);
+            if (from.isBlank() && to.isBlank()) {
+                return new LedgerRange("", "");
+            }
+            if (from.isBlank() && !to.isBlank()) {
+                return new LedgerRange("0000-01-01", to);
+            }
+            if (!from.isBlank() && to.isBlank()) {
+                return new LedgerRange(from, "9999-12-31");
+            }
+            if (from.compareTo(to) > 0) {
+                return new LedgerRange(to, from);
+            }
+            return new LedgerRange(from, to);
+        }
+
+        boolean hasBounds() {
+            return !fromInclusive.isBlank() || !toInclusive.isBlank();
+        }
+
+        private static String normalizeIsoDate(String raw) {
+            String value = raw == null ? "" : raw.trim();
+            if (value.isBlank()) {
+                return "";
+            }
+            try {
+                return LocalDate.parse(value).toString();
+            } catch (DateTimeParseException ignored) {
+                return "";
+            }
+        }
     }
 
     public List<Map<String, Object>> getAllVendorCategorySummaries() {
+        return getAllVendorCategorySummaries(null, null);
+    }
+
+    public List<Map<String, Object>> getAllVendorCategorySummaries(String fromDate, String toDate) {
         List<Map<String, Object>> vendors = fetchVendors();
         Map<String, String> vendorNames = vendors.stream()
                 .collect(Collectors.toMap(
@@ -307,7 +407,8 @@ public class VendorOpsService {
                         (left, right) -> left,
                         LinkedHashMap::new));
 
-        List<Map<String, Object>> purchaseInvoices = fetchPurchaseInvoices(null);
+        LedgerRange range = LedgerRange.parse(fromDate, toDate);
+        List<Map<String, Object>> purchaseInvoices = filterByPostingDate(fetchPurchaseInvoices(null), range);
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, CategoryWeights> orderCache = new HashMap<>();
         Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
@@ -768,7 +869,7 @@ public class VendorOpsService {
         params.put(
                 "fields",
                 "[\"name\",\"supplier\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"bill_no\","
-                        + "\"aas_source_sales_order\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
+                        + "\"aas_source_sales_order\",\"aas_replaced_by\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("docstatus", "!=", "2"));
@@ -776,9 +877,61 @@ public class VendorOpsService {
             filters.add(List.of("supplier", "=", vendorId));
         }
         params.put("filters", toJson(filters));
-        return listResourcesPaged(PURCHASE_INVOICE, params).stream()
+        List<Map<String, Object>> rows = listResourcesPaged(PURCHASE_INVOICE, params).stream()
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
+                .filter(invoice -> asText(invoice.get("aas_replaced_by")).isBlank())
                 .toList();
+        return dedupeLatestInvoices(rows);
+    }
+
+    private List<Map<String, Object>> dedupeLatestInvoices(List<Map<String, Object>> invoices) {
+        if (invoices == null || invoices.size() < 2) {
+            return invoices == null ? List.of() : invoices;
+        }
+        Map<String, Map<String, Object>> bestByKey = new HashMap<>();
+        List<Map<String, Object>> passthrough = new ArrayList<>();
+        for (Map<String, Object> invoice : invoices) {
+            if (invoice == null) {
+                continue;
+            }
+            String key = asText(invoice.get("aas_source_sales_order")).trim();
+            if (key.isBlank()) {
+                key = asText(invoice.get("bill_no")).trim();
+            }
+            if (key.isBlank()) {
+                passthrough.add(invoice);
+                continue;
+            }
+            Map<String, Object> best = bestByKey.get(key);
+            if (best == null || compareInvoiceRecency(invoice, best) > 0) {
+                bestByKey.put(key, invoice);
+            }
+        }
+        List<Map<String, Object>> result = new ArrayList<>(passthrough.size() + bestByKey.size());
+        result.addAll(passthrough);
+        result.addAll(bestByKey.values());
+        result.sort((a, b) -> {
+            int posting = asText(a.get("posting_date")).compareTo(asText(b.get("posting_date")));
+            if (posting != 0) {
+                return posting;
+            }
+            return compareInvoiceRecency(a, b);
+        });
+        return result;
+    }
+
+    private int compareInvoiceRecency(Map<String, Object> left, Map<String, Object> right) {
+        String leftModified = asText(left == null ? null : left.get("modified")).trim();
+        String rightModified = asText(right == null ? null : right.get("modified")).trim();
+        if (!leftModified.isBlank() || !rightModified.isBlank()) {
+            return leftModified.compareTo(rightModified);
+        }
+        String leftCreated = asText(left == null ? null : left.get("creation")).trim();
+        String rightCreated = asText(right == null ? null : right.get("creation")).trim();
+        if (!leftCreated.isBlank() || !rightCreated.isBlank()) {
+            return leftCreated.compareTo(rightCreated);
+        }
+        return asText(left == null ? null : left.get("name")).compareTo(asText(right == null ? null : right.get("name")));
     }
 
     private List<Map<String, Object>> fetchSupplierPayments(String vendorId, List<Map<String, Object>> purchaseInvoices) {

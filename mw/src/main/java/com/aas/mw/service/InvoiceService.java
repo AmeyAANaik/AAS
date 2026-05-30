@@ -27,16 +27,19 @@ public class InvoiceService {
     private static final Pattern PAYMENT_ENTRY_ID_PATTERN = Pattern.compile("(ACC-PAY-\\d{4}-\\d+)");
 
     private final ErpNextClient erpNextClient;
+    private final PaymentDueService paymentDueService;
     private final String gstTemplate;
     private final String erpSetupUsername;
     private final String erpSetupPassword;
 
     public InvoiceService(
             ErpNextClient erpNextClient,
+            PaymentDueService paymentDueService,
             @Value("${app.billing.gst-template:}") String gstTemplate,
             @Value("${erp.setup.full-name:Administrator}") String erpSetupUsername,
             @Value("${erp.setup.password:admin}") String erpSetupPassword) {
         this.erpNextClient = erpNextClient;
+        this.paymentDueService = paymentDueService;
         this.gstTemplate = gstTemplate == null ? "" : gstTemplate.trim();
         this.erpSetupUsername = erpSetupUsername;
         this.erpSetupPassword = erpSetupPassword;
@@ -80,7 +83,46 @@ public class InvoiceService {
             }
         }
 
-        return erpNextClient.createResource(DOCTYPE, payload);
+        String categoryId = asText(payload.get("aas_category"));
+        double previousDue = 0.0;
+        boolean hasCategory = !customer.isBlank() && !categoryId.isBlank();
+        if (hasCategory) {
+            try {
+                Map<String, Object> due = paymentDueService.dueByCategory("Customer", customer, categoryId);
+                Object amount = due.get("dueAmount");
+                if (amount instanceof BigDecimal decimal) {
+                    previousDue = decimal.doubleValue();
+                } else {
+                    previousDue = asDouble(amount);
+                }
+                payload.put("aas_previous_due", round(previousDue));
+            } catch (Exception ignore) {
+                // Never block invoice creation if due snapshot fails.
+                payload.put("aas_previous_due", 0);
+            }
+        }
+
+        Map<String, Object> created = erpNextClient.createResource(DOCTYPE, payload);
+        Map<String, Object> createdDoc = unwrap(created);
+        String invoiceId = asText(createdDoc.get("name"));
+        if (!invoiceId.isBlank() && hasCategory) {
+            Map<String, Object> invoiceDoc = createdDoc;
+            if (!hasValue(invoiceDoc.get("grand_total"))) {
+                invoiceDoc = unwrap(erpNextClient.getResource(DOCTYPE, invoiceId));
+            }
+            double invoiceTotal = asDouble(invoiceDoc.get("grand_total"));
+            double roundingAdjustment = asDouble(firstNonNull(invoiceDoc.get("aas_rounding_adjustment"), invoiceDoc.get("rounding_adjustment")));
+            double grandTotal = invoiceTotal + roundingAdjustment;
+            double currentPending = previousDue + grandTotal;
+            try {
+                erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of(
+                        "aas_previous_due", round(previousDue),
+                        "aas_current_pending", round(currentPending)));
+            } catch (Exception ignore) {
+                // Best-effort snapshot fields for print format; don't block creation.
+            }
+        }
+        return created;
     }
 
     private void normalizeRounding(Map<String, Object> payload) {
@@ -237,7 +279,10 @@ public class InvoiceService {
             return listPurchaseInvoices(partyId, fromDate, toDate);
         }
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"aas_invoice_version_status\"]");
+        params.put(
+                "fields",
+                "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\","
+                        + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (partyId != null && !partyId.isBlank()) {
@@ -252,11 +297,13 @@ public class InvoiceService {
         if (!filters.isEmpty()) {
             params.put("filters", toJson(filters));
         }
-        return listInvoicesResource(params).stream()
+        List<Map<String, Object>> rows = listInvoicesResource(params).stream()
                 .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
+                .filter(invoice -> asText(invoice.get("aas_replaced_by")).isBlank())
                 .toList();
+        return dedupeLatestBySourceOrder(rows);
     }
 
     private List<Map<String, Object>> listPurchaseInvoices(String supplier, String fromDate, String toDate) {
@@ -329,6 +376,53 @@ public class InvoiceService {
     }
 
     private record InvoiceContext(boolean isSupplier) {}
+
+    private List<Map<String, Object>> dedupeLatestBySourceOrder(List<Map<String, Object>> invoices) {
+        if (invoices == null || invoices.size() < 2) {
+            return invoices == null ? List.of() : invoices;
+        }
+        Map<String, Map<String, Object>> bestBySourceOrder = new HashMap<>();
+        List<Map<String, Object>> passthrough = new ArrayList<>();
+        for (Map<String, Object> invoice : invoices) {
+            if (invoice == null) {
+                continue;
+            }
+            String sourceOrder = asText(invoice.get("aas_source_sales_order")).trim();
+            if (sourceOrder.isBlank()) {
+                passthrough.add(invoice);
+                continue;
+            }
+            Map<String, Object> best = bestBySourceOrder.get(sourceOrder);
+            if (best == null || compareInvoiceRecency(invoice, best) > 0) {
+                bestBySourceOrder.put(sourceOrder, invoice);
+            }
+        }
+        List<Map<String, Object>> result = new ArrayList<>(passthrough.size() + bestBySourceOrder.size());
+        result.addAll(passthrough);
+        result.addAll(bestBySourceOrder.values());
+        result.sort((a, b) -> {
+            int posting = asText(b.get("posting_date")).compareTo(asText(a.get("posting_date")));
+            if (posting != 0) {
+                return posting;
+            }
+            return -compareInvoiceRecency(a, b);
+        });
+        return result;
+    }
+
+    private int compareInvoiceRecency(Map<String, Object> left, Map<String, Object> right) {
+        String leftModified = asText(left == null ? null : left.get("modified")).trim();
+        String rightModified = asText(right == null ? null : right.get("modified")).trim();
+        if (!leftModified.isBlank() || !rightModified.isBlank()) {
+            return leftModified.compareTo(rightModified);
+        }
+        String leftCreated = asText(left == null ? null : left.get("creation")).trim();
+        String rightCreated = asText(right == null ? null : right.get("creation")).trim();
+        if (!leftCreated.isBlank() || !rightCreated.isBlank()) {
+            return leftCreated.compareTo(rightCreated);
+        }
+        return asText(left == null ? null : left.get("name")).compareTo(asText(right == null ? null : right.get("name")));
+    }
 
     public byte[] downloadPdf(String invoiceId) {
         String printFormat = resolveInvoicePrintFormat(invoiceId);
@@ -647,6 +741,10 @@ public class InvoiceService {
 
     private boolean hasValue(Object value) {
         return value != null && !value.toString().isBlank();
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first != null ? first : second;
     }
 
     private double round(double value) {

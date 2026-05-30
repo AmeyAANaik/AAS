@@ -162,6 +162,31 @@ export class MasterDataReviewPageComponent implements OnInit, OnDestroy {
       });
   }
 
+  reject(): void {
+    if (!this.selectedItem || this.isSaving) {
+      return;
+    }
+    const notes = this.formModel.reviewNotes.trim();
+    if (!notes) {
+      this.errorMessage = 'Add a note before rejecting.';
+      return;
+    }
+    this.isSaving = true;
+    this.statusMessage = '';
+    this.errorMessage = '';
+    this.reviewService.reject(this.selectedItem.id, notes)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.statusMessage = 'Item rejected.';
+          this.loadQueue();
+        },
+        error: err => {
+          this.errorMessage = formatUiError(err, 'Unable to reject review item.');
+        }
+      });
+  }
+
   get notificationMessage(): string {
     if (this.summary.pendingCount <= 0) {
       return '';

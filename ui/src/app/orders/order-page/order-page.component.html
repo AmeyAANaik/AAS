@@ -351,6 +351,10 @@
                 <mat-spinner diameter="20" *ngIf="isUploading" [ngStyle]="{'display': 'inline-block', 'margin-right': '8px'}"></mat-spinner>
                 <span *ngIf="isUploading">Processing...</span>
               </button>
+              <div class="error-message" *ngIf="!isUploading && errorMessage">
+                <mat-icon>error</mat-icon>
+                <span>{{ errorMessage }}</span>
+              </div>
             </div>
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status !== 'VENDOR_ASSIGNED' && selectedOrder.status !== 'VENDOR_PDF_RECEIVED' && selectedOrder.status !== 'DRAFT'">
@@ -629,12 +633,12 @@
         </div>
 
         <!-- Step 4: Create Sell Order -->
-        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+        <div class="step-content" [class.active]="selectedOrder.status === 'VENDOR_BILL_CAPTURED' || selectedOrder.status === 'SELL_ORDER_CREATED'">
           <div class="step-header">
             <h3>Step 4: Sell Order Preview & Create</h3>
             <span class="step-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">✓ Completed</span>
           </div>
-          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+          <div class="step-body" *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED' || selectedOrder.status === 'SELL_ORDER_CREATED'">
             <mat-slide-toggle [formControl]="applyTransportToInvoiceControl">
               Apply transport charges to customer invoice
             </mat-slide-toggle>
@@ -645,7 +649,13 @@
             <p class="muted" *ngIf="invoiceTransportCharge <= 0">
               No transport charge was captured on this order. Keeping this toggle on will not add anything to the invoice.
             </p>
-            <button mat-stroked-button (click)="calculatePreview()" class="full-width mb-2">Calculate Preview</button>
+            <button
+              *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED'"
+              mat-stroked-button
+              (click)="calculatePreview()"
+              class="full-width mb-2">
+              Calculate Preview
+            </button>
             <div *ngIf="sellPreview" class="preview-section">
               <h4>Order Preview</h4>
               <p><strong>Estimated items price:</strong> {{ sellPreview.estimatedPrice | currency:selectedOrder.currency:'symbol':'1.2-2' }}</p>
@@ -750,7 +760,26 @@
                 {{ isItemsSaving ? 'Saving review...' : 'Save review changes' }}
               </button>
             </div>
-            <button mat-raised-button color="primary" (click)="createSellOrder()" [disabled]="!sellPreview || isItemsSaving" class="full-width">Create Sell Order</button>
+            <ng-container *ngIf="selectedOrder.status === 'VENDOR_BILL_CAPTURED'">
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="createSellOrder()"
+                [disabled]="!sellPreview || isItemsSaving"
+                class="full-width">
+                Create Sell Order
+              </button>
+            </ng-container>
+            <ng-container *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="replaceSellOrder()"
+                [disabled]="isItemsSaving"
+                class="full-width">
+                Update Parsed Order
+              </button>
+            </ng-container>
           </div>
           <div class="step-completed-info" *ngIf="selectedOrder.status === 'SELL_ORDER_CREATED'">
             <mat-icon class="success-icon">check_circle</mat-icon>

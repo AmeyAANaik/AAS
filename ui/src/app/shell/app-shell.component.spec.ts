@@ -9,28 +9,31 @@ import { BerryThemeService } from '../shared/services/berry-theme.service';
 import { MasterDataReviewService } from '../master-data-review/master-data-review.service';
 import { BillReviewService } from '../bill-review/bill-review.service';
 
-describe('AppShellComponent', () => {
-  let fixture: ComponentFixture<AppShellComponent>;
-  let tokenStore: AuthTokenService;
+	describe('AppShellComponent', () => {
+	  let fixture: ComponentFixture<AppShellComponent>;
+	  let tokenStore: AuthTokenService;
 
-  function configureShell(features: string[]) {
-    const refresh$ = new Subject<void>();
-    TestBed.configureTestingModule({
-      imports: [AppShellComponent, RouterTestingModule],
-      providers: [
-        AuthTokenService,
-        {
-          provide: CompanyContextService,
-          useValue: {
-            getContext: () => of({
-              company: { name: 'AAS', default_currency: 'INR' },
-              branch: { name: 'Branch 1', location: 'Pune' }
-            })
-          }
-        },
-        {
-          provide: UserAccessService,
-          useValue: {
+	  function configureShell(features: string[]) {
+	    const refresh$ = new Subject<void>();
+	    const contextChanged$ = new Subject<void>();
+	    TestBed.configureTestingModule({
+	      imports: [AppShellComponent, RouterTestingModule],
+	      providers: [
+	        AuthTokenService,
+	        {
+	          provide: CompanyContextService,
+	          useValue: {
+	            contextChanged$,
+	            getContext: () => of({
+	              company: { id: 'sidhvinaya', name: 'AAS', default_currency: 'INR' },
+	              branch: { name: 'Branch 1', location: 'Pune' }
+	            }),
+	            getCompany: () => of({ id: 'sidhvinaya', name: 'sidhvinaya', default_currency: 'INR' })
+	          }
+	        },
+	        {
+	          provide: UserAccessService,
+	          useValue: {
             getProfile: () => of({
               full_name: 'Admin User',
               role: 'admin',

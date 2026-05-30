@@ -66,3 +66,28 @@
 - Add backend tests around `inferGstIncludedInLineAmounts` and `sumOrderItemsTotal` using real sample invoices.
 - Persist parser-level flags such as `rate_includes_tax` / `amount_includes_tax` from vendor template extraction to avoid ambiguous matching.
 - Consider showing both pre-tax and with-tax preview values in the order review UI, not only in the final PDF.
+
+## 2026-05-30 Draft-Only Vendor PDF Reupload Bill Update
+
+### Scope Reviewed
+- Vendor PDF re-upload behavior after vendor bill / branch invoice generation
+- Draft-only invoice replacement policy and versioning
+
+### Current Implementation Summary
+- Vendor PDF upload (`/orders/{id}/vendor-pdf`) is allowed not only during `VENDOR_ASSIGNED` / `VENDOR_PDF_RECEIVED`, but also during `VENDOR_BILL_CAPTURED` and `SELL_ORDER_CREATED`.
+- If re-upload happens while the linked invoices are still draft (`docstatus = 0`), the middleware regenerates:
+  - Vendor Purchase Invoice (always for `VENDOR_BILL_CAPTURED` and `SELL_ORDER_CREATED`)
+  - Customer Sales Invoice (only for `SELL_ORDER_CREATED`)
+- Old draft invoices are retained for audit and marked as replaced:
+  - `aas_invoice_version_status = OLD`
+  - `aas_replaced_by = <new invoice id>`
+
+### ERPNext Alignment Notes
+- This flow is accounting-safe because it only operates on draft documents; draft edits/replacements do not create ledger impact in ERPNext until submit.
+- Submitted document corrections are explicitly out-of-scope for this flow; ERPNext generally expects a cancel/amend path after submission, which must be handled as a separate revision process.
+
+### Findings
+1. Draft-only replacement is an appropriate safety boundary.
+   - It prevents silent ledger changes and forces a deliberate accounting workflow once documents are submitted.
+2. Auditability is preserved via explicit versioning fields on replaced invoices.
+   - Older drafts remain queryable but can be filtered out of active lists using `aas_invoice_version_status`.

@@ -60,6 +60,8 @@ describe('BranchFormComponent', () => {
       creditDays: 0,
       taxId: '',
       fssaiNo: '',
+      disabled: false,
+      isDeleted: false,
       raw: {}
     };
     component.ngOnChanges();

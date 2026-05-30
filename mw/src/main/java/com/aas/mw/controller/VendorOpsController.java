@@ -58,13 +58,19 @@ public class VendorOpsController {
     }
 
     @GetMapping("/{vendorId}/ledger")
-    public ResponseEntity<Map<String, Object>> vendorLedger(@PathVariable String vendorId) {
-        return ResponseEntity.ok(vendorOpsService.getVendorLedger(vendorId));
+    public ResponseEntity<Map<String, Object>> vendorLedger(
+            @PathVariable String vendorId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(vendorOpsService.getVendorLedger(vendorId, fromDate, toDate));
     }
 
     @GetMapping("/{vendorId}/ledger/export")
-    public ResponseEntity<String> exportVendorLedger(@PathVariable String vendorId) {
-        Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId);
+    public ResponseEntity<String> exportVendorLedger(
+            @PathVariable String vendorId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
         String csv = CsvUtil.toCsv(entries);
@@ -77,15 +83,19 @@ public class VendorOpsController {
     @GetMapping("/{vendorId}/ledger/category")
     public ResponseEntity<Map<String, Object>> vendorLedgerByCategory(
             @PathVariable String vendorId,
-            @RequestParam String categoryId) {
-        return ResponseEntity.ok(vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId));
+            @RequestParam String categoryId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId, fromDate, toDate));
     }
 
     @GetMapping("/{vendorId}/ledger/category/export")
     public ResponseEntity<String> exportVendorLedgerByCategory(
             @PathVariable String vendorId,
-            @RequestParam String categoryId) {
-        Map<String, Object> ledger = vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId);
+            @RequestParam String categoryId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
         String csv = CsvUtil.toCsv(entries);
@@ -96,8 +106,11 @@ public class VendorOpsController {
     }
 
     @GetMapping("/{vendorId}/ledger/categories/export")
-    public ResponseEntity<String> exportVendorCategoryLedgerSummary(@PathVariable String vendorId) {
-        Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId);
+    public ResponseEntity<String> exportVendorCategoryLedgerSummary(
+            @PathVariable String vendorId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
         String csv = CsvUtil.toCsv(categories);
@@ -108,8 +121,10 @@ public class VendorOpsController {
     }
 
     @GetMapping("/ledger/categories/export")
-    public ResponseEntity<String> exportAllVendorsCategoryLedgers() {
-        String csv = CsvUtil.toCsv(vendorOpsService.getAllVendorCategorySummaries());
+    public ResponseEntity<String> exportAllVendorsCategoryLedgers(
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        String csv = CsvUtil.toCsv(vendorOpsService.getAllVendorCategorySummaries(fromDate, toDate));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"vendor-ledger-categories-all.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))

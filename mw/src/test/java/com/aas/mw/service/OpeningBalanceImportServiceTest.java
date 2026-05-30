@@ -39,8 +39,8 @@ class OpeningBalanceImportServiceTest {
                 "opening.csv",
                 "text/csv",
                 """
-                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref
-                ACCOUNT,ACC-1,100,0,CC-1,,,,
+                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+                ACCOUNT,ACC-1,100,0,CC-1,,,,,
                 """.getBytes(StandardCharsets.UTF_8));
 
         when(erpNextClient.getResource("Account", "ACC-1"))
@@ -64,11 +64,11 @@ class OpeningBalanceImportServiceTest {
                 "opening.csv",
                 "text/csv",
                 """
-                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref
-                ACCOUNT,ACC-1,100,0,CC-1,,,,
-                ACCOUNT,ACC-2,0,100,,,,
-                SUPPLIER,,,,,SUP-1,500,,
-                CUSTOMER,,,,,CUST-1,600,,
+                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+                ACCOUNT,ACC-1,100,0,CC-1,,,,,
+                ACCOUNT,ACC-2,0,100,,,,,
+                SUPPLIER,,,,,SUP-1,500,,,CAT-A
+                CUSTOMER,,,,,CUST-1,600,,,CAT-A
                 """.getBytes(StandardCharsets.UTF_8));
 
         when(erpNextClient.getResource("Account", "ACC-1"))
@@ -79,10 +79,12 @@ class OpeningBalanceImportServiceTest {
                 .thenReturn(Map.of("data", Map.of("name", "SUP-1")));
         when(erpNextClient.getResource("Customer", "CUST-1"))
                 .thenReturn(Map.of("data", Map.of("name", "CUST-1")));
+        when(erpNextClient.getResource("Item Group", "CAT-A"))
+                .thenReturn(Map.of("data", Map.of("name", "CAT-A")));
         when(erpNextClient.getResource("Company", "AAS"))
                 .thenReturn(Map.of("data", Map.of("default_currency", "INR")));
-        when(erpNextClient.getResource("Item", "AAS-VENDOR-BILL"))
-                .thenReturn(Map.of("data", Map.of("disabled", 0)));
+        when(erpNextClient.getResource("Item", "AAS-OPENING-ITEM-CAT-A"))
+                .thenReturn(Map.of("data", Map.of("disabled", 0, "item_group", "CAT-A")));
 
         when(erpNextClient.listResources(eq("Journal Entry"), anyMap())).thenReturn(List.of());
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
@@ -119,14 +121,42 @@ class OpeningBalanceImportServiceTest {
     }
 
     @Test
+    void previewFlagsMissingCategoryForPartyRows() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "opening.csv",
+                "text/csv",
+                """
+                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+                ACCOUNT,ACC-1,100,0,CC-1,,,,,
+                ACCOUNT,ACC-2,0,100,,,,,
+                SUPPLIER,,,,,SUP-1,500,,,
+                """.getBytes(StandardCharsets.UTF_8));
+
+        when(erpNextClient.getResource("Account", "ACC-1"))
+                .thenReturn(Map.of("data", Map.of("company", "AAS")));
+        when(erpNextClient.getResource("Account", "ACC-2"))
+                .thenReturn(Map.of("data", Map.of("company", "AAS")));
+        when(erpNextClient.getResource("Supplier", "SUP-1"))
+                .thenReturn(Map.of("data", Map.of("name", "SUP-1")));
+
+        Map<String, Object> preview = service.preview("AAS", file, "2026-04-22");
+
+        assertEquals(false, preview.get("isValid"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> errors = (List<Map<String, Object>>) preview.get("errors");
+        assertTrue(errors.stream().anyMatch(err -> "category".equals(err.get("field"))));
+    }
+
+    @Test
     void applyThrowsValidationExceptionWhenInvalid() {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "opening.csv",
                 "text/csv",
                 """
-                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref
-                ACCOUNT,ACC-1,10,10,CC-1,,,,
+                record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+                ACCOUNT,ACC-1,10,10,CC-1,,,,,
                 """.getBytes(StandardCharsets.UTF_8));
 
         when(erpNextClient.getResource("Account", "ACC-1"))
@@ -135,4 +165,3 @@ class OpeningBalanceImportServiceTest {
         assertThrows(OpeningBalanceValidationException.class, () -> service.apply("AAS", file, "2026-04-22"));
     }
 }
-

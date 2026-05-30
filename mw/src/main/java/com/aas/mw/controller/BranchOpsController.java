@@ -58,13 +58,19 @@ public class BranchOpsController {
     }
 
     @GetMapping("/{branchId}/ledger")
-    public ResponseEntity<Map<String, Object>> branchLedger(@PathVariable String branchId) {
-        return ResponseEntity.ok(branchOpsService.getBranchLedger(branchId));
+    public ResponseEntity<Map<String, Object>> branchLedger(
+            @PathVariable String branchId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(branchOpsService.getBranchLedger(branchId, fromDate, toDate));
     }
 
     @GetMapping("/{branchId}/ledger/export")
-    public ResponseEntity<String> exportBranchLedger(@PathVariable String branchId) {
-        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId);
+    public ResponseEntity<String> exportBranchLedger(
+            @PathVariable String branchId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
         String csv = CsvUtil.toCsv(entries);
@@ -77,15 +83,19 @@ public class BranchOpsController {
     @GetMapping("/{branchId}/ledger/category")
     public ResponseEntity<Map<String, Object>> branchLedgerByCategory(
             @PathVariable String branchId,
-            @RequestParam String categoryId) {
-        return ResponseEntity.ok(branchOpsService.getBranchLedgerByCategory(branchId, categoryId));
+            @RequestParam String categoryId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(branchOpsService.getBranchLedgerByCategory(branchId, categoryId, fromDate, toDate));
     }
 
     @GetMapping("/{branchId}/ledger/category/export")
     public ResponseEntity<String> exportBranchLedgerByCategory(
             @PathVariable String branchId,
-            @RequestParam String categoryId) {
-        Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(branchId, categoryId);
+            @RequestParam String categoryId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(branchId, categoryId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
         String csv = CsvUtil.toCsv(entries);
@@ -96,8 +106,11 @@ public class BranchOpsController {
     }
 
     @GetMapping("/{branchId}/ledger/categories/export")
-    public ResponseEntity<String> exportBranchCategoryLedgerSummary(@PathVariable String branchId) {
-        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId);
+    public ResponseEntity<String> exportBranchCategoryLedgerSummary(
+            @PathVariable String branchId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
         String csv = CsvUtil.toCsv(categories);
@@ -108,8 +121,10 @@ public class BranchOpsController {
     }
 
     @GetMapping("/ledger/categories/export")
-    public ResponseEntity<String> exportAllBranchesCategoryLedgers() {
-        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchCategorySummaries());
+    public ResponseEntity<String> exportAllBranchesCategoryLedgers(
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchCategorySummaries(fromDate, toDate));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-categories-all.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))

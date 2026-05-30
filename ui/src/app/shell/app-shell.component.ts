@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy } from '@angular/core';
 import { NavigationEnd, Router, RouterModule } from '@angular/router';
-import { filter, Subscription } from 'rxjs';
+import { catchError, filter, map, of, Subscription, switchMap } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { CompanyContextService } from '../shared/company-context.service';
 import { UserAccessService } from '../shared/user-access.service';
@@ -65,13 +65,6 @@ export class AppShellComponent implements OnDestroy {
         { label: 'Branches', icon: 'hub', route: '/branches', feature: 'master_data.view' },
         { label: 'Categories', icon: 'category', route: '/categories', feature: 'master_data.view' },
         { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' }
-      ]
-    },
-    {
-      title: 'Administration',
-      links: [
-        { label: 'Master Data Review', icon: 'notifications_active', route: '/master-data-review', feature: 'master_data_review.view' },
-        { label: 'Bill Review', icon: 'fact_check', route: '/bill-review', feature: 'bill_review.view' }
       ]
     },
     {
@@ -198,26 +191,43 @@ export class AppShellComponent implements OnDestroy {
     if (!this.tokenStore.getToken()) {
       return;
     }
-    this.companyContextService.getContext().subscribe({
-      next: context => {
-        const company = context.company;
-        const branch = context.branch;
-        this.companyName = company?.name?.trim() || 'SCM Console';
-        this.companySubline = company?.default_currency?.trim() || 'Supply chain workspace';
-        this.companyLogoUrl = company?.logo_url?.trim() || '';
-        this.companyAvatarText = this.initialsFor(this.companyName, 'SC');
-        this.branchName = branch?.name?.trim() || 'No branch';
-        this.branchLocation = branch?.location?.trim() || '';
-        this.branchLogoUrl = branch?.logo_url?.trim() || '';
-        this.branchAvatarText = this.initialsFor(this.branchName, 'BR');
-      },
-      error: () => {
-        this.companyName = 'SCM Console';
-        this.companySubline = 'Supply chain workspace';
-        this.branchName = 'No branch';
-        this.branchLocation = '';
-      }
-    });
+    this.companyContextService
+      .getContext()
+      .pipe(
+        switchMap(context => {
+          const companyId = context.company?.id?.trim() ?? '';
+          if (!companyId) {
+            return of({ context, company: null });
+          }
+          return this.companyContextService.getCompany(companyId).pipe(
+            map(company => ({ context, company })),
+            catchError(() => of({ context, company: context.company }))
+          );
+        })
+      )
+      .subscribe({
+        next: ({ context, company }) => {
+          const effectiveCompany = company ?? context.company;
+          const branch = context.branch;
+          const companyId = effectiveCompany?.id?.trim() ?? '';
+          const companyName = effectiveCompany?.name?.trim() ?? '';
+          // Prefer the configured company identifier when the name is still the default placeholder.
+          this.companyName = (companyId && (!companyName || companyName.toUpperCase() === 'AAS')) ? companyId : (companyName || companyId || 'SCM Console');
+          this.companySubline = effectiveCompany?.default_currency?.trim() || 'Supply chain workspace';
+          this.companyLogoUrl = effectiveCompany?.logo_url?.trim() || '';
+          this.companyAvatarText = this.initialsFor(this.companyName, 'SC');
+          this.branchName = branch?.name?.trim() || 'No branch';
+          this.branchLocation = branch?.location?.trim() || '';
+          this.branchLogoUrl = branch?.logo_url?.trim() || '';
+          this.branchAvatarText = this.initialsFor(this.branchName, 'BR');
+        },
+        error: () => {
+          this.companyName = 'SCM Console';
+          this.companySubline = 'Supply chain workspace';
+          this.branchName = 'No branch';
+          this.branchLocation = '';
+        }
+      });
   }
 
   private loadUserProfile(): void {
