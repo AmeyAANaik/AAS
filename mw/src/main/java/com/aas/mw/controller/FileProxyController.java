@@ -41,9 +41,8 @@ public class FileProxyController {
 
         return ResponseEntity.ok()
                 .contentType(mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + downloaded.filename() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + downloaded.fileName() + "\"")
                 .cacheControl(CacheControl.noCache())
                 .body(downloaded.bytes());
     }
 }
-
