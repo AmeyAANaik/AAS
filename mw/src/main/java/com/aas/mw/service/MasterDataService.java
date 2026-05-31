@@ -8,6 +8,7 @@ import com.aas.mw.meta.VendorFieldMapper;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -216,8 +217,10 @@ public class MasterDataService {
         profile.put("country", asText(company.get("country")));
         profile.put("default_letter_head", asText(company.get("default_letter_head")));
         profile.put("tax_id", firstText(company.get("tax_id"), company.get("gstin")));
-        profile.put("logo_url", firstText(company.get("company_logo"), company.get("logo"), company.get("letter_head_image")));
-        profile.put("signature_url", asText(company.get("aas_authorized_signature")));
+        profile.put(
+                "logo_url",
+                normalizeFileUrl(firstText(company.get("company_logo"), company.get("logo"), company.get("letter_head_image"))));
+        profile.put("signature_url", normalizeFileUrl(asText(company.get("aas_authorized_signature"))));
         profile.put("bank_beneficiary_name", asText(company.get("aas_bank_beneficiary_name")));
         profile.put("bank_name", asText(company.get("aas_bank_name")));
         profile.put("bank_account_number", asText(company.get("aas_bank_account_number")));
@@ -335,8 +338,29 @@ public class MasterDataService {
         profile.put("credit_days", branch.getOrDefault("aas_credit_days", 0));
         profile.put("tax_id", firstText(branch.get("tax_id"), branch.get("gstin")));
         profile.put("fssai_no", asText(branch.get("aas_food_license_no")));
-        profile.put("logo_url", firstText(branch.get("image"), branch.get("logo")));
+        profile.put("logo_url", normalizeFileUrl(firstText(branch.get("image"), branch.get("logo"))));
         return profile;
+    }
+
+    private String normalizeFileUrl(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.isBlank()) {
+            return "";
+        }
+        if (!(trimmed.startsWith("http://") || trimmed.startsWith("https://"))) {
+            return trimmed;
+        }
+        try {
+            URI uri = URI.create(trimmed);
+            String path = uri.getPath() == null ? "" : uri.getPath().trim();
+            if (path.startsWith("/files/") || path.startsWith("/private/files/")) {
+                String query = uri.getQuery();
+                return query == null || query.isBlank() ? path : path + "?" + query;
+            }
+        } catch (Exception ignored) {
+            // Return original value when parsing fails.
+        }
+        return trimmed;
     }
 
     public Map<String, Object> createShop(FieldsRequest request) {

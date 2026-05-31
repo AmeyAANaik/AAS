@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
-import { finalize } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { finalize, map, switchMap } from 'rxjs/operators';
 import { CompanyContextService, CompanyIdentity, OpeningBalancePreview, OpeningBalanceApplyResult } from '../shared/company-context.service';
 import {
   AccessControlService,
@@ -32,6 +33,7 @@ export class CompanySettingsPageComponent implements OnInit {
   });
 
   companyId = '';
+  branchId = '';
   companyLogoUrl = '';
   companySignatureUrl = '';
   selectedLogoFileName = '';
@@ -84,7 +86,7 @@ export class CompanySettingsPageComponent implements OnInit {
     this.errorMessage = '';
     this.message = '';
     const raw = this.form.getRawValue();
-    this.companyContextService.updateCompany(this.companyId, {
+    const companyUpdate = this.companyContextService.updateCompany(this.companyId, {
       name: String(raw.name ?? '').trim(),
       abbr: String(raw.abbr ?? '').trim(),
       default_currency: String(raw.default_currency ?? '').trim(),
@@ -95,14 +97,24 @@ export class CompanySettingsPageComponent implements OnInit {
       bank_name: String(raw.bank_name ?? '').trim(),
       bank_account_number: String(raw.bank_account_number ?? '').trim(),
       bank_ifsc_code: String(raw.bank_ifsc_code ?? '').trim(),
-      bank_branch: String(raw.bank_branch ?? '').trim(),
-      invoice_email: String(raw.invoice_email ?? '').trim(),
-      whatsapp_number: String(raw.whatsapp_number ?? '').trim()
-    })
-      .pipe(finalize(() => (this.isSaving = false)))
+      bank_branch: String(raw.bank_branch ?? '').trim()
+    });
+
+    const branchUpdate: Observable<unknown> = this.branchId
+      ? this.companyContextService.updateShop(this.branchId, {
+          aas_invoice_email: String(raw.invoice_email ?? '').trim(),
+          aas_whatsapp_number: String(raw.whatsapp_number ?? '').trim()
+        })
+      : of(null);
+
+    companyUpdate.pipe(
+      switchMap(company => branchUpdate.pipe(map(() => company))),
+      finalize(() => (this.isSaving = false))
+    )
       .subscribe({
         next: company => {
           this.applyCompany(company);
+          this.loadContext();
           this.message = 'Company details updated.';
         },
         error: err => {
@@ -312,8 +324,13 @@ export class CompanySettingsPageComponent implements OnInit {
           if (context.company) {
             this.applyCompany(context.company);
           }
+          this.branchId = context.branch?.id ?? '';
           this.branchName = context.branch?.name ?? '';
           this.branchLocation = context.branch?.location ?? '';
+          this.form.patchValue({
+            invoice_email: context.branch?.invoice_email ?? '',
+            whatsapp_number: context.branch?.whatsapp_number ?? ''
+          });
         },
         error: () => {
           this.errorMessage = 'Unable to load company details.';
@@ -343,8 +360,8 @@ export class CompanySettingsPageComponent implements OnInit {
       bank_account_number: company.bank_account_number ?? '',
       bank_ifsc_code: company.bank_ifsc_code ?? '',
       bank_branch: company.bank_branch ?? '',
-      invoice_email: company.invoice_email ?? '',
-      whatsapp_number: company.whatsapp_number ?? ''
+      invoice_email: this.form.get('invoice_email')?.value ?? '',
+      whatsapp_number: this.form.get('whatsapp_number')?.value ?? ''
     });
   }
 

@@ -78,6 +78,14 @@ export class CompanyContextService {
     ).pipe(tap(() => this.contextChanged$.next()));
   }
 
+  updateShop(id: string, fields: Record<string, unknown>): Observable<unknown> {
+    return this.http.put(
+      `/api/shops/${encodeURIComponent(id)}`,
+      { fields },
+      { headers: this.authHeaders() }
+    ).pipe(tap(() => this.contextChanged$.next()));
+  }
+
   uploadCompanyLogo(id: string, file: File): Observable<CompanyIdentity> {
     const formData = new FormData();
     formData.append('file', file);
