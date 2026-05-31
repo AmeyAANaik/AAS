@@ -348,17 +348,29 @@ public class MasterDataService {
             return "";
         }
         if (!(trimmed.startsWith("http://") || trimmed.startsWith("https://"))) {
-            return trimmed;
+            return prefixApiIfFilePath(trimmed);
         }
         try {
             URI uri = URI.create(trimmed);
             String path = uri.getPath() == null ? "" : uri.getPath().trim();
             if (path.startsWith("/files/") || path.startsWith("/private/files/")) {
                 String query = uri.getQuery();
-                return query == null || query.isBlank() ? path : path + "?" + query;
+                String filePath = query == null || query.isBlank() ? path : path + "?" + query;
+                return prefixApiIfFilePath(filePath);
             }
         } catch (Exception ignored) {
             // Return original value when parsing fails.
+        }
+        return trimmed;
+    }
+
+    private String prefixApiIfFilePath(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.startsWith("/files/") || trimmed.startsWith("/private/files/")) {
+            return "/api" + trimmed;
         }
         return trimmed;
     }
