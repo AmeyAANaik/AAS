@@ -19,6 +19,7 @@ export class BranchListComponent implements OnInit {
   isLoading = false;
   isSaving = false;
   isTogglingStatus = false;
+  isDeleting = false;
   statusMessage = '';
   searchControl = new FormControl<string>('', { nonNullable: true });
 
@@ -166,6 +167,33 @@ export class BranchListComponent implements OnInit {
         },
         error: err => {
           const message = this.formatError(err, `Unable to ${actionLabel} branch`);
+          this.toastService.error(message);
+          this.statusMessage = message;
+        }
+      });
+  }
+
+  deleteBranch(branch: BranchView): void {
+    this.statusMessage = '';
+    const ok = window.confirm(
+      `Delete “${branch.name}”? This can only be done after disabling the branch. (This is a soft-delete.)`
+    );
+    if (!ok) return;
+
+    this.isDeleting = true;
+    this.branchService
+      .deleteBranch(branch.id)
+      .pipe(finalize(() => (this.isDeleting = false)))
+      .subscribe({
+        next: () => {
+          this.toastService.success('Branch deleted.');
+          if (this.selectedBranch?.id === branch.id) {
+            this.clearSelection();
+          }
+          this.loadBranches();
+        },
+        error: err => {
+          const message = this.formatError(err, 'Unable to delete branch');
           this.toastService.error(message);
           this.statusMessage = message;
         }

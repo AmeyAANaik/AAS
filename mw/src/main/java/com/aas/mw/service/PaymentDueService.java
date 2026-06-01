@@ -49,7 +49,7 @@ public class PaymentDueService {
 
     private BigDecimal dueByCategoryForCustomer(String customerId, String categoryId) {
         InvoiceContext ctx = resolveInvoiceContext("Customer");
-        List<Map<String, Object>> openInvoices = fetchDraftInvoices(ctx.invoiceDoctype(), ctx.partyField(), customerId);
+        List<Map<String, Object>> openInvoices = fetchOpenSubmittedInvoices(ctx.invoiceDoctype(), ctx.partyField(), customerId);
         Map<String, BigDecimal> dueByCategory = new HashMap<>();
         ItemGroupResolver itemGroupResolver = new ItemGroupResolver(erpNextClient);
 
@@ -60,10 +60,13 @@ public class PaymentDueService {
             }
             Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource(ctx.invoiceDoctype(), invoiceId));
             int docstatus = asInt(firstNonNull(invoice.get("docstatus"), row.get("docstatus")));
-            if (docstatus != 0) {
+            if (docstatus != 1) {
                 continue;
             }
-            BigDecimal dueBase = asDecimal(firstNonNull(invoice.get("grand_total"), row.get("grand_total")));
+            BigDecimal dueBase = asDecimal(firstNonNull(invoice.get("outstanding_amount"), row.get("outstanding_amount")));
+            if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
+                dueBase = asDecimal(firstNonNull(invoice.get("grand_total"), row.get("grand_total")));
+            }
             if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
@@ -74,7 +77,7 @@ public class PaymentDueService {
     }
 
     private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {
-        List<Map<String, Object>> purchaseInvoices = fetchDraftPurchaseInvoices(supplierId);
+        List<Map<String, Object>> purchaseInvoices = fetchOpenSubmittedPurchaseInvoices(supplierId);
         Map<String, BigDecimal> dueByCategory = new HashMap<>();
         ItemGroupResolver itemGroupResolver = new ItemGroupResolver(erpNextClient);
         Map<String, CategoryWeights> orderCache = new HashMap<>();
@@ -85,10 +88,13 @@ public class PaymentDueService {
                 continue;
             }
             int docstatus = asInt(row.get("docstatus"));
-            if (docstatus != 0) {
+            if (docstatus != 1) {
                 continue;
             }
-            BigDecimal dueBase = asDecimal(row.get("grand_total"));
+            BigDecimal dueBase = asDecimal(row.get("outstanding_amount"));
+            if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
+                dueBase = asDecimal(row.get("grand_total"));
+            }
             if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
@@ -114,13 +120,14 @@ public class PaymentDueService {
         return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
     }
 
-    private List<Map<String, Object>> fetchDraftPurchaseInvoices(String supplierId) {
+    private List<Map<String, Object>> fetchOpenSubmittedPurchaseInvoices(String supplierId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\"]");
         params.put("limit_page_length", 500);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("supplier", "=", supplierId));
-        filters.add(List.of("docstatus", "=", "0"));
+        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of("outstanding_amount", ">", "0"));
         params.put("filters", toJson(filters));
         return erpNextClient.listResources("Purchase Invoice", params);
     }
@@ -158,13 +165,14 @@ public class PaymentDueService {
         return new CategoryWeights(weights, total);
     }
 
-    private List<Map<String, Object>> fetchDraftInvoices(String doctype, String partyField, String partyId) {
+    private List<Map<String, Object>> fetchOpenSubmittedInvoices(String doctype, String partyField, String partyId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\"]");
         params.put("limit_page_length", 500);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of(partyField, "=", partyId));
-        filters.add(List.of("docstatus", "=", "0"));
+        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of("outstanding_amount", ">", "0"));
         params.put("filters", toJson(filters));
         return erpNextClient.listResources(doctype, params);
     }

@@ -82,11 +82,23 @@
                   class="table-action-icon"
                   color="primary"
                   (click)="toggleBranchDisabled(branch, !branch.disabled)"
-                  [disabled]="isTogglingStatus || isSaving || isLoading"
+                  [disabled]="isTogglingStatus || isSaving || isDeleting || isLoading"
                   [matTooltip]="branch.disabled ? 'Reactivate' : 'Disable'"
                   matTooltipPosition="above"
                   [attr.aria-label]="branch.disabled ? 'Reactivate branch' : 'Disable branch'">
                   <mat-icon>{{ branch.disabled ? 'restart_alt' : 'block' }}</mat-icon>
+                </button>
+                <button
+                  *ngIf="!branch.isDeleted && branch.disabled"
+                  mat-icon-button
+                  class="table-action-icon"
+                  color="warn"
+                  (click)="deleteBranch(branch)"
+                  [disabled]="isTogglingStatus || isSaving || isDeleting || isLoading"
+                  matTooltip="Delete"
+                  matTooltipPosition="above"
+                  aria-label="Delete branch">
+                  <mat-icon>delete</mat-icon>
                 </button>
               </div>
             </td>

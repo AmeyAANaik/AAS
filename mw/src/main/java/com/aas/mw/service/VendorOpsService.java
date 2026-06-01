@@ -96,14 +96,14 @@ public class VendorOpsService {
         double parseSuccessRate = calculateParseSuccessRate(orderRows);
         double billCaptureRate = calculateBillCaptureRate(orderRows);
         double outstandingBalance = round(purchaseInvoices.stream()
-                .mapToDouble(invoice -> asDouble(invoice.get("outstanding_amount")))
+                .mapToDouble(this::resolveInvoiceDueAmount)
                 .sum());
         long mismatchCount = orderRows.stream().filter(row -> asFlag(row.get("hasMismatch"))).count();
         long parseFailureCount = orderRows.stream()
                 .filter(row -> asFlag(row.get("pdfUploaded")) && asDouble(row.get("parsedItems")) <= 0)
                 .count();
         long unpaidInvoiceCount = purchaseInvoices.stream()
-                .filter(invoice -> asDouble(invoice.get("outstanding_amount")) > 0)
+                .filter(invoice -> resolveInvoiceDueAmount(invoice) > 0)
                 .count();
 
         Map<String, Object> kpis = new LinkedHashMap<>();
@@ -764,7 +764,7 @@ public class VendorOpsService {
 
         List<Map<String, Object>> ledgerEntries = buildLedgerEntries(vendorInvoices, vendorPayments);
         double outstandingInvoiceAmount = vendorInvoices.stream()
-                .mapToDouble(invoice -> asDouble(invoice.get("outstanding_amount")))
+                .mapToDouble(this::resolveInvoiceDueAmount)
                 .sum();
         double preCaptureEstimatedAmount = vendorOrders.stream()
                 .filter(order -> "VENDOR_PDF_RECEIVED".equals(asText(order.get("aas_status")))
@@ -790,6 +790,17 @@ public class VendorOpsService {
         row.put("ledgerBalance", ledgerEntries.isEmpty() ? 0.0 : asDouble(ledgerEntries.get(ledgerEntries.size() - 1).get("runningBalance")));
         row.put("parseSuccessRate", calculateParseSuccessRateFromSummary(vendorOrders));
         return row;
+    }
+
+    private double resolveInvoiceDueAmount(Map<String, Object> invoice) {
+        if (invoice == null) {
+            return 0.0;
+        }
+        double due = asDouble(invoice.get("outstanding_amount"));
+        if (due > 0) {
+            return due;
+        }
+        return asDouble(invoice.get("grand_total"));
     }
 
     private List<Map<String, Object>> buildLedgerEntries(

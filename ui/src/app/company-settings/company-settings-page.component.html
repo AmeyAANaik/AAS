@@ -290,8 +290,91 @@
             </button>
             <button mat-flat-button color="primary" type="button" (click)="applyOpeningBalances()"
               [disabled]="!openingBalancePreview?.isValid || isOpeningBalanceApplying || isOpeningBalancePreviewing">
-              {{ isOpeningBalanceApplying ? 'Applying...' : 'Apply (Create Drafts)' }}
+              {{ isOpeningBalanceApplying ? 'Applying...' : 'Apply (Submit Opening Docs)' }}
             </button>
+          </div>
+
+          <div class="opening-balance-actions" style="margin-top: 4px;">
+            <button mat-stroked-button type="button" (click)="loadOpeningInvoices()" [disabled]="isOpeningInvoicesLoading">
+              {{ isOpeningInvoicesLoading ? 'Loading opening invoices...' : 'View opening invoices' }}
+            </button>
+          </div>
+
+          <div class="state error" *ngIf="openingInvoicesError">{{ openingInvoicesError }}</div>
+
+          <div class="opening-balance-preview" *ngIf="openingInvoices as oi">
+            <div class="preview-header">
+              <div>
+                <div class="preview-title">Opening invoices</div>
+                <div class="preview-subtitle">These are hidden from standard invoices and dashboard metrics.</div>
+              </div>
+              <div class="preview-badge ok">
+                {{ (oi.salesInvoices.length || 0) + (oi.purchaseInvoices.length || 0) }} total
+              </div>
+            </div>
+
+            <div class="preview-metrics">
+              <div class="metric">
+                <div class="metric-label">Sales (AR)</div>
+                <div class="metric-value">{{ oi.salesInvoices.length || 0 }}</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Purchase (AP)</div>
+                <div class="metric-value">{{ oi.purchaseInvoices.length || 0 }}</div>
+              </div>
+            </div>
+
+            <div class="preview-table" *ngIf="oi.salesInvoices?.length">
+              <div class="preview-table-title">Opening Sales Invoices</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Customer</th>
+                    <th>Date</th>
+                    <th class="num">Grand total</th>
+                    <th class="num">Outstanding</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of oi.salesInvoices">
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.customer || '-' }}</td>
+                    <td>{{ row.posting_date || '-' }}</td>
+                    <td class="num">{{ row.grand_total ?? 0 | number: '1.0-2' }}</td>
+                    <td class="num">{{ row.outstanding_amount ?? 0 | number: '1.0-2' }}</td>
+                    <td>{{ row.status || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="preview-table" *ngIf="oi.purchaseInvoices?.length">
+              <div class="preview-table-title">Opening Purchase Invoices</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Supplier</th>
+                    <th>Date</th>
+                    <th class="num">Grand total</th>
+                    <th class="num">Outstanding</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of oi.purchaseInvoices">
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.supplier || '-' }}</td>
+                    <td>{{ row.posting_date || '-' }}</td>
+                    <td class="num">{{ row.grand_total ?? 0 | number: '1.0-2' }}</td>
+                    <td class="num">{{ row.outstanding_amount ?? 0 | number: '1.0-2' }}</td>
+                    <td>{{ row.status || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div class="opening-balance-preview" *ngIf="openingBalancePreview as preview">

@@ -863,6 +863,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.errorMessage = '';
     this.fileError = '';
     this.isUploading = true;
+    const previousStatus = this.selectedOrder.status;
     // Invalidate any in-flight order detail requests so they can't overwrite parsed lines.
     this.orderDetailsSeq++;
     this.orderService
@@ -902,6 +903,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
           this.selectedFile = null;
           this.updateBillMismatchError();
           this.loadOrders();
+          if (previousStatus === 'VENDOR_BILL_CAPTURED' || previousStatus === 'SELL_ORDER_CREATED') {
+            this.snackBar.open('PDF re-uploaded. Steps 3 & 4 reset—please re-capture bill and re-create sell order.', 'Dismiss', { duration: 4500 });
+          }
         },
         error: err => {
           this.errorMessage = this.formatError(err, 'Unable to upload and parse vendor PDF');

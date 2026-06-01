@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,5 +48,13 @@ public class OpeningBalancesController {
             @RequestPart("file") MultipartFile file,
             @RequestPart("cutoverDate") String cutoverDate) {
         return ResponseEntity.ok(openingBalanceImportService.apply(companyId, file, cutoverDate));
+    }
+
+    @GetMapping("/invoices")
+    public ResponseEntity<Map<String, Object>> openingInvoices(
+            @PathVariable("id") String companyId,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(openingBalanceImportService.listOpeningInvoices(companyId, fromDate, toDate));
     }
 }

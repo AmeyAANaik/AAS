@@ -192,6 +192,25 @@ export class ReportsPlaceholderComponent {
     return String(value);
   }
 
+  isPriceTrendReport(): boolean {
+    return this.selectedReport?.id === 'item-price-trend';
+  }
+
+  isPriceChangeColumn(key: string): boolean {
+    return key === 'price_change' || key === 'change_pct';
+  }
+
+  priceChangeClass(value: unknown): 'pos' | 'neg' | 'zero' {
+    return this.signClass(value);
+  }
+
+  priceChangeIcon(value: unknown): string {
+    const n = this.asNumber(value);
+    if (n > 0) return '▲';
+    if (n < 0) return '▼';
+    return '─';
+  }
+
   isProfitColumn(key: string): boolean {
     return key === 'profit_total' || key === 'profit_percent';
   }

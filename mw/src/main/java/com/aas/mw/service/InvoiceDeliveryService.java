@@ -115,6 +115,9 @@ public class InvoiceDeliveryService {
         if (invoice.isEmpty()) {
             throw new IllegalArgumentException("Invoice not found.");
         }
+        if ("Yes".equalsIgnoreCase(asText(invoice.get("is_opening")))) {
+            throw new IllegalStateException("Opening balance documents cannot be delivered as invoices.");
+        }
         return invoice;
     }
 

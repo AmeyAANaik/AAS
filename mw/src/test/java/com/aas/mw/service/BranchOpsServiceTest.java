@@ -277,4 +277,84 @@ class BranchOpsServiceTest {
 
         assertThat(response.get("balance")).isEqualTo(500.0);
     }
+
+    @Test
+    void getBranchLedgerExcludesReplacedInvoices() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-OLD",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-05-12",
+                                "grand_total", 6922.0,
+                                "outstanding_amount", 6922.0,
+                                "docstatus", 0,
+                                "status", "Draft",
+                                "modified", "2026-05-12 10:00:00",
+                                "aas_source_sales_order", "SAL-ORD-2026-00001",
+                                "aas_replaced_by", "SINV-NEW"),
+                        Map.of(
+                                "name", "SINV-NEW",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-05-31",
+                                "grand_total", 116841.61,
+                                "outstanding_amount", 116841.61,
+                                "docstatus", 0,
+                                "status", "Draft",
+                                "modified", "2026-05-31 11:00:00",
+                                "aas_source_sales_order", "SAL-ORD-2026-00001",
+                                "aas_replaced_by", "")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherNo"))
+                .containsExactly("SINV-NEW");
+    }
+
+    @Test
+    void getBranchLedgerDedupesLatestBySourceSalesOrder() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-001",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-05-31",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "docstatus", 0,
+                                "status", "Draft",
+                                "modified", "2026-05-31 10:00:00",
+                                "aas_source_sales_order", "SAL-ORD-2026-00001",
+                                "aas_replaced_by", ""),
+                        Map.of(
+                                "name", "SINV-002",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-05-31",
+                                "grand_total", 1200.0,
+                                "outstanding_amount", 1200.0,
+                                "docstatus", 0,
+                                "status", "Draft",
+                                "modified", "2026-05-31 12:00:00",
+                                "aas_source_sales_order", "SAL-ORD-2026-00001",
+                                "aas_replaced_by", "")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherNo"))
+                .containsExactly("SINV-002");
+    }
 }

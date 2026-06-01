@@ -84,13 +84,21 @@
           <tbody>
             <tr *ngFor="let row of rows">
               <td *ngFor="let column of columns">
-                <ng-container *ngIf="isProfitColumn(column); else normalCell">
-                  <span class="profit-cell" [ngClass]="signClass(row[column])">
-                    <span class="profit-icon">{{ signIcon(row[column]) }}</span>
-                    <span>{{ formatCell(row[column]) }}</span>
+                <ng-container *ngIf="isPriceChangeColumn(column); else profitCheck">
+                  <span class="price-change-badge" [ngClass]="priceChangeClass(row[column])">
+                    <span class="price-change-icon">{{ priceChangeIcon(row[column]) }}</span>
+                    <span>{{ formatCell(row[column]) }}{{ column === 'change_pct' ? '%' : '' }}</span>
                   </span>
                 </ng-container>
-                <ng-template #normalCell>{{ formatCell(row[column]) }}</ng-template>
+                <ng-template #profitCheck>
+                  <ng-container *ngIf="isProfitColumn(column); else normalCell">
+                    <span class="profit-cell" [ngClass]="signClass(row[column])">
+                      <span class="profit-icon">{{ signIcon(row[column]) }}</span>
+                      <span>{{ formatCell(row[column]) }}</span>
+                    </span>
+                  </ng-container>
+                  <ng-template #normalCell>{{ formatCell(row[column]) }}</ng-template>
+                </ng-template>
               </td>
             </tr>
           </tbody>

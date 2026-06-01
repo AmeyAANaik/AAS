@@ -37,12 +37,14 @@ class PaymentDueServiceTest {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "SINV-1",
-                        "docstatus", 0,
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("100.00"),
                         "grand_total", new BigDecimal("100.00"))));
         when(erpNextClient.getResource("Sales Invoice", "SINV-1"))
                 .thenReturn(Map.of("data", Map.of(
                         "name", "SINV-1",
-                        "docstatus", 0,
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("100.00"),
                         "grand_total", new BigDecimal("100.00"),
                         "items", List.of(
                                 Map.of("item_code", "ITEM-1", "amount", new BigDecimal("60.00")),
@@ -60,18 +62,20 @@ class PaymentDueServiceTest {
     }
 
     @Test
-    void usesGrandTotalForDraftInvoices() {
+    void usesOutstandingAmountForSubmittedInvoices() {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
-                        "name", "SINV-DRAFT",
-                        "docstatus", 0,
-                        "grand_total", new BigDecimal("200.00"),
-                        "status", "Draft")));
-        when(erpNextClient.getResource("Sales Invoice", "SINV-DRAFT"))
+                        "name", "SINV-SUB",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("200.00"),
+                        "grand_total", new BigDecimal("999.00"),
+                        "status", "Unpaid")));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-SUB"))
                 .thenReturn(Map.of("data", Map.of(
-                        "name", "SINV-DRAFT",
-                        "docstatus", 0,
-                        "grand_total", new BigDecimal("200.00"),
+                        "name", "SINV-SUB",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("200.00"),
+                        "grand_total", new BigDecimal("999.00"),
                         "items", List.of(
                                 Map.of("item_code", "ITEM-1", "amount", new BigDecimal("200.00"))))));
         when(erpNextClient.getResource("Item", "ITEM-1"))
@@ -83,16 +87,18 @@ class PaymentDueServiceTest {
     }
 
     @Test
-    void ignoresSubmittedInvoicesEvenIfReturned() {
+    void ignoresDraftInvoicesEvenIfReturned() {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
-                        "name", "SINV-SUB",
-                        "docstatus", 1,
+                        "name", "SINV-DRAFT",
+                        "docstatus", 0,
+                        "outstanding_amount", new BigDecimal("999.00"),
                         "grand_total", new BigDecimal("999.00"))));
-        when(erpNextClient.getResource("Sales Invoice", "SINV-SUB"))
+        when(erpNextClient.getResource("Sales Invoice", "SINV-DRAFT"))
                 .thenReturn(Map.of("data", Map.of(
-                        "name", "SINV-SUB",
-                        "docstatus", 1,
+                        "name", "SINV-DRAFT",
+                        "docstatus", 0,
+                        "outstanding_amount", new BigDecimal("999.00"),
                         "grand_total", new BigDecimal("999.00"),
                         "items", List.of(
                                 Map.of("item_code", "ITEM-1", "amount", new BigDecimal("999.00"))))));
@@ -109,7 +115,8 @@ class PaymentDueServiceTest {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Purchase Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "PINV-1",
-                        "docstatus", 0,
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("100.00"),
                         "grand_total", new BigDecimal("100.00"),
                         "ignored", "x")));
         when(erpNextClient.getResource("Purchase Invoice", "PINV-1"))
@@ -136,7 +143,8 @@ class PaymentDueServiceTest {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Purchase Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "PINV-2",
-                        "docstatus", 0,
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("50.00"),
                         "grand_total", new BigDecimal("50.00"),
                         "ignored", "x")));
         when(erpNextClient.getResource("Purchase Invoice", "PINV-2"))

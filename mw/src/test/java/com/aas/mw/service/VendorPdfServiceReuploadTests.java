@@ -143,9 +143,88 @@ public class VendorPdfServiceReuploadTests {
         MockMultipartFile pdfFile = new MockMultipartFile("file", "invoice.pdf", "application/pdf", minimalPdfBytes());
         vendorPdfService.processVendorPdf(orderId, pdfFile, "sid=123");
 
-        verify(erpNextClient).updateResource(eq("Purchase Invoice"), eq("PI-OLD"), eq(Map.of(
-                "aas_invoice_version_status", "OLD",
-                "aas_replaced_by", "PI-NEW")));
+        verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PI-OLD"));
+        verify(orderBillingService, org.mockito.Mockito.never()).recordGeneratedVendorBill(eq(orderId), any());
+    }
+
+    @Test
+    void vendorPdfReceivedUploadDoesNotDeleteInvoicesOrAutoGenerateBills() throws Exception {
+        ErpNextClient erpNextClient = mock(ErpNextClient.class);
+        ErpNextFileService fileService = mock(ErpNextFileService.class);
+        VendorInvoiceTemplateResolver templateResolver = mock(VendorInvoiceTemplateResolver.class);
+        NativeLayoutInvoiceService nativeLayoutInvoiceService = mock(NativeLayoutInvoiceService.class);
+        InvoiceTemplateModelService invoiceTemplateModelService = mock(InvoiceTemplateModelService.class);
+        OrderFlowStateMachine orderFlowStateMachine = new OrderFlowStateMachine();
+        OrderBillingService orderBillingService = mock(OrderBillingService.class);
+        CatalogRoutingService catalogRoutingService = mock(CatalogRoutingService.class);
+        OrderPricingService orderPricingService = mock(OrderPricingService.class);
+        UomService uomService = mock(UomService.class);
+
+        VendorPdfService vendorPdfService = new VendorPdfService(
+                erpNextClient,
+                fileService,
+                templateResolver,
+                nativeLayoutInvoiceService,
+                invoiceTemplateModelService,
+                orderFlowStateMachine,
+                orderBillingService,
+                catalogRoutingService,
+                orderPricingService,
+                uomService,
+                7.0);
+
+        String orderId = "SO-1";
+        when(erpNextClient.getResource(eq("Sales Order"), eq(orderId))).thenReturn(Map.of(
+                "data", Map.of(
+                        "customer", "CUST-1",
+                        "company", "COMP-1",
+                        "aas_vendor", "SUP-1",
+                        "aas_category", "CAT-1",
+                        "aas_status", "VENDOR_PDF_RECEIVED",
+                        "aas_po", "")));
+
+        when(catalogRoutingService.resolveVendorForCategory(eq("SUP-1"), eq("CAT-1"))).thenReturn(
+                new CatalogRoutingService.VendorCategoryResolution("SUP-1", "Vendor", "V", "CAT-1", "Cat", "C"));
+
+        when(templateResolver.loadTemplateJson(eq("SUP-1"))).thenReturn(Optional.of("{}"));
+        when(nativeLayoutInvoiceService.parseStoredProfile(any())).thenReturn(new NativeLayoutInvoiceService.StoredProfile(
+                "p",
+                "label",
+                "vendor",
+                "desc",
+                List.of(),
+                List.of(),
+                "",
+                "",
+                "",
+                "",
+                "",
+                Map.of(),
+                Map.of(),
+                Map.of(),
+                List.of(),
+                List.of()));
+        when(invoiceTemplateModelService.requiredItemKeys()).thenReturn(List.of());
+        when(nativeLayoutInvoiceService.extract(any(byte[].class), any())).thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                List.of(),
+                "",
+                "2026-05-30",
+                "100.00",
+                "",
+                "",
+                List.of(),
+                List.of()));
+
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-1"));
+        when(fileService.uploadOrderPdf(eq(orderId), any(), any())).thenReturn(new UploadedFileInfo("invoice.pdf", "/files/invoice.pdf", "FILE-1"));
+
+        MockMultipartFile pdfFile = new MockMultipartFile("file", "invoice.pdf", "application/pdf", minimalPdfBytes());
+        vendorPdfService.processVendorPdf(orderId, pdfFile, "sid=123");
+
+        verify(erpNextClient, org.mockito.Mockito.never()).deleteResource(eq("Purchase Invoice"), any());
+        verify(erpNextClient, org.mockito.Mockito.never()).deleteResource(eq("Sales Invoice"), any());
+        verify(orderBillingService, org.mockito.Mockito.never()).recordGeneratedVendorBill(eq(orderId), any());
+        verify(orderBillingService, org.mockito.Mockito.never()).createOrReplaceSellOrder(eq(orderId), any());
     }
 
     @Test
@@ -235,10 +314,10 @@ public class VendorPdfServiceReuploadTests {
         MockMultipartFile pdfFile = new MockMultipartFile("file", "invoice.pdf", "application/pdf", minimalPdfBytes());
         vendorPdfService.processVendorPdf(orderId, pdfFile, "sid=123");
 
-        verify(orderBillingService).createOrReplaceSellOrder(eq(orderId), eq(Map.of("apply_transport_to_invoice", true)));
-        verify(erpNextClient).updateResource(eq("Sales Invoice"), eq("SI-OLD"), eq(Map.of(
-                "aas_invoice_version_status", "OLD",
-                "aas_replaced_by", "SI-NEW")));
+        verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PI-OLD"));
+        verify(erpNextClient).deleteResource(eq("Sales Invoice"), eq("SI-OLD"));
+        verify(orderBillingService, org.mockito.Mockito.never()).recordGeneratedVendorBill(eq(orderId), any());
+        verify(orderBillingService, org.mockito.Mockito.never()).createOrReplaceSellOrder(eq(orderId), any());
     }
 
     private static byte[] minimalPdfBytes() throws Exception {

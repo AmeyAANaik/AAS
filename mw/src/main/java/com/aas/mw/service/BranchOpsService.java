@@ -780,7 +780,10 @@ public class BranchOpsService {
 
     private List<Map<String, Object>> fetchSalesInvoices(String branchId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
+        params.put(
+                "fields",
+                "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\","
+                        + "\"aas_invoice_version_status\",\"aas_replaced_by\",\"aas_source_sales_order\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("docstatus", "!=", "2"));
@@ -788,9 +791,59 @@ public class BranchOpsService {
             filters.add(List.of("customer", "=", branchId));
         }
         params.put("filters", toJson(filters));
-        return listResourcesPaged(SALES_INVOICE, params).stream()
+        List<Map<String, Object>> rows = listResourcesPaged(SALES_INVOICE, params).stream()
+                .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
+                .filter(invoice -> asText(invoice.get("aas_replaced_by")).isBlank())
                 .toList();
+        return dedupeLatestBySourceOrder(rows);
+    }
+
+    private List<Map<String, Object>> dedupeLatestBySourceOrder(List<Map<String, Object>> invoices) {
+        if (invoices == null || invoices.size() < 2) {
+            return invoices == null ? List.of() : invoices;
+        }
+        Map<String, Map<String, Object>> bestByKey = new HashMap<>();
+        List<Map<String, Object>> passthrough = new ArrayList<>();
+        for (Map<String, Object> invoice : invoices) {
+            if (invoice == null) {
+                continue;
+            }
+            String key = asText(invoice.get("aas_source_sales_order")).trim();
+            if (key.isBlank()) {
+                passthrough.add(invoice);
+                continue;
+            }
+            Map<String, Object> best = bestByKey.get(key);
+            if (best == null || compareInvoiceRecency(invoice, best) > 0) {
+                bestByKey.put(key, invoice);
+            }
+        }
+        List<Map<String, Object>> result = new ArrayList<>(passthrough.size() + bestByKey.size());
+        result.addAll(passthrough);
+        result.addAll(bestByKey.values());
+        result.sort((a, b) -> {
+            int posting = asText(a.get("posting_date")).compareTo(asText(b.get("posting_date")));
+            if (posting != 0) {
+                return posting;
+            }
+            return compareInvoiceRecency(a, b);
+        });
+        return result;
+    }
+
+    private int compareInvoiceRecency(Map<String, Object> left, Map<String, Object> right) {
+        String leftModified = asText(left == null ? null : left.get("modified")).trim();
+        String rightModified = asText(right == null ? null : right.get("modified")).trim();
+        if (!leftModified.isBlank() || !rightModified.isBlank()) {
+            return leftModified.compareTo(rightModified);
+        }
+        String leftCreated = asText(left == null ? null : left.get("creation")).trim();
+        String rightCreated = asText(right == null ? null : right.get("creation")).trim();
+        if (!leftCreated.isBlank() || !rightCreated.isBlank()) {
+            return leftCreated.compareTo(rightCreated);
+        }
+        return asText(left == null ? null : left.get("name")).compareTo(asText(right == null ? null : right.get("name")));
     }
 
     private List<Map<String, Object>> fetchCustomerPayments(String branchId, List<Map<String, Object>> invoices) {

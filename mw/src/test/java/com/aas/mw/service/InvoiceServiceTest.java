@@ -114,4 +114,17 @@ class InvoiceServiceTest {
         assertEquals(1, invoices.size());
         assertEquals("SINV-CURRENT", invoices.get(0).get("name"));
     }
+
+    @Test
+    void listInvoicesExcludesOpeningInvoices() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of("name", "SINV-OPENING", "docstatus", 1, "status", "Unpaid", "is_opening", "Yes", "aas_invoice_version_status", "CURRENT"),
+                        Map.of("name", "SINV-NORMAL", "docstatus", 1, "status", "Unpaid", "is_opening", "No", "aas_invoice_version_status", "CURRENT")));
+
+        List<Map<String, Object>> invoices = invoiceService.listInvoices(null, null, null);
+
+        assertEquals(1, invoices.size());
+        assertEquals("SINV-NORMAL", invoices.get(0).get("name"));
+    }
 }

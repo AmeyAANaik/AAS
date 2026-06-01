@@ -24,7 +24,9 @@ public class InvoiceService {
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String PAYMENT_LEDGER_ENTRY = "Payment Ledger Entry";
     private static final String INVOICE_VERSION_OLD = "OLD";
+    private static final String OPENING_REFERENCE_PREFIX = "AAS-OPENING-";
     private static final Pattern PAYMENT_ENTRY_ID_PATTERN = Pattern.compile("(ACC-PAY-\\d{4}-\\d+)");
+    private static final Pattern FILTER_TOKEN_PATTERN = Pattern.compile("\\[\\[[^\\]]*?\"(%s)\"[^\\]]*?\\]\\]");
 
     private final ErpNextClient erpNextClient;
     private final PaymentDueService paymentDueService;
@@ -269,6 +271,23 @@ public class InvoiceService {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
+    private Map<String, Object> stripFilter(Map<String, Object> params, String field) {
+        if (params == null || params.isEmpty() || field == null || field.isBlank()) {
+            return params;
+        }
+        Object filters = params.get("filters");
+        if (!(filters instanceof String filterList) || filterList.isBlank()) {
+            return params;
+        }
+        String escaped = Pattern.quote(field);
+        String tokenPattern = FILTER_TOKEN_PATTERN.pattern().formatted(escaped);
+        String updated = filterList.replaceAll(",?" + tokenPattern, "");
+        updated = updated.replace("[,", "[").replace(",]", "]");
+        Map<String, Object> copy = new HashMap<>(params);
+        copy.put("filters", updated);
+        return copy;
+    }
+
     public List<Map<String, Object>> listInvoices(String customer, String fromDate, String toDate) {
         return listInvoices("Customer", customer, fromDate, toDate);
     }
@@ -282,7 +301,8 @@ public class InvoiceService {
         params.put(
                 "fields",
                 "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\","
-                        + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\"]");
+                        + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\","
+                        + "\"is_opening\",\"po_no\",\"remarks\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (partyId != null && !partyId.isBlank()) {
@@ -294,21 +314,32 @@ public class InvoiceService {
         if (toDate != null && !toDate.isBlank()) {
             filters.add(List.of("posting_date", "<=", toDate));
         }
+        // Exclude opening balance invoices from standard invoice listings/metrics.
+        filters.add(List.of("is_opening", "!=", "Yes"));
         if (!filters.isEmpty()) {
             params.put("filters", toJson(filters));
         }
-        List<Map<String, Object>> rows = listInvoicesResource(params).stream()
+        List<Map<String, Object>> baseRows;
+        try {
+            baseRows = listInvoicesResource(params);
+        } catch (Exception ex) {
+            // Some ERPNext instances may not allow filtering by is_opening; fall back to filtering client-side.
+            Map<String, Object> fallback = stripFilter(params, "is_opening");
+            baseRows = fallback == null ? List.of() : listInvoicesResource(fallback);
+        }
+        List<Map<String, Object>> rows = baseRows.stream()
                 .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
                 .filter(invoice -> asText(invoice.get("aas_replaced_by")).isBlank())
+                .filter(invoice -> !isOpeningInvoice(invoice))
                 .toList();
         return dedupeLatestBySourceOrder(rows);
     }
 
     private List<Map<String, Object>> listPurchaseInvoices(String supplier, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (supplier != null && !supplier.isBlank()) {
@@ -322,18 +353,54 @@ public class InvoiceService {
         }
         // Exclude cancelled.
         filters.add(List.of("docstatus", "!=", "2"));
+        // Exclude opening balance invoices from standard invoice listings/metrics.
+        filters.add(List.of("is_opening", "!=", "Yes"));
         params.put("filters", toJson(filters));
 
         String privilegedSession = operationalReadSession();
-        List<Map<String, Object>> rows = privilegedSession == null
-                ? erpNextClient.listResources("Purchase Invoice", params)
-                : erpNextClient.listResourcesWithSession("Purchase Invoice", params, privilegedSession);
+        List<Map<String, Object>> rows;
+        try {
+            rows = privilegedSession == null
+                    ? erpNextClient.listResources("Purchase Invoice", params)
+                    : erpNextClient.listResourcesWithSession("Purchase Invoice", params, privilegedSession);
+        } catch (Exception ex) {
+            // Some ERPNext instances may not allow filtering by is_opening; fall back to filtering client-side.
+            Map<String, Object> fallback = stripFilter(params, "is_opening");
+            if (fallback == null) {
+                rows = List.of();
+            } else {
+                rows = privilegedSession == null
+                        ? erpNextClient.listResources("Purchase Invoice", fallback)
+                        : erpNextClient.listResourcesWithSession("Purchase Invoice", fallback, privilegedSession);
+            }
+        }
 
         return rows.stream()
                 .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
+                .filter(invoice -> !isOpeningInvoice(invoice))
                 .map(this::mapSupplierToCustomerField)
                 .toList();
+    }
+
+    private boolean isOpeningInvoice(Map<String, Object> invoice) {
+        if (invoice == null || invoice.isEmpty()) {
+            return false;
+        }
+        String opening = asText(invoice.get("is_opening"));
+        if (opening.equalsIgnoreCase("Yes") || opening.equals("1") || opening.equalsIgnoreCase("true")) {
+            return true;
+        }
+        String remarks = asText(invoice.get("remarks"));
+        if (!remarks.isBlank() && remarks.startsWith(OPENING_REFERENCE_PREFIX)) {
+            return true;
+        }
+        String poNo = asText(invoice.get("po_no"));
+        if (!poNo.isBlank() && poNo.startsWith(OPENING_REFERENCE_PREFIX)) {
+            return true;
+        }
+        String billNo = asText(invoice.get("bill_no"));
+        return !billNo.isBlank() && billNo.startsWith(OPENING_REFERENCE_PREFIX);
     }
 
     private Map<String, Object> mapSupplierToCustomerField(Map<String, Object> invoice) {

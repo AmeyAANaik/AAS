@@ -171,23 +171,32 @@ public class VendorPdfService {
         String previousPurchaseInvoiceId = asText(orderData.get("aas_pi_vendor")).trim();
         String previousSalesInvoiceId = asText(orderData.get("aas_si_branch")).trim();
         boolean isBillUpdate = "VENDOR_BILL_CAPTURED".equals(normalizedStatus) || "SELL_ORDER_CREATED".equals(normalizedStatus);
+        boolean workflowReset = false;
         if (isBillUpdate) {
+            // Re-upload after bill capture / sell order creation should reset workflow back to Step 3.
+            // Delete any linked draft invoices so Step 3 & 4 can be re-initiated explicitly by the user.
             if (hasText(previousPurchaseInvoiceId)) {
-                ensureDraftInvoiceCanBeReplaced(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
+                deleteLinkedDraftInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
             }
             if ("SELL_ORDER_CREATED".equals(normalizedStatus) && hasText(previousSalesInvoiceId)) {
-                ensureDraftInvoiceCanBeReplaced(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
+                deleteLinkedDraftInvoice(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
             }
+            workflowReset = true;
         }
 
         Map<String, Object> linkUpdate = new HashMap<>();
         linkUpdate.put("items", sourceOrderItems);
         linkUpdate.put("aas_margin_percent", marginPercent);
         linkUpdate.put("aas_po", purchaseOrderId);
-        linkUpdate.put("aas_status", isBillUpdate ? normalizedStatus : "VENDOR_PDF_RECEIVED");
+        linkUpdate.put("aas_status", "VENDOR_PDF_RECEIVED");
         linkUpdate.put("aas_vendor_bill_total", vendorBillTotal);
         linkUpdate.put("aas_vendor_bill_ref", vendorBillRef);
         linkUpdate.put("aas_transport_charge", transportCharge);
+        if (workflowReset) {
+            linkUpdate.put("aas_pi_vendor", "");
+            linkUpdate.put("aas_si_branch", "");
+            linkUpdate.put("aas_sell_order_total", 0);
+        }
         if (vendorBillDate != null && !vendorBillDate.isBlank()) {
             linkUpdate.put("aas_vendor_bill_date", vendorBillDate);
         }
@@ -199,42 +208,10 @@ public class VendorPdfService {
             return null;
         });
 
-        Map<String, Object> replacementPurchaseInvoice = null;
-        Map<String, Object> replacementSalesInvoice = null;
-        if (isBillUpdate) {
-            Map<String, Object> vendorBill = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
-                    "vendor_bill_total", vendorBillTotal,
-                    "vendor_bill_ref", vendorBillRef,
-                    "vendor_bill_date", vendorBillDate == null ? "" : vendorBillDate,
-                    "transport_charge", transportCharge,
-                    "rounding_adjustment", 0.0));
-            replacementPurchaseInvoice = vendorBill.get("purchaseInvoice") instanceof Map<?, ?> map
-                    ? castMap(map)
-                    : null;
-            String replacementPurchaseInvoiceId = extractDocName(replacementPurchaseInvoice);
-            archiveReplacedInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, replacementPurchaseInvoiceId);
-
-            if ("SELL_ORDER_CREATED".equals(normalizedStatus)) {
-                boolean applyTransportToInvoice = shouldApplyTransportToReplacementInvoice(previousSalesInvoiceId);
-                Map<String, Object> sellOrder = orderBillingService.createOrReplaceSellOrder(orderId, Map.of(
-                        "apply_transport_to_invoice", applyTransportToInvoice));
-                replacementSalesInvoice = sellOrder.get("salesInvoice") instanceof Map<?, ?> map
-                        ? castMap(map)
-                        : null;
-                String replacementSalesInvoiceId = extractDocName(replacementSalesInvoice);
-                archiveReplacedInvoice(SALES_INVOICE, previousSalesInvoiceId, replacementSalesInvoiceId);
-            }
-        }
-
         Map<String, Object> response = new HashMap<>();
         response.put("orderId", orderId);
         response.put("purchaseOrder", purchaseOrder);
-        if (replacementPurchaseInvoice != null) {
-            response.put("purchaseInvoice", replacementPurchaseInvoice);
-        }
-        if (replacementSalesInvoice != null) {
-            response.put("salesInvoice", replacementSalesInvoice);
-        }
+        response.put("workflowReset", workflowReset);
         response.put("sellPreview", Map.of(
                 "vendorTotal", sumAmount(baseItems),
                 "marginPercent", marginPercent,
@@ -288,6 +265,19 @@ public class VendorPdfService {
             throw new IllegalStateException(
                     "Cannot re-upload/re-parse because the current " + label + " (" + invoiceId + ") is not draft.");
         }
+    }
+
+    private void deleteLinkedDraftInvoice(String doctype, String invoiceId, String label) {
+        if (!hasText(invoiceId)) {
+            return;
+        }
+        Map<String, Object> invoice = unwrapResource(erpNextClient.getResource(doctype, invoiceId));
+        int docstatus = (int) Math.round(asDouble(invoice.get("docstatus")));
+        if (docstatus != 0) {
+            throw new IllegalStateException(
+                    "Cannot re-upload/re-parse because the current " + label + " (" + invoiceId + ") is not draft.");
+        }
+        erpNextClient.deleteResource(doctype, invoiceId);
     }
 
     private void archiveReplacedInvoice(String doctype, String oldInvoiceId, String newInvoiceId) {

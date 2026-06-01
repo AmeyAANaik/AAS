@@ -11,7 +11,7 @@ class OpeningBalanceImportServiceTest {
 
     @Test
     void templateCsv_includesRequiredHeaderAndExampleRows() {
-        OpeningBalanceImportService service = new OpeningBalanceImportService(mock(ErpNextClient.class));
+        OpeningBalanceImportService service = new OpeningBalanceImportService(mock(ErpNextClient.class), mock(PaymentDueService.class));
 
         String csv = service.templateCsv("ACME");
 
@@ -24,11 +24,10 @@ class OpeningBalanceImportServiceTest {
 
     @Test
     void templateCsv_requiresCompanyId() {
-        OpeningBalanceImportService service = new OpeningBalanceImportService(mock(ErpNextClient.class));
+        OpeningBalanceImportService service = new OpeningBalanceImportService(mock(ErpNextClient.class), mock(PaymentDueService.class));
 
         assertThatThrownBy(() -> service.templateCsv("   "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("companyId is required");
     }
 }
-

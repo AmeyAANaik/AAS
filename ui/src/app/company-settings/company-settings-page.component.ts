@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Observable, of } from 'rxjs';
 import { finalize, map, switchMap } from 'rxjs/operators';
-import { CompanyContextService, CompanyIdentity, OpeningBalancePreview, OpeningBalanceApplyResult } from '../shared/company-context.service';
+import { CompanyContextService, CompanyIdentity, OpeningBalancePreview, OpeningBalanceApplyResult, OpeningInvoicesSnapshot } from '../shared/company-context.service';
 import {
   AccessControlService,
   AccessFeatureDefinition,
@@ -57,6 +57,9 @@ export class CompanySettingsPageComponent implements OnInit {
   openingBalanceFileName = '';
   openingBalancePreview: OpeningBalancePreview | null = null;
   openingBalanceApplyResult: OpeningBalanceApplyResult | null = null;
+  openingInvoices: OpeningInvoicesSnapshot | null = null;
+  openingInvoicesError = '';
+  isOpeningInvoicesLoading = false;
   accessMessage = '';
   accessErrorMessage = '';
   featureCatalog: AccessFeatureDefinition[] = [];
@@ -306,11 +309,32 @@ export class CompanySettingsPageComponent implements OnInit {
       .subscribe({
         next: result => {
           this.openingBalanceApplyResult = result;
-          this.openingBalanceMessage = 'Opening balances created in ERPNext as drafts.';
+          this.openingBalanceMessage = 'Opening balances applied in ERPNext (opening docs submitted).';
         },
         error: err => {
           const message = String(err?.error?.message ?? err?.message ?? '').trim();
           this.openingBalanceError = message || 'Unable to apply opening balances.';
+        }
+      });
+  }
+
+  loadOpeningInvoices(): void {
+    if (!this.companyId) {
+      this.openingInvoicesError = 'Company is not loaded yet.';
+      return;
+    }
+    this.isOpeningInvoicesLoading = true;
+    this.openingInvoicesError = '';
+    this.openingInvoices = null;
+    this.companyContextService.getOpeningInvoices(this.companyId)
+      .pipe(finalize(() => (this.isOpeningInvoicesLoading = false)))
+      .subscribe({
+        next: snapshot => {
+          this.openingInvoices = snapshot;
+        },
+        error: err => {
+          const message = String(err?.error?.message ?? err?.message ?? '').trim();
+          this.openingInvoicesError = message || 'Unable to load opening invoices.';
         }
       });
   }

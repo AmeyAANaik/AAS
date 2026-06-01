@@ -44,6 +44,11 @@ public class ReportsController {
                         List.of("day", "week", "month"),
                         "day"),
                 catalogItem(
+                        "item-price-trend",
+                        "Item Price Changes",
+                        "All items with their previous vs current sell price, sorted by biggest movers first.",
+                        "item-price-trend"),
+                catalogItem(
                         "supplier-expenses",
                         "Supplier Expenses",
                         "Expenses grouped by supplier for a date range.",
@@ -53,6 +58,24 @@ public class ReportsController {
                         "Branch Income",
                         "Income grouped by branch for a date range.",
                         "company/branch-income")));
+    }
+
+    @GetMapping("/item-price-trend")
+    public ResponseEntity<List<Map<String, Object>>> itemPriceTrend(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return ResponseEntity.ok(reportService.itemPriceTrend(from, to));
+    }
+
+    @GetMapping("/item-price-trend/export")
+    public ResponseEntity<String> itemPriceTrendExport(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        String csv = CsvUtil.toCsv(reportService.itemPriceTrend(from, to));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"item-price-trend.csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
     }
 
     @GetMapping("/company/branch-sales-profit")

@@ -129,7 +129,7 @@ public class SetupService {
                 </td>
                 <td class="aas-invoice-meta">
                   <div class="aas-invoice-card">
-                    <p class="aas-invoice-heading">Tax Invoice</p>
+                    <p class="aas-invoice-heading">{{ "Opening Balance" if doc.is_opening == "Yes" else "Tax Invoice" }}</p>
                     <table class="aas-meta-table">
                       <tr><td class="aas-meta-label">Invoice No</td><td>{{ doc.name }}</td></tr>
                       <tr><td class="aas-meta-label">Invoice Date</td><td>{{ frappe.utils.formatdate(doc.posting_date) }}</td></tr>
@@ -213,6 +213,12 @@ public class SetupService {
                 {% endfor %}
               </tbody>
             </table>
+            {% set open_invoices = frappe.get_list("Sales Invoice", filters=[["customer", "=", doc.customer], ["docstatus", "!=", 2], ["name", "!=", doc.name]], fields=["grand_total", "outstanding_amount", "docstatus"], limit_page_length=500) if doc.customer else [] %}
+            {% set dues_ns = namespace(pending=0.0) %}
+            {% for inv in open_invoices %}
+            {% set inv_amount = frappe.utils.flt(inv.outstanding_amount, 2) if (inv.docstatus == 1 and inv.outstanding_amount) else frappe.utils.flt(inv.grand_total, 2) %}
+            {% set dues_ns.pending = dues_ns.pending + inv_amount %}
+            {% endfor %}
             <table class="aas-summary">
               <tbody>
               <tr class="aas-summary-heading">
@@ -261,30 +267,19 @@ public class SetupService {
                 <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(current_pending if doc.aas_current_pending else (previous_due + grand_total), currency=doc.currency) }}</td>
               </tr>
               {% endif %}
+              <tr>
+                <td class="aas-summary-label-cell">Previous Due</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(dues_ns.pending, currency=doc.currency) }}</td>
+              </tr>
+              <tr>
+                <td class="aas-summary-label-cell">Current Total</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
+              </tr>
+              <tr class="aas-summary-grand">
+                <td class="aas-summary-label-cell">Total Pending</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(frappe.utils.flt(dues_ns.pending + grand_total, 2), currency=doc.currency) }}</td>
+              </tr>
               </tbody>
-            </table>
-            {% set open_invoices = frappe.get_list("Sales Invoice", filters=[["customer", "=", doc.customer], ["docstatus", "!=", 2], ["name", "!=", doc.name]], fields=["grand_total", "outstanding_amount", "docstatus"], limit_page_length=500) if doc.customer else [] %}
-            {% set dues_ns = namespace(pending=0.0) %}
-            {% for inv in open_invoices %}
-            {% set inv_amount = frappe.utils.flt(inv.outstanding_amount, 2) if (inv.docstatus == 1 and inv.outstanding_amount) else frappe.utils.flt(inv.grand_total, 2) %}
-            {% set dues_ns.pending = dues_ns.pending + inv_amount %}
-            {% endfor %}
-            <table class="aas-dues-summary" style="width: 360px; margin: 12px 0 24px auto; border-collapse: collapse; page-break-inside: avoid;">
-              <tr style="background: #f3f4f6;">
-                <td colspan="2" style="border: 1px solid #111827; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: #4b5563;">Account Summary</td>
-              </tr>
-              <tr>
-                <td style="border: 1px solid #111827; padding: 8px 10px; font-weight: 600; width: 58%;">Pending Dues</td>
-                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap; width: 42%;">{{ frappe.utils.fmt_money(dues_ns.pending, currency=doc.currency) }}</td>
-              </tr>
-              <tr>
-                <td style="border: 1px solid #111827; padding: 8px 10px; font-weight: 600;">Current Invoice</td>
-                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
-              </tr>
-              <tr style="font-weight: 700; background: #eef2ff; font-size: 13px;">
-                <td style="border: 1px solid #111827; padding: 8px 10px;">Total Outstanding</td>
-                <td style="border: 1px solid #111827; padding: 8px 10px; text-align: right; white-space: nowrap;">{{ frappe.utils.fmt_money(frappe.utils.flt(dues_ns.pending + grand_total, 2), currency=doc.currency) }}</td>
-              </tr>
             </table>
             <table class="aas-footer-grid">
               <tr>
@@ -911,6 +906,7 @@ public class SetupService {
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
+        result.put("temporaryOpeningAccountEnsured", ensureTemporaryOpeningAccount());
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
         result.put("salesInvoiceCategoryFieldCreated", salesInvoiceCategoryField);
         result.put("salesInvoicePreviousDueFieldCreated", salesInvoicePreviousDueField);
@@ -1202,6 +1198,15 @@ public class SetupService {
             return false;
         }
         if (resourceExists("Supplier", supplierName)) {
+            try {
+                Map<String, Object> supplier = unwrap(erpNextClient.getResource("Supplier", supplierName));
+                if (isDisabled(supplier.get("disabled"))) {
+                    erpNextClient.updateResource("Supplier", supplierName, Map.of("disabled", 0));
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // Best-effort; fall through.
+            }
             return false;
         }
         Map<String, Object> payload = new HashMap<>();
@@ -1217,12 +1222,35 @@ public class SetupService {
             return false;
         }
         if (resourceExists("Customer", customerName)) {
+            try {
+                Map<String, Object> customer = unwrap(erpNextClient.getResource("Customer", customerName));
+                if (isDisabled(customer.get("disabled"))) {
+                    erpNextClient.updateResource("Customer", customerName, Map.of("disabled", 0));
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // Best-effort; fall through.
+            }
             return false;
         }
         Map<String, Object> payload = new HashMap<>();
         payload.put("customer_name", customerName);
         erpNextClient.createResource("Customer", payload);
         return true;
+    }
+
+    private boolean isDisabled(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        if (value instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        String text = value.toString().trim();
+        return "1".equals(text) || "true".equalsIgnoreCase(text) || "yes".equalsIgnoreCase(text);
     }
 
     private boolean ensureItem(String itemCode, String itemName, String description) {
@@ -1446,6 +1474,131 @@ public class SetupService {
             start += pageSize;
         }
         return changed;
+    }
+
+    private boolean ensureTemporaryOpeningAccount() {
+        boolean changed = false;
+        int start = 0;
+        final int pageSize = 200;
+        while (true) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"abbr\",\"temporary_opening_account\"]");
+            params.put("limit_page_length", pageSize);
+            params.put("limit_start", start);
+            List<Map<String, Object>> companies;
+            try {
+                companies = erpNextClient.listResources("Company", params);
+            } catch (Exception ex) {
+                // Field may not be exposed by some ERPNext instances.
+                return false;
+            }
+            if (companies == null || companies.isEmpty()) {
+                break;
+            }
+            for (Map<String, Object> row : companies) {
+                String companyName = asText(row.get("name"));
+                if (companyName.isBlank()) {
+                    continue;
+                }
+                if (!asText(row.get("temporary_opening_account")).isBlank()) {
+                    continue;
+                }
+                String abbr = asText(row.get("abbr"));
+                String accountId = ensureTemporaryOpeningAccountDoc(companyName, abbr);
+                if (accountId.isBlank()) {
+                    continue;
+                }
+                try {
+                    erpNextClient.updateResource("Company", companyName, Map.of("temporary_opening_account", accountId));
+                    changed = true;
+                } catch (Exception ignored) {
+                    // Ignore if field is not writable/exposed.
+                }
+            }
+            if (companies.size() < pageSize) {
+                break;
+            }
+            start += pageSize;
+        }
+        return changed;
+    }
+
+    private String ensureTemporaryOpeningAccountDoc(String companyName, String companyAbbr) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\"]");
+        params.put(
+                "filters",
+                "[[\"company\",\"=\",\"" + escape(companyName) + "\"],[\"account_name\",\"=\",\"Temporary Opening\"]]");
+        params.put("limit_page_length", 5);
+        List<Map<String, Object>> existing = erpNextClient.listResources("Account", params);
+        if (existing != null) {
+            for (Map<String, Object> account : existing) {
+                if (account == null) {
+                    continue;
+                }
+                if ("Temporary Opening".equalsIgnoreCase(asText(account.get("account_name")))
+                        && companyName.equalsIgnoreCase(asText(account.get("company")))) {
+                    return asText(account.get("name"));
+                }
+            }
+        }
+
+        String parent = resolveTemporaryOpeningParent(companyName, companyAbbr);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("account_name", "Temporary Opening");
+        payload.put("company", companyName);
+        payload.put("is_group", 0);
+        if (!parent.isBlank()) {
+            payload.put("parent_account", parent);
+        }
+        payload.put("root_type", "Equity");
+        payload.put("report_type", "Balance Sheet");
+        Map<String, Object> created = erpNextClient.createResource("Account", payload);
+        return asText(unwrap(created).get("name"));
+    }
+
+    private String resolveTemporaryOpeningParent(String companyName, String companyAbbr) {
+        String abbr = companyAbbr == null ? "" : companyAbbr.trim();
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\",\"is_group\",\"root_type\"]");
+        params.put("filters", "[[\"company\",\"=\",\"" + escape(companyName) + "\"],[\"is_group\",\"=\",\"1\"]]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> accounts;
+        try {
+            accounts = erpNextClient.listResources("Account", params);
+        } catch (Exception ex) {
+            return "";
+        }
+        if (accounts == null || accounts.isEmpty()) {
+            return "";
+        }
+        for (Map<String, Object> account : accounts) {
+            if (account == null) {
+                continue;
+            }
+            if (!companyName.equalsIgnoreCase(asText(account.get("company")))) {
+                continue;
+            }
+            String accountName = asText(account.get("account_name"));
+            if (accountName.equalsIgnoreCase("Temporary Accounts")) {
+                return asText(account.get("name"));
+            }
+            if (!abbr.isBlank() && ("Temporary Accounts - " + abbr).equals(asText(account.get("name")))) {
+                return asText(account.get("name"));
+            }
+        }
+        for (Map<String, Object> account : accounts) {
+            if (account == null) {
+                continue;
+            }
+            if (!companyName.equalsIgnoreCase(asText(account.get("company")))) {
+                continue;
+            }
+            if ("Equity".equalsIgnoreCase(asText(account.get("root_type")))) {
+                return asText(account.get("name"));
+            }
+        }
+        return "";
     }
 
     private String ensureSalesInvoicePrintFormatDoc() {

@@ -149,6 +149,54 @@ public class ReportService {
         }).toList();
     }
 
+    public List<Map<String, Object>> itemPriceTrend(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
+        params.put("order_by", "valid_from asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("price_list", "=", "Standard Selling"));
+        filters.add(List.of("valid_from", ">=", range.start()));
+        filters.add(List.of("valid_from", "<=", range.end()));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> prices = erpNextClient.listResources("Item Price", params);
+
+        // Group by item_code, keep only first (prev) and last (curr) entry per item
+        Map<String, Map<String, Object>> firstPrice = new java.util.LinkedHashMap<>();
+        Map<String, Map<String, Object>> lastPrice = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> entry : prices) {
+            String code = asString(entry.get("item_code"));
+            if (code.isBlank()) continue;
+            firstPrice.putIfAbsent(code, entry);
+            lastPrice.put(code, entry);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String code : lastPrice.keySet()) {
+            Map<String, Object> first = firstPrice.get(code);
+            Map<String, Object> last = lastPrice.get(code);
+            double prevPrice = asDouble(first.get("price_list_rate"));
+            double currPrice = asDouble(last.get("price_list_rate"));
+            double change = round(currPrice - prevPrice);
+            double changePct = prevPrice > 0 ? round((change / prevPrice) * 100.0) : 0.0;
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("item_code", code);
+            row.put("item_name", asString(last.get("item_name")));
+            row.put("category", asString(last.get("item_group")));
+            row.put("prev_price", prevPrice);
+            row.put("curr_price", currPrice);
+            row.put("price_change", change);
+            row.put("change_pct", changePct);
+            row.put("currency", asString(last.get("currency")));
+            result.add(row);
+        }
+        // Sort by absolute change descending so biggest movers appear first
+        result.sort((a, b) -> Double.compare(
+                Math.abs(asDouble(b.get("price_change"))),
+                Math.abs(asDouble(a.get("price_change")))));
+        return result;
+    }
+
     public List<Map<String, Object>> companyBranchSalesProfit(String from, String to) {
         DateRange range = resolveDateRange(from, to);
         List<Map<String, Object>> orders = fetchSalesOrders(range);

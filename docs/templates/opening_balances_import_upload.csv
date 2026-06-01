@@ -1,0 +1,22 @@
+record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Baner",474508,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Deccan",323691,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Kothrud",227811,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Wakad",361998,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Satara road",191157,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Sinhgad road",253002,,,Grocery
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Baner",107745,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Deccan",174660,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Kothrud",86887,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Wakad",51838,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Satara road",159940,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Sinhgad road",39609,,,Dairy
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Baner",207240,,,Aamras
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Deccan",139268,,,Aamras
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Kothrud",147100,,,Aamras
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall, Wakad",150720,,,Aamras
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Satara road",202530,,,Aamras
+CUSTOMER,,,,,"Sukhkarta Pure Veg Dining Hall,Sinhgad road",86350,,,Aamras
+SUPPLIER,,,,,Sanshray Foods,1674704,,,Grocery
+SUPPLIER,,,,,Bhamchandra Milk & Milk Products Pvt Ltd,341194,,,Dairy
+SUPPLIER,,,,,Pragati Foods,289035,,,Aamras

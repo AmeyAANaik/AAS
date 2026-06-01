@@ -72,6 +72,38 @@ class VendorOpsServiceTest {
     }
 
     @Test
+    void summaryPendingBillAmountFallsBackToGrandTotalForDraftInvoices() {
+        when(erpNextClient.listResources(eq("Supplier"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "VENDOR-1",
+                        "supplier_name", "Pragati Foods",
+                        "disabled", 0)));
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-DRAFT",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-05-31",
+                                "outstanding_amount", 0.0,
+                                "grand_total", 289035.0,
+                                "bill_no", "OB-SUP-001",
+                                "docstatus", 0,
+                                "modified", "2026-05-31 11:00:00")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = vendorOpsService.getSummary();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> vendors = (List<Map<String, Object>>) response.get("vendors");
+
+        assertThat(vendors).hasSize(1);
+        assertThat(vendors.get(0).get("pendingBillAmount")).isEqualTo(289035.0);
+    }
+
+    @Test
     void getVendorLedgerTreatsInvoicesAsPositivePayableAndPaymentsAsReductions() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));

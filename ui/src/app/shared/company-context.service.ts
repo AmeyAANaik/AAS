@@ -56,6 +56,31 @@ export type OpeningBalanceApplyResult = {
   created: Record<string, unknown>;
 };
 
+export type OpeningInvoiceRow = {
+  name: string;
+  company?: string;
+  posting_date?: string;
+  due_date?: string;
+  grand_total?: number;
+  outstanding_amount?: number;
+  status?: string;
+  docstatus?: number;
+  is_opening?: string;
+  customer?: string;
+  supplier?: string;
+  bill_no?: string;
+  po_no?: string;
+  remarks?: string;
+};
+
+export type OpeningInvoicesSnapshot = {
+  companyId: string;
+  from?: string;
+  to?: string;
+  salesInvoices: OpeningInvoiceRow[];
+  purchaseInvoices: OpeningInvoiceRow[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class CompanyContextService {
   readonly contextChanged$ = new Subject<void>();
@@ -125,6 +150,20 @@ export class CompanyContextService {
       `/api/companies/${encodeURIComponent(companyId)}/opening-balances/apply`,
       formData,
       { headers: this.authHeaders() }
+    );
+  }
+
+  getOpeningInvoices(companyId: string, from?: string, to?: string): Observable<OpeningInvoicesSnapshot> {
+    const params: Record<string, string> = {};
+    if (from) {
+      params['from'] = from;
+    }
+    if (to) {
+      params['to'] = to;
+    }
+    return this.http.get<OpeningInvoicesSnapshot>(
+      `/api/companies/${encodeURIComponent(companyId)}/opening-balances/invoices`,
+      { headers: this.authHeaders(), params }
     );
   }
 

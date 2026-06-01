@@ -59,6 +59,35 @@
   justify-content: center;
 }
 
+.price-change-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.price-change-badge.pos {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
+}
+
+.price-change-badge.neg {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--danger);
+}
+
+.price-change-badge.zero {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.price-change-icon {
+  font-size: 10px;
+}
+
 .pos {
   color: var(--success);
 }

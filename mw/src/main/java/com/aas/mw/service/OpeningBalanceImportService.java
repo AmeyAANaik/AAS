@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -33,10 +34,12 @@ public class OpeningBalanceImportService {
     private static final String OPENING_ITEM_PREFIX = "AAS-OPENING-ITEM-";
 
     private final ErpNextClient erpNextClient;
+    private final PaymentDueService paymentDueService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public OpeningBalanceImportService(ErpNextClient erpNextClient) {
+    public OpeningBalanceImportService(ErpNextClient erpNextClient, PaymentDueService paymentDueService) {
         this.erpNextClient = erpNextClient;
+        this.paymentDueService = paymentDueService;
     }
 
     public String templateCsv(String companyId) {
@@ -92,35 +95,102 @@ public class OpeningBalanceImportService {
 
         Map<String, Object> created = new LinkedHashMap<>();
         if (!validation.accountEntries().isEmpty()) {
-            created.put("journalEntry", unwrapDoc(erpNextClient.createResource("Journal Entry", buildJournalEntryPayload(
+            Map<String, Object> journalEntry = unwrapDoc(erpNextClient.createResource("Journal Entry", buildJournalEntryPayload(
                     normalizedCompany,
                     postingDate,
-                    validation.accountEntries()))));
+                    validation.accountEntries())));
+            created.put("journalEntry", journalEntry);
+            created.put("journalEntrySubmitted", submitCreated("Journal Entry", journalEntry));
         } else {
             created.put("journalEntry", Map.of());
+            created.put("journalEntrySubmitted", Map.of());
         }
 
         List<Map<String, Object>> purchaseInvoices = new ArrayList<>();
+        List<Map<String, Object>> submittedPurchaseInvoices = new ArrayList<>();
         for (PartyAmount row : validation.supplierEntries()) {
-            purchaseInvoices.add(unwrapDoc(erpNextClient.createResource(
+            Map<String, Object> createdInvoice = unwrapDoc(erpNextClient.createResource(
                     "Purchase Invoice",
-                    buildPurchaseInvoicePayload(normalizedCompany, postingDate, row))));
+                    buildPurchaseInvoicePayload(normalizedCompany, postingDate, row)));
+            purchaseInvoices.add(createdInvoice);
+            submittedPurchaseInvoices.add(submitCreated("Purchase Invoice", createdInvoice));
         }
         created.put("purchaseInvoices", List.copyOf(purchaseInvoices));
+        created.put("purchaseInvoicesSubmitted", List.copyOf(submittedPurchaseInvoices));
 
         List<Map<String, Object>> salesInvoices = new ArrayList<>();
+        List<Map<String, Object>> submittedSalesInvoices = new ArrayList<>();
         for (PartyAmount row : validation.customerEntries()) {
-            salesInvoices.add(unwrapDoc(erpNextClient.createResource(
+            Map<String, Object> createdInvoice = unwrapDoc(erpNextClient.createResource(
                     "Sales Invoice",
-                    buildSalesInvoicePayload(normalizedCompany, postingDate, row))));
+                    buildSalesInvoicePayload(normalizedCompany, postingDate, row)));
+            salesInvoices.add(createdInvoice);
+            applyCategoryDueSnapshot("Sales Invoice", createdInvoice, row);
+            submittedSalesInvoices.add(submitCreated("Sales Invoice", createdInvoice));
         }
         created.put("salesInvoices", List.copyOf(salesInvoices));
+        created.put("salesInvoicesSubmitted", List.copyOf(submittedSalesInvoices));
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("companyId", normalizedCompany);
         response.put("cutoverDate", postingDate);
         response.put("created", created);
         return response;
+    }
+
+    public Map<String, Object> listOpeningInvoices(String companyId, String fromDate, String toDate) {
+        String normalizedCompany = normalizeRequired(companyId, "companyId");
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("companyId", normalizedCompany);
+        response.put("from", fromDate == null ? "" : fromDate.trim());
+        response.put("to", toDate == null ? "" : toDate.trim());
+        response.put("salesInvoices", listOpeningSalesInvoices(normalizedCompany, fromDate, toDate));
+        response.put("purchaseInvoices", listOpeningPurchaseInvoices(normalizedCompany, fromDate, toDate));
+        return response;
+    }
+
+    private List<Map<String, Object>> listOpeningSalesInvoices(String companyId, String fromDate, String toDate) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"customer\",\"company\",\"posting_date\",\"due_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"po_no\",\"remarks\"]");
+        params.put("order_by", "posting_date desc");
+        params.put("limit_page_length", 500);
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("company", "=", companyId));
+        filters.add(List.of("is_opening", "=", "Yes"));
+        if (fromDate != null && !fromDate.isBlank()) {
+            filters.add(List.of("posting_date", ">=", fromDate.trim()));
+        }
+        if (toDate != null && !toDate.isBlank()) {
+            filters.add(List.of("posting_date", "<=", toDate.trim()));
+        }
+        filters.add(List.of("docstatus", "!=", "2"));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> rows = erpNextClient.listResources("Sales Invoice", params);
+        return rows == null ? List.of() : rows.stream()
+                .filter(inv -> inv != null && !"Cancelled".equalsIgnoreCase(asText(inv.get("status"))))
+                .toList();
+    }
+
+    private List<Map<String, Object>> listOpeningPurchaseInvoices(String companyId, String fromDate, String toDate) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"due_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\"]");
+        params.put("order_by", "posting_date desc");
+        params.put("limit_page_length", 500);
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("company", "=", companyId));
+        filters.add(List.of("is_opening", "=", "Yes"));
+        if (fromDate != null && !fromDate.isBlank()) {
+            filters.add(List.of("posting_date", ">=", fromDate.trim()));
+        }
+        if (toDate != null && !toDate.isBlank()) {
+            filters.add(List.of("posting_date", "<=", toDate.trim()));
+        }
+        filters.add(List.of("docstatus", "!=", "2"));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> rows = erpNextClient.listResources("Purchase Invoice", params);
+        return rows == null ? List.of() : rows.stream()
+                .filter(inv -> inv != null && !"Cancelled".equalsIgnoreCase(asText(inv.get("status"))))
+                .toList();
     }
 
     private Map<String, Object> buildSummary(ParsedRows parsed, ValidationResult validation) {
@@ -371,6 +441,10 @@ public class OpeningBalanceImportService {
         payload.put("supplier", row.partyId());
         payload.put("company", companyId);
         payload.put("posting_date", postingDate);
+        payload.put("due_date", postingDate);
+        payload.put("set_posting_time", 1);
+        payload.put("posting_time", "00:00:00");
+        payload.put("is_opening", "Yes");
         payload.put("bill_no", row.reference());
         payload.put("currency", companyCurrency);
         payload.put("conversion_rate", 1.0);
@@ -392,6 +466,11 @@ public class OpeningBalanceImportService {
         payload.put("customer", row.partyId());
         payload.put("company", companyId);
         payload.put("posting_date", postingDate);
+        payload.put("due_date", postingDate);
+        payload.put("set_posting_time", 1);
+        payload.put("posting_time", "00:00:00");
+        payload.put("is_opening", "Yes");
+        payload.put("aas_category", row.category());
         payload.put("currency", companyCurrency);
         payload.put("conversion_rate", 1.0);
         payload.put("price_list_currency", companyCurrency);
@@ -403,7 +482,127 @@ public class OpeningBalanceImportService {
                 "amount", row.amount())));
         payload.put("po_no", row.reference());
         payload.put("remarks", row.reference());
+
+        BigDecimal previousDue = fetchPreviousDue("Customer", row.partyId(), row.category());
+        if (previousDue.compareTo(BigDecimal.ZERO) > 0) {
+            payload.put("aas_previous_due", previousDue);
+        } else {
+            payload.put("aas_previous_due", BigDecimal.ZERO);
+        }
         return payload;
+    }
+
+    private Map<String, Object> submitCreated(String doctype, Map<String, Object> createdDoc) {
+        if (createdDoc == null || createdDoc.isEmpty()) {
+            return Map.of();
+        }
+        String id = asText(createdDoc.get("name"));
+        if (id.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> doc = unwrapDoc(erpNextClient.getResource(doctype, id));
+            if (doc.isEmpty()) {
+                doc = new HashMap<>(createdDoc);
+                doc.putIfAbsent("doctype", doctype);
+                doc.putIfAbsent("name", id);
+            }
+            Map<String, Object> submitted = unwrapDoc(erpNextClient.submitDoc(doc));
+            return submitted == null ? Map.of() : submitted;
+        } catch (Exception ex) {
+            String message = ex.getMessage() == null ? "" : ex.getMessage().trim();
+            if (message.isBlank()) {
+                message = "Failed to submit " + doctype + " " + id + ".";
+            }
+            String normalized = message.toLowerCase(Locale.ROOT);
+            if (normalized.contains("temporary opening") || normalized.contains("temporary_opening")) {
+                message = "Failed to submit " + doctype + " " + id + " because Temporary Opening Account is not configured for the company. "
+                        + "Run /api/setup (Setup -> Ensure Setup) or configure Company -> Temporary Opening Account in ERPNext, then retry.";
+            }
+            throw new IllegalStateException(message, ex);
+        }
+    }
+
+    private void applyCategoryDueSnapshot(String doctype, Map<String, Object> createdDoc, PartyAmount row) {
+        if (createdDoc == null || createdDoc.isEmpty()) {
+            return;
+        }
+        String invoiceId = asText(createdDoc.get("name"));
+        if (invoiceId.isBlank()) {
+            return;
+        }
+        String partyId = row.partyId();
+        String categoryId = row.category();
+        if (partyId == null || partyId.isBlank() || categoryId == null || categoryId.isBlank()) {
+            return;
+        }
+
+        BigDecimal previousDue = fetchPreviousDue("Customer", partyId, categoryId);
+        BigDecimal invoiceTotal = asDecimalObject(createdDoc.get("grand_total"));
+        if (invoiceTotal.compareTo(BigDecimal.ZERO) <= 0) {
+            Map<String, Object> refreshed = unwrapDoc(erpNextClient.getResource(doctype, invoiceId));
+            invoiceTotal = asDecimalObject(refreshed.get("grand_total"));
+        }
+        BigDecimal roundingAdjustment = asDecimalObject(firstNonNull(createdDoc.get("aas_rounding_adjustment"), createdDoc.get("rounding_adjustment")));
+        BigDecimal grandTotal = invoiceTotal.add(roundingAdjustment);
+        BigDecimal currentPending = previousDue.add(grandTotal);
+
+        try {
+            erpNextClient.updateResource(doctype, invoiceId, Map.of(
+                    "aas_previous_due", previousDue,
+                    "aas_current_pending", currentPending));
+        } catch (Exception ignored) {
+            // Best effort snapshot fields for print format.
+        }
+    }
+
+    private BigDecimal fetchPreviousDue(String partyType, String partyId, String categoryId) {
+        if (paymentDueService == null) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            Map<String, Object> due = paymentDueService.dueByCategory(partyType, partyId, categoryId);
+            BigDecimal amount = asDecimalObject(due.get("dueAmount"));
+            return roundCurrency(amount);
+        } catch (Exception ignored) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal roundCurrency(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return value.setScale(2, RoundingMode.HALF_UP);
+        } catch (Exception ex) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal asDecimalObject(Object value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value instanceof BigDecimal decimal) {
+            return decimal;
+        }
+        if (value instanceof Number number) {
+            return BigDecimal.valueOf(number.doubleValue());
+        }
+        String normalized = value.toString().trim();
+        if (normalized.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            return new BigDecimal(normalized);
+        } catch (Exception ex) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private Object firstNonNull(Object first, Object second) {
+        return first != null ? first : second;
     }
 
     private String buildOpeningRemark(String postingDate) {
