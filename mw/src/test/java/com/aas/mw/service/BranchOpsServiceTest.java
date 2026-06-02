@@ -204,6 +204,8 @@ class BranchOpsServiceTest {
     void getBranchCategoryLedgerOrdersSameDayInvoiceBeforePayment() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukhhkarta Pure Veg Dining Hall")));
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of());
         when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "ACC-SINV-2026-00012",
@@ -256,7 +258,17 @@ class BranchOpsServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) branchLedger.get("categorySummary");
 
+        assertThat(branchLedger.get("balance")).isEqualTo(59940.0);
         assertThat(categories).containsExactly(Map.of("category", "Dairy", "amount", 59940.0));
+
+        Map<String, Object> detail = branchOpsService.getBranchDetail("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> kpis = (Map<String, Object>) detail.get("kpis");
+        assertThat(kpis)
+                .containsEntry("openReceivableAmount", 59940.0)
+                .containsEntry("invoicedAmount", 159940.0)
+                .containsEntry("paymentCollectionRate", 62.52);
     }
 
     @Test

@@ -43,7 +43,7 @@ public class BranchOpsService {
         List<Map<String, Object>> branches = fetchBranches();
         List<Map<String, Object>> orders = fetchOrderRows(null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(null);
-        List<Map<String, Object>> payments = fetchCustomerPayments(null, invoices);
+        List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(null, invoices), fetchCustomerCategoryPayments(null));
 
         List<Map<String, Object>> rows = branches.stream()
                 .map(branch -> buildBranchSummary(branch, orders, invoices, payments))
@@ -70,7 +70,8 @@ public class BranchOpsService {
         }
         List<Map<String, Object>> orderRows = getBranchOrders(branchId, null, null, null, null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
+        List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(branchId, invoices), fetchCustomerCategoryPayments(branchId));
+        List<Map<String, Object>> ledgerEntries = buildLedgerEntries(invoices, payments);
 
         Map<String, Object> branchInfo = new LinkedHashMap<>();
         branchInfo.put("branchId", asText(branch.get("name")));
@@ -86,7 +87,7 @@ public class BranchOpsService {
         kpis.put("pendingOrders", orderRows.stream().filter(row -> OPEN_STATUSES.contains(asText(row.get("status")))).count());
         kpis.put("awaitingVendorAssignment", orderRows.stream().filter(row -> "DRAFT".equals(asText(row.get("status")))).count());
         kpis.put("awaitingVendorResponse", orderRows.stream().filter(row -> "VENDOR_ASSIGNED".equals(asText(row.get("status"))) || "VENDOR_PDF_RECEIVED".equals(asText(row.get("status")))).count());
-        kpis.put("openReceivableAmount", round(invoices.stream().mapToDouble(this::resolveInvoiceDueAmount).sum()));
+        kpis.put("openReceivableAmount", openReceivableAmount(ledgerEntries));
         kpis.put("invoicedAmount", round(invoices.stream().mapToDouble(invoice -> asDouble(invoice.get("grand_total"))).sum()));
         kpis.put("paymentCollectionRate", calculatePaymentCollectionRate(invoices, payments));
 
@@ -94,7 +95,7 @@ public class BranchOpsService {
         billing.put("invoicesRaised", invoices.size());
         billing.put("openInvoices", invoices.stream().filter(invoice -> resolveInvoiceDueAmount(invoice) > 0).count());
         billing.put("paymentsReceived", payments.size());
-        billing.put("ledgerBalance", getLedgerBalance(buildLedgerEntries(invoices, payments)));
+        billing.put("ledgerBalance", getLedgerBalance(ledgerEntries));
 
         Map<String, Object> exceptions = new LinkedHashMap<>();
         exceptions.put("unassignedOrders", orderRows.stream().filter(row -> "DRAFT".equals(asText(row.get("status")))).count());
@@ -173,7 +174,7 @@ public class BranchOpsService {
                 .map(row -> unwrap(erpNextClient.getResource(SALES_ORDER, asText(row.get("orderId")))))
                 .toList();
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
+        List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(branchId, invoices), fetchCustomerCategoryPayments(branchId));
 
         Map<String, Object> turnaround = new LinkedHashMap<>();
         turnaround.put("avgOrderToInvoiceHours", averageHoursBetweenOrderAndInvoice(fullOrders));
@@ -199,7 +200,7 @@ public class BranchOpsService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
         }
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
-        List<Map<String, Object>> payments = fetchCustomerPayments(branchId, invoices);
+        List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(branchId, invoices), fetchCustomerCategoryPayments(branchId));
         List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
@@ -758,7 +759,7 @@ public class BranchOpsService {
         row.put("awaitingVendorAssignment", branchOrders.stream().filter(order -> "DRAFT".equals(asText(order.get("aas_status")))).count());
         row.put("awaitingVendorResponse", branchOrders.stream().filter(order -> "VENDOR_ASSIGNED".equals(asText(order.get("aas_status"))) || "VENDOR_PDF_RECEIVED".equals(asText(order.get("aas_status")))).count());
         row.put("inProgress", branchOrders.stream().filter(order -> "VENDOR_BILL_CAPTURED".equals(asText(order.get("aas_status"))) || "SELL_ORDER_CREATED".equals(asText(order.get("aas_status")))).count());
-        row.put("openReceivableAmount", round(branchInvoices.stream().mapToDouble(this::resolveInvoiceDueAmount).sum()));
+        row.put("openReceivableAmount", openReceivableAmount(ledger));
         row.put("lastActivity", resolveLastActivity(
                 branchOrders.stream().map(order -> asText(order.get("modified"))).toList(),
                 branchInvoices.stream().map(invoice -> asText(invoice.get("modified"))).toList(),
@@ -965,6 +966,27 @@ public class BranchOpsService {
         return listResourcesPaged(PAYMENT_ENTRY, params).stream()
                 .filter(payment -> hasText(payment.get("aas_category")))
                 .toList();
+    }
+
+    private List<Map<String, Object>> mergePayments(List<Map<String, Object>> primary, List<Map<String, Object>> secondary) {
+        Map<String, Map<String, Object>> byName = new LinkedHashMap<>();
+        if (primary != null) {
+            for (Map<String, Object> payment : primary) {
+                String name = asText(payment == null ? null : payment.get("name"));
+                if (hasText(name)) {
+                    byName.put(name, payment);
+                }
+            }
+        }
+        if (secondary != null) {
+            for (Map<String, Object> payment : secondary) {
+                String name = asText(payment == null ? null : payment.get("name"));
+                if (hasText(name)) {
+                    byName.putIfAbsent(name, payment);
+                }
+            }
+        }
+        return List.copyOf(byName.values());
     }
 
     private List<Map<String, Object>> filterPaymentsLinkedToInvoices(
@@ -1177,6 +1199,10 @@ public class BranchOpsService {
 
     private double getLedgerBalance(List<Map<String, Object>> entries) {
         return entries.isEmpty() ? 0.0 : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
+    }
+
+    private double openReceivableAmount(List<Map<String, Object>> ledgerEntries) {
+        return round(Math.max(0.0, getLedgerBalance(ledgerEntries)));
     }
 
     private double average(List<Double> values) {
