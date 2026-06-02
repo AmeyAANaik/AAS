@@ -93,6 +93,8 @@ export type DashboardSnapshot = {
   stockSnapshot: StockSnapshot;
   salesSummary: SalesSummary;
   revenueSeries: RevenuePoint[];
+  branchesWithDues: number;
+  vendorsWithDues: number;
   vendorOperations: VendorOperationsSnapshot;
   branchOperations: BranchOperationsSnapshot;
   periodLabel: string;

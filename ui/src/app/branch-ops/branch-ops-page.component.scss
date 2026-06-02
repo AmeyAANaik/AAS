@@ -314,6 +314,35 @@
   overflow-x: auto;
 }
 
+.ledger-table .mat-mdc-cell,
+.ledger-table .mat-mdc-header-cell {
+  white-space: nowrap;
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.amount[data-tone='zero'] {
+  color: var(--muted);
+}
+
+.amount[data-tone='pos'] {
+  color: #2c7a4b;
+}
+
+.amount[data-tone='neg'] {
+  color: #b3472f;
+}
+
+.amount.debit[data-tone='pos'] {
+  color: #b3472f;
+}
+
+.amount.credit[data-tone='pos'] {
+  color: #2c7a4b;
+}
+
 .active-summary-row {
   position: relative;
   background: rgba(4, 169, 245, 0.08);

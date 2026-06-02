@@ -796,11 +796,15 @@ public class VendorOpsService {
         if (invoice == null) {
             return 0.0;
         }
-        double due = asDouble(invoice.get("outstanding_amount"));
-        if (due > 0) {
-            return due;
+        int docstatus = asInt(invoice.get("docstatus"));
+        if (docstatus == 0) {
+            return asDouble(invoice.get("grand_total"));
         }
-        return asDouble(invoice.get("grand_total"));
+        if (docstatus == 1) {
+            double outstanding = asDouble(invoice.get("outstanding_amount"));
+            return outstanding > 0 ? outstanding : 0.0;
+        }
+        return 0.0;
     }
 
     private List<Map<String, Object>> buildLedgerEntries(

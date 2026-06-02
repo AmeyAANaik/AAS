@@ -344,7 +344,7 @@ public class OrderBillingService {
         payload.put("aas_margin_percent", marginPercent);
         payload.put("aas_source_sales_order", sourceOrderId);
         payload.put("aas_invoice_version_status", INVOICE_VERSION_CURRENT);
-        String category = asText(sourceOrder.get("aas_category"));
+        String category = resolveOrderCategory(sourceOrder, items);
         if (!category.isBlank()) {
             payload.put("aas_category", category);
         }
@@ -369,6 +369,39 @@ public class OrderBillingService {
             payload.put("set_warehouse", warehouse);
         }
         return erpNextClient.createResource(SALES_INVOICE, payload);
+    }
+
+    private String resolveOrderCategory(Map<String, Object> sourceOrder, List<Map<String, Object>> items) {
+        String category = asText(sourceOrder == null ? null : sourceOrder.get("aas_category"));
+        if (!category.isBlank()) {
+            return category;
+        }
+        // Fallback: derive from vendor configuration (Supplier.aas_category).
+        String vendor = asText(sourceOrder == null ? null : sourceOrder.get("aas_vendor"));
+        if (!vendor.isBlank()) {
+            try {
+                Map<String, Object> supplier = unwrap(erpNextClient.getResource("Supplier", vendor));
+                String vendorCategory = asText(supplier.get("aas_category"));
+                if (!vendorCategory.isBlank()) {
+                    return vendorCategory;
+                }
+            } catch (Exception ignored) {
+                // Ignore and fall back further.
+            }
+        }
+        // Last resort: first non-empty item_group on invoice items (if present).
+        if (items != null) {
+            for (Map<String, Object> item : items) {
+                if (item == null) {
+                    continue;
+                }
+                String itemGroup = asText(item.get("item_group"));
+                if (!itemGroup.isBlank()) {
+                    return itemGroup;
+                }
+            }
+        }
+        return "";
     }
 
     private String resolveDefaultWarehouse(String company) {

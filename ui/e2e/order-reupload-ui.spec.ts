@@ -1,12 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-test('order workflow UI: reupload vendor PDF regenerates draft invoices (mocked)', async ({ page }) => {
-  let currentStatus: 'VENDOR_BILL_CAPTURED' | 'SELL_ORDER_CREATED' = 'VENDOR_BILL_CAPTURED';
+test('order workflow UI: reupload vendor PDF resets steps 3 & 4 (mocked)', async ({ page }) => {
+  let currentStatus: 'VENDOR_BILL_CAPTURED' | 'SELL_ORDER_CREATED' | 'VENDOR_PDF_RECEIVED' = 'VENDOR_BILL_CAPTURED';
   let currentVendor = 'SUP-1';
   let vendorPdfUrl = '/files/vendor-invoice-v1.pdf';
   let currentPurchaseInvoice = 'PINV-OLD';
   let currentSalesInvoice = 'SI-OLD';
-  let replaceSellOrderCalls = 0;
 
   const buildOrders = () => [
     {
@@ -97,35 +96,18 @@ test('order workflow UI: reupload vendor PDF regenerates draft invoices (mocked)
 
   await page.route('**/api/orders/SO-0001/vendor-pdf', async route => {
     const phase = currentStatus;
-    const nextPdfUrl = phase === 'VENDOR_BILL_CAPTURED' ? '/files/vendor-invoice-v2.pdf' : '/files/vendor-invoice-v3.pdf';
-
-    vendorPdfUrl = nextPdfUrl;
-
-    if (phase === 'VENDOR_BILL_CAPTURED') {
-      currentPurchaseInvoice = 'PINV-NEW';
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          orderId: 'SO-0001',
-          vendorBillTotal: 100,
-          purchaseInvoice: { name: currentPurchaseInvoice },
-          file: { fileName: 'vendor.pdf', fileUrl: vendorPdfUrl, fileId: 'FILE-1' }
-        })
-      });
-      return;
-    }
-
-    currentPurchaseInvoice = 'PINV-NEW-2';
-    currentSalesInvoice = 'SI-NEW';
+    vendorPdfUrl = phase === 'VENDOR_BILL_CAPTURED' ? '/files/vendor-invoice-v2.pdf' : '/files/vendor-invoice-v3.pdf';
+    // New behavior: re-upload resets order back to VENDOR_PDF_RECEIVED and clears linked invoices.
+    currentStatus = 'VENDOR_PDF_RECEIVED';
+    currentPurchaseInvoice = '';
+    currentSalesInvoice = '';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         orderId: 'SO-0001',
         vendorBillTotal: 100,
-        purchaseInvoice: { name: currentPurchaseInvoice },
-        salesInvoice: { name: currentSalesInvoice },
+        workflowReset: true,
         file: { fileName: 'vendor.pdf', fileUrl: vendorPdfUrl, fileId: 'FILE-2' }
       })
     });
@@ -145,23 +127,10 @@ test('order workflow UI: reupload vendor PDF regenerates draft invoices (mocked)
     });
   });
 
-  await page.route('**/api/orders/SO-0001/sell-order/replace', async route => {
-    replaceSellOrderCalls++;
-    currentSalesInvoice = `SI-REPLACED-${replaceSellOrderCalls}`;
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        orderId: 'SO-0001',
-        salesInvoice: { name: currentSalesInvoice }
-      })
-    });
-  });
-
   await page.goto('/orders?orderId=SO-0001');
   await expect(page).toHaveURL(/\/orders\?orderId=SO-0001/);
 
-  // Phase 1: status=VENDOR_BILL_CAPTURED -> reupload should stay bill-captured and regenerate PI.
+  // Phase 1: status=VENDOR_BILL_CAPTURED -> reupload resets to VENDOR_PDF_RECEIVED (Step 3 active).
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('.status-badge', { hasText: 'Bill captured' })).toBeVisible();
 
@@ -171,13 +140,16 @@ test('order workflow UI: reupload vendor PDF regenerates draft invoices (mocked)
     buffer: Buffer.from('%PDF-1.4 test')
   });
   await page.getByRole('button', { name: 'Re-upload and Parse PDF' }).click();
+  await expect(page.getByRole('dialog').locator('.status-badge', { hasText: 'PDF received' })).toBeVisible();
 
   // Close manage modal to force a UI refresh path similar to user flow.
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
 
-  // Phase 2: status=SELL_ORDER_CREATED -> reupload should regenerate PI+SI.
+  // Phase 2: status=SELL_ORDER_CREATED -> reupload resets to VENDOR_PDF_RECEIVED (Step 3 active).
   currentStatus = 'SELL_ORDER_CREATED';
+  currentPurchaseInvoice = 'PINV-OLD';
+  currentSalesInvoice = 'SI-OLD';
   await page.reload();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('.status-badge', { hasText: 'Sell order created' })).toBeVisible();
@@ -187,11 +159,7 @@ test('order workflow UI: reupload vendor PDF regenerates draft invoices (mocked)
     buffer: Buffer.from('%PDF-1.4 test')
   });
   await page.getByRole('button', { name: 'Re-upload and Parse PDF' }).click();
-
-  // When status is SELL_ORDER_CREATED, UI should offer an "Update Parsed Order" action.
-  await expect(page.getByRole('button', { name: 'Update Parsed Order' })).toBeVisible();
-  await page.getByRole('button', { name: 'Update Parsed Order' }).click();
-  await expect.poll(() => replaceSellOrderCalls).toBe(1);
+  await expect(page.getByRole('dialog').locator('.status-badge', { hasText: 'PDF received' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Close dialog' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();

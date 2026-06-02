@@ -86,13 +86,13 @@ public class BranchOpsService {
         kpis.put("pendingOrders", orderRows.stream().filter(row -> OPEN_STATUSES.contains(asText(row.get("status")))).count());
         kpis.put("awaitingVendorAssignment", orderRows.stream().filter(row -> "DRAFT".equals(asText(row.get("status")))).count());
         kpis.put("awaitingVendorResponse", orderRows.stream().filter(row -> "VENDOR_ASSIGNED".equals(asText(row.get("status"))) || "VENDOR_PDF_RECEIVED".equals(asText(row.get("status")))).count());
-        kpis.put("openReceivableAmount", round(invoices.stream().mapToDouble(invoice -> asDouble(invoice.get("outstanding_amount"))).sum()));
+        kpis.put("openReceivableAmount", round(invoices.stream().mapToDouble(this::resolveInvoiceDueAmount).sum()));
         kpis.put("invoicedAmount", round(invoices.stream().mapToDouble(invoice -> asDouble(invoice.get("grand_total"))).sum()));
         kpis.put("paymentCollectionRate", calculatePaymentCollectionRate(invoices, payments));
 
         Map<String, Object> billing = new LinkedHashMap<>();
         billing.put("invoicesRaised", invoices.size());
-        billing.put("openInvoices", invoices.stream().filter(invoice -> asDouble(invoice.get("outstanding_amount")) > 0).count());
+        billing.put("openInvoices", invoices.stream().filter(invoice -> resolveInvoiceDueAmount(invoice) > 0).count());
         billing.put("paymentsReceived", payments.size());
         billing.put("ledgerBalance", getLedgerBalance(buildLedgerEntries(invoices, payments)));
 
@@ -703,7 +703,7 @@ public class BranchOpsService {
         row.put("awaitingVendorAssignment", branchOrders.stream().filter(order -> "DRAFT".equals(asText(order.get("aas_status")))).count());
         row.put("awaitingVendorResponse", branchOrders.stream().filter(order -> "VENDOR_ASSIGNED".equals(asText(order.get("aas_status"))) || "VENDOR_PDF_RECEIVED".equals(asText(order.get("aas_status")))).count());
         row.put("inProgress", branchOrders.stream().filter(order -> "VENDOR_BILL_CAPTURED".equals(asText(order.get("aas_status"))) || "SELL_ORDER_CREATED".equals(asText(order.get("aas_status")))).count());
-        row.put("openReceivableAmount", round(branchInvoices.stream().mapToDouble(invoice -> asDouble(invoice.get("outstanding_amount"))).sum()));
+        row.put("openReceivableAmount", round(branchInvoices.stream().mapToDouble(this::resolveInvoiceDueAmount).sum()));
         row.put("lastActivity", resolveLastActivity(
                 branchOrders.stream().map(order -> asText(order.get("modified"))).toList(),
                 branchInvoices.stream().map(invoice -> asText(invoice.get("modified"))).toList(),
@@ -756,6 +756,21 @@ public class BranchOpsService {
             entry.put("runningBalance", running);
         }
         return entries;
+    }
+
+    private double resolveInvoiceDueAmount(Map<String, Object> invoice) {
+        if (invoice == null) {
+            return 0.0;
+        }
+        int docstatus = asInt(invoice.get("docstatus"));
+        if (docstatus == 0) {
+            return asDouble(invoice.get("grand_total"));
+        }
+        if (docstatus == 1) {
+            double outstanding = asDouble(invoice.get("outstanding_amount"));
+            return outstanding > 0 ? outstanding : 0.0;
+        }
+        return 0.0;
     }
 
     private List<Map<String, Object>> fetchBranches() {

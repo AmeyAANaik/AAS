@@ -87,7 +87,7 @@ class PaymentDueServiceTest {
     }
 
     @Test
-    void ignoresDraftInvoicesEvenIfReturned() {
+    void includesDraftInvoicesUsingGrandTotal() {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "SINV-DRAFT",
@@ -102,6 +102,30 @@ class PaymentDueServiceTest {
                         "grand_total", new BigDecimal("999.00"),
                         "items", List.of(
                                 Map.of("item_code", "ITEM-1", "amount", new BigDecimal("999.00"))))));
+        when(erpNextClient.getResource("Item", "ITEM-1"))
+                .thenReturn(Map.of("data", Map.of("item_group", "CAT-A")));
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "CAT-A");
+
+        assertEquals(new BigDecimal("999.000000"), response.get("dueAmount"));
+    }
+
+    @Test
+    void skipsSubmittedInvoicesWithZeroOutstanding() {
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-SUB",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("0.00"),
+                        "grand_total", new BigDecimal("200.00"))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-SUB"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-SUB",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("0.00"),
+                        "grand_total", new BigDecimal("200.00"),
+                        "items", List.of(
+                                Map.of("item_code", "ITEM-1", "amount", new BigDecimal("200.00"))))));
         when(erpNextClient.getResource("Item", "ITEM-1"))
                 .thenReturn(Map.of("data", Map.of("item_group", "CAT-A")));
 

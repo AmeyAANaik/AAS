@@ -90,6 +90,8 @@ class OrderBillingServiceTest {
                         "aas_vendor_rate", 100.0,
                         "aas_gst_percent", 5.0,
                         "aas_margin_percent", 7.0))));
+        when(erpNextClient.getResource(eq("Supplier"), eq("SUP-1")))
+                .thenReturn(Map.of("aas_category", "CAT-1"));
         when(erpNextClient.getResource(eq("Item"), eq("AAS-VENDOR-BILL")))
                 .thenReturn(Map.of("name", "AAS-VENDOR-BILL"));
         when(erpNextClient.getResource(eq("Company"), eq("AAS")))
@@ -118,6 +120,7 @@ class OrderBillingServiceTest {
 
         assertEquals("CURRENT", purchaseInvoiceCaptor.getValue().get("aas_invoice_version_status"));
         assertEquals("CURRENT", salesInvoiceCaptor.getValue().get("aas_invoice_version_status"));
+        assertEquals("CAT-1", salesInvoiceCaptor.getValue().get("aas_category"));
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> invoiceItems = (List<Map<String, Object>>) salesInvoiceCaptor.getValue().get("items");
         assertEquals("ATTA", invoiceItems.get(0).get("description"));

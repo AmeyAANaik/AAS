@@ -89,10 +89,10 @@ test('real UI flow against MW/ERP: assign vendor -> vendor pdf -> vendor bill ->
     .poll(fetchOrderStatus, { timeout: 20000, message: 'order status should move to SELL_ORDER_CREATED' })
     .toBe('SELL_ORDER_CREATED');
 
-  // Re-upload + re-parse after sell order creation should be allowed (regenerates draft invoices).
+  // Re-upload + re-parse after sell order creation should reset back to Step 3.
   await page.locator('input[type="file"][accept="application/pdf"]').setInputFiles(vendorPdfPath);
   await page.getByRole('button', { name: 'Re-upload and Parse PDF' }).click();
   await expect
-    .poll(fetchOrderStatus, { timeout: 30000, message: 'order status should remain SELL_ORDER_CREATED after reupload' })
-    .toBe('SELL_ORDER_CREATED');
+    .poll(fetchOrderStatus, { timeout: 30000, message: 'order status should reset to VENDOR_PDF_RECEIVED after reupload' })
+    .toBe('VENDOR_PDF_RECEIVED');
 });

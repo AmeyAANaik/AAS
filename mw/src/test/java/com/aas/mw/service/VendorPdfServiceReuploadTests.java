@@ -143,6 +143,8 @@ public class VendorPdfServiceReuploadTests {
         MockMultipartFile pdfFile = new MockMultipartFile("file", "invoice.pdf", "application/pdf", minimalPdfBytes());
         vendorPdfService.processVendorPdf(orderId, pdfFile, "sid=123");
 
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq(orderId), eq(Map.of("aas_pi_vendor", "")));
+        verify(erpNextClient).updateResource(eq("Purchase Invoice"), eq("PI-OLD"), eq(Map.of("aas_source_sales_order", "")));
         verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PI-OLD"));
         verify(orderBillingService, org.mockito.Mockito.never()).recordGeneratedVendorBill(eq(orderId), any());
     }
@@ -314,7 +316,11 @@ public class VendorPdfServiceReuploadTests {
         MockMultipartFile pdfFile = new MockMultipartFile("file", "invoice.pdf", "application/pdf", minimalPdfBytes());
         vendorPdfService.processVendorPdf(orderId, pdfFile, "sid=123");
 
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq(orderId), eq(Map.of("aas_pi_vendor", "")));
+        verify(erpNextClient).updateResource(eq("Purchase Invoice"), eq("PI-OLD"), eq(Map.of("aas_source_sales_order", "")));
         verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PI-OLD"));
+        verify(erpNextClient).updateResource(eq("Sales Order"), eq(orderId), eq(Map.of("aas_si_branch", "")));
+        verify(erpNextClient).updateResource(eq("Sales Invoice"), eq("SI-OLD"), eq(Map.of("aas_source_sales_order", "")));
         verify(erpNextClient).deleteResource(eq("Sales Invoice"), eq("SI-OLD"));
         verify(orderBillingService, org.mockito.Mockito.never()).recordGeneratedVendorBill(eq(orderId), any());
         verify(orderBillingService, org.mockito.Mockito.never()).createOrReplaceSellOrder(eq(orderId), any());

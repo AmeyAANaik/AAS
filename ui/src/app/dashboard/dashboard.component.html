@@ -59,7 +59,7 @@
 
         <app-berry-stat-card
           label="Branches with dues"
-          [value]="snapshot.billsByBranch.length + ''"
+          [value]="(snapshot.branchesWithDues || 0) + ''"
           icon="storefront"
           type="warning"
           changeText="Receivable exposure"
@@ -68,7 +68,7 @@
 
         <app-berry-stat-card
           label="Vendors with dues"
-          [value]="snapshot.billsByVendor.length + ''"
+          [value]="(snapshot.vendorsWithDues || 0) + ''"
           icon="local_shipping"
           type="danger"
           changeText="Payables tracking"

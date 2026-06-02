@@ -248,6 +248,14 @@ export class BranchOpsPageComponent implements OnInit {
     });
   }
 
+  amountTone(value: unknown): 'pos' | 'neg' | 'zero' {
+    const num = Number(value ?? 0);
+    if (!Number.isFinite(num) || Math.abs(num) < 0.0001) {
+      return 'zero';
+    }
+    return num > 0 ? 'pos' : 'neg';
+  }
+
   get filteredBranches(): BranchOpsSummaryRow[] {
     const term = this.searchControl.value.trim().toLowerCase();
     if (!term) {

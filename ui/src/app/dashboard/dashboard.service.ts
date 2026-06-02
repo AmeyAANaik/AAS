@@ -38,8 +38,8 @@ export class DashboardService {
       orders: this.http.get<OrderSummary[]>(`/api/orders`, { headers, params: orderParams }),
       vendorBilling: this.http.get<BillingSummary[]>(`/api/reports/vendor-billing`, { headers, params: reportParams }),
       branchBilling: this.http.get<BillingSummary[]>(`/api/reports/shop-billing`, { headers, params: reportParams }),
-      vendorOps: this.http.get<{ totals?: VendorOperationsSnapshot }>(`/api/vendor-ops/summary`, { headers }),
-      branchOps: this.http.get<{ totals?: BranchOperationsSnapshot }>(`/api/branch-ops/summary`, { headers }),
+      vendorOps: this.http.get<{ totals?: VendorOperationsSnapshot; vendors?: Array<{ pendingBillAmount?: number }> }>(`/api/vendor-ops/summary`, { headers }),
+      branchOps: this.http.get<{ totals?: BranchOperationsSnapshot; branches?: Array<{ openReceivableAmount?: number }> }>(`/api/branch-ops/summary`, { headers }),
       items: this.http.get<InventoryItem[]>(`/api/items`, { headers }),
       invoices: this.http.get<InvoiceSummary[]>(`/api/invoices`, { headers, params: invoiceParams })
     }).pipe(
@@ -51,6 +51,8 @@ export class DashboardService {
         stockSnapshot: this.buildStockSnapshot(result.items ?? []),
         salesSummary: this.buildSalesSummary(result.invoices ?? [], rangeStart, rangeEnd),
         revenueSeries: this.buildRevenueSeries(result.invoices ?? [], rangeStart, rangeEnd),
+        branchesWithDues: (result.branchOps?.branches ?? []).filter(row => (Number(row?.openReceivableAmount) || 0) > 0).length,
+        vendorsWithDues: (result.vendorOps?.vendors ?? []).filter(row => (Number(row?.pendingBillAmount) || 0) > 0).length,
         vendorOperations: this.buildVendorOperationsSummary(result.vendorOps?.totals),
         branchOperations: this.buildBranchOperationsSummary(result.branchOps?.totals),
         periodLabel: monthLabel

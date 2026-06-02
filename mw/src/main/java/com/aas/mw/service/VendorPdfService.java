@@ -176,10 +176,10 @@ public class VendorPdfService {
             // Re-upload after bill capture / sell order creation should reset workflow back to Step 3.
             // Delete any linked draft invoices so Step 3 & 4 can be re-initiated explicitly by the user.
             if (hasText(previousPurchaseInvoiceId)) {
-                deleteLinkedDraftInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
+                deleteLinkedDraftInvoice(orderId, PURCHASE_INVOICE, previousPurchaseInvoiceId, "vendor invoice");
             }
             if ("SELL_ORDER_CREATED".equals(normalizedStatus) && hasText(previousSalesInvoiceId)) {
-                deleteLinkedDraftInvoice(SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
+                deleteLinkedDraftInvoice(orderId, SALES_INVOICE, previousSalesInvoiceId, "branch invoice");
             }
             workflowReset = true;
         }
@@ -267,7 +267,7 @@ public class VendorPdfService {
         }
     }
 
-    private void deleteLinkedDraftInvoice(String doctype, String invoiceId, String label) {
+    private void deleteLinkedDraftInvoice(String orderId, String doctype, String invoiceId, String label) {
         if (!hasText(invoiceId)) {
             return;
         }
@@ -276,6 +276,29 @@ public class VendorPdfService {
         if (docstatus != 0) {
             throw new IllegalStateException(
                     "Cannot re-upload/re-parse because the current " + label + " (" + invoiceId + ") is not draft.");
+        }
+        // ERPNext may block deletion while cross-links exist.
+        // Clear both sides deterministically; if we cannot clear, fail fast with a clear message.
+        if (hasText(orderId)) {
+            if (PURCHASE_INVOICE.equalsIgnoreCase(doctype)) {
+                runErpStep("clear order link to vendor invoice before delete", () -> {
+                    erpNextClient.updateResource(SALES_ORDER, orderId, Map.of("aas_pi_vendor", ""));
+                    return null;
+                });
+            } else if (SALES_INVOICE.equalsIgnoreCase(doctype)) {
+                runErpStep("clear order link to branch invoice before delete", () -> {
+                    erpNextClient.updateResource(SALES_ORDER, orderId, Map.of("aas_si_branch", ""));
+                    return null;
+                });
+            }
+        }
+        // Best-effort only: updating the invoice can trigger ERPNext validations on legacy/invalid drafts
+        // (e.g., "Due Date cannot be before Posting / Supplier Invoice Date"). The sales-order link is the
+        // important one to clear for deletion; ignore failures here and attempt delete.
+        try {
+            erpNextClient.updateResource(doctype, invoiceId, Map.of("aas_source_sales_order", ""));
+        } catch (Exception ignored) {
+            // ignore
         }
         erpNextClient.deleteResource(doctype, invoiceId);
     }
