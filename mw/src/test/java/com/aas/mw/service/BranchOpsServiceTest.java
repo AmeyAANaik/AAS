@@ -201,6 +201,52 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void getBranchCategoryLedgerOrdersSameDayInvoiceBeforePayment() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukhhkarta Pure Veg Dining Hall")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00012",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-01",
+                        "grand_total", 159940.0,
+                        "outstanding_amount", 159940.0,
+                        "docstatus", 1)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00012"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00012",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-01",
+                        "grand_total", 159940.0,
+                        "outstanding_amount", 159940.0,
+                        "docstatus", 1,
+                        "items", List.of(Map.of(
+                                "item_code", "DAIRY-ITEM",
+                                "item_group", "Dairy",
+                                "amount", 159940.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-PAY-2026-00003",
+                        "party", "BRANCH-1",
+                        "party_type", "Customer",
+                        "posting_date", "2026-06-01",
+                        "paid_amount", 100000.0,
+                        "docstatus", 1,
+                        "aas_category", "Dairy")));
+
+        Map<String, Object> response = branchOpsService.getBranchLedgerByCategory("BRANCH-1", "Dairy");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherNo"))
+                .containsExactly("ACC-SINV-2026-00012", "ACC-PAY-2026-00003");
+        assertThat(entries.get(0)).containsEntry("runningBalance", 159940.0);
+        assertThat(entries.get(1)).containsEntry("runningBalance", 59940.0);
+    }
+
+    @Test
     void getBranchLedgerLoadsPagedInvoicesAndPayments() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

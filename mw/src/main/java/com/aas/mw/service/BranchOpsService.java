@@ -536,6 +536,7 @@ public class BranchOpsService {
         }
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
+                .thenComparing(row -> ledgerVoucherSortOrder(asText(row.get("voucherType"))))
                 .thenComparing(row -> asText(row.get("voucherType")))
                 .thenComparing(row -> asText(row.get("voucherNo"))));
         if (!includeRunningBalance) {
@@ -547,6 +548,17 @@ public class BranchOpsService {
             entry.put("runningBalance", running);
         }
         return entries;
+    }
+
+    private int ledgerVoucherSortOrder(String voucherType) {
+        String normalized = voucherType == null ? "" : voucherType.trim().toLowerCase(Locale.ROOT);
+        if (normalized.contains("invoice")) {
+            return 0;
+        }
+        if (normalized.contains("payment")) {
+            return 1;
+        }
+        return 2;
     }
 
     private Map<String, Double> allocateInvoiceShares(
@@ -675,6 +687,7 @@ public class BranchOpsService {
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
                 .thenComparing(row -> asText(row.get("branchName")))
+                .thenComparing(row -> ledgerVoucherSortOrder(asText(row.get("voucherType"))))
                 .thenComparing(row -> asText(row.get("voucherType")))
                 .thenComparing(row -> asText(row.get("voucherNo"))));
         double running = 0.0;
@@ -748,6 +761,7 @@ public class BranchOpsService {
         }
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
+                .thenComparing(row -> ledgerVoucherSortOrder(asText(row.get("voucherType"))))
                 .thenComparing(row -> asText(row.get("voucherType")))
                 .thenComparing(row -> asText(row.get("voucherNo"))));
         double running = 0.0;
