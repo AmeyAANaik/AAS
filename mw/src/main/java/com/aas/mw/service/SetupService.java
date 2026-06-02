@@ -532,6 +532,13 @@ public class SetupService {
                 "Link",
                 "Sales Order",
                 "supplier");
+        boolean purchaseInvoiceCategoryField = ensureCustomFieldAllowOnSubmit(
+                "Purchase Invoice",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "aas_source_sales_order");
         boolean purchaseInvoiceVersionStatusField = ensureCustomField(
                 "Purchase Invoice",
                 "aas_invoice_version_status",
@@ -890,6 +897,7 @@ public class SetupService {
         result.put("branchCreditDaysFieldCreated", branchCreditDaysField);
         result.put("poSourceOrderFieldCreated", poSourceOrderField);
         result.put("purchaseInvoiceSourceOrderFieldCreated", purchaseInvoiceSourceOrderField);
+        result.put("purchaseInvoiceCategoryFieldCreated", purchaseInvoiceCategoryField);
         result.put("purchaseInvoiceVersionStatusFieldCreated", purchaseInvoiceVersionStatusField);
         result.put("purchaseInvoiceReplacedByFieldCreated", purchaseInvoiceReplacedByField);
         result.put("invoiceSourceOrderFieldCreated", invoiceSourceOrderField);
@@ -1646,5 +1654,24 @@ public class SetupService {
                 insertAfter,
                 true,
                 false);
+    }
+
+    private boolean ensureCustomFieldAllowOnSubmit(
+            String dt,
+            String fieldname,
+            String label,
+            String fieldtype,
+            String options,
+            String insertAfter) {
+        return customFieldProvisioner.ensure(
+                dt,
+                fieldname,
+                label,
+                fieldtype,
+                options,
+                insertAfter,
+                true,
+                false,
+                true);
     }
 }

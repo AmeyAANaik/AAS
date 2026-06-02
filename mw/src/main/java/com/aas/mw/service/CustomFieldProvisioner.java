@@ -24,6 +24,19 @@ public class CustomFieldProvisioner {
             String insertAfter,
             boolean inListView,
             boolean required) {
+        return ensure(dt, fieldname, label, fieldtype, options, insertAfter, inListView, required, false);
+    }
+
+    public boolean ensure(
+            String dt,
+            String fieldname,
+            String label,
+            String fieldtype,
+            String options,
+            String insertAfter,
+            boolean inListView,
+            boolean required,
+            boolean allowOnSubmit) {
         Map<String, Object> existing = findCustomField(dt, fieldname);
         if (existing != null) {
             boolean changed = false;
@@ -34,6 +47,13 @@ public class CustomFieldProvisioner {
                     erpNextClient.updateResource("Custom Field", name, Map.of("options", options));
                     changed = true;
                 }
+            }
+            int currentAllowOnSubmit = asInt(existing.get("allow_on_submit"));
+            int expectedAllowOnSubmit = allowOnSubmit ? 1 : 0;
+            if (currentAllowOnSubmit != expectedAllowOnSubmit) {
+                String name = String.valueOf(existing.get("name"));
+                erpNextClient.updateResource("Custom Field", name, Map.of("allow_on_submit", expectedAllowOnSubmit));
+                changed = true;
             }
             return changed;
         }
@@ -50,17 +70,31 @@ public class CustomFieldProvisioner {
         }
         payload.put("in_list_view", inListView ? 1 : 0);
         payload.put("reqd", required ? 1 : 0);
+        payload.put("allow_on_submit", allowOnSubmit ? 1 : 0);
         erpNextClient.createResource("Custom Field", payload);
         return true;
     }
 
     private Map<String, Object> findCustomField(String dt, String fieldname) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"options\"]");
+        params.put("fields", "[\"name\",\"options\",\"allow_on_submit\"]");
         params.put("limit_page_length", "1");
         params.put("filters", "[[\"dt\",\"=\",\"" + dt + "\"],[\"fieldname\",\"=\",\"" + fieldname + "\"]]");
         List<Map<String, Object>> data = erpNextClient.listResources("Custom Field", params);
         return data.isEmpty() ? null : data.get(0);
     }
-}
 
+    private int asInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value.toString().trim());
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+}
