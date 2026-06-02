@@ -558,11 +558,6 @@ public class VendorPdfService {
         for (ParsedItem item : parsedItems) {
             String itemName = item.name();
             String vendorHsnCode = asText(catalogRoutingService.normalizeCodeSegment(item.hsn()));
-            String uom = uomService.normalizeUom(item.uom());
-            if (uom.isBlank()) {
-                uom = "Nos";
-            }
-            uomService.ensureUomExists(uom);
             if (vendorHsnCode.isBlank()) {
                 throw new IllegalStateException(
                         "Vendor HSN code is required for parsed item \"" + itemName
@@ -573,6 +568,8 @@ public class VendorPdfService {
                     vendorResolution.categoryCode(),
                     vendorHsnCode,
                     itemName);
+            String uom = resolveItemUom(item, itemCode, itemName);
+            uomService.ensureUomExists(uom);
             if (!resourceExists(itemCode)) {
                 itemCode = createItem(itemName, vendorResolution, vendorHsnCode, uom, sourceOrderId, sourceInvoiceRef, reviewCreatedBy);
             }
@@ -605,6 +602,31 @@ public class VendorPdfService {
             rows.add(row);
         }
         return rows;
+    }
+
+    private String resolveItemUom(ParsedItem item, String candidateItemCode, String itemName) {
+        String parsedUom = uomService.normalizeUom(item.uom());
+        boolean fractionalQty = hasFractionalQuantity(item.qty());
+
+        String existingUom = firstNonBlank(
+                loadItemStockUom(candidateItemCode),
+                loadItemStockUom(findItemCodeByName(itemName)));
+
+        if (!parsedUom.isBlank()) {
+            if (fractionalQty && "Nos".equalsIgnoreCase(parsedUom) && !existingUom.isBlank() && !"Nos".equalsIgnoreCase(existingUom)) {
+                return existingUom;
+            }
+            return parsedUom;
+        }
+
+        if (!existingUom.isBlank()) {
+            return existingUom;
+        }
+
+        if (fractionalQty) {
+            return "Qty";
+        }
+        return "Nos";
     }
 
     private void ensureItemEnabled(String itemCode) {
@@ -771,6 +793,18 @@ public class VendorPdfService {
         return name == null ? null : name.toString();
     }
 
+    private String loadItemStockUom(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
+            return uomService.normalizeUom(asText(item.get("stock_uom")));
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
     private String createItem(
             String itemName,
             CatalogRoutingService.VendorCategoryResolution vendorResolution,
@@ -819,6 +853,22 @@ public class VendorPdfService {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private boolean hasFractionalQuantity(double qty) {
+        return Math.abs(qty - Math.rint(qty)) > 0.000001d;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private boolean resourceExists(String doctype, String name) {

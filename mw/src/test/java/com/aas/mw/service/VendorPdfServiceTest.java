@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -193,6 +194,50 @@ class VendorPdfServiceTest {
         Map<String, Object> response = service.processVendorPdf("SO-0001", pdf, "sid=abc");
 
         assertEquals(50.0, response.get("transportCharge"));
+    }
+
+    @Test
+    void usesExistingItemUomWhenFractionalQuantityWouldOtherwiseDefaultToNos() {
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES")))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "VEND_A_GROCERY_11010000_TOMATOES",
+                        "stock_uom", "Kg")));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveItems",
+                List.of(new ParsedItem("Tomatoes", 0.5, 45, 22.5, "11010000", 5.0, null, null)),
+                new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"),
+                "SO-0001",
+                "vendor_order.pdf",
+                "Administrator");
+
+        assertEquals("Kg", rows.get(0).get("uom"));
+        assertEquals("Kg", rows.get(0).get("stock_uom"));
+    }
+
+    @Test
+    void usesFractionSafeQtyUomForNewItemsWhenQuantityIsFractionalAndNoUomIsParsed() {
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES")))
+                .thenThrow(new RuntimeException("not found"));
+        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-001"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveItems",
+                List.of(new ParsedItem("Tomatoes", 0.5, 45, 22.5, "11010000", 5.0, null, null)),
+                new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"),
+                "SO-0001",
+                "vendor_order.pdf",
+                "Administrator");
+
+        ArgumentCaptor<Map<String, Object>> createCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Item"), createCaptor.capture());
+        assertEquals("Qty", createCaptor.getValue().get("stock_uom"));
+        assertEquals("Qty", rows.get(0).get("uom"));
     }
 
     @Test
