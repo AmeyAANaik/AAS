@@ -72,6 +72,46 @@ class VendorOpsServiceTest {
     }
 
     @Test
+    void summaryPendingBillAmountSubtractsApprovedSupplierPaymentsEvenWhenUnallocated() {
+        when(erpNextClient.listResources(eq("Supplier"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "VENDOR-1",
+                        "supplier_name", "Sanshray Foods",
+                        "disabled", 0)));
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-001",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-06-01",
+                                "outstanding_amount", 1674704.0,
+                                "grand_total", 1674704.0,
+                                "bill_no", "BILL-001",
+                                "docstatus", 1,
+                                "modified", "2026-06-01 10:00:00")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-PAY-2026-00002",
+                                "party", "VENDOR-1",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-06-02",
+                                "paid_amount", 100000.0,
+                                "docstatus", 1)));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> response = vendorOpsService.getSummary();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> vendors = (List<Map<String, Object>>) response.get("vendors");
+
+        assertThat(vendors).hasSize(1);
+        assertThat(vendors.get(0).get("pendingBillAmount")).isEqualTo(1574704.0);
+        assertThat(vendors.get(0).get("ledgerBalance")).isEqualTo(1574704.0);
+    }
+
+    @Test
     void summaryPendingBillAmountFallsBackToGrandTotalForDraftInvoices() {
         when(erpNextClient.listResources(eq("Supplier"), anyMap()))
                 .thenReturn(List.of(Map.of(
@@ -107,12 +147,6 @@ class VendorOpsServiceTest {
     void getVendorLedgerTreatsInvoicesAsPositivePayableAndPaymentsAsReductions() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
-        when(erpNextClient.getResource("Payment Entry", "PAY-001"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "PAY-001",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-001")))));
 
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
                 .thenReturn(List.of(
@@ -172,19 +206,6 @@ class VendorOpsServiceTest {
     void getVendorLedgerIncludesDraftInvoicesButOnlySubmittedPayments() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
-        when(erpNextClient.getResource("Payment Entry", "PAY-001"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "PAY-001",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-001")))));
-        when(erpNextClient.getResource("Payment Entry", "PAY-DRAFT"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "PAY-DRAFT",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-001")))));
-
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
                 .thenReturn(List.of(
                         Map.of(
@@ -247,7 +268,7 @@ class VendorOpsServiceTest {
     }
 
     @Test
-    void getVendorLedgerOnlyUsesPaymentsLinkedToVendorInvoices() {
+    void getVendorLedgerIncludesSubmittedSupplierPaymentsEvenWithoutInvoiceReferences() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
 
@@ -279,30 +300,17 @@ class VendorOpsServiceTest {
                                 "paid_amount", 250.0,
                                 "docstatus", 1)));
 
-        when(erpNextClient.getResource("Payment Entry", "ACC-PAY-2026-00003"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "ACC-PAY-2026-00003",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-001")))));
-        when(erpNextClient.getResource("Payment Entry", "ACC-PAY-2026-00001"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "ACC-PAY-2026-00001",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-OTHER")))));
-
         Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
 
-        assertThat(response.get("balance")).isEqualTo(600.0);
+        assertThat(response.get("balance")).isEqualTo(350.0);
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
 
-        assertThat(entries).hasSize(2);
+        assertThat(entries).hasSize(3);
         assertThat(entries)
                 .extracting(entry -> entry.get("voucherNo"))
-                .containsExactly("PINV-001", "ACC-PAY-2026-00003");
+                .containsExactly("PINV-001", "ACC-PAY-2026-00003", "ACC-PAY-2026-00001");
     }
 
     @Test
@@ -342,13 +350,6 @@ class VendorOpsServiceTest {
                     }
                     return List.of();
                 });
-
-        when(erpNextClient.getResource("Payment Entry", "PAY-001"))
-                .thenReturn(Map.of("data", Map.of(
-                        "name", "PAY-001",
-                        "references", List.of(Map.of(
-                                "reference_doctype", "Purchase Invoice",
-                                "reference_name", "PINV-001")))));
 
         Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
 

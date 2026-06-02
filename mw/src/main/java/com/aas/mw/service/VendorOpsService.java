@@ -95,9 +95,7 @@ public class VendorOpsService {
 
         double parseSuccessRate = calculateParseSuccessRate(orderRows);
         double billCaptureRate = calculateBillCaptureRate(orderRows);
-        double outstandingBalance = round(purchaseInvoices.stream()
-                .mapToDouble(this::resolveInvoiceDueAmount)
-                .sum());
+        double outstandingBalance = round(Math.max(0.0, getLedgerBalance(ledgerEntries)));
         long mismatchCount = orderRows.stream().filter(row -> asFlag(row.get("hasMismatch"))).count();
         long parseFailureCount = orderRows.stream()
                 .filter(row -> asFlag(row.get("pdfUploaded")) && asDouble(row.get("parsedItems")) <= 0)
@@ -763,16 +761,14 @@ public class VendorOpsService {
                 .toList();
 
         List<Map<String, Object>> ledgerEntries = buildLedgerEntries(vendorInvoices, vendorPayments);
-        double outstandingInvoiceAmount = vendorInvoices.stream()
-                .mapToDouble(this::resolveInvoiceDueAmount)
-                .sum();
+        double ledgerBalance = getLedgerBalance(ledgerEntries);
         double preCaptureEstimatedAmount = vendorOrders.stream()
                 .filter(order -> "VENDOR_PDF_RECEIVED".equals(asText(order.get("aas_status")))
                         || ("VENDOR_BILL_CAPTURED".equals(asText(order.get("aas_status")))
                         && !hasText(order.get("aas_pi_vendor"))))
                 .mapToDouble(order -> asDouble(order.get("aas_vendor_bill_total")))
                 .sum();
-        double pendingBillAmount = outstandingInvoiceAmount + preCaptureEstimatedAmount;
+        double pendingBillAmount = Math.max(0.0, ledgerBalance) + preCaptureEstimatedAmount;
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("vendorId", vendorId);
@@ -787,7 +783,7 @@ public class VendorOpsService {
                 vendorInvoices.stream().map(invoice -> asText(invoice.get("modified"))).toList(),
                 vendorPayments.stream().map(payment -> asText(payment.get("modified"))).toList()));
         row.put("templateStatus", resolveTemplateStatus(vendor));
-        row.put("ledgerBalance", ledgerEntries.isEmpty() ? 0.0 : asDouble(ledgerEntries.get(ledgerEntries.size() - 1).get("runningBalance")));
+        row.put("ledgerBalance", ledgerBalance);
         row.put("parseSuccessRate", calculateParseSuccessRateFromSummary(vendorOrders));
         return row;
     }
@@ -950,9 +946,6 @@ public class VendorOpsService {
     }
 
     private List<Map<String, Object>> fetchSupplierPayments(String vendorId, List<Map<String, Object>> purchaseInvoices) {
-        if (purchaseInvoices == null || purchaseInvoices.isEmpty()) {
-            return List.of();
-        }
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
@@ -966,8 +959,7 @@ public class VendorOpsService {
         }
         params.put("filters", toJson(filters));
         params.put("order_by", "posting_date asc");
-        List<Map<String, Object>> payments = listResourcesPaged(PAYMENT_ENTRY, params);
-        return filterPaymentsLinkedToInvoices(payments, purchaseInvoices);
+        return listResourcesPaged(PAYMENT_ENTRY, params);
     }
 
     private List<Map<String, Object>> fetchSupplierPaymentsByCategory(String vendorId, String categoryId) {
@@ -987,42 +979,6 @@ public class VendorOpsService {
         params.put("filters", toJson(filters));
         params.put("order_by", "posting_date asc");
         return listResourcesPaged(PAYMENT_ENTRY, params);
-    }
-
-    private List<Map<String, Object>> filterPaymentsLinkedToInvoices(
-            List<Map<String, Object>> payments,
-            List<Map<String, Object>> purchaseInvoices) {
-        if (payments.isEmpty() || purchaseInvoices.isEmpty()) {
-            return List.of();
-        }
-        Map<String, String> invoiceSuppliers = purchaseInvoices.stream()
-                .collect(Collectors.toMap(
-                        invoice -> asText(invoice.get("name")),
-                        invoice -> asText(invoice.get("supplier")),
-                        (left, right) -> left,
-                        LinkedHashMap::new));
-        List<Map<String, Object>> validPayments = new ArrayList<>();
-        for (Map<String, Object> payment : payments) {
-            String paymentName = asText(payment.get("name"));
-            String party = asText(payment.get("party"));
-            if (!hasText(paymentName) || !hasText(party)) {
-                continue;
-            }
-            Map<String, Object> paymentDoc = unwrap(erpNextClient.getResource(PAYMENT_ENTRY, paymentName));
-            List<Map<String, Object>> references = childItems(paymentDoc.get("references"));
-            boolean linkedToVendorInvoice = references.stream().anyMatch(reference -> {
-                if (!PURCHASE_INVOICE.equals(asText(reference.get("reference_doctype")))) {
-                    return false;
-                }
-                String invoiceId = asText(reference.get("reference_name"));
-                String invoiceSupplier = invoiceSuppliers.get(invoiceId);
-                return hasText(invoiceSupplier) && invoiceSupplier.equals(party);
-            });
-            if (linkedToVendorInvoice) {
-                validPayments.add(payment);
-            }
-        }
-        return validPayments;
     }
 
     private List<Map<String, Object>> listResourcesPaged(String doctype, Map<String, Object> params) {
@@ -1345,6 +1301,12 @@ public class VendorOpsService {
         } catch (NumberFormatException ex) {
             return 0;
         }
+    }
+
+    private double getLedgerBalance(List<Map<String, Object>> entries) {
+        return entries == null || entries.isEmpty()
+                ? 0.0
+                : asDouble(entries.get(entries.size() - 1).get("runningBalance"));
     }
 
     private double round(double value) {
