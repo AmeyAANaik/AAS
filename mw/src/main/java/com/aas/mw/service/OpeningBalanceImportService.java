@@ -499,12 +499,95 @@ public class OpeningBalanceImportService {
     private String resolveTemporaryOpeningAccount(String companyId) {
         Map<String, Object> company = unwrap(erpNextClient.getResource("Company", companyId));
         String account = asText(company.get("temporary_opening_account"));
-        if (account.isBlank()) {
+        if (!account.isBlank()) {
+            return account;
+        }
+        String companyAbbr = asText(company.get("abbr"));
+        String ensured = ensureTemporaryOpeningAccountDoc(companyId, companyAbbr);
+        if (ensured.isBlank()) {
             throw new IllegalStateException(
                     "Temporary Opening Account is not configured for company " + companyId
                             + ". Run /api/setup or set Company.temporary_opening_account in ERPNext.");
         }
-        return account;
+        try {
+            erpNextClient.updateResource("Company", companyId, Map.of("temporary_opening_account", ensured));
+        } catch (Exception ignored) {
+            // If Company write-back fails, we can still continue using the ensured account for this import.
+        }
+        return ensured;
+    }
+
+    private String ensureTemporaryOpeningAccountDoc(String companyName, String companyAbbr) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\"]");
+        params.put("filters", toJson(List.of(
+                List.of("company", "=", companyName),
+                List.of("account_name", "=", "Temporary Opening"))));
+        params.put("limit_page_length", 5);
+        List<Map<String, Object>> existing = erpNextClient.listResources("Account", params);
+        if (existing != null) {
+            for (Map<String, Object> account : existing) {
+                if (account == null) {
+                    continue;
+                }
+                if ("Temporary Opening".equalsIgnoreCase(asText(account.get("account_name")))
+                        && companyName.equalsIgnoreCase(asText(account.get("company")))) {
+                    return asText(account.get("name"));
+                }
+            }
+        }
+
+        String parent = resolveTemporaryOpeningParent(companyName, companyAbbr);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("account_name", "Temporary Opening");
+        payload.put("company", companyName);
+        payload.put("is_group", 0);
+        if (!parent.isBlank()) {
+            payload.put("parent_account", parent);
+        }
+        payload.put("root_type", "Equity");
+        payload.put("report_type", "Balance Sheet");
+        Map<String, Object> created = erpNextClient.createResource("Account", payload);
+        return asText(unwrap(created).get("name"));
+    }
+
+    private String resolveTemporaryOpeningParent(String companyName, String companyAbbr) {
+        String abbr = companyAbbr == null ? "" : companyAbbr.trim();
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"account_name\",\"company\",\"is_group\",\"root_type\"]");
+        params.put("filters", toJson(List.of(
+                List.of("company", "=", companyName),
+                List.of("is_group", "=", "1"))));
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> accounts;
+        try {
+            accounts = erpNextClient.listResources("Account", params);
+        } catch (Exception ex) {
+            return "";
+        }
+        if (accounts == null || accounts.isEmpty()) {
+            return "";
+        }
+        for (Map<String, Object> account : accounts) {
+            if ("Equity".equalsIgnoreCase(asText(account.get("root_type")))
+                    && "Temporary Opening".equalsIgnoreCase(asText(account.get("account_name")))) {
+                return asText(account.get("name"));
+            }
+        }
+        for (Map<String, Object> account : accounts) {
+            if ("Equity".equalsIgnoreCase(asText(account.get("root_type")))) {
+                String name = asText(account.get("name"));
+                if (!abbr.isBlank() && name.endsWith(" - " + abbr)) {
+                    return name;
+                }
+            }
+        }
+        for (Map<String, Object> account : accounts) {
+            if ("Equity".equalsIgnoreCase(asText(account.get("root_type")))) {
+                return asText(account.get("name"));
+            }
+        }
+        return "";
     }
 
     private Map<String, Object> submitCreated(String doctype, Map<String, Object> createdDoc) {

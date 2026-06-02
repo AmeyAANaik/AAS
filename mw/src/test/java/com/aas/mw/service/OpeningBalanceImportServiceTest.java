@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class OpeningBalanceImportServiceTest {
@@ -61,6 +62,45 @@ class OpeningBalanceImportServiceTest {
 
         assertThat(purchaseItem.get("expense_account")).isEqualTo("Temporary Opening - AAS");
         assertThat(salesItem.get("income_account")).isEqualTo("Temporary Opening - AAS");
+    }
+
+    @Test
+    void openingInvoicePayloadsAutoCreateTemporaryOpeningAccountWhenMissingOnCompany() {
+        ErpNextClient erpNextClient = mock(ErpNextClient.class);
+        when(erpNextClient.getResource("Company", "AAS"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_currency", "INR",
+                        "abbr", "AAS",
+                        "temporary_opening_account", "")));
+        when(erpNextClient.listResources("Account", Map.of(
+                "fields", "[\"name\",\"account_name\",\"company\"]",
+                "filters", "[[\"company\",\"=\",\"AAS\"],[\"account_name\",\"=\",\"Temporary Opening\"]]",
+                "limit_page_length", 5)))
+                .thenReturn(List.of());
+        when(erpNextClient.listResources("Account", Map.of(
+                "fields", "[\"name\",\"account_name\",\"company\",\"is_group\",\"root_type\"]",
+                "filters", "[[\"company\",\"=\",\"AAS\"],[\"is_group\",\"=\",\"1\"]]",
+                "limit_page_length", 500)))
+                .thenReturn(List.of(Map.of(
+                        "name", "Capital Accounts - AAS",
+                        "account_name", "Capital Accounts",
+                        "company", "AAS",
+                        "is_group", 1,
+                        "root_type", "Equity")));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Account"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("name", "Temporary Opening - AAS")));
+
+        OpeningBalanceImportService service = new OpeningBalanceImportService(erpNextClient, mock(PaymentDueService.class));
+        Object row = partyAmount("Supplier", "SUP-1", new BigDecimal("500.00"), "OB-001", "GENERAL");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> purchasePayload = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service, "buildPurchaseInvoicePayload", "AAS", "2026-06-01", row);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> purchaseItem = (Map<String, Object>) ((List<?>) purchasePayload.get("items")).get(0);
+        assertThat(purchaseItem.get("expense_account")).isEqualTo("Temporary Opening - AAS");
+        verify(erpNextClient).updateResource("Company", "AAS", Map.of("temporary_opening_account", "Temporary Opening - AAS"));
     }
 
     private Object partyAmount(String partyType, String partyId, BigDecimal amount, String reference, String category) {
