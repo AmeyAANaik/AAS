@@ -422,6 +422,24 @@ class OrderServiceTest {
     }
 
     @Test
+    void deleteOrderDeletesCurrentLinkedDraftPurchaseInvoiceEvenWhenReverseLookupIsEmpty() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
+                "aas_status", "VENDOR_PDF_RECEIVED",
+                "aas_pi_vendor", "PINV-1"));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.getResource(eq("Purchase Invoice"), eq("PINV-1"))).thenReturn(Map.of(
+                "docstatus", 0));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap())).thenReturn(Map.of());
+        when(erpNextClient.deleteResource(eq("Purchase Invoice"), eq("PINV-1"))).thenReturn(Map.of());
+
+        Map<String, Object> response = orderService.deleteOrder("SO-1");
+
+        assertEquals(List.of("PINV-1"), response.get("deletedPurchaseInvoices"));
+        verify(erpNextClient).deleteResource(eq("Purchase Invoice"), eq("PINV-1"));
+    }
+
+    @Test
     void listOrdersExcludesSoftDeletedOrders() {
         when(erpNextClient.listResources(eq("Sales Order"), anyMap())).thenReturn(List.of(
                 new HashMap<>(Map.of("name", "SO-1", "aas_status", "VENDOR_ASSIGNED", "aas_is_deleted", 0)),

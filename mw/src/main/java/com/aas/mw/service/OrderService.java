@@ -1747,7 +1747,7 @@ public class OrderService {
         List<String> deleted = new ArrayList<>();
         List<String> retained = new ArrayList<>();
         String linkedSalesInvoiceId = asText(orderData.get("aas_si_branch"));
-        for (Map<String, Object> row : listLinkedSalesInvoices(orderId)) {
+        for (Map<String, Object> row : collectLinkedSalesInvoices(orderId, linkedSalesInvoiceId)) {
             String salesInvoiceId = asText(row.get("name"));
             if (salesInvoiceId.isBlank()) {
                 continue;
@@ -1777,7 +1777,7 @@ public class OrderService {
         List<String> deleted = new ArrayList<>();
         List<String> retained = new ArrayList<>();
         String linkedPurchaseInvoiceId = asText(orderData.get("aas_pi_vendor"));
-        for (Map<String, Object> row : listLinkedPurchaseInvoices(orderId)) {
+        for (Map<String, Object> row : collectLinkedPurchaseInvoices(orderId, linkedPurchaseInvoiceId)) {
             String purchaseInvoiceId = asText(row.get("name"));
             if (purchaseInvoiceId.isBlank()) {
                 continue;
@@ -1801,6 +1801,38 @@ public class OrderService {
             retained.add(purchaseInvoiceId);
         }
         return new CascadeCleanupResult(deleted, retained);
+    }
+
+    private List<Map<String, Object>> collectLinkedPurchaseInvoices(String orderId, String linkedPurchaseInvoiceId) {
+        List<Map<String, Object>> rows = new ArrayList<>(listLinkedPurchaseInvoices(orderId));
+        appendDirectInvoiceIfMissing(rows, PURCHASE_INVOICE, linkedPurchaseInvoiceId);
+        return rows;
+    }
+
+    private List<Map<String, Object>> collectLinkedSalesInvoices(String orderId, String linkedSalesInvoiceId) {
+        List<Map<String, Object>> rows = new ArrayList<>(listLinkedSalesInvoices(orderId));
+        appendDirectInvoiceIfMissing(rows, SALES_INVOICE, linkedSalesInvoiceId);
+        return rows;
+    }
+
+    private void appendDirectInvoiceIfMissing(List<Map<String, Object>> rows, String doctype, String invoiceId) {
+        String normalizedId = asText(invoiceId);
+        if (normalizedId.isBlank()) {
+            return;
+        }
+        for (Map<String, Object> row : rows) {
+            if (normalizedId.equals(asText(row.get("name")))) {
+                return;
+            }
+        }
+        Map<String, Object> invoice = unwrap(erpNextClient.getResource(doctype, normalizedId));
+        if (invoice.isEmpty()) {
+            return;
+        }
+        Map<String, Object> minimal = new HashMap<>();
+        minimal.put("name", normalizedId);
+        minimal.put("docstatus", invoice.get("docstatus"));
+        rows.add(minimal);
     }
 
     private List<Map<String, Object>> listLinkedPurchaseInvoices(String orderId) {
