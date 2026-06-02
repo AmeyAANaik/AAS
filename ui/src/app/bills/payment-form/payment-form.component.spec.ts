@@ -42,7 +42,8 @@ describe('PaymentFormComponent', () => {
 
     fixture = TestBed.createComponent(PaymentFormComponent);
     component = fixture.componentInstance;
-    component.customers = [{ id: 'SHOP-1', name: 'Sukarta Aundh', company: 'aas' }];
+    component.defaultCompany = 'Shree Siddhivinayak Suppliers';
+    component.customers = [{ id: 'SHOP-1', name: 'Sukarta Aundh', company: 'Shree Siddhivinayak Suppliers' }];
     component.categories = [
       { id: 'CAT-A', name: 'Bakery' },
       { id: 'CAT-B', name: 'Raw Material' }
@@ -70,7 +71,7 @@ describe('PaymentFormComponent', () => {
     const [payload, files] = billsService.createPaymentWithAttachments.calls.mostRecent().args as any[];
     expect(payload).toEqual({
       customer: 'SHOP-1',
-      company: 'aas',
+      company: 'Shree Siddhivinayak Suppliers',
       amount: 250,
       paymentDate: '2024-01-20',
       modeOfPayment: 'Cash',

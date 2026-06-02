@@ -7,6 +7,7 @@ import { BranchService } from '../../branches/branch.service';
 import { CategoryService } from '../../categories/category.service';
 import { ItemService } from '../../items/item.service';
 import { OrderService } from '../../orders/order.service';
+import { CompanyContextService } from '../../shared/company-context.service';
 import { formatUiError } from '../../shared/error-message.util';
 import { VendorService } from '../../vendors/vendor.service';
 import { InvoiceDeliveryDialogComponent, InvoiceDeliveryDialogResult } from '../invoice-delivery-dialog/invoice-delivery-dialog.component';
@@ -33,6 +34,7 @@ export class BillsPageComponent implements OnInit {
   categories: OptionItem[] = [];
   items: ItemOption[] = [];
   orders: OptionItem[] = [];
+  currentCompanyId = '';
   private customerCompanies = new Map<string, string>();
   private branchDirectory = new Map<string, Branch>();
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
@@ -49,6 +51,7 @@ export class BillsPageComponent implements OnInit {
     private itemService: ItemService,
     private orderService: OrderService,
     private vendorService: VendorService,
+    private companyContextService: CompanyContextService,
     private readonly dialog: MatDialog
   ) {
     const today = new Date();
@@ -56,6 +59,7 @@ export class BillsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.loadCompanyContext();
     this.loadReferenceData();
     this.loadInvoices();
   }
@@ -87,7 +91,7 @@ export class BillsPageComponent implements OnInit {
           return {
             id,
             name: name || String(branch.name ?? ''),
-            company: this.customerCompanies.get(id) || undefined
+            company: this.customerCompanies.get(id) || this.currentCompanyId || undefined
           };
         });
         this.invoices = this.invoices.map(invoice => this.withDeliveryConfig(invoice));
@@ -122,7 +126,7 @@ export class BillsPageComponent implements OnInit {
         });
         this.customers = this.customers.map(customer => ({
           ...customer,
-          company: customer.company || this.customerCompanies.get(customer.id) || undefined
+          company: customer.company || this.customerCompanies.get(customer.id) || this.currentCompanyId || undefined
         }));
       }
     });
@@ -148,6 +152,21 @@ export class BillsPageComponent implements OnInit {
           const name = String(category.item_group_name ?? category.name ?? '').trim();
           return { id, name: name || id };
         });
+      }
+    });
+  }
+
+  private loadCompanyContext(): void {
+    this.companyContextService.getContext().subscribe({
+      next: context => {
+        this.currentCompanyId = String(context?.company?.id ?? '').trim();
+        if (!this.currentCompanyId) {
+          return;
+        }
+        this.customers = this.customers.map(customer => ({
+          ...customer,
+          company: customer.company || this.currentCompanyId || undefined
+        }));
       }
     });
   }

@@ -43,7 +43,7 @@ public class OpeningBalanceImportService {
     }
 
     public String templateCsv(String companyId) {
-        normalizeRequired(companyId, "companyId");
+        String normalizedCompany = normalizeCompanyId(companyId);
         String[] headers = {
                 "record_type",
                 "account",
@@ -59,14 +59,14 @@ public class OpeningBalanceImportService {
 
         StringBuilder builder = new StringBuilder();
         builder.append(String.join(",", headers)).append("\n");
-        builder.append("ACCOUNT,Cash - ").append(escapeCompany(companyId)).append(",1000,0,Main - ").append(escapeCompany(companyId)).append(",,,,\n");
+        builder.append("ACCOUNT,Cash - ").append(escapeCompany(normalizedCompany)).append(",1000,0,Main - ").append(escapeCompany(normalizedCompany)).append(",,,,\n");
         builder.append("SUPPLIER,,,,,SUPP-0001,500,OB-001,,GENERAL\n");
         builder.append("CUSTOMER,,,,,CUST-0001,750,,OB-INV-001,GENERAL\n");
         return builder.toString();
     }
 
     public Map<String, Object> preview(String companyId, MultipartFile file, String cutoverDate) {
-        String normalizedCompany = normalizeRequired(companyId, "companyId");
+        String normalizedCompany = normalizeCompanyId(companyId);
         String postingDate = normalizeDateRequired(cutoverDate, "cutoverDate");
         ParsedRows parsed = parseCsv(file);
         ValidationResult validation = validate(normalizedCompany, postingDate, parsed);
@@ -82,7 +82,7 @@ public class OpeningBalanceImportService {
     }
 
     public Map<String, Object> apply(String companyId, MultipartFile file, String cutoverDate) {
-        String normalizedCompany = normalizeRequired(companyId, "companyId");
+        String normalizedCompany = normalizeCompanyId(companyId);
         String postingDate = normalizeDateRequired(cutoverDate, "cutoverDate");
         ParsedRows parsed = parseCsv(file);
         ValidationResult validation = validate(normalizedCompany, postingDate, parsed);
@@ -139,7 +139,7 @@ public class OpeningBalanceImportService {
     }
 
     public Map<String, Object> listOpeningInvoices(String companyId, String fromDate, String toDate) {
-        String normalizedCompany = normalizeRequired(companyId, "companyId");
+        String normalizedCompany = normalizeCompanyId(companyId);
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("companyId", normalizedCompany);
         response.put("from", fromDate == null ? "" : fromDate.trim());
@@ -890,6 +890,34 @@ public class OpeningBalanceImportService {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isBlank()) {
             throw new IllegalArgumentException(label + " is required.");
+        }
+        return normalized;
+    }
+
+    private String normalizeCompanyId(String companyId) {
+        String normalized = normalizeRequired(companyId, "companyId");
+        try {
+            Map<String, Object> exact = unwrap(erpNextClient.getResource("Company", normalized));
+            if (!exact.isEmpty()) {
+                return asText(exact.get("name")).isBlank() ? normalized : asText(exact.get("name"));
+            }
+        } catch (Exception ignored) {
+            // Fall back to lookup by abbr/display name below.
+        }
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"abbr\",\"company_name\"]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> companies = erpNextClient.listResources("Company", params);
+        for (Map<String, Object> row : companies == null ? List.<Map<String, Object>>of() : companies) {
+            String name = asText(row.get("name"));
+            String abbr = asText(row.get("abbr"));
+            String companyName = asText(row.get("company_name"));
+            if (normalized.equalsIgnoreCase(name)
+                    || normalized.equalsIgnoreCase(abbr)
+                    || normalized.equalsIgnoreCase(companyName)) {
+                return name.isBlank() ? normalized : name;
+            }
         }
         return normalized;
     }

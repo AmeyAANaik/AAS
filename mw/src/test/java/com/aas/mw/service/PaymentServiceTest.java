@@ -148,4 +148,37 @@ class PaymentServiceTest {
         assertEquals("UNDER_REVIEW", result.get("aas_payment_review_status"));
         org.mockito.Mockito.verify(erpNextClient, org.mockito.Mockito.never()).submitDoc(org.mockito.Mockito.anyMap());
     }
+
+    @Test
+    void resolvesCompanyFromAbbrBeforeLoadingDefaults() {
+        when(erpNextClient.getResource("Company", "aas")).thenReturn(Map.of());
+        when(erpNextClient.listResources("Company", Map.of(
+                "fields", "[\"name\",\"abbr\",\"company_name\"]",
+                "limit_page_length", 500)))
+                .thenReturn(java.util.List.of(Map.of(
+                        "name", "Shree Siddhivinayak Suppliers",
+                        "abbr", "AAS",
+                        "company_name", "Shree Siddhivinayak Suppliers")));
+        when(erpNextClient.getResource("Company", "Shree Siddhivinayak Suppliers"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_receivable_account", "REC-ACC",
+                        "default_cash_account", "CASH-ACC")));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-ABBR")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-ABBR"))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-ABBR")));
+
+        PaymentRequest request = new PaymentRequest();
+        request.setCustomer("SHOP-1");
+        request.setCompany("aas");
+        request.setAmount(new BigDecimal("10.00"));
+        request.setPartyType("Customer");
+
+        paymentService.createPayment(request, "shop-user", false);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
+        assertEquals("Shree Siddhivinayak Suppliers", payloadCaptor.getValue().get("company"));
+    }
 }

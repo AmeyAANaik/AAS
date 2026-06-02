@@ -6,6 +6,7 @@ import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -101,6 +102,35 @@ class OpeningBalanceImportServiceTest {
         Map<String, Object> purchaseItem = (Map<String, Object>) ((List<?>) purchasePayload.get("items")).get(0);
         assertThat(purchaseItem.get("expense_account")).isEqualTo("Temporary Opening - AAS");
         verify(erpNextClient).updateResource("Company", "AAS", Map.of("temporary_opening_account", "Temporary Opening - AAS"));
+    }
+
+    @Test
+    void previewResolvesCompanyByAbbrIgnoringCase() {
+        ErpNextClient erpNextClient = mock(ErpNextClient.class);
+        when(erpNextClient.getResource("Company", "aas")).thenReturn(Map.of());
+        when(erpNextClient.listResources("Company", Map.of(
+                "fields", "[\"name\",\"abbr\",\"company_name\"]",
+                "limit_page_length", 500)))
+                .thenReturn(List.of(Map.of(
+                        "name", "Shree Siddhivinayak Suppliers",
+                        "abbr", "AAS",
+                        "company_name", "Shree Siddhivinayak Suppliers")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("Account"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "Cash - AAS",
+                        "company", "Shree Siddhivinayak Suppliers")));
+
+        OpeningBalanceImportService service = new OpeningBalanceImportService(erpNextClient, mock(PaymentDueService.class));
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "opening.csv",
+                "text/csv",
+                ("record_type,account,debit,credit,cost_center,party_id,amount,bill_no,invoice_ref,category\n"
+                        + "ACCOUNT,Cash - AAS,1000,0,Main - AAS,,,,,\n").getBytes());
+
+        Map<String, Object> response = service.preview("aas", file, "2026-06-01");
+
+        assertThat(response.get("companyId")).isEqualTo("Shree Siddhivinayak Suppliers");
     }
 
     private Object partyAmount(String partyType, String partyId, BigDecimal amount, String reference, String category) {

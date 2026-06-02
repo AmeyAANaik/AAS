@@ -57,8 +57,8 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   imageFiles: File[] = [];
   imagePreviewUrls: string[] = [];
   createdOrderId: string | null = null;
-  currentCompanyName = 'AAS';
-  currentCompanyId = 'AAS';
+  currentCompanyName = '';
+  currentCompanyId = '';
   categories: OrderOption[] = [];
   createMode: CreateMode = 'images';
   allItems: CategoryOrderItemOption[] = [];
@@ -369,18 +369,18 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       .subscribe({
         next: context => {
           const company = context?.company;
-          const name = String(company?.name ?? '').trim();
-          this.currentCompanyName = name || 'AAS';
-          this.currentCompanyId = name || 'AAS';
-          this.detailsGroup.patchValue({ company: this.currentCompanyId });
+          const companyId = String(company?.id ?? '').trim();
+          const companyName = String(company?.name ?? '').trim();
+          this.currentCompanyName = companyName || companyId;
+          this.currentCompanyId = companyId || companyName;
+          if (this.currentCompanyId) {
+            this.detailsGroup.patchValue({ company: this.currentCompanyId });
+          }
         },
         error: err => {
           this.companiesError = this.formatError(err, 'Unable to load selected company');
-          this.currentCompanyName = 'AAS';
-          this.currentCompanyId = 'AAS';
-          if (!this.detailsGroup.get('company')?.value) {
-            this.detailsGroup.patchValue({ company: this.currentCompanyId });
-          }
+          this.currentCompanyName = '';
+          this.currentCompanyId = '';
         }
       });
     this.subscriptions.add(sub);
@@ -773,7 +773,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get selectedCompanyLabel(): string {
-    return this.currentCompanyName || this.currentCompanyId || 'AAS';
+    return this.currentCompanyName || this.currentCompanyId || 'Company';
   }
 
   private mapItemOption(item: Item): CategoryOrderItemOption {

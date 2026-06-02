@@ -212,7 +212,7 @@ export class AppShellComponent implements OnDestroy {
           const companyId = effectiveCompany?.id?.trim() ?? '';
           const companyName = effectiveCompany?.name?.trim() ?? '';
           // Prefer the configured company identifier when the name is still the default placeholder.
-          this.companyName = (companyId && (!companyName || companyName.toUpperCase() === 'AAS')) ? companyId : (companyName || companyId || 'SCM Console');
+          this.companyName = companyName || companyId || 'SCM Console';
           this.companySubline = effectiveCompany?.default_currency?.trim() || 'Supply chain workspace';
           this.companyLogoUrl = effectiveCompany?.logo_url?.trim() || '';
           this.companyAvatarText = this.initialsFor(this.companyName, 'SC');

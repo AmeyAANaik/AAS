@@ -53,7 +53,7 @@ public class PaymentService {
         String invoiceId = request.getInvoiceId();
         Map<String, Object> invoiceDoc = null;
         String party = request.getCustomer();
-        String companyName = request.getCompany();
+        String companyName = normalizeCompanyName(request.getCompany());
         if (invoiceId != null && !invoiceId.isBlank()) {
             invoiceDoc = loadInvoice(invoiceContext.invoiceDoctype(), invoiceId);
             String invoiceParty = asString(invoiceDoc.get(invoiceContext.partyField()));
@@ -156,6 +156,41 @@ public class PaymentService {
         }
         Map<String, Object> created = erpNextClient.createResource("Payment Entry", payload);
         return reloadPaymentEntry(unwrapDoc(created));
+    }
+
+    private String normalizeCompanyName(String requestedCompany) {
+        String normalized = requestedCompany == null ? "" : requestedCompany.trim();
+        if (normalized.isBlank()) {
+            return normalized;
+        }
+        try {
+            Map<String, Object> exact = unwrap(erpNextClient.getResource("Company", normalized));
+            String exactName = asString(exact.get("name"));
+            if (exactName != null && !exactName.isBlank()) {
+                return exactName;
+            }
+        } catch (Exception ignored) {
+            // Fall back to list lookup below.
+        }
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"abbr\",\"company_name\"]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> companies = erpNextClient.listResources("Company", params);
+        if (companies == null) {
+            return normalized;
+        }
+        for (Map<String, Object> row : companies) {
+            String name = asString(row.get("name"));
+            String abbr = asString(row.get("abbr"));
+            String companyName = asString(row.get("company_name"));
+            if (equalsIgnoreCase(normalized, name)
+                    || equalsIgnoreCase(normalized, abbr)
+                    || equalsIgnoreCase(normalized, companyName)) {
+                return name == null || name.isBlank() ? normalized : name;
+            }
+        }
+        return normalized;
     }
 
     public Map<String, Object> submitPayment(Map<String, Object> paymentDoc) {
@@ -293,6 +328,13 @@ public class PaymentService {
 
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return left.equalsIgnoreCase(right);
     }
 
     private String firstNonBlank(String... values) {

@@ -67,9 +67,9 @@ describe('OrderCreateComponent', () => {
 
     companyContextService = jasmine.createSpyObj('CompanyContextService', ['getContext']);
     companyContextService.getContext.and.returnValue(of({
-      company: { id: 'AAS', name: 'AAS' },
+      company: { id: 'Shree Siddhivinayak Suppliers', name: 'Shree Siddhivinayak Suppliers' },
       branch: null,
-      companies: [{ name: 'AAS' }],
+      companies: [{ name: 'Shree Siddhivinayak Suppliers' }],
       branches: []
     }));
 
@@ -125,8 +125,8 @@ describe('OrderCreateComponent', () => {
     expect(companyContextService.getContext).toHaveBeenCalled();
     expect(vendorService.listVendors).toHaveBeenCalled();
     expect(component.categories).toEqual([{ id: 'Grocery', name: 'Grocery' }]);
-    expect(component.selectedCompanyLabel).toBe('AAS');
-    expect(component.detailsGroup.get('company')?.value).toBe('AAS');
+    expect(component.selectedCompanyLabel).toBe('Shree Siddhivinayak Suppliers');
+    expect(component.detailsGroup.get('company')?.value).toBe('Shree Siddhivinayak Suppliers');
   });
 
   it('shows all vendors and items for the selected category', () => {

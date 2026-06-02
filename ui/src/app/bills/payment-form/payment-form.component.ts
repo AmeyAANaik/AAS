@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { formatUiError } from '../../shared/error-message.util';
@@ -25,12 +25,12 @@ function formatApiDate(value: unknown): string | undefined {
   templateUrl: './payment-form.component.html',
   styleUrl: './payment-form.component.scss'
 })
-export class PaymentFormComponent {
+export class PaymentFormComponent implements OnChanges {
   @Input() customers: OptionItem[] = [];
   @Input() vendors: OptionItem[] = [];
   @Input() categories: OptionItem[] = [];
   @Input() invoices: InvoiceOption[] = [];
-  @Input() defaultCompany = 'aas';
+  @Input() defaultCompany = '';
   @Output() created = new EventEmitter<void>();
 
   @ViewChild('paymentDetails') paymentDetails?: ElementRef<HTMLElement>;
@@ -55,12 +55,25 @@ export class PaymentFormComponent {
   hasLoadedDue = false;
   voucherFiles: File[] = [];
   readonly modeOfPaymentOptions = ['Cash', 'UPI Transfer', 'Check'];
+  private lastDefaultCompany = '';
 
   constructor(
     private fb: FormBuilder,
     private billsService: BillsService,
     private tokenStore: AuthTokenService
   ) {}
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['defaultCompany']) {
+      return;
+    }
+    const nextDefault = String(changes['defaultCompany'].currentValue ?? '').trim();
+    const currentCompany = String(this.form.get('company')?.value ?? '').trim();
+    if (!currentCompany || currentCompany === this.lastDefaultCompany) {
+      this.form.patchValue({ company: nextDefault }, { emitEvent: false });
+    }
+    this.lastDefaultCompany = nextDefault;
+  }
 
   get canRecordPayments(): boolean {
     const role = String(this.tokenStore.getRole() ?? '').trim().toLowerCase();
