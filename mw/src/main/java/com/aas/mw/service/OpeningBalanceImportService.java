@@ -436,6 +436,7 @@ public class OpeningBalanceImportService {
 
     private Map<String, Object> buildPurchaseInvoicePayload(String companyId, String postingDate, PartyAmount row) {
         String companyCurrency = resolveCompanyCurrency(companyId);
+        String temporaryOpeningAccount = resolveTemporaryOpeningAccount(companyId);
         String itemCode = openingItemCode(row.category());
         Map<String, Object> payload = new HashMap<>();
         payload.put("supplier", row.partyId());
@@ -454,13 +455,15 @@ public class OpeningBalanceImportService {
                 "item_code", itemCode,
                 "qty", 1,
                 "rate", row.amount(),
-                "amount", row.amount())));
+                "amount", row.amount(),
+                "expense_account", temporaryOpeningAccount)));
         payload.put("remarks", row.reference());
         return payload;
     }
 
     private Map<String, Object> buildSalesInvoicePayload(String companyId, String postingDate, PartyAmount row) {
         String companyCurrency = resolveCompanyCurrency(companyId);
+        String temporaryOpeningAccount = resolveTemporaryOpeningAccount(companyId);
         String itemCode = openingItemCode(row.category());
         Map<String, Object> payload = new HashMap<>();
         payload.put("customer", row.partyId());
@@ -479,7 +482,8 @@ public class OpeningBalanceImportService {
                 "item_code", itemCode,
                 "qty", 1,
                 "rate", row.amount(),
-                "amount", row.amount())));
+                "amount", row.amount(),
+                "income_account", temporaryOpeningAccount)));
         payload.put("po_no", row.reference());
         payload.put("remarks", row.reference());
 
@@ -490,6 +494,17 @@ public class OpeningBalanceImportService {
             payload.put("aas_previous_due", BigDecimal.ZERO);
         }
         return payload;
+    }
+
+    private String resolveTemporaryOpeningAccount(String companyId) {
+        Map<String, Object> company = unwrap(erpNextClient.getResource("Company", companyId));
+        String account = asText(company.get("temporary_opening_account"));
+        if (account.isBlank()) {
+            throw new IllegalStateException(
+                    "Temporary Opening Account is not configured for company " + companyId
+                            + ". Run /api/setup or set Company.temporary_opening_account in ERPNext.");
+        }
+        return account;
     }
 
     private Map<String, Object> submitCreated(String doctype, Map<String, Object> createdDoc) {
