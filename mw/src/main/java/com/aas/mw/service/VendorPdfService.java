@@ -569,9 +569,10 @@ public class VendorPdfService {
                     vendorHsnCode,
                     itemName);
             String uom = resolveItemUom(item, itemCode, itemName);
+            itemCode = resolveItemCodeForUom(itemCode, uom, item.qty());
             uomService.ensureUomExists(uom);
             if (!resourceExists(itemCode)) {
-                itemCode = createItem(itemName, vendorResolution, vendorHsnCode, uom, sourceOrderId, sourceInvoiceRef, reviewCreatedBy);
+                itemCode = createItem(itemCode, itemName, vendorResolution, vendorHsnCode, uom, sourceOrderId, sourceInvoiceRef, reviewCreatedBy);
             }
             ensureItemEnabled(itemCode);
             Map<String, Object> row = new HashMap<>();
@@ -605,8 +606,13 @@ public class VendorPdfService {
     }
 
     private String resolveItemUom(ParsedItem item, String candidateItemCode, String itemName) {
-        String parsedUom = uomService.normalizeUom(item.uom());
+        String rawParsedUom = asText(item.uom());
+        String parsedUom = uomService.normalizeUom(rawParsedUom);
         boolean fractionalQty = hasFractionalQuantity(item.qty());
+
+        if (fractionalQty && isPieceLikeUom(rawParsedUom)) {
+            parsedUom = "Qty";
+        }
 
         String existingUom = firstNonBlank(
                 loadItemStockUom(candidateItemCode),
@@ -619,7 +625,7 @@ public class VendorPdfService {
             return parsedUom;
         }
 
-        if (!existingUom.isBlank()) {
+        if (!existingUom.isBlank() && !(fractionalQty && "Nos".equalsIgnoreCase(existingUom))) {
             return existingUom;
         }
 
@@ -627,6 +633,30 @@ public class VendorPdfService {
             return "Qty";
         }
         return "Nos";
+    }
+
+    private String resolveItemCodeForUom(String baseItemCode, String desiredUom, double qty) {
+        if (baseItemCode == null || baseItemCode.isBlank()) {
+            return baseItemCode;
+        }
+        if (!resourceExists(baseItemCode)) {
+            return baseItemCode;
+        }
+        String existingUom = loadItemStockUom(baseItemCode);
+        if (existingUom.isBlank()) {
+            return baseItemCode;
+        }
+        boolean fractionalQty = hasFractionalQuantity(qty);
+        if (!fractionalQty) {
+            return baseItemCode;
+        }
+        if (desiredUom == null || desiredUom.isBlank() || desiredUom.equalsIgnoreCase(existingUom)) {
+            return baseItemCode;
+        }
+        if (!"Nos".equalsIgnoreCase(existingUom)) {
+            return baseItemCode;
+        }
+        return baseItemCode + "_" + asText(catalogRoutingService.normalizeCodeSegment(desiredUom));
     }
 
     private void ensureItemEnabled(String itemCode) {
@@ -806,6 +836,7 @@ public class VendorPdfService {
     }
 
     private String createItem(
+            String itemCode,
             String itemName,
             CatalogRoutingService.VendorCategoryResolution vendorResolution,
             String vendorHsnCode,
@@ -814,11 +845,14 @@ public class VendorPdfService {
             String sourceInvoiceRef,
             String reviewCreatedBy) {
         Map<String, Object> payload = new HashMap<>();
-        String code = catalogRoutingService.buildParsedItemCode(
-                vendorResolution.vendorCode(),
-                vendorResolution.categoryCode(),
-                vendorHsnCode,
-                itemName);
+        String code = asText(itemCode);
+        if (code.isBlank()) {
+            code = catalogRoutingService.buildParsedItemCode(
+                    vendorResolution.vendorCode(),
+                    vendorResolution.categoryCode(),
+                    vendorHsnCode,
+                    itemName);
+        }
         payload.put("item_code", code);
         payload.put("item_name", itemName);
         payload.put("item_group", vendorResolution.categoryId());
@@ -857,6 +891,20 @@ public class VendorPdfService {
 
     private boolean hasFractionalQuantity(double qty) {
         return Math.abs(qty - Math.rint(qty)) > 0.000001d;
+    }
+
+    private boolean isPieceLikeUom(String rawUom) {
+        String normalized = rawUom == null ? "" : rawUom.trim().toUpperCase(java.util.Locale.ROOT);
+        return normalized.equals("PCS")
+                || normalized.equals("PC")
+                || normalized.equals("PIECE")
+                || normalized.equals("PIECES")
+                || normalized.equals("NOS")
+                || normalized.equals("NO")
+                || normalized.equals("NUMBER")
+                || normalized.equals("NUMBERS")
+                || normalized.equals("UNIT")
+                || normalized.equals("UNITS");
     }
 
     private String firstNonBlank(String... values) {

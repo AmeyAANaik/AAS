@@ -241,6 +241,59 @@ class VendorPdfServiceTest {
     }
 
     @Test
+    void convertsFractionalPcsToQtyInsteadOfNos() {
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_MDH_CHANA_MASALA")))
+                .thenThrow(new RuntimeException("not found"));
+        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-PCS-001"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveItems",
+                List.of(new ParsedItem("MDH CHANA MASALA", 0.5, 750, 375, "09109929", 5.0, "PCS", null)),
+                new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"),
+                "SO-0001",
+                "vendor_order.pdf",
+                "Administrator");
+
+        ArgumentCaptor<Map<String, Object>> createCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Item"), createCaptor.capture());
+        assertEquals("Qty", createCaptor.getValue().get("stock_uom"));
+        assertEquals("Qty", rows.get(0).get("uom"));
+        assertEquals("Qty", rows.get(0).get("stock_uom"));
+    }
+
+    @Test
+    void createsUomSpecificVariantWhenExistingBaseItemUsesNosForFractionalQuantity() {
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES")))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "VEND_A_GROCERY_11010000_TOMATOES",
+                        "stock_uom", "Nos")));
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES_QTY")))
+                .thenThrow(new RuntimeException("not found"));
+        when(erpNextClient.listResources(eq("Item"), any())).thenReturn(List.of());
+        when(erpNextClient.createResource(eq("Item"), any())).thenReturn(Map.of("name", "ITEM-QTY-001"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveItems",
+                List.of(new ParsedItem("Tomatoes", 0.5, 45, 22.5, "11010000", 5.0, null, null)),
+                new CatalogRoutingService.VendorCategoryResolution("Vendor A", "Vendor A", "VEND_A", "Grocery", "Grocery", "GROCERY"),
+                "SO-0001",
+                "vendor_order.pdf",
+                "Administrator");
+
+        ArgumentCaptor<Map<String, Object>> createCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Item"), createCaptor.capture());
+        assertEquals("VEND_A_GROCERY_11010000_TOMATOES_QTY", createCaptor.getValue().get("item_code"));
+        assertEquals("Qty", createCaptor.getValue().get("stock_uom"));
+        assertEquals("ITEM-QTY-001", rows.get(0).get("item_code"));
+        assertEquals("Qty", rows.get(0).get("stock_uom"));
+    }
+
+    @Test
     void reuploadUpdatesExistingDraftPurchaseOrderInsteadOfDeletingIt() {
         MockMultipartFile pdf = validPdf();
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-0001")))
