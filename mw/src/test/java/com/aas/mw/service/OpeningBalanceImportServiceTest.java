@@ -61,6 +61,7 @@ class OpeningBalanceImportServiceTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> salesItem = (Map<String, Object>) ((List<?>) salesPayload.get("items")).get(0);
 
+        assertThat(purchasePayload.get("aas_category")).isEqualTo("GENERAL");
         assertThat(purchaseItem.get("expense_account")).isEqualTo("Temporary Opening - AAS");
         assertThat(salesItem.get("income_account")).isEqualTo("Temporary Opening - AAS");
     }

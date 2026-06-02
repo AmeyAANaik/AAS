@@ -203,6 +203,43 @@ class VendorOpsServiceTest {
     }
 
     @Test
+    void getVendorLedgerUsesDirectPurchaseInvoiceCategoryForOpeningBalances() {
+        when(erpNextClient.getResource("Supplier", "Sanshray Foods"))
+                .thenReturn(Map.of("data", Map.of("name", "Sanshray Foods", "supplier_name", "Sanshray Foods")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-PINV-2026-00003",
+                        "supplier", "Sanshray Foods",
+                        "posting_date", "2026-06-01",
+                        "grand_total", 1674704.0,
+                        "outstanding_amount", 1674704.0,
+                        "bill_no", "AAS-OPENING-20260601-Sanshray Foods-GROCERY",
+                        "aas_category", "Grocery",
+                        "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> ledger = vendorOpsService.getVendorLedger("Sanshray Foods");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.get("categorySummary");
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1674704.0));
+        assertThat(categories).noneMatch(row -> "Uncategorized".equals(row.get("category")));
+
+        Map<String, Object> categoryLedger = vendorOpsService.getVendorLedgerByCategory("Sanshray Foods", "Grocery");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0))
+                .containsEntry("voucherType", "Purchase Invoice")
+                .containsEntry("voucherNo", "ACC-PINV-2026-00003")
+                .containsEntry("reference", "AAS-OPENING-20260601-Sanshray Foods-GROCERY")
+                .containsEntry("credit", 1674704.0)
+                .containsEntry("runningBalance", 1674704.0);
+    }
+
+    @Test
     void getVendorLedgerIncludesDraftInvoicesButOnlySubmittedPayments() {
         when(erpNextClient.getResource("Supplier", "VENDOR-1"))
                 .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));

@@ -486,6 +486,11 @@ public class VendorOpsService {
             if (base <= 0) {
                 continue;
             }
+            String directCategory = asText(invoice.get("aas_category"));
+            if (hasText(directCategory)) {
+                totals.merge(directCategory, base, Double::sum);
+                continue;
+            }
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
             if (!hasText(sourceOrderId)) {
                 totals.merge("Uncategorized", base, Double::sum);
@@ -562,6 +567,23 @@ public class VendorOpsService {
                 dueBase = asDouble(invoice.get("grand_total"));
             }
             if (dueBase <= 0) {
+                continue;
+            }
+            String directCategory = asText(invoice.get("aas_category"));
+            if (hasText(directCategory)) {
+                if (!directCategory.equals(categoryId)) {
+                    continue;
+                }
+                double credit = round(dueBase);
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("date", asText(invoice.get("posting_date")));
+                row.put("voucherType", invoiceVoucherType(invoice, "Purchase Invoice"));
+                row.put("voucherNo", asText(invoice.get("name")));
+                row.put("reference", asText(invoice.get("bill_no")));
+                row.put("debit", 0.0);
+                row.put("credit", credit);
+                row.put("netChange", credit);
+                entries.add(row);
                 continue;
             }
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
@@ -880,7 +902,8 @@ public class VendorOpsService {
         params.put(
                 "fields",
                 "[\"name\",\"supplier\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"bill_no\","
-                        + "\"aas_source_sales_order\",\"aas_replaced_by\",\"modified\",\"creation\",\"docstatus\",\"aas_invoice_version_status\"]");
+                        + "\"aas_source_sales_order\",\"aas_replaced_by\",\"modified\",\"creation\",\"docstatus\","
+                        + "\"aas_invoice_version_status\",\"aas_category\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("docstatus", "!=", "2"));

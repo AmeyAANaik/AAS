@@ -446,6 +446,7 @@ public class OpeningBalanceImportService {
         payload.put("set_posting_time", 1);
         payload.put("posting_time", "00:00:00");
         payload.put("is_opening", "Yes");
+        payload.put("aas_category", row.category());
         payload.put("bill_no", row.reference());
         payload.put("currency", companyCurrency);
         payload.put("conversion_rate", 1.0);
