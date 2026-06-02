@@ -233,6 +233,12 @@ class BranchOpsServiceTest {
                         "paid_amount", 100000.0,
                         "docstatus", 1,
                         "aas_category", "Dairy")));
+        when(erpNextClient.getResource("Payment Entry", "ACC-PAY-2026-00003"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-PAY-2026-00003",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "ACC-SINV-2026-00012")))));
 
         Map<String, Object> response = branchOpsService.getBranchLedgerByCategory("BRANCH-1", "Dairy");
 
@@ -244,6 +250,13 @@ class BranchOpsServiceTest {
                 .containsExactly("ACC-SINV-2026-00012", "ACC-PAY-2026-00003");
         assertThat(entries.get(0)).containsEntry("runningBalance", 159940.0);
         assertThat(entries.get(1)).containsEntry("runningBalance", 59940.0);
+
+        Map<String, Object> branchLedger = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) branchLedger.get("categorySummary");
+
+        assertThat(categories).containsExactly(Map.of("category", "Dairy", "amount", 59940.0));
     }
 
     @Test

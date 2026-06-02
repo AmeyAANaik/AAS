@@ -203,13 +203,15 @@ public class BranchOpsService {
         List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
+        List<Map<String, Object>> filteredInvoices = filterByPostingDate(invoices, range);
+        List<Map<String, Object>> categoryPayments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(branchId), range);
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
                 "openingBalance", window.openingBalance,
                 "closingBalance", window.closingBalance,
                 "balance", window.closingBalance,
-                "categorySummary", buildCategorySummaryFromInvoices(filterByPostingDate(invoices, range)),
+                "categorySummary", buildCategoryBalanceSummary(filteredInvoices, categoryPayments),
                 "entries", window.entries);
     }
 
@@ -253,6 +255,15 @@ public class BranchOpsService {
         }
         return invoices.stream()
                 .filter(invoice -> withinDateRange(asText(invoice.get("posting_date")), range.fromInclusive, range.toInclusive))
+                .toList();
+    }
+
+    private List<Map<String, Object>> filterPaymentsByPostingDate(List<Map<String, Object>> payments, LedgerRange range) {
+        if (payments == null || payments.isEmpty() || range == null || !range.hasBounds()) {
+            return payments == null ? List.of() : payments;
+        }
+        return payments.stream()
+                .filter(payment -> withinDateRange(asText(payment.get("posting_date")), range.fromInclusive, range.toInclusive))
                 .toList();
     }
 
@@ -343,6 +354,7 @@ public class BranchOpsService {
 
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         List<Map<String, Object>> invoices = filterByPostingDate(fetchSalesInvoices(null), range);
+        List<Map<String, Object>> payments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(null), range);
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
 
@@ -372,17 +384,34 @@ public class BranchOpsService {
                 branchTotals.merge(entry.getKey(), entry.getValue(), Double::sum);
             }
         }
+        for (Map<String, Object> payment : payments) {
+            if (!isSubmitted(payment)) {
+                continue;
+            }
+            String branchId = asText(payment.get("party"));
+            String category = asText(payment.get("aas_category"));
+            double amount = round(resolvePaymentAmount(payment));
+            if (!hasText(branchId) || !hasText(category) || amount <= 0) {
+                continue;
+            }
+            Map<String, Double> branchTotals = totals.computeIfAbsent(branchId, key -> new LinkedHashMap<>());
+            branchTotals.merge(category, -amount, Double::sum);
+        }
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map.Entry<String, Map<String, Double>> branchEntry : totals.entrySet()) {
             String branchId = branchEntry.getKey();
             String branchName = branchNames.getOrDefault(branchId, branchId);
             for (Map.Entry<String, Double> categoryEntry : branchEntry.getValue().entrySet()) {
+                double amount = round(categoryEntry.getValue());
+                if (amount <= 0) {
+                    continue;
+                }
                 rows.add(Map.of(
                         "branchId", branchId,
                         "branchName", branchName,
                         "category", categoryEntry.getKey(),
-                        "amount", round(categoryEntry.getValue())));
+                        "amount", amount));
             }
         }
         return rows.stream()
@@ -392,9 +421,9 @@ public class BranchOpsService {
                 .toList();
     }
 
-    private List<Map<String, Object>> buildCategorySummaryFromInvoices(List<Map<String, Object>> invoices) {
+    private List<Map<String, Object>> buildCategoryBalanceSummary(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
         if (invoices == null || invoices.isEmpty()) {
-            return List.of();
+            invoices = List.of();
         }
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Double> totals = new LinkedHashMap<>();
@@ -445,6 +474,19 @@ public class BranchOpsService {
             for (LineWeight weight : weights) {
                 double share = dueBase * (weight.amount() / totalWeight);
                 totals.merge(weight.group(), share, Double::sum);
+            }
+        }
+        if (payments != null) {
+            for (Map<String, Object> payment : payments) {
+                if (!isSubmitted(payment)) {
+                    continue;
+                }
+                String category = asText(payment.get("aas_category"));
+                double amount = round(resolvePaymentAmount(payment));
+                if (!hasText(category) || amount <= 0) {
+                    continue;
+                }
+                totals.merge(category, -amount, Double::sum);
             }
         }
         return totals.entrySet().stream()
@@ -907,6 +949,22 @@ public class BranchOpsService {
         params.put("filters", toJson(filters));
         params.put("order_by", "posting_date asc");
         return listResourcesPaged(PAYMENT_ENTRY, params);
+    }
+
+    private List<Map<String, Object>> fetchCustomerCategoryPayments(String branchId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"party\",\"party_type\",\"posting_date\",\"paid_amount\",\"received_amount\",\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\",\"aas_category\"]");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("party_type", "=", "Customer"));
+        filters.add(List.of("docstatus", "=", "1"));
+        if (hasText(branchId)) {
+            filters.add(List.of("party", "=", branchId));
+        }
+        params.put("filters", toJson(filters));
+        params.put("order_by", "posting_date asc");
+        return listResourcesPaged(PAYMENT_ENTRY, params).stream()
+                .filter(payment -> hasText(payment.get("aas_category")))
+                .toList();
     }
 
     private List<Map<String, Object>> filterPaymentsLinkedToInvoices(
