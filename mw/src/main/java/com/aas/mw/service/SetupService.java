@@ -17,7 +17,7 @@ public class SetupService {
     private static final String SALES_INVOICE_PRINT_FORMAT_HTML = """
             <style>
               .print-format { font-size: 12px; color: #111827; line-height: 1.45; }
-              .aas-title-row, .aas-meta-table, .aas-party-table, .aas-items, .aas-summary { width: 100%; border-collapse: collapse; }
+              .aas-title-row, .aas-meta-table, .aas-party-table, .aas-items, .aas-summary, .aas-category-due-table { width: 100%; border-collapse: collapse; }
               .aas-title-row { margin-bottom: 16px; }
               .aas-title-row td { vertical-align: top; }
               .aas-brand { width: 58%; }
@@ -52,6 +52,12 @@ public class SetupService {
               .aas-summary .aas-summary-label-cell { font-weight: 600; color: #111827; }
               .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
               .aas-summary .aas-summary-grand td { font-weight: 700; background: #eef2ff; font-size: 13px; }
+              .aas-category-due-table { width: 360px; margin: 0 0 24px auto; table-layout: fixed; page-break-inside: avoid; }
+              .aas-category-due-table th, .aas-category-due-table td { border: 1px solid #111827; padding: 8px 10px; line-height: 1.35; vertical-align: middle; }
+              .aas-category-due-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; }
+              .aas-category-due-table td { color: #111827; }
+              .aas-category-due-table .aas-category-due-amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+              .aas-category-due-table .aas-category-due-pending { font-weight: 700; background: #eef2ff; }
               .aas-footer-grid { width: 100%; margin-top: 20px; border-collapse: separate; border-spacing: 0; border-top: 1px solid #111827; padding-top: 14px; }
               .aas-footer-grid td { vertical-align: top; }
               .aas-footer-left { width: 62%; padding-right: 18px; }
@@ -213,12 +219,6 @@ public class SetupService {
                 {% endfor %}
               </tbody>
             </table>
-            {% set open_invoices = frappe.get_list("Sales Invoice", filters=[["customer", "=", doc.customer], ["docstatus", "!=", 2], ["name", "!=", doc.name]], fields=["grand_total", "outstanding_amount", "docstatus"], limit_page_length=500) if doc.customer else [] %}
-            {% set dues_ns = namespace(pending=0.0) %}
-            {% for inv in open_invoices %}
-            {% set inv_amount = frappe.utils.flt(inv.outstanding_amount, 2) if (inv.docstatus == 1 and inv.outstanding_amount) else frappe.utils.flt(inv.grand_total, 2) %}
-            {% set dues_ns.pending = dues_ns.pending + inv_amount %}
-            {% endfor %}
             <table class="aas-summary">
               <tbody>
               <tr class="aas-summary-heading">
@@ -257,30 +257,26 @@ public class SetupService {
                 <td class="aas-summary-label-cell">Grand Total</td>
                 <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
               </tr>
-              {% if doc.aas_category %}
-              <tr>
-                <td class="aas-summary-label-cell">Previous Due (Category)</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(previous_due, currency=doc.currency) }}</td>
-              </tr>
-              <tr class="aas-summary-grand">
-                <td class="aas-summary-label-cell">Current Pending (Category)</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(current_pending if doc.aas_current_pending else (previous_due + grand_total), currency=doc.currency) }}</td>
-              </tr>
-              {% endif %}
-              <tr>
-                <td class="aas-summary-label-cell">Previous Due</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(dues_ns.pending, currency=doc.currency) }}</td>
-              </tr>
-              <tr>
-                <td class="aas-summary-label-cell">Current Total</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
-              </tr>
-              <tr class="aas-summary-grand">
-                <td class="aas-summary-label-cell">Total Pending</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(frappe.utils.flt(dues_ns.pending + grand_total, 2), currency=doc.currency) }}</td>
-              </tr>
               </tbody>
             </table>
+            {% if doc.aas_category %}
+            <table class="aas-category-due-table">
+              <thead>
+                <tr>
+                  <th style="width: 34%;">Category</th>
+                  <th style="width: 28%;">Previous Due</th>
+                  <th style="width: 38%;">Pending After Current Invoice</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or "-") }}</td>
+                  <td class="aas-category-due-amount">{{ frappe.utils.fmt_money(previous_due, currency=doc.currency) }}</td>
+                  <td class="aas-category-due-amount aas-category-due-pending">{{ frappe.utils.fmt_money(current_pending if doc.aas_current_pending else (previous_due + grand_total), currency=doc.currency) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            {% endif %}
             <table class="aas-footer-grid">
               <tr>
                 <td class="aas-footer-left">

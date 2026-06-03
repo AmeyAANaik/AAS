@@ -4,7 +4,6 @@ import { forkJoin, map, Observable, timeout } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import {
   BillingRow,
-  BillingSummary,
   DashboardSnapshot,
   InventoryItem,
   InvoiceSummary,
@@ -32,22 +31,25 @@ export class DashboardService {
     const headers = this.authHeaders();
     const orderParams = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
     const invoiceParams = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
-    const reportParams = new HttpParams().set('month', monthLabel);
 
     return forkJoin({
       orders: this.http.get<OrderSummary[]>(`/api/orders`, { headers, params: orderParams }),
-      vendorBilling: this.http.get<BillingSummary[]>(`/api/reports/vendor-billing`, { headers, params: reportParams }),
-      branchBilling: this.http.get<BillingSummary[]>(`/api/reports/shop-billing`, { headers, params: reportParams }),
-      vendorOps: this.http.get<{ totals?: VendorOperationsSnapshot; vendors?: Array<{ pendingBillAmount?: number }> }>(`/api/vendor-ops/summary`, { headers }),
-      branchOps: this.http.get<{ totals?: BranchOperationsSnapshot; branches?: Array<{ openReceivableAmount?: number }> }>(`/api/branch-ops/summary`, { headers }),
+      vendorOps: this.http.get<{
+        totals?: VendorOperationsSnapshot;
+        vendors?: Array<{ vendorName?: string; vendorId?: string; pendingBillAmount?: number }>;
+      }>(`/api/vendor-ops/summary`, { headers }),
+      branchOps: this.http.get<{
+        totals?: BranchOperationsSnapshot;
+        branches?: Array<{ branchName?: string; branchId?: string; openReceivableAmount?: number }>;
+      }>(`/api/branch-ops/summary`, { headers }),
       items: this.http.get<InventoryItem[]>(`/api/items`, { headers }),
       invoices: this.http.get<InvoiceSummary[]>(`/api/invoices`, { headers, params: invoiceParams })
     }).pipe(
       timeout({ first: 15000 }),
       map(result => ({
         orderStatus: this.buildOrderStatus(result.orders ?? []),
-        billsByVendor: this.buildBillingRows(result.vendorBilling ?? [], 'vendor'),
-        billsByBranch: this.buildBillingRows(result.branchBilling ?? [], 'shop'),
+        billsByVendor: this.buildVendorDueRows(result.vendorOps?.vendors ?? []),
+        billsByBranch: this.buildBranchDueRows(result.branchOps?.branches ?? []),
         stockSnapshot: this.buildStockSnapshot(result.items ?? []),
         salesSummary: this.buildSalesSummary(result.invoices ?? [], rangeStart, rangeEnd),
         revenueSeries: this.buildRevenueSeries(result.invoices ?? [], rangeStart, rangeEnd),
@@ -93,12 +95,23 @@ export class DashboardService {
       .sort((a, b) => b.count - a.count);
   }
 
-  private buildBillingRows(rows: BillingSummary[], key: 'vendor' | 'shop'): BillingRow[] {
+  private buildVendorDueRows(rows: Array<{ vendorName?: string; vendorId?: string; pendingBillAmount?: number }>): BillingRow[] {
     return rows
       .map(row => ({
-        name: String(row[key] ?? 'Unknown'),
-        total: Number(row.total) || 0
+        name: String(row.vendorName ?? row.vendorId ?? 'Unknown'),
+        total: Number(row.pendingBillAmount) || 0
       }))
+      .filter(row => row.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }
+
+  private buildBranchDueRows(rows: Array<{ branchName?: string; branchId?: string; openReceivableAmount?: number }>): BillingRow[] {
+    return rows
+      .map(row => ({
+        name: String(row.branchName ?? row.branchId ?? 'Unknown'),
+        total: Number(row.openReceivableAmount) || 0
+      }))
+      .filter(row => row.total > 0)
       .sort((a, b) => b.total - a.total);
   }
 

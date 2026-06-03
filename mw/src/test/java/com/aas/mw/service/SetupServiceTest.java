@@ -287,9 +287,17 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-label-cell\""));
                     assertTrue(html.contains("class=\"aas-summary-value-cell\""));
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
+                    assertTrue(html.contains("class=\"aas-category-due-table\""));
+                    assertTrue(html.contains("Pending After Current Invoice"));
+                    assertTrue(html.contains("{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or \"-\") }}"));
                     assertTrue(html.contains("<tbody>"));
                     assertTrue(html.contains("GSTIN: "));
                     assertTrue(html.contains("FSSAI No: "));
+                    assertTrue(!html.contains("Previous Due (Category)"));
+                    assertTrue(!html.contains("Current Pending (Category)"));
+                    assertTrue(!html.contains("<td class=\"aas-summary-label-cell\">Previous Due</td>"));
+                    assertTrue(!html.contains("<td class=\"aas-summary-label-cell\">Current Total</td>"));
+                    assertTrue(!html.contains("<td class=\"aas-summary-label-cell\">Total Pending</td>"));
                     assertTrue(!html.contains("class=\"label\""));
                     assertTrue(!html.contains("class=\"value\""));
                     return true;
