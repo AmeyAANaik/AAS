@@ -282,14 +282,29 @@
                 <span>Vendor subtotal</span>
                 <strong>{{ vendorSubtotal | number: '1.0-2' }}</strong>
               </div>
-              <div class="summary-row">
-                <span>GST total</span>
-                <strong>{{ gstTotal | number: '1.0-2' }}</strong>
-              </div>
-              <div class="summary-row total">
-                <span>Vendor invoice total</span>
-                <strong>{{ vendorInvoiceTotal | number: '1.0-2' }}</strong>
-              </div>
+            <div class="summary-row">
+              <span>GST total</span>
+              <strong>{{ gstTotal | number: '1.0-2' }}</strong>
+            </div>
+            <label class="transport-charge-field" *ngIf="createMode === 'items'">
+              <span>Transport / Additional Spend</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                [value]="transportCharge"
+                (keydown.enter)="$event.preventDefault()"
+                (change)="onTransportChargeInput($any($event.target).value)"
+                (blur)="onTransportChargeInput($any($event.target).value)" />
+            </label>
+            <div class="summary-row" *ngIf="transportCharge > 0">
+              <span>Transport / Additional Spend</span>
+              <strong>{{ transportCharge | number: '1.0-2' }}</strong>
+            </div>
+            <div class="summary-row total">
+              <span>Vendor invoice total</span>
+              <strong>{{ vendorInvoiceTotal | number: '1.0-2' }}</strong>
+            </div>
             </div>
             <div class="checkout-items scroll-shell" *ngIf="selectedOrderItems.length; else noSelectedItems">
               <div class="checkout-item" *ngFor="let item of selectedOrderItems">
@@ -360,6 +375,10 @@
         <div *ngIf="createMode === 'items'">
           <p class="label">Vendor invoice total</p>
           <p class="value">{{ vendorInvoiceTotal | number: '1.0-2' }}</p>
+        </div>
+        <div *ngIf="createMode === 'items'">
+          <p class="label">Transport / Additional Spend</p>
+          <p class="value">{{ transportCharge | number: '1.0-2' }}</p>
         </div>
       </div>
       <div class="step-actions">

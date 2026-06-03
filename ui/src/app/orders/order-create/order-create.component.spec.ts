@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { CategoryService } from '../../categories/category.service';
 import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
@@ -38,6 +38,7 @@ describe('OrderCreateComponent', () => {
       'createDirectOrderFromItems',
       'createOrderFromBranchImage',
       'captureVendorBill',
+      'updateStatus',
       'uploadOrderImage',
       'listBranches'
     ]);
@@ -45,6 +46,7 @@ describe('OrderCreateComponent', () => {
     orderService.createDirectOrderFromItems.and.returnValue(of({ order: { name: 'Shop_A_Grocery_20260315' } }));
     orderService.createOrderFromBranchImage.and.returnValue(of({ name: 'Shop_A_Grocery_20260315' }));
     orderService.captureVendorBill.and.returnValue(of({}));
+    orderService.updateStatus.and.returnValue(of({}));
     orderService.uploadOrderImage.and.returnValue(of({}));
     orderService.listBranches.and.returnValue(of([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }]));
 
@@ -154,6 +156,64 @@ describe('OrderCreateComponent', () => {
     expect(component.vendorSubtotal).toBe(300);
     expect(component.gstTotal).toBe(54);
     expect(component.vendorInvoiceTotal).toBe(354);
+
+    component.onTransportChargeInput('25.50');
+
+    expect(component.transportCharge).toBe(25.5);
+    expect(component.vendorInvoiceTotal).toBe(379.5);
+  });
+
+  it('includes transport charge in direct item-flow payload', () => {
+    component.setCreateMode('items');
+    component.detailsGroup.patchValue({
+      customer: 'Sukarta Aundh',
+      category: 'Grocery',
+      vendor: 'SUP-1',
+      company: 'Shree Siddhivinayak Suppliers',
+      orderDate: '2026-06-04',
+      deliveryDate: '2026-06-04'
+    });
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.onQtyInput(item.id, '2');
+    component.onRateInput(item.id, '100');
+    component.onGstInput(item.id, '5');
+    component.onTransportChargeInput('30');
+
+    component.submit();
+
+    expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
+      transport_charge: 30
+    }));
+  });
+
+  it('passes transport charge through fallback vendor bill capture', () => {
+    orderService.createDirectOrderFromItems.and.returnValue(throwError(() => ({ status: 405 })));
+    orderService.createOrder.and.returnValue(of({ name: 'SO-123' }));
+    component.setCreateMode('items');
+    component.detailsGroup.patchValue({
+      customer: 'Sukarta Aundh',
+      category: 'Grocery',
+      vendor: 'SUP-1',
+      company: 'Shree Siddhivinayak Suppliers',
+      orderDate: '2026-06-04',
+      deliveryDate: '2026-06-04'
+    });
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.onQtyInput(item.id, '1');
+    component.onRateInput(item.id, '100');
+    component.onGstInput(item.id, '5');
+    component.onTransportChargeInput('15');
+
+    component.submit();
+
+    expect(orderService.createOrder).toHaveBeenCalledWith(jasmine.objectContaining({
+      aas_transport_charge: 15
+    }));
+    expect(orderService.captureVendorBill).toHaveBeenCalledWith('SO-123', jasmine.objectContaining({
+      transport_charge: 15
+    }));
   });
 
   it('keeps the source switch working between upload images and select items', () => {

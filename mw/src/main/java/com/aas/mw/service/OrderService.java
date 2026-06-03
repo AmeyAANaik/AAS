@@ -113,6 +113,7 @@ public class OrderService {
         if (input.containsKey("applyGst")) {
             applyGst = asFlag(input.remove("applyGst"));
         }
+        double transportCharge = readOptionalNonNegative(input.get("transport_charge"));
 
         Object rawItems = input.get("items");
         if (!(rawItems instanceof List<?> rawList) || rawList.isEmpty()) {
@@ -164,6 +165,7 @@ public class OrderService {
         payload.put("items", orderItems);
         payload.put("aas_status", "VENDOR_ASSIGNED");
         payload.put("aas_margin_percent", calculateDerivedMarginPercent(orderItems));
+        payload.put("aas_transport_charge", transportCharge);
 
         ensureSalesOrderPricingDefaults(payload, company);
         applySalesOrderDefaults(payload);
@@ -188,13 +190,13 @@ public class OrderService {
         }
         subtotal = round(subtotal);
         gstTotal = round(gstTotal);
-        double vendorBillTotal = round(subtotal + gstTotal);
+        double vendorBillTotal = round(subtotal + gstTotal + transportCharge);
         String billDate = resolveDate(asText(payload.get("transaction_date")));
         Map<String, Object> billCapture = orderBillingService.recordGeneratedVendorBill(orderId, Map.of(
                 "vendor_bill_total", vendorBillTotal,
                 "vendor_bill_ref", orderId,
                 "vendor_bill_date", billDate,
-                "transport_charge", 0.0,
+                "transport_charge", transportCharge,
                 "rounding_adjustment", 0.0));
         UploadedFileInfo generatedInvoiceFile = attachGeneratedVendorInvoicePdf(
                 orderId,
@@ -205,6 +207,7 @@ public class OrderService {
                 orderItems,
                 subtotal,
                 gstTotal,
+                transportCharge,
                 vendorBillTotal,
                 sessionCookie);
         if (generatedInvoiceFile != null && generatedInvoiceFile.fileUrl() != null && !generatedInvoiceFile.fileUrl().isBlank()) {
@@ -275,6 +278,7 @@ public class OrderService {
             List<Map<String, Object>> orderItems,
             double subtotal,
             double gstTotal,
+            double transportCharge,
             double vendorBillTotal,
             String sessionCookie) {
         if (sessionCookie == null || sessionCookie.isBlank()) {
@@ -290,6 +294,7 @@ public class OrderService {
                     orderItems,
                     subtotal,
                     gstTotal,
+                    transportCharge,
                     vendorBillTotal);
             return erpNextFileService.uploadOrderPdf(
                     orderId,
@@ -311,6 +316,7 @@ public class OrderService {
             List<Map<String, Object>> orderItems,
             double subtotal,
             double gstTotal,
+            double transportCharge,
             double vendorBillTotal) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
@@ -367,6 +373,9 @@ public class OrderService {
             y -= 8f;
             y = writeLine(content, bold, 10f, 330f, y, "Subtotal: " + formatMoney(subtotal));
             y = writeLine(content, bold, 10f, 330f, y - 2f, "GST total: " + formatMoney(gstTotal));
+            if (transportCharge > 0) {
+                y = writeLine(content, bold, 10f, 330f, y - 2f, "Transport / Additional Spend: " + formatMoney(transportCharge));
+            }
             y = writeLine(content, bold, 11f, 330f, y - 4f, "Vendor invoice total: " + formatMoney(vendorBillTotal));
 
             content.close();
@@ -1141,6 +1150,14 @@ public class OrderService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private double readOptionalNonNegative(Object value) {
+        double amount = round(asDouble(value));
+        if (amount < 0) {
+            throw new IllegalArgumentException("transport_charge must be zero or greater.");
+        }
+        return amount;
     }
 
     private String asText(Object value) {

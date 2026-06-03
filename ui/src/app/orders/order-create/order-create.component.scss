@@ -456,6 +456,27 @@
   font-size: 14px;
 }
 
+.transport-charge-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.transport-charge-field span {
+  font-weight: 600;
+}
+
+.transport-charge-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
 .checkout-items {
   display: grid;
   gap: 10px;

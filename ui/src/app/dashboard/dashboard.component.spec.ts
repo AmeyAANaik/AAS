@@ -45,6 +45,8 @@ const snapshotStub: DashboardSnapshot = {
     awaitingVendorResponse: 3,
     openReceivableAmount: 4200
   },
+  branchesWithDues: 1,
+  vendorsWithDues: 1,
   periodLabel: '2025-01'
 };
 

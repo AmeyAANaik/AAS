@@ -67,6 +67,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   categoryVendors: CategoryVendorOption[] = [];
   itemSearchTerm = '';
   applyGst = true;
+  transportCharge = 0;
   isItemsLoading = false;
   isVendorsLoading = false;
   itemsError = '';
@@ -176,6 +177,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         transaction_date: String(details.orderDate ?? ''),
         delivery_date: String(details.deliveryDate ?? ''),
         apply_gst: this.applyGst,
+        transport_charge: this.transportCharge,
         items: this.selectedOrderItems.map(item => ({
           item_code: item.code,
           item_name: item.name,
@@ -327,6 +329,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     this.imageGroup.reset({ imageName: '' });
     this.imageFiles = [];
     this.itemSearchTerm = '';
+    this.transportCharge = 0;
     this.clearSelectedItems();
     this.revokePreviewUrls();
     if (clearCreated) {
@@ -527,7 +530,16 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get vendorInvoiceTotal(): number {
-    return this.vendorSubtotal + this.gstTotal;
+    return this.vendorSubtotal + this.gstTotal + this.transportCharge;
+  }
+
+  onTransportChargeInput(rawValue: string): void {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      this.transportCharge = 0;
+      return;
+    }
+    this.transportCharge = Math.round(parsed * 100) / 100;
   }
 
   get filteredCategoryItems(): CategoryOrderItemOption[] {
@@ -641,6 +653,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       aas_vendor: payload.aas_vendor,
       transaction_date: payload.transaction_date,
       delivery_date: payload.delivery_date,
+      aas_transport_charge: payload.transport_charge ?? 0,
       items: payload.items
     }).pipe(
       switchMap(orderResponse => {
@@ -653,7 +666,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           vendor_bill_total: this.vendorInvoiceTotal,
           vendor_bill_ref: id,
           vendor_bill_date: payload.transaction_date,
-          transport_charge: 0,
+          transport_charge: payload.transport_charge ?? 0,
           allow_mismatch: false
           })),
           map(vendorBill => ({ order: orderResponse, vendorBill, orderId: id }))

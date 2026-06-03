@@ -1005,7 +1005,7 @@ public class VendorOpsService {
         params.put(
                 "fields",
                 "[\"name\",\"party\",\"party_type\",\"posting_date\",\"paid_amount\",\"received_amount\","
-                        + "\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\"]");
+                        + "\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\",\"aas_category\"]");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("party_type", "=", "Supplier"));
         filters.add(List.of("docstatus", "=", "1"));

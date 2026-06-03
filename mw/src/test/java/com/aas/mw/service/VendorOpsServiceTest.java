@@ -7,11 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -266,6 +269,54 @@ class VendorOpsServiceTest {
                 .containsEntry("voucherNo", "ACC-PINV-2026-00007")
                 .containsEntry("credit", 139120.84)
                 .containsEntry("runningBalance", 1713824.84);
+    }
+
+    @Test
+    void getVendorLedgerFetchesSupplierPaymentsWithCategoryFieldForSummaryAlignment() {
+        when(erpNextClient.getResource("Supplier", "Sanshray Foods"))
+                .thenReturn(Map.of("data", Map.of("name", "Sanshray Foods", "supplier_name", "Sanshray Foods")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-PINV-2026-00003",
+                                "supplier", "Sanshray Foods",
+                                "posting_date", "2026-06-01",
+                                "grand_total", 1674704.0,
+                                "outstanding_amount", 1674704.0,
+                                "bill_no", "AAS-OPENING-20260601-Sanshray Foods-GROCERY",
+                                "aas_category", "Grocery",
+                                "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-PAY-2026-00002",
+                                "party", "Sanshray Foods",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-06-02",
+                                "paid_amount", 100000.0,
+                                "payment_type", "Pay",
+                                "reference_no", "",
+                                "docstatus", 1,
+                                "aas_category", "Grocery"),
+                        Map.of(
+                                "name", "ACC-PAY-2026-00006",
+                                "party", "Sanshray Foods",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-06-03",
+                                "paid_amount", 200000.0,
+                                "payment_type", "Pay",
+                                "reference_no", "",
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+
+        vendorOpsService.getVendorLedger("Sanshray Foods", "2026-05-05", "2026-06-04");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> paramsCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient, atLeastOnce()).listResources(eq("Payment Entry"), paramsCaptor.capture());
+
+        assertThat(paramsCaptor.getAllValues())
+                .anySatisfy(params -> assertThat(String.valueOf(params.get("fields"))).contains("aas_category"));
     }
 
     @Test

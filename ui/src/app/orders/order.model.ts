@@ -72,6 +72,7 @@ export interface OrderCreatePayload {
   company: string;
   aas_category?: string;
   aas_vendor?: string;
+  aas_transport_charge?: number;
   transaction_date: string;
   delivery_date: string;
   items?: OrderCreateLine[];
@@ -82,6 +83,7 @@ export interface DirectOrderCreatePayload extends OrderCreatePayload {
   aas_vendor: string;
   items: OrderCreateLine[];
   apply_gst: boolean;
+  transport_charge?: number;
 }
 
 export interface OrderCreateResult {

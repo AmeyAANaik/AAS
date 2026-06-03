@@ -1,17 +1,23 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.dto.OrderRequest;
 import com.aas.mw.dto.OrderItemLine;
+import com.aas.mw.dto.UploadedFileInfo;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +29,7 @@ import static org.mockito.Mockito.when;
 class OrderServiceTest {
 
     private ErpNextClient erpNextClient;
+    private ErpNextFileService fileService;
     private CatalogRoutingService catalogRoutingService;
     private OrderBillingService orderBillingService;
     private OrderService orderService;
@@ -30,7 +37,7 @@ class OrderServiceTest {
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        ErpNextFileService fileService = mock(ErpNextFileService.class);
+        fileService = mock(ErpNextFileService.class);
         catalogRoutingService = mock(CatalogRoutingService.class);
         orderBillingService = mock(OrderBillingService.class);
         orderService = new OrderService(
@@ -42,6 +49,71 @@ class OrderServiceTest {
                 orderBillingService,
                 "http://localhost:8080",
                 7.0);
+    }
+
+    @Test
+    void createOrderFromSelectedItemsIncludesTransportInGeneratedBillAndPdf() throws Exception {
+        when(catalogRoutingService.resolveVendorForCategory(eq("SUP-1"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution(
+                        "SUP-1",
+                        "Fresh Harvest",
+                        "SUP-1",
+                        "Grocery",
+                        "Grocery",
+                        "GROCERY"));
+        when(erpNextClient.getResource(eq("Company"), eq("AAS")))
+                .thenReturn(Map.of("abbr", "A"));
+        when(erpNextClient.listResources(eq("Warehouse"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "Finished Goods - A", "company", "AAS", "is_group", 0, "disabled", 0)));
+        when(erpNextClient.getCount(eq("Sales Order"), anyMap())).thenReturn(0L);
+        when(erpNextClient.createResource(eq("Sales Order"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+        when(orderBillingService.recordGeneratedVendorBill(eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("purchaseInvoice", Map.of("name", "PINV-1")));
+        when(orderBillingService.getSellPreview(eq("SO-1")))
+                .thenReturn(Map.of("sellAmount", 140.0));
+        when(fileService.uploadOrderPdf(eq("SO-1"), eq("SO-1-generated-vendor-invoice.pdf"), any(byte[].class), eq("application/pdf"), eq("sid=1")))
+                .thenReturn(new UploadedFileInfo("SO-1-generated-vendor-invoice.pdf", "/files/SO-1-generated-vendor-invoice.pdf", "FILE-1"));
+
+        OrderRequest request = new OrderRequest();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("customer", "Sukarta Aundh");
+        fields.put("company", "AAS");
+        fields.put("aas_category", "Grocery");
+        fields.put("aas_vendor", "SUP-1");
+        fields.put("transaction_date", "2026-06-04");
+        fields.put("delivery_date", "2026-06-04");
+        fields.put("apply_gst", true);
+        fields.put("transport_charge", 15.0);
+        fields.put("items", List.of(Map.of(
+                "item_code", "ITEM-1",
+                "item_name", "Rice",
+                "qty", 2,
+                "rate", 100,
+                "aas_gst_percent", 5)));
+        request.setFields(fields);
+
+        orderService.createOrderFromSelectedItems(request, "sid=1");
+
+        verify(orderBillingService).recordGeneratedVendorBill(eq("SO-1"), eq(Map.of(
+                "vendor_bill_total", 225.0,
+                "vendor_bill_ref", "SO-1",
+                "vendor_bill_date", "2026-06-04",
+                "transport_charge", 15.0,
+                "rounding_adjustment", 0.0)));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<byte[]> pdfCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(fileService).uploadOrderPdf(eq("SO-1"), eq("SO-1-generated-vendor-invoice.pdf"), pdfCaptor.capture(), eq("application/pdf"), eq("sid=1"));
+        try (PDDocument document = Loader.loadPDF(pdfCaptor.getValue())) {
+            String text = new PDFTextStripper().getText(document);
+            assertTrue(text.contains("Transport / Additional Spend"));
+            assertTrue(text.contains("15"));
+            assertTrue(text.contains("Vendor invoice total"));
+            assertTrue(text.contains("225"));
+        }
     }
 
     @Test
