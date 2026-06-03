@@ -8,6 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -132,6 +134,126 @@ class PaymentDueServiceTest {
         Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "CAT-A");
 
         assertEquals(BigDecimal.ZERO, response.get("dueAmount"));
+    }
+
+    @Test
+    void customerDueExcludesOldReplacedInvoicesAndSubtractsSubmittedCategoryPayments() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-CURRENT",
+                                "docstatus", 1,
+                                "outstanding_amount", new BigDecimal("227811.00"),
+                                "grand_total", new BigDecimal("227811.00"),
+                                "aas_invoice_version_status", "CURRENT"),
+                        Map.of(
+                                "name", "SINV-OLD",
+                                "docstatus", 0,
+                                "outstanding_amount", new BigDecimal("148791.00"),
+                                "grand_total", new BigDecimal("148791.00"),
+                                "aas_invoice_version_status", "OLD",
+                                "aas_replaced_by", "SINV-NEWER"),
+                        Map.of(
+                                "name", "SINV-NEWER",
+                                "docstatus", 0,
+                                "outstanding_amount", new BigDecimal("148791.00"),
+                                "grand_total", new BigDecimal("148791.00"),
+                                "aas_replaced_by", "SINV-LATEST"),
+                        Map.of(
+                                "name", "SINV-LATEST",
+                                "docstatus", 0,
+                                "outstanding_amount", new BigDecimal("148791.00"),
+                                "grand_total", new BigDecimal("148791.00"),
+                                "aas_invoice_version_status", "CURRENT")));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-CURRENT"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-CURRENT",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("227811.00"),
+                        "grand_total", new BigDecimal("227811.00"),
+                        "aas_invoice_version_status", "CURRENT",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-1",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("227811.00"))))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-OLD"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-OLD",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("148791.00"),
+                        "aas_invoice_version_status", "OLD",
+                        "aas_replaced_by", "SINV-NEWER",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-OLD",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("148791.00"))))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-NEWER"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-NEWER",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("148791.00"),
+                        "aas_replaced_by", "SINV-LATEST",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-NEWER",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("148791.00"))))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-LATEST"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-LATEST",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("148791.00"),
+                        "aas_invoice_version_status", "CURRENT",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-LATEST",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("148791.00"))))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> params = invocation.getArgument(1);
+                    String filters = String.valueOf(params.get("filters"));
+                    if (filters.contains("UNDER_REVIEW")) {
+                        return List.of();
+                    }
+                    return List.of(Map.of(
+                            "name", "PAY-GROCERY",
+                            "paid_amount", new BigDecimal("100000.00")));
+                });
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery");
+
+        assertEquals(new BigDecimal("276602.000000"), response.get("dueAmount"));
+    }
+
+    @Test
+    void customerDueAssignsTransportLineToInvoiceCategory() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-TRANSPORT",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("110.00"),
+                        "outstanding_amount", new BigDecimal("110.00"),
+                        "aas_invoice_version_status", "CURRENT")));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-TRANSPORT"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-TRANSPORT",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("110.00"),
+                        "aas_category", "Grocery",
+                        "items", List.of(
+                                Map.of(
+                                        "item_code", "GROCERY-1",
+                                        "item_group", "Grocery",
+                                        "amount", new BigDecimal("100.00")),
+                                Map.of(
+                                        "item_code", "AAS-TRANSPORT-CHARGE",
+                                        "item_group", "All Item Groups",
+                                        "amount", new BigDecimal("10.00"))))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery");
+
+        assertEquals(new BigDecimal("110.000000"), response.get("dueAmount"));
     }
 
     @Test

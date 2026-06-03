@@ -381,6 +381,7 @@ class OrderBillingServiceTest {
                 "aas_status", "VENDOR_BILL_CAPTURED",
                 "customer", "SHOP-1",
                 "company", "AAS",
+                "aas_category", "Grocery",
                 "transaction_date", "2026-02-19",
                 "delivery_date", "2026-02-20",
                 "aas_vendor_bill_total", 100.0,
@@ -416,6 +417,7 @@ class OrderBillingServiceTest {
         assertEquals(3, invoiceItems.size());
         assertEquals("AAS-TRANSPORT-CHARGE", invoiceItems.get(2).get("item_code"));
         assertEquals(15.0, invoiceItems.get(2).get("rate"));
+        assertEquals("Grocery", invoiceItems.get(2).get("item_group"));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);

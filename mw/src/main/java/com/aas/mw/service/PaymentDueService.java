@@ -15,6 +15,9 @@ public class PaymentDueService {
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String FIELD_REVIEW_STATUS = "aas_payment_review_status";
     private static final String FIELD_CATEGORY = "aas_category";
+    private static final String ALL_ITEM_GROUPS = "All Item Groups";
+    private static final String INVOICE_VERSION_OLD = "OLD";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
 
     public PaymentDueService(ErpNextClient erpNextClient) {
         this.erpNextClient = erpNextClient;
@@ -63,14 +66,19 @@ public class PaymentDueService {
             if (docstatus == 2) {
                 continue;
             }
+            if (isOldOrReplacedInvoice(invoice, row)) {
+                continue;
+            }
             BigDecimal dueBase = effectiveDueBase(docstatus, invoice, row);
             if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
             List<Map<String, Object>> items = childItems(invoice.get("items"));
-            distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory);
+            distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory, invoice);
         }
-        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
+        BigDecimal selectedDue = dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
+        BigDecimal submittedPayments = submittedCategoryPayments("Customer", customerId, categoryId);
+        return selectedDue.subtract(submittedPayments).max(BigDecimal.ZERO);
     }
 
     private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {
@@ -96,7 +104,7 @@ public class PaymentDueService {
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
             if (sourceOrderId.isBlank()) {
                 List<Map<String, Object>> items = childItems(invoice.get("items"));
-                distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory);
+                distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory, invoice);
                 continue;
             }
             CategoryWeights weights = orderCache.computeIfAbsent(
@@ -160,13 +168,21 @@ public class PaymentDueService {
 
     private List<Map<String, Object>> fetchOpenInvoices(String doctype, String partyField, String partyId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_invoice_version_status\",\"aas_replaced_by\"]");
         params.put("limit_page_length", 500);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of(partyField, "=", partyId));
         filters.add(List.of("docstatus", "in", "[0,1]"));
         params.put("filters", toJson(filters));
         return erpNextClient.listResources(doctype, params);
+    }
+
+    private boolean isOldOrReplacedInvoice(Map<String, Object> invoice, Map<String, Object> row) {
+        String versionStatus = asText(firstNonNull(invoice.get("aas_invoice_version_status"), row.get("aas_invoice_version_status")));
+        if (INVOICE_VERSION_OLD.equalsIgnoreCase(versionStatus)) {
+            return true;
+        }
+        return !asText(firstNonNull(invoice.get("aas_replaced_by"), row.get("aas_replaced_by"))).isBlank();
     }
 
     private BigDecimal effectiveDueBase(int docstatus, Map<String, Object> invoice, Map<String, Object> row) {
@@ -184,7 +200,8 @@ public class PaymentDueService {
             BigDecimal outstanding,
             List<Map<String, Object>> items,
             ItemGroupResolver itemGroupResolver,
-            Map<String, BigDecimal> dueByCategory) {
+            Map<String, BigDecimal> dueByCategory,
+            Map<String, Object> invoice) {
         if (items.isEmpty()) {
             throw new IllegalStateException("Invoice has no items; cannot allocate by category.");
         }
@@ -198,10 +215,13 @@ public class PaymentDueService {
             if (amount.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
-            String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+            String group = normalizeItemGroup(asText(firstNonNull(item.get("item_group"), item.get("item_group_name"))));
             if (group.isBlank()) {
                 String code = asText(item.get("item_code"));
-                group = itemGroupResolver.resolve(code);
+                group = normalizeItemGroup(itemGroupResolver.resolve(code));
+            }
+            if (group.isBlank() && TRANSPORT_ITEM_CODE.equals(asText(item.get("item_code")))) {
+                group = normalizeItemGroup(asText(invoice.get(FIELD_CATEGORY)));
             }
             if (group.isBlank()) {
                 String code = asText(item.get("item_code"));
@@ -217,6 +237,55 @@ public class PaymentDueService {
             BigDecimal share = outstanding.multiply(line.amount()).divide(total, 6, java.math.RoundingMode.HALF_UP);
             dueByCategory.merge(line.group(), share, BigDecimal::add);
         }
+    }
+
+    private BigDecimal submittedCategoryPayments(String partyType, String partyId, String categoryId) {
+        String normalizedPartyId = partyId == null ? "" : partyId.trim();
+        String normalizedCategoryId = categoryId == null ? "" : categoryId.trim();
+        if (normalizedPartyId.isBlank() || normalizedCategoryId.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"paid_amount\",\"received_amount\"]");
+            params.put("limit_page_length", 500);
+            List<List<String>> filters = new ArrayList<>();
+            filters.add(List.of("docstatus", "=", "1"));
+            filters.add(List.of("party_type", "=", partyType));
+            filters.add(List.of("party", "=", normalizedPartyId));
+            filters.add(List.of(FIELD_CATEGORY, "=", normalizedCategoryId));
+            params.put("filters", toJson(filters));
+            List<Map<String, Object>> rows = erpNextClient.listResources(PAYMENT_ENTRY, params);
+            if (rows == null || rows.isEmpty()) {
+                return BigDecimal.ZERO;
+            }
+            BigDecimal total = BigDecimal.ZERO;
+            for (Map<String, Object> row : rows) {
+                BigDecimal amount = paymentAmount(row);
+                if (amount.compareTo(BigDecimal.ZERO) > 0) {
+                    total = total.add(amount);
+                }
+            }
+            return total;
+        } catch (Exception ex) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal paymentAmount(Map<String, Object> payment) {
+        BigDecimal paid = asDecimal(payment.get("paid_amount"));
+        if (paid.compareTo(BigDecimal.ZERO) > 0) {
+            return paid;
+        }
+        return asDecimal(payment.get("received_amount"));
+    }
+
+    private String normalizeItemGroup(String value) {
+        String text = value == null ? "" : value.trim();
+        if (text.isBlank() || ALL_ITEM_GROUPS.equalsIgnoreCase(text)) {
+            return "";
+        }
+        return text;
     }
 
     private InvoiceContext resolveInvoiceContext(String partyType) {

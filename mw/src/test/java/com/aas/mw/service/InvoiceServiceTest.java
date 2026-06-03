@@ -166,4 +166,42 @@ class InvoiceServiceTest {
                 "aas_previous_due", 226784.25,
                 "aas_current_pending", 375575.25));
     }
+
+    @Test
+    void downloadPdfRepairsStaleCategoryDueSnapshot() {
+        PaymentDueService paymentDueService = mock(PaymentDueService.class);
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", "Administrator", "admin");
+
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00023"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00023",
+                        "customer", "Sukhkarta Pure Veg Dining Hall, Kothrud",
+                        "company", "Shree Siddhivinayak Suppliers",
+                        "grand_total", 148790.55,
+                        "rounding_adjustment", 0.45,
+                        "outstanding_amount", 148791.0,
+                        "docstatus", 0,
+                        "aas_category", "Grocery",
+                        "aas_previous_due", 670077.45,
+                        "aas_current_pending", 818868.0)));
+        when(paymentDueService.dueByCategory("Customer", "Sukhkarta Pure Veg Dining Hall, Kothrud", "Grocery"))
+                .thenReturn(Map.of("dueAmount", 276602.0));
+        when(erpNextClient.getResource("Company", "Shree Siddhivinayak Suppliers"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "Shree Siddhivinayak Suppliers",
+                        "aas_sales_invoice_print_format", "AAS Sales Invoice Print")));
+        when(erpNextClient.downloadPdfWithSession(
+                eq("Sales Invoice"),
+                eq("ACC-SINV-2026-00023"),
+                eq(Map.of("format", "AAS Sales Invoice Print")),
+                isNull()))
+                .thenReturn("%PDF-test".getBytes());
+
+        byte[] pdf = invoiceService.downloadPdf("ACC-SINV-2026-00023");
+
+        assertEquals("%PDF-test", new String(pdf));
+        verify(erpNextClient).updateResource("Sales Invoice", "ACC-SINV-2026-00023", Map.of(
+                "aas_previous_due", 127811.0,
+                "aas_current_pending", 276602.0));
+    }
 }

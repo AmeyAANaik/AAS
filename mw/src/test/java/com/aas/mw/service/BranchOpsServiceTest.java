@@ -272,6 +272,56 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void getBranchLedgerAssignsTransportLineToInvoiceCategoryInsteadOfUncategorized() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Kothrud Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00023",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-04",
+                        "grand_total", 148790.55,
+                        "outstanding_amount", 148791.0,
+                        "docstatus", 0)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00023"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00023",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-04",
+                        "grand_total", 148790.55,
+                        "outstanding_amount", 148791.0,
+                        "docstatus", 0,
+                        "aas_category", "Grocery",
+                        "items", List.of(
+                                Map.of(
+                                        "item_code", "ITEM-1",
+                                        "item_group", "Grocery",
+                                        "amount", 143977.78),
+                                Map.of(
+                                        "item_code", "AAS-TRANSPORT-CHARGE",
+                                        "item_group", "All Item Groups",
+                                        "amount", 1000.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 148791.0));
+        assertThat(categories).noneMatch(row -> "Uncategorized".equals(row.get("category")));
+
+        Map<String, Object> categoryLedger = branchOpsService.getBranchLedgerByCategory("BRANCH-1", "Grocery");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0))
+                .containsEntry("voucherNo", "ACC-SINV-2026-00023")
+                .containsEntry("debit", 148791.0)
+                .containsEntry("runningBalance", 148791.0);
+    }
+
+    @Test
     void getBranchLedgerLoadsPagedInvoicesAndPayments() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

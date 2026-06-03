@@ -520,15 +520,15 @@ public class InvoiceService {
         }
         double storedPreviousDue = asDouble(invoiceDoc.get("aas_previous_due"));
         double storedCurrentPending = asDouble(invoiceDoc.get("aas_current_pending"));
-        if (storedPreviousDue > 0.0001 && storedCurrentPending > 0.0001) {
-            return;
-        }
         try {
             Map<String, Object> due = paymentDueService.dueByCategory("Customer", customer, categoryId);
             double dueAmount = asDouble(due.get("dueAmount"));
             double currentInvoiceContribution = currentInvoiceDueBase(invoiceDoc);
             double previousDue = Math.max(0.0, round(dueAmount - currentInvoiceContribution));
             double currentPending = round(previousDue + currentInvoiceGrandTotal(invoiceDoc));
+            if (closeEnough(storedPreviousDue, previousDue) && closeEnough(storedCurrentPending, currentPending)) {
+                return;
+            }
             erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of(
                     "aas_previous_due", previousDue,
                     "aas_current_pending", currentPending));
@@ -863,6 +863,10 @@ public class InvoiceService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private boolean closeEnough(double left, double right) {
+        return Math.abs(left - right) <= 0.01;
     }
 
     private String firstMeaningfulMessage(Exception ex) {

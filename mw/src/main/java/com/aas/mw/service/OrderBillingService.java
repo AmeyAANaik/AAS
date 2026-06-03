@@ -215,10 +215,11 @@ public class OrderBillingService {
         }
         List<Map<String, Object>> sellItems = buildSellItems(orderData, vendorBillTotal, deriveOrderMarginPercent(orderData));
         List<Map<String, Object>> invoiceItems = new ArrayList<>(sellItems);
+        String invoiceCategory = resolveOrderCategory(orderData, sellItems);
         boolean applyTransportToInvoice = asFlag(fields == null ? null : fields.get("apply_transport_to_invoice"));
         double transportCharge = asDouble(orderData.get("aas_transport_charge"));
         if (applyTransportToInvoice && transportCharge > 0) {
-            invoiceItems.add(buildTransportInvoiceItem(transportCharge));
+            invoiceItems.add(buildTransportInvoiceItem(transportCharge, invoiceCategory));
         }
         double sellTotal = sumAmount(invoiceItems);
         double marginPercent = deriveSummaryMarginPercent(vendorBillTotal, sellTotal);
@@ -606,11 +607,14 @@ public class OrderBillingService {
         }
     }
 
-    private Map<String, Object> buildTransportInvoiceItem(double transportCharge) {
+    private Map<String, Object> buildTransportInvoiceItem(double transportCharge, String category) {
         ensureTransportItem();
         double roundedCharge = round(transportCharge);
         Map<String, Object> item = new HashMap<>();
         item.put("item_code", TRANSPORT_ITEM_CODE);
+        if (category != null && !category.isBlank()) {
+            item.put("item_group", category);
+        }
         item.put("qty", 1);
         item.put("rate", roundedCharge);
         item.put("amount", roundedCharge);

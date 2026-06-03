@@ -22,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class BranchOpsService {
     private static final String ALL_ITEM_GROUPS = "All Item Groups";
+    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
 
     private static final int ERP_PAGE_SIZE = 500;
     private static final String CUSTOMER = "Customer";
@@ -456,12 +457,7 @@ public class BranchOpsService {
                 if (amount <= 0) {
                     continue;
                 }
-                String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
-                group = normalizeItemGroup(group);
-                if (!hasText(group)) {
-                    group = resolver.resolve(asText(item.get("item_code")));
-                }
-                group = normalizeItemGroup(group);
+                String group = resolveLedgerItemCategory(invoice, item, resolver);
                 if (!hasText(group)) {
                     group = "Uncategorized";
                 }
@@ -619,12 +615,7 @@ public class BranchOpsService {
             if (amount <= 0) {
                 continue;
             }
-            String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
-            group = normalizeItemGroup(group);
-            if (!hasText(group)) {
-                group = resolver.resolve(asText(item.get("item_code")));
-            }
-            group = normalizeItemGroup(group);
+            String group = resolveLedgerItemCategory(invoice, item, resolver);
             if (!hasText(group)) {
                 group = "Uncategorized";
             }
@@ -639,6 +630,22 @@ public class BranchOpsService {
             shares.put(entry.getKey(), dueBase * (entry.getValue() / totalWeight));
         }
         return shares;
+    }
+
+    private String resolveLedgerItemCategory(
+            Map<String, Object> invoice,
+            Map<String, Object> item,
+            ItemGroupResolver resolver) {
+        String group = asText(firstNonNull(item.get("item_group"), item.get("item_group_name")));
+        group = normalizeItemGroup(group);
+        if (!hasText(group)) {
+            group = resolver.resolve(asText(item.get("item_code")));
+        }
+        group = normalizeItemGroup(group);
+        if (!hasText(group) && TRANSPORT_ITEM_CODE.equals(asText(item.get("item_code")))) {
+            group = normalizeItemGroup(asText(invoice.get("aas_category")));
+        }
+        return group;
     }
 
     private static class ItemGroupResolver {
