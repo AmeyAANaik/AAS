@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -126,5 +127,43 @@ class InvoiceServiceTest {
 
         assertEquals(1, invoices.size());
         assertEquals("SINV-NORMAL", invoices.get(0).get("name"));
+    }
+
+    @Test
+    void downloadPdfBackfillsMissingCategoryDueSnapshot() {
+        PaymentDueService paymentDueService = mock(PaymentDueService.class);
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", "Administrator", "admin");
+
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00020"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00020",
+                        "customer", "Sukhkarta Pure Veg Dining Hall, Kothrud",
+                        "company", "Shree Siddhivinayak Suppliers",
+                        "grand_total", 148790.55,
+                        "rounding_adjustment", 0.45,
+                        "outstanding_amount", 148791.0,
+                        "docstatus", 0,
+                        "aas_category", "Grocery",
+                        "aas_previous_due", 0.0,
+                        "aas_current_pending", 0.0)));
+        when(paymentDueService.dueByCategory("Customer", "Sukhkarta Pure Veg Dining Hall, Kothrud", "Grocery"))
+                .thenReturn(Map.of("dueAmount", 375575.251006));
+        when(erpNextClient.getResource("Company", "Shree Siddhivinayak Suppliers"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "Shree Siddhivinayak Suppliers",
+                        "aas_sales_invoice_print_format", "AAS Sales Invoice Print")));
+        when(erpNextClient.downloadPdfWithSession(
+                eq("Sales Invoice"),
+                eq("ACC-SINV-2026-00020"),
+                eq(Map.of("format", "AAS Sales Invoice Print")),
+                isNull()))
+                .thenReturn("%PDF-test".getBytes());
+
+        byte[] pdf = invoiceService.downloadPdf("ACC-SINV-2026-00020");
+
+        assertEquals("%PDF-test", new String(pdf));
+        verify(erpNextClient).updateResource("Sales Invoice", "ACC-SINV-2026-00020", Map.of(
+                "aas_previous_due", 226784.25,
+                "aas_current_pending", 375575.25));
     }
 }

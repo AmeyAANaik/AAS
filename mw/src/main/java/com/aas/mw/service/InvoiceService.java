@@ -492,6 +492,8 @@ public class InvoiceService {
     }
 
     public byte[] downloadPdf(String invoiceId) {
+        Map<String, Object> invoiceDoc = unwrap(erpNextClient.getResource(DOCTYPE, invoiceId));
+        backfillCategoryDueSnapshot(invoiceId, invoiceDoc);
         String printFormat = resolveInvoicePrintFormat(invoiceId);
         String privilegedSession = operationalReadSession();
         byte[] pdf = printFormat.isBlank()
@@ -505,6 +507,34 @@ public class InvoiceService {
             throw new IllegalStateException("ERPNext did not return a valid PDF for " + invoiceId + ". " + snippet);
         }
         return pdf;
+    }
+
+    private void backfillCategoryDueSnapshot(String invoiceId, Map<String, Object> invoiceDoc) {
+        if (invoiceDoc == null || invoiceDoc.isEmpty()) {
+            return;
+        }
+        String customer = asText(invoiceDoc.get("customer"));
+        String categoryId = asText(invoiceDoc.get("aas_category"));
+        if (customer.isBlank() || categoryId.isBlank()) {
+            return;
+        }
+        double storedPreviousDue = asDouble(invoiceDoc.get("aas_previous_due"));
+        double storedCurrentPending = asDouble(invoiceDoc.get("aas_current_pending"));
+        if (storedPreviousDue > 0.0001 && storedCurrentPending > 0.0001) {
+            return;
+        }
+        try {
+            Map<String, Object> due = paymentDueService.dueByCategory("Customer", customer, categoryId);
+            double dueAmount = asDouble(due.get("dueAmount"));
+            double currentInvoiceContribution = currentInvoiceDueBase(invoiceDoc);
+            double previousDue = Math.max(0.0, round(dueAmount - currentInvoiceContribution));
+            double currentPending = round(previousDue + currentInvoiceGrandTotal(invoiceDoc));
+            erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of(
+                    "aas_previous_due", previousDue,
+                    "aas_current_pending", currentPending));
+        } catch (Exception ignore) {
+            // Best-effort backfill for older invoices; never block PDF generation.
+        }
     }
 
     private List<Map<String, Object>> listInvoicesResource(Map<String, Object> params) {
@@ -531,6 +561,23 @@ public class InvoiceService {
             return null;
         }
         return erpNextClient.login(erpSetupUsername, erpSetupPassword);
+    }
+
+    private double currentInvoiceDueBase(Map<String, Object> invoiceDoc) {
+        int docstatus = asInt(invoiceDoc.get("docstatus"));
+        if (docstatus == 0) {
+            return currentInvoiceGrandTotal(invoiceDoc);
+        }
+        double outstandingAmount = asDouble(invoiceDoc.get("outstanding_amount"));
+        return outstandingAmount > 0.0001 ? round(outstandingAmount) : 0.0;
+    }
+
+    private double currentInvoiceGrandTotal(Map<String, Object> invoiceDoc) {
+        double invoiceTotal = asDouble(invoiceDoc.get("grand_total"));
+        double roundingAdjustment = asDouble(firstNonNull(
+                invoiceDoc.get("aas_rounding_adjustment"),
+                invoiceDoc.get("rounding_adjustment")));
+        return round(invoiceTotal + roundingAdjustment);
     }
 
     public Map<String, Object> deleteInvoice(String invoiceId) {

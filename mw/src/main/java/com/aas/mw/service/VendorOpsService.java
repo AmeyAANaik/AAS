@@ -274,7 +274,9 @@ public class VendorOpsService {
                 "openingBalance", window.openingBalance,
                 "closingBalance", window.closingBalance,
                 "balance", window.closingBalance,
-                "categorySummary", buildCategorySummaryFromPurchaseInvoices(filterByPostingDate(purchaseInvoices, range)),
+                "categorySummary", buildCategorySummaryFromPurchaseInvoices(
+                        filterByPostingDate(purchaseInvoices, range),
+                        filterByPostingDate(payments, range)),
                 "entries", window.entries);
     }
 
@@ -467,9 +469,11 @@ public class VendorOpsService {
                 .toList();
     }
 
-    private List<Map<String, Object>> buildCategorySummaryFromPurchaseInvoices(List<Map<String, Object>> purchaseInvoices) {
+    private List<Map<String, Object>> buildCategorySummaryFromPurchaseInvoices(
+            List<Map<String, Object>> purchaseInvoices,
+            List<Map<String, Object>> payments) {
         if (purchaseInvoices == null || purchaseInvoices.isEmpty()) {
-            return List.of();
+            purchaseInvoices = List.of();
         }
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, CategoryWeights> orderCache = new HashMap<>();
@@ -506,6 +510,20 @@ public class VendorOpsService {
             for (Map.Entry<String, Double> entry : weights.weights().entrySet()) {
                 double share = base * (entry.getValue() / weights.total());
                 totals.merge(entry.getKey(), share, Double::sum);
+            }
+        }
+
+        if (payments != null) {
+            for (Map<String, Object> payment : payments) {
+                if (!isSubmitted(payment)) {
+                    continue;
+                }
+                String category = asText(payment.get("aas_category"));
+                double amount = round(resolvePaymentAmount(payment));
+                if (!hasText(category) || amount <= 0) {
+                    continue;
+                }
+                totals.merge(category, -amount, Double::sum);
             }
         }
 

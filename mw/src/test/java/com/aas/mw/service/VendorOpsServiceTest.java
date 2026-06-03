@@ -207,36 +207,65 @@ class VendorOpsServiceTest {
         when(erpNextClient.getResource("Supplier", "Sanshray Foods"))
                 .thenReturn(Map.of("data", Map.of("name", "Sanshray Foods", "supplier_name", "Sanshray Foods")));
         when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
-                .thenReturn(List.of(Map.of(
-                        "name", "ACC-PINV-2026-00003",
-                        "supplier", "Sanshray Foods",
-                        "posting_date", "2026-06-01",
-                        "grand_total", 1674704.0,
-                        "outstanding_amount", 1674704.0,
-                        "bill_no", "AAS-OPENING-20260601-Sanshray Foods-GROCERY",
-                        "aas_category", "Grocery",
-                        "docstatus", 1)));
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-PINV-2026-00003",
+                                "supplier", "Sanshray Foods",
+                                "posting_date", "2026-06-01",
+                                "grand_total", 1674704.0,
+                                "outstanding_amount", 1674704.0,
+                                "bill_no", "AAS-OPENING-20260601-Sanshray Foods-GROCERY",
+                                "aas_category", "Grocery",
+                                "docstatus", 1),
+                        Map.of(
+                                "name", "ACC-PINV-2026-00007",
+                                "supplier", "Sanshray Foods",
+                                "posting_date", "2026-06-03",
+                                "grand_total", 139120.84,
+                                "outstanding_amount", 139120.84,
+                                "bill_no", "PUR-ORD-2026-00001",
+                                "aas_category", "Grocery",
+                                "docstatus", 0)));
         when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
-                .thenReturn(List.of());
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-PAY-2026-00002",
+                        "party", "Sanshray Foods",
+                        "party_type", "Supplier",
+                        "posting_date", "2026-06-02",
+                        "paid_amount", 100000.0,
+                        "payment_type", "Pay",
+                        "reference_no", "",
+                        "docstatus", 1,
+                        "aas_category", "Grocery")));
 
         Map<String, Object> ledger = vendorOpsService.getVendorLedger("Sanshray Foods");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.get("categorySummary");
-        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1674704.0));
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1713824.84));
         assertThat(categories).noneMatch(row -> "Uncategorized".equals(row.get("category")));
 
         Map<String, Object> categoryLedger = vendorOpsService.getVendorLedgerByCategory("Sanshray Foods", "Grocery");
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
-        assertThat(entries).hasSize(1);
+        assertThat(entries).hasSize(3);
         assertThat(entries.get(0))
                 .containsEntry("voucherType", "Purchase Invoice")
                 .containsEntry("voucherNo", "ACC-PINV-2026-00003")
                 .containsEntry("reference", "AAS-OPENING-20260601-Sanshray Foods-GROCERY")
                 .containsEntry("credit", 1674704.0)
                 .containsEntry("runningBalance", 1674704.0);
+        assertThat(entries.get(1))
+                .containsEntry("voucherType", "Payment Entry")
+                .containsEntry("voucherNo", "ACC-PAY-2026-00002")
+                .containsEntry("debit", 100000.0)
+                .containsEntry("runningBalance", 1574704.0);
+        assertThat(entries.get(2))
+                .containsEntry("voucherType", "Draft Purchase Invoice")
+                .containsEntry("voucherNo", "ACC-PINV-2026-00007")
+                .containsEntry("credit", 139120.84)
+                .containsEntry("runningBalance", 1713824.84);
     }
 
     @Test
