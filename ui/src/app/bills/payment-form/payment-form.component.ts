@@ -54,7 +54,7 @@ export class PaymentFormComponent implements OnChanges {
   availableDueAmount = 0;
   hasLoadedDue = false;
   voucherFiles: File[] = [];
-  readonly modeOfPaymentOptions = ['Cash', 'UPI Transfer', 'Check'];
+  readonly modeOfPaymentOptions = ['Cash', 'UPI Transfer', 'Cheque','RTGS','NEFT'];
   private lastDefaultCompany = '';
 
   constructor(

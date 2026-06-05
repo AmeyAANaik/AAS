@@ -1700,11 +1700,11 @@ public class OrderService {
 
     private double resolveMarginPercent(Object value, String itemCode) {
         double margin = asDouble(value);
-        if (value != null && !value.toString().trim().isEmpty() && margin > 0) {
+        if (value != null && !value.toString().trim().isEmpty() && margin >= 0) {
             return margin;
         }
-        double itemMargin = resolveItemMarginPercent(itemCode);
-        if (itemMargin > 0) {
+        Double itemMargin = resolveItemMarginPercent(itemCode);
+        if (itemMargin != null) {
             return itemMargin;
         }
         return defaultMarginPercent;
@@ -1892,17 +1892,18 @@ public class OrderService {
         }
     }
 
-    private double resolveItemMarginPercent(String itemCode) {
+    private Double resolveItemMarginPercent(String itemCode) {
         String code = asText(itemCode);
         if (code.isBlank()) {
-            return 0.0;
+            return null;
         }
         try {
             Map<String, Object> item = unwrap(erpNextClient.getResource("Item", code));
-            double margin = asDouble(item.get("aas_margin_percent"));
-            return margin > 0 ? margin : 0.0;
+            Object rawMargin = item.get("aas_margin_percent");
+            double margin = asDouble(rawMargin);
+            return rawMargin != null && !rawMargin.toString().trim().isEmpty() && margin >= 0 ? margin : null;
         } catch (Exception ex) {
-            return 0.0;
+            return null;
         }
     }
 

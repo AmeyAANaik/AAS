@@ -676,7 +676,7 @@ public class OrderBillingService {
     private double resolveMarginPercent(Object requestValue, Object existingValue) {
         Object source = requestValue == null ? existingValue : requestValue;
         double margin = asDouble(source);
-        if (source == null || source.toString().trim().isEmpty() || margin == 0.0) {
+        if (source == null || source.toString().trim().isEmpty()) {
             margin = defaultMarginPercent;
         }
         if (margin < 0) {

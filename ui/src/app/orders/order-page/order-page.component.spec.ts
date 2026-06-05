@@ -673,7 +673,7 @@ describe('OrderPageComponent', () => {
     component.recalcLine(line);
 
     expect(line.item_code).toBe('ITEM-28');
-    expect(line.aas_margin_percent).toBe(7);
+    expect(line.aas_margin_percent).toBe(0);
   });
 
   it('searches manual recovery item suggestions by partial item text', () => {

@@ -797,8 +797,9 @@ public class VendorPdfService {
         }
         try {
             Map<String, Object> item = unwrapResource(erpNextClient.getResource(ITEM, itemCode));
-            double margin = asDouble(item.get("aas_margin_percent"));
-            if (margin > 0) {
+            Object rawMargin = item.get("aas_margin_percent");
+            double margin = asDouble(rawMargin);
+            if (rawMargin != null && !rawMargin.toString().trim().isEmpty() && margin >= 0) {
                 return margin;
             }
         } catch (Exception ignored) {
@@ -1067,7 +1068,7 @@ public class VendorPdfService {
 
     private double resolveMarginPercent(Object value) {
         double margin = asDouble(value);
-        if (value == null || value.toString().trim().isEmpty() || margin == 0.0) {
+        if (value == null || value.toString().trim().isEmpty()) {
             margin = defaultMarginPercent;
         }
         if (margin < 0) {

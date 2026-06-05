@@ -55,7 +55,7 @@ describe('OrderCreateComponent', () => {
 
     itemService = jasmine.createSpyObj('ItemService', ['listItems']);
     itemService.listItems.and.returnValue(of([
-      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-1', aas_vendor_rate: 42, aas_gst_percent: 5 },
+      { name: 'ITEM-1', item_code: 'ITEM-1', item_name: 'Rice', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-1', aas_vendor_rate: 42, aas_margin_percent: 0, aas_gst_percent: 5 },
       { name: 'ITEM-1B', item_code: 'ITEM-1B', item_name: 'Dal', item_group: 'Grocery', stock_uom: 'Nos', aas_vendor: 'SUP-2', aas_vendor_rate: 50, aas_gst_percent: 12 },
       { name: 'ITEM-2', item_code: 'ITEM-2', item_name: 'Soap', item_group: 'Cleaning', stock_uom: 'Nos' }
     ]));
@@ -183,7 +183,8 @@ describe('OrderCreateComponent', () => {
     component.submit();
 
     expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
-      transport_charge: 30
+      transport_charge: 30,
+      items: [jasmine.objectContaining({ aas_margin_percent: 0 })]
     }));
   });
 

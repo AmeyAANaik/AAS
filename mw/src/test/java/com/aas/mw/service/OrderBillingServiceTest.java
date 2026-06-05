@@ -447,16 +447,16 @@ class OrderBillingServiceTest {
     }
 
     @Test
-    void fallsBackToDefaultMarginWhenStoredMarginIsZero() {
+    void preservesExplicitZeroMargin() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of(
                 "aas_vendor_bill_total", 100.0,
                 "aas_margin_percent", 0.0));
 
         Map<String, Object> preview = service.getSellPreview("SO-1");
 
-        assertEquals(107.0, preview.get("sellAmount"));
-        assertEquals(7.0, preview.get("marginAmount"));
-        assertEquals(7.0, preview.get("marginPercent"));
+        assertEquals(100.0, preview.get("sellAmount"));
+        assertEquals(0.0, preview.get("marginAmount"));
+        assertEquals(0.0, preview.get("marginPercent"));
     }
 
     @Test

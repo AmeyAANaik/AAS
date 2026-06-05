@@ -26,6 +26,7 @@ interface CategoryOrderItemOption {
   unit: string;
   packagingUnit: string;
   rate: number;
+  marginPercent: number | null;
   gstPercent: number;
   selected: boolean;
   qty: number;
@@ -183,6 +184,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           item_name: item.name,
           qty: Math.max(1, Number(item.qty || 1)),
           rate: Math.max(0, Number(item.rate || 0)),
+          aas_margin_percent: item.marginPercent ?? undefined,
           aas_gst_percent: this.applyGst ? Math.max(0, Number(item.gstPercent || 0)) : 0
         }))
       };
@@ -794,6 +796,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     const vendorId = String(item.aas_vendor ?? '').trim();
     const pricing = this.vendorPricing.get(`${id}::${vendorId}`);
     const backendRate = this.asNumber(item.aas_vendor_rate) ?? 0;
+    const marginPercent = this.asNumber(item.aas_margin_percent);
     return {
       id,
       code: String(item.item_code ?? '').trim(),
@@ -808,6 +811,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
           ? backendRate
           : (pricing?.finalRate ?? pricing?.originalRate ?? 0)
       ),
+      marginPercent: marginPercent !== null && marginPercent >= 0 ? marginPercent : null,
       gstPercent: Math.max(0, this.asNumber(item.aas_gst_percent) ?? 0),
       selected: false,
       qty: 1

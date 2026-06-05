@@ -961,7 +961,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     line.item_name = String(line.item_name ?? '').trim();
     if (line.manual_entry) {
       line.item_code = this.resolveItemCodeFromName(line.item_name);
-      line.aas_margin_percent = Number.isFinite(margin) && margin > 0
+      line.aas_margin_percent = Number.isFinite(margin) && margin >= 0
         ? margin
         : this.resolveItemMarginPercent(line.item_name);
     } else {
@@ -1250,7 +1250,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       name,
       category: String(item.item_group ?? '').trim(),
       unit: String(item.stock_uom ?? '').trim(),
-      marginPercent: Number.isFinite(marginPercent) && marginPercent > 0 ? marginPercent : null
+      marginPercent: Number.isFinite(marginPercent) && marginPercent >= 0 ? marginPercent : null
     };
   }
 
