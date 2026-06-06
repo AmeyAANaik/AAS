@@ -56,6 +56,25 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void resolvesUsernameAliasBeforeErpLogin() {
+        AuthRequest request = new AuthRequest();
+        request.setUsername("Tapan");
+        request.setPassword("tapan@123");
+
+        when(erpNextClient.login("Administrator", "admin")).thenReturn("sid=admin");
+        when(erpNextClient.resolveUserId("sid=admin", "Tapan")).thenReturn("helper@example.com");
+        when(erpNextClient.login("helper@example.com", "tapan@123")).thenReturn("sid=user");
+        when(erpNextClient.resolveUserId("sid=user", "helper@example.com")).thenReturn("helper@example.com");
+        when(erpNextClient.getUserRoles("sid=user", "helper@example.com")).thenReturn(List.of("Stock User"));
+        when(jwtService.generateToken("helper@example.com", AppRole.HELPER)).thenReturn("jwt");
+
+        AuthResponse response = service.login(request);
+
+        assertEquals("jwt", response.getAccessToken());
+        assertEquals("helper", response.getRole());
+    }
+
+    @Test
     void rejectsLoginWhenNoSupportedRoleExistsEvenAfterFallback() {
         AuthRequest request = new AuthRequest();
         request.setUsername("helper@example.com");

@@ -37,19 +37,40 @@ public class AuthenticationService {
     }
 
     public AuthResponse login(AuthRequest request) {
-        String sessionCookie = erpNextClient.login(request.getUsername(), request.getPassword());
+        String loginUserId = resolveLoginUserId(request.getUsername());
+        String sessionCookie = erpNextClient.login(loginUserId, request.getPassword());
         if (sessionCookie == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ERP session missing");
         }
-        erpSessionStore.put(request.getUsername(), sessionCookie);
+        String canonicalUserId = erpNextClient.resolveUserId(sessionCookie, loginUserId);
+        if (canonicalUserId == null || canonicalUserId.isBlank()) {
+            canonicalUserId = loginUserId;
+        }
+        erpSessionStore.put(canonicalUserId, sessionCookie);
         AppRole role;
         try {
-            role = roleResolver.resolve(resolveUserRoles(sessionCookie, request.getUsername()));
+            role = roleResolver.resolve(resolveUserRoles(sessionCookie, canonicalUserId));
         } catch (IllegalStateException ex) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ex.getMessage());
         }
-        String token = jwtService.generateToken(request.getUsername(), role);
+        String token = jwtService.generateToken(canonicalUserId, role);
         return new AuthResponse(token, "Bearer", role.asKey());
+    }
+
+    private String resolveLoginUserId(String loginId) {
+        if (loginId == null || loginId.isBlank() || loginId.contains("@")) {
+            return loginId;
+        }
+        try {
+            String setupSession = getSetupSessionCookie();
+            String resolved = erpNextClient.resolveUserId(setupSession, loginId);
+            if (resolved != null && !resolved.isBlank()) {
+                return resolved;
+            }
+        } catch (Exception ignored) {
+            // If setup lookup fails, let ERPNext authenticate the originally entered login.
+        }
+        return loginId;
     }
 
     public String getSetupSessionCookie() {

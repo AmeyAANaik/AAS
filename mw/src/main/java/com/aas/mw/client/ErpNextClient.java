@@ -70,6 +70,32 @@ public class ErpNextClient {
         return Collections.emptyList();
     }
 
+    public String resolveUserId(String sessionCookie, String loginId) {
+        String normalizedLogin = asText(loginId);
+        if (normalizedLogin.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> user = unwrapResource(getResourceWithSession("User", normalizedLogin, sessionCookie));
+            String name = asText(user == null ? null : user.get("name"));
+            if (!name.isBlank()) {
+                return name;
+            }
+        } catch (Exception ignored) {
+            // Fall back to email/username lookup.
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"email\",\"username\"]");
+        params.put("limit_page_length", "1");
+        params.put("or_filters", "[[\"User\",\"email\",\"=\",\"" + escapeJson(normalizedLogin) + "\"],"
+                + "[\"User\",\"username\",\"=\",\"" + escapeJson(normalizedLogin) + "\"]]");
+        List<Map<String, Object>> rows = listResourcesWithSession("User", params, sessionCookie);
+        if (rows.isEmpty()) {
+            return "";
+        }
+        return asText(rows.get(0).get("name"));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> unwrapResource(Map<String, Object> response) {
         if (response == null) {
@@ -80,6 +106,17 @@ public class ErpNextClient {
             return (Map<String, Object>) map;
         }
         return response;
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     public Map<String, Object> getResource(String doctype, String id) {
