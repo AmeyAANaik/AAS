@@ -539,7 +539,7 @@ docker compose -f docker-compose.mw.yml up --build
 After first login (admin), MW calls `/api/setup/ensure` and creates:
 - `vendor@example.com` / `VendorAAS!2026` (Supplier `FreshHarvest Agro Foods`)
 - `shop@example.com` / `ShopAAS!2026` (Customer `Sukarta Aundh`)
-- `Tapan` / `tapan@123` (helper user alias; ERP email `helper@example.com`)
+- `helper@example.com` / `tapan@123` (helper user)
 
 4) **UI**
 - URL: http://localhost:4200
@@ -605,7 +605,7 @@ Shop User
 - Customer: `Sukarta Aundh`
 
 Tapan User
-- Login: `Tapan` after MW alias-login deploy, or `helper@example.com`
+- Login: `helper@example.com`
 - Email: `helper@example.com`
 - Password: `tapan@123`
 

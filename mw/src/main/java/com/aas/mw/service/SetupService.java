@@ -357,6 +357,7 @@ public class SetupService {
     }
 
     public Map<String, Object> ensureSetup() {
+        boolean usernameLoginEnabled = ensureUsernameLoginEnabled();
         boolean vendorField = ensureCustomField(
                 "Sales Order",
                 "aas_vendor",
@@ -848,6 +849,7 @@ public class SetupService {
                 null,
                 "aas_payment_reviewed_by");
         Map<String, Object> result = new HashMap<>();
+        result.put("usernameLoginEnabled", usernameLoginEnabled);
         result.put("vendorFieldCreated", vendorField);
         result.put("statusFieldCreated", statusField);
         result.put("salesOrderMarginFieldCreated", salesOrderMarginField);
@@ -925,6 +927,22 @@ public class SetupService {
         result.put("itemsMarginBackfilled", backfillMarginPercent("Item", "aas_margin_percent"));
         result.putAll(ensureDefaultUsers());
         return result;
+    }
+
+    private boolean ensureUsernameLoginEnabled() {
+        try {
+            Map<String, Object> settings = unwrap(erpNextClient.getResource("System Settings", "System Settings"));
+            if (isTruthy(settings.get("allow_login_using_user_name"))) {
+                return false;
+            }
+        } catch (Exception ignored) {
+            // Best-effort read; still attempt update below.
+        }
+        erpNextClient.updateResource(
+                "System Settings",
+                "System Settings",
+                Map.of("allow_login_using_user_name", 1));
+        return true;
     }
 
     private MarginBackfillResult backfillSalesOrdersAndItems() {
@@ -1247,6 +1265,20 @@ public class SetupService {
         return "1".equals(text) || "true".equalsIgnoreCase(text) || "yes".equalsIgnoreCase(text);
     }
 
+    private boolean isTruthy(Object value) {
+        if (value == null) {
+            return false;
+        }
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        if (value instanceof Number n) {
+            return n.intValue() != 0;
+        }
+        String text = value.toString().trim();
+        return "1".equals(text) || "true".equalsIgnoreCase(text) || "yes".equalsIgnoreCase(text);
+    }
+
     private boolean ensureItem(String itemCode, String itemName, String description) {
         if (itemCode == null || itemCode.isBlank()) {
             return false;
@@ -1325,6 +1357,7 @@ public class SetupService {
         if (!lastName.isBlank()) {
             payload.put("last_name", lastName);
         }
+        payload.put("username", deriveUsername(email, resolvedName, firstName));
         payload.put("enabled", 1);
         payload.put("send_welcome_email", 0);
         payload.put("new_password", password);
@@ -1375,6 +1408,7 @@ public class SetupService {
         if (!lastName.isBlank()) {
             payload.put("last_name", lastName);
         }
+        payload.put("username", deriveUsername(email, resolvedName, firstName));
         payload.put("enabled", 1);
         payload.put("send_welcome_email", 0);
         payload.put("new_password", password);
@@ -1412,6 +1446,18 @@ public class SetupService {
                 .filter(role -> !role.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private String deriveUsername(String email, String resolvedName, String firstName) {
+        String candidate = firstName;
+        if (candidate == null || candidate.isBlank()) {
+            candidate = resolvedName;
+        }
+        if (candidate == null || candidate.isBlank()) {
+            int at = email == null ? -1 : email.indexOf('@');
+            candidate = at > 0 ? email.substring(0, at) : email;
+        }
+        return candidate == null ? "" : candidate.trim();
     }
 
     private List<String> parseRoles(String value) {

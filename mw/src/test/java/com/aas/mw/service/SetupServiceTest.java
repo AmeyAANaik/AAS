@@ -62,6 +62,8 @@ class SetupServiceTest {
         when(erpNextClient.listResources(eq("Supplier Group"), anyMap())).thenReturn(Collections.emptyList());
         when(erpNextClient.listResources(eq("Item Group"), anyMap())).thenReturn(List.of(Map.of("name", "All Item Groups", "is_group", 0)));
         when(erpNextClient.listResources(eq("UOM"), anyMap())).thenReturn(List.of(Map.of("name", "Nos")));
+        when(erpNextClient.getResource(eq("System Settings"), eq("System Settings")))
+                .thenReturn(Map.of("data", Map.of("allow_login_using_user_name", 0)));
         when(erpNextClient.createResource(eq("Supplier Group"), anyMap())).thenReturn(Map.of("name", "All Supplier Groups"));
         when(erpNextClient.createResource(eq("Item"), anyMap())).thenReturn(Map.of("name", "AAS-BRANCH-IMAGE"));
         when(erpNextClient.getResource(eq("Supplier"), eq("FreshHarvest Agro Foods"))).thenThrow(notFound("Supplier", "FreshHarvest Agro Foods"));
@@ -245,6 +247,7 @@ class SetupServiceTest {
                 eq("User"),
                 eq("helper@example.com"),
                 argThat(payload -> "helper123".equals(payload.get("new_password"))
+                        && "Helper".equals(payload.get("username"))
                         && List.of(
                                 Map.of("role", "Stock User"),
                                 Map.of("role", "Accounts User"),
@@ -252,6 +255,16 @@ class SetupServiceTest {
                                 .equals(payload.get("roles"))
                         && "".equals(payload.get("supplier"))
                         && "".equals(payload.get("customer"))));
+    }
+
+    @Test
+    void ensureSetupEnablesUsernameBasedLoginInSystemSettings() {
+        service.ensureSetup();
+
+        verify(erpNextClient).updateResource(
+                eq("System Settings"),
+                eq("System Settings"),
+                eq(Map.of("allow_login_using_user_name", 1)));
     }
 
     @Test

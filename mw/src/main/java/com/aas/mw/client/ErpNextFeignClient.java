@@ -92,6 +92,12 @@ public interface ErpNextFeignClient {
             @PathVariable("method") String method,
             @RequestParam Map<String, Object> params);
 
+    @GetMapping("/api/method/{method}")
+    Map<String, Object> getMethodWithCookie(
+            @PathVariable("method") String method,
+            @RequestParam Map<String, Object> params,
+            @RequestHeader("Cookie") String cookie);
+
     @RequestMapping(method = RequestMethod.POST, value = "/")
     Map<String, Object> postCommand(@RequestBody MultiValueMap<String, String> form);
 

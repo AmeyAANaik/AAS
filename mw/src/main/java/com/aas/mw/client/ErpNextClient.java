@@ -70,6 +70,18 @@ public class ErpNextClient {
         return Collections.emptyList();
     }
 
+    public String getLoggedInUser(String sessionCookie) {
+        if (sessionCookie == null || sessionCookie.isBlank()) {
+            return "";
+        }
+        Map<String, Object> response = feignClient.getMethodWithCookie(
+                "frappe.auth.get_logged_user",
+                Collections.emptyMap(),
+                sessionCookie);
+        Object message = response == null ? null : response.get("message");
+        return asText(message);
+    }
+
     public String resolveUserId(String sessionCookie, String loginId) {
         String normalizedLogin = asText(loginId);
         if (normalizedLogin.isBlank()) {
