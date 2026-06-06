@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.config.AppRole;
+import com.aas.mw.config.ErpSetupProperties;
 import com.aas.mw.config.RoleResolver;
 import com.aas.mw.dto.AuthRequest;
 import com.aas.mw.dto.AuthResponse;
@@ -28,13 +29,15 @@ class AuthenticationServiceTest {
         erpNextClient = mock(ErpNextClient.class);
         jwtService = mock(JwtService.class);
         erpSessionStore = mock(ErpSessionStore.class);
+        ErpSetupProperties erpSetupProperties = new ErpSetupProperties();
+        erpSetupProperties.setFullName("Administrator");
+        erpSetupProperties.setPassword("admin");
         service = new AuthenticationService(
                 erpNextClient,
                 jwtService,
                 erpSessionStore,
                 new RoleResolver("Administrator", "Supplier", "Customer", "Stock User"),
-                "Administrator",
-                "admin");
+                erpSetupProperties);
     }
 
     @Test

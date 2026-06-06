@@ -1228,8 +1228,9 @@ async function ensureUsers() {
     },
     {
       email: 'helper@example.com',
-      fullName: 'Helper User',
-      password: 'HelperAAS!2026',
+      fullName: 'Tapan User',
+      username: 'Tapan',
+      password: 'tapan@123',
       role: 'Stock User'
     }
   ];
@@ -1244,12 +1245,26 @@ async function ensureUsers() {
 
   for (const user of merged) {
     const existing = await erpGet('User', user.email);
+    const [firstName, ...rest] = user.fullName.split(' ');
     if (existing) {
+      const patch = {
+        first_name: firstName,
+        last_name: rest.join(' '),
+        full_name: user.fullName,
+        username: user.username,
+        enabled: 1,
+        supplier: user.supplier,
+        customer: user.customer
+      };
+      if (user.password) {
+        patch.new_password = user.password;
+      }
+      await erpUpdate('User', user.email, patch);
       continue;
     }
-    const [firstName, ...rest] = user.fullName.split(' ');
     await erpCreate('User', {
       email: user.email,
+      username: user.username,
       first_name: firstName,
       last_name: rest.join(' '),
       enabled: 1,

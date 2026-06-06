@@ -1,0 +1,852 @@
+[
+  {
+    "item_name": "AAMCHOOR POWDER",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09109100_AAMCHOOR_POWDER"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_AAMCHOOR_POWDER",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09109100_AAMCHOOR_POWDER",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09109100",
+    "all_margins": [
+      7.0,
+      13.16
+    ]
+  },
+  {
+    "item_name": "ALMOND FLAKES (BADAM KATRI)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_08021100_ALMOND_FLAKES_BADAM_KATRI"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08021100_ALMOND_FLAKES_BADAM_KATRI",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08021100_ALMOND_FLAKES_BADAM_KATRI",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08021100",
+    "all_margins": [
+      7.0,
+      12.0
+    ]
+  },
+  {
+    "item_name": "AMBEMOHAR RICE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_11010000_AMBEMOHAR_RICE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_AMBEMOHAR_RICE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_11010000_AMBEMOHAR_RICE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "11010000",
+    "all_margins": [
+      7.0,
+      12.0
+    ]
+  },
+  {
+    "item_name": "BADISHEP (FENNEL SEEDS)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09096139_BADISHEP_FENNEL_SEEDS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09096139_BADISHEP_FENNEL_SEEDS",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09096139_BADISHEP_FENNEL_SEEDS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09096139",
+    "all_margins": [
+      7.0,
+      3.0
+    ]
+  },
+  {
+    "item_name": "BLACK SALT 1KG",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_25010010_BLACK_SALT_1KG"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_25010010_BLACK_SALT_1KG",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_25010010_BLACK_SALT_1KG",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "25010010",
+    "all_margins": [
+      7.0,
+      52.0
+    ]
+  },
+  {
+    "item_name": "BROWN CHANA LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_BROWN_CHANA_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_BROWN_CHANA_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_BROWN_CHANA_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      5.88
+    ]
+  },
+  {
+    "item_name": "CHANA DAL LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHANA_DAL_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHANA_DAL_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_CHANA_DAL_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      2.4
+    ]
+  },
+  {
+    "item_name": "CHAWLI DAAL",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_DAAL"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_DAAL",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_CHAWLI_DAAL",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      7.66
+    ]
+  },
+  {
+    "item_name": "CHAWLI LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_CHAWLI_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      4.76
+    ]
+  },
+  {
+    "item_name": "CHOTU MASOORI RICE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_10063020_CHOTU_MASOORI_RICE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_10063020_CHOTU_MASOORI_RICE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_10063020_CHOTU_MASOORI_RICE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "10063020",
+    "all_margins": [
+      7.0,
+      24.25
+    ]
+  },
+  {
+    "item_name": "CORNFLOUR LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_11081200_CORNFLOUR_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_11081200_CORNFLOUR_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_11081200_CORNFLOUR_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "11081200",
+    "all_margins": [
+      7.0,
+      22.99
+    ]
+  },
+  {
+    "item_name": "DALDA (1LTR)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_15162091_DALDA_1LTR"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_15162091_DALDA_1LTR",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_15162091_DALDA_1LTR",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "15162091",
+    "all_margins": [
+      7.0,
+      3.14
+    ]
+  },
+  {
+    "item_name": "DHANA WHOLE (Coriander Seeds)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09092190_DHANA_WHOLE_CORIANDER_SEEDS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09092190_DHANA_WHOLE_CORIANDER_SEEDS",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09092190_DHANA_WHOLE_CORIANDER_SEEDS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09092190",
+    "all_margins": [
+      7.0,
+      14.0
+    ]
+  },
+  {
+    "item_name": "ENO",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_30049011_ENO"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_30049011_ENO",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_30049011_ENO",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "30049011",
+    "all_margins": [
+      7.0,
+      15.5
+    ]
+  },
+  {
+    "item_name": "EVEREST KASHMIRI CHILLY POWDER",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KASHMIRI_CHILLY_POWDER"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KASHMIRI_CHILLY_POWDER",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KASHMIRI_CHILLY_POWDER",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09109100",
+    "all_margins": [
+      7.0,
+      6.0
+    ]
+  },
+  {
+    "item_name": "FARSAN",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_21069099_FARSAN"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_FARSAN",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_21069099_FARSAN",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "21069099",
+    "all_margins": [
+      7.0,
+      7.5
+    ]
+  },
+  {
+    "item_name": "GREEN MOONG LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_GREEN_MOONG_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_GREEN_MOONG_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_GREEN_MOONG_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      7.8
+    ]
+  },
+  {
+    "item_name": "GUD BLACK",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_17011310_GUD_BLACK"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_17011310_GUD_BLACK",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_17011310_GUD_BLACK",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "17011310",
+    "all_margins": [
+      7.0,
+      17.0
+    ]
+  },
+  {
+    "item_name": "HEAVEN HARVEST BASMATI RICE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_10063010_HEAVEN_HARVEST_BASMATI_RICE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_10063010_HEAVEN_HARVEST_BASMATI_RICE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_10063010_HEAVEN_HARVEST_BASMATI_RICE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "10063010",
+    "all_margins": [
+      7.0,
+      8.6
+    ]
+  },
+  {
+    "item_name": "IMLI",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_08109020_IMLI"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08109020_IMLI",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08109020_IMLI",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08109020",
+    "all_margins": [
+      7.0,
+      7.2
+    ]
+  },
+  {
+    "item_name": "JEERA (CUMMIN SEEDS)",
+    "duplicate_count": 2,
+    "reason": "all-7-keep-one",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_GROCERY_09093129_JEERA_CUMMIN_SEEDS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_GROCERY_09093129_JEERA_CUMMIN_SEEDS",
+    "delete_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09093129_JEERA_CUMMIN_SEEDS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09093129",
+    "all_margins": [
+      7.0,
+      7.0
+    ]
+  },
+  {
+    "item_name": "KABULI CHANA LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_KABULI_CHANA_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_KABULI_CHANA_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_KABULI_CHANA_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      4.37
+    ]
+  },
+  {
+    "item_name": "KAJU TUKDA",
+    "duplicate_count": 2,
+    "reason": "all-7-keep-one",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_GROCERY_08013100_KAJU_TUKDA"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_GROCERY_08013100_KAJU_TUKDA",
+    "delete_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08013100_KAJU_TUKDA",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08013100",
+    "all_margins": [
+      7.0,
+      7.0
+    ]
+  },
+  {
+    "item_name": "KAJUKANI BHARI",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_08013210_KAJUKANI_BHARI"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08013210_KAJUKANI_BHARI",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08013210_KAJUKANI_BHARI",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08013210",
+    "all_margins": [
+      7.0,
+      8.0
+    ]
+  },
+  {
+    "item_name": "KALINGAD MAGAJ (1KG)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_12077090_KALINGAD_MAGAJ_1KG"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_12077090_KALINGAD_MAGAJ_1KG",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_12077090_KALINGAD_MAGAJ_1KG",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "12077090",
+    "all_margins": [
+      7.0,
+      6.9
+    ]
+  },
+  {
+    "item_name": "KASHMIRI CHILLY WHOLE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09042110_KASHMIRI_CHILLY_WHOLE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_KASHMIRI_CHILLY_WHOLE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09042110_KASHMIRI_CHILLY_WHOLE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09042110",
+    "all_margins": [
+      7.0,
+      20.0
+    ]
+  },
+  {
+    "item_name": "KHADHI SHAKAR RAVALGAON",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_08041020_KHADHI_SHAKAR_RAVALGAON"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08041020_KHADHI_SHAKAR_RAVALGAON",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08041020_KHADHI_SHAKAR_RAVALGAON",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08041020",
+    "all_margins": [
+      7.0,
+      3.33
+    ]
+  },
+  {
+    "item_name": "KHAJUR SEEDLESS",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_MANUAL_KHAJUR_SEEDLESS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_MANUAL_KHAJUR_SEEDLESS",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08041090_KHAJUR_SEEDLESS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08041090",
+    "all_margins": [
+      7.0,
+      6.0
+    ]
+  },
+  {
+    "item_name": "KHOBRA KHIS",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_08011100_KHOBRA_KHIS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_08011100_KHOBRA_KHIS",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_08011100_KHOBRA_KHIS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "08011100",
+    "all_margins": [
+      7.0,
+      30.0
+    ]
+  },
+  {
+    "item_name": "KIRTIGOLD SUNFLOWER TIN (",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_15121910_KIRTIGOLD_SUNFLOWER_TIN"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_15121910_KIRTIGOLD_SUNFLOWER_TIN",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_15121910_KIRTIGOLD_SUNFLOWER_TIN",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "15121910",
+    "all_margins": [
+      7.0,
+      0.4
+    ]
+  },
+  {
+    "item_name": "KOKAM SYRUP (1LTR)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_20089914_KOKAM_SYRUP_1LTR"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_20089914_KOKAM_SYRUP_1LTR",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_20089914_KOKAM_SYRUP_1LTR",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "20089914",
+    "all_margins": [
+      7.0,
+      11.03
+    ]
+  },
+  {
+    "item_name": "LAVANG (CLOVE)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09071010_LAVANG_CLOVE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09071010_LAVANG_CLOVE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09071010_LAVANG_CLOVE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09071010",
+    "all_margins": [
+      7.0,
+      9.63
+    ]
+  },
+  {
+    "item_name": "LG HING (50GM)",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_13019013_LG_HING_50GM"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_13019013_LG_HING_50GM",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_13019013_LG_HING_50GM",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "13019013",
+    "all_margins": [
+      7.0,
+      16.5
+    ]
+  },
+  {
+    "item_name": "MANAMA LIME & MINT MOJITO",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_LIME_MINT_MOJITO"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_LIME_MINT_MOJITO",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_LIME_MINT_MOJITO",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "20089911",
+    "all_margins": [
+      7.0,
+      5.74
+    ]
+  },
+  {
+    "item_name": "MANAMA ORANGE SYRUP",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_20089919_MANAMA_ORANGE_SYRUP"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_20089919_MANAMA_ORANGE_SYRUP",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_ORANGE_SYRUP",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "20089911",
+    "all_margins": [
+      7.0,
+      4.62
+    ]
+  },
+  {
+    "item_name": "MASALA ELAICHI",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09083110_MASALA_ELAICHI"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09083110_MASALA_ELAICHI",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09083110_MASALA_ELAICHI",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09083110",
+    "all_margins": [
+      7.0,
+      3.67
+    ]
+  },
+  {
+    "item_name": "METHI SEEDS",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09109912_METHI_SEEDS"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09109912_METHI_SEEDS",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09109912_METHI_SEEDS",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09109912",
+    "all_margins": [
+      7.0,
+      4.55
+    ]
+  },
+  {
+    "item_name": "MOONG DAL LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONG_DAL_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONG_DAL_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_MOONG_DAL_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      3.82
+    ]
+  },
+  {
+    "item_name": "MOONGDAL CHILKA",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONGDAL_CHILKA"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONGDAL_CHILKA",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_MOONGDAL_CHILKA",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      7.39
+    ]
+  },
+  {
+    "item_name": "OVA AJWAIN",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_09109914_OVA_AJWAIN"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_09109914_OVA_AJWAIN",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_09109914_OVA_AJWAIN",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "09109914",
+    "all_margins": [
+      7.0,
+      24.0
+    ]
+  },
+  {
+    "item_name": "RAJMA REGULAR LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_RAJMA_REGULAR_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_RAJMA_REGULAR_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_RAJMA_REGULAR_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      4.46
+    ]
+  },
+  {
+    "item_name": "SAMOSA PAPAD NOBLE 1KG PACKING",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_19059030_SAMOSA_PAPAD_NOBLE_1KG_PACKING"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_19059030_SAMOSA_PAPAD_NOBLE_1KG_PACKING",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_19059030_SAMOSA_PAPAD_NOBLE_1KG_PACKING",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "19059030",
+    "all_margins": [
+      7.0,
+      12.0
+    ]
+  },
+  {
+    "item_name": "SAMRAT ATTA LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_ATTA_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_ATTA_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_11010000_SAMRAT_ATTA_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "11010000",
+    "all_margins": [
+      7.0,
+      10.15
+    ]
+  },
+  {
+    "item_name": "SAMRAT MAIDA",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_MAIDA"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_MAIDA",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_11010000_SAMRAT_MAIDA",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "11010000",
+    "all_margins": [
+      7.0,
+      9.72
+    ]
+  },
+  {
+    "item_name": "SUGAR",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_17011490_SUGAR"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_17011490_SUGAR",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_17011490_SUGAR",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "17011490",
+    "all_margins": [
+      7.0,
+      2.5
+    ]
+  },
+  {
+    "item_name": "SUJI RAVA",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SUJI_RAVA"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SUJI_RAVA",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_11010000_SUJI_RAVA",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "11010000",
+    "all_margins": [
+      7.0,
+      2.62
+    ]
+  },
+  {
+    "item_name": "TATA SALT 1KG",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_28276090_TATA_SALT_1KG"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_28276090_TATA_SALT_1KG",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_28276090_TATA_SALT_1KG",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "28276090",
+    "all_margins": [
+      7.0,
+      3.3
+    ]
+  },
+  {
+    "item_name": "TOORDAL PRESIDENT LOOSE",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07136000_TOORDAL_PRESIDENT_LOOSE"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07136000_TOORDAL_PRESIDENT_LOOSE",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07136000_TOORDAL_PRESIDENT_LOOSE",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07136000",
+    "all_margins": [
+      7.0,
+      10.44
+    ]
+  },
+  {
+    "item_name": "UDID DAL BHAARI",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_07132000_UDID_DAL_BHAARI"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_UDID_DAL_BHAARI",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_07132000_UDID_DAL_BHAARI",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "07132000",
+    "all_margins": [
+      7.0,
+      5.65
+    ]
+  },
+  {
+    "item_name": "WHITE SESAME TILL",
+    "duplicate_count": 2,
+    "reason": "mixed-margin-delete-default-7",
+    "keep_item_codes": [
+      "SANSHRAY_FOODS_RAW_MATERIAL_12074090_WHITE_SESAME_TILL"
+    ],
+    "keep_item_code": "SANSHRAY_FOODS_RAW_MATERIAL_12074090_WHITE_SESAME_TILL",
+    "delete_item_code": "SANSHRAY_FOODS_GROCERY_12074090_WHITE_SESAME_TILL",
+    "delete_margin": 7.0,
+    "delete_vendor": "Sanshray Foods",
+    "delete_hsn": "12074090",
+    "all_margins": [
+      7.0,
+      14.0
+    ]
+  }
+]

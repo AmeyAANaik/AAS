@@ -539,7 +539,7 @@ docker compose -f docker-compose.mw.yml up --build
 After first login (admin), MW calls `/api/setup/ensure` and creates:
 - `vendor@example.com` / `VendorAAS!2026` (Supplier `FreshHarvest Agro Foods`)
 - `shop@example.com` / `ShopAAS!2026` (Customer `Sukarta Aundh`)
-- `helper@example.com` / `HelperAAS!2026`
+- `Tapan` / `tapan@123` (helper user alias; ERP email `helper@example.com`)
 
 4) **UI**
 - URL: http://localhost:4200
@@ -604,9 +604,10 @@ Shop User
 - Password: `ShopAAS!2026`
 - Customer: `Sukarta Aundh`
 
-Helper User
+Tapan User
+- Login: `Tapan` after MW alias-login deploy, or `helper@example.com`
 - Email: `helper@example.com`
-- Password: `HelperAAS!2026`
+- Password: `tapan@123`
 
 You can override any defaults with env vars in `mw/src/main/resources/application.properties` (keys start with `APP_DEFAULTS_`).
 

@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.config.AppDefaultsProperties;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.aas.mw.meta.VendorFieldSpec;
 import java.util.Arrays;
@@ -326,43 +327,32 @@ public class SetupService {
             CustomFieldProvisioner customFieldProvisioner,
             VendorFieldRegistry vendorFieldRegistry,
             CatalogRoutingService catalogRoutingService,
-            @Value("${app.defaults.enabled:true}") boolean defaultsEnabled,
+            AppDefaultsProperties appDefaultsProperties,
             @Value("${app.role.vendor:Supplier}") String vendorRole,
             @Value("${app.role.shop:Customer}") String shopRole,
             @Value("${app.role.helper:Stock User}") String helperRole,
             @Value("${app.roles.helper-extra:Accounts User,Sales User}") String helperAdditionalRoles,
-            @Value("${app.defaults.vendor.email:}") String defaultVendorEmail,
-            @Value("${app.defaults.vendor.name:Vendor User}") String defaultVendorName,
-            @Value("${app.defaults.vendor.password:vendor123}") String defaultVendorPassword,
-            @Value("${app.defaults.vendor.supplier:}") String defaultVendorSupplier,
-            @Value("${app.defaults.shop.email:}") String defaultShopEmail,
-            @Value("${app.defaults.shop.name:Shop User}") String defaultShopName,
-            @Value("${app.defaults.shop.password:shop123}") String defaultShopPassword,
-            @Value("${app.defaults.shop.customer:}") String defaultShopCustomer,
-            @Value("${app.defaults.helper.email:}") String defaultHelperEmail,
-            @Value("${app.defaults.helper.name:Helper User}") String defaultHelperName,
-            @Value("${app.defaults.helper.password:helper123}") String defaultHelperPassword,
             @Value("${app.order.margin.default-percent:7}") double defaultMarginPercent) {
         this.erpNextClient = erpNextClient;
         this.customFieldProvisioner = customFieldProvisioner;
         this.vendorFieldRegistry = vendorFieldRegistry;
         this.catalogRoutingService = catalogRoutingService;
-        this.defaultsEnabled = defaultsEnabled;
+        this.defaultsEnabled = appDefaultsProperties.isEnabled();
         this.vendorRole = vendorRole;
         this.shopRole = shopRole;
         this.helperRole = helperRole;
         this.helperAdditionalRoles = parseRoles(helperAdditionalRoles);
-        this.defaultVendorEmail = defaultVendorEmail;
-        this.defaultVendorName = defaultVendorName;
-        this.defaultVendorPassword = defaultVendorPassword;
-        this.defaultVendorSupplier = defaultVendorSupplier;
-        this.defaultShopEmail = defaultShopEmail;
-        this.defaultShopName = defaultShopName;
-        this.defaultShopPassword = defaultShopPassword;
-        this.defaultShopCustomer = defaultShopCustomer;
-        this.defaultHelperEmail = defaultHelperEmail;
-        this.defaultHelperName = defaultHelperName;
-        this.defaultHelperPassword = defaultHelperPassword;
+        this.defaultVendorEmail = appDefaultsProperties.getVendor().getEmail();
+        this.defaultVendorName = appDefaultsProperties.getVendor().getName();
+        this.defaultVendorPassword = appDefaultsProperties.getVendor().getPassword();
+        this.defaultVendorSupplier = appDefaultsProperties.getVendor().getSupplier();
+        this.defaultShopEmail = appDefaultsProperties.getShop().getEmail();
+        this.defaultShopName = appDefaultsProperties.getShop().getName();
+        this.defaultShopPassword = appDefaultsProperties.getShop().getPassword();
+        this.defaultShopCustomer = appDefaultsProperties.getShop().getCustomer();
+        this.defaultHelperEmail = appDefaultsProperties.getHelper().getEmail();
+        this.defaultHelperName = appDefaultsProperties.getHelper().getName();
+        this.defaultHelperPassword = appDefaultsProperties.getHelper().getPassword();
         this.defaultMarginPercent = defaultMarginPercent;
     }
 

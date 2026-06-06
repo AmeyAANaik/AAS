@@ -36,9 +36,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_BROWN_CHANA_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_BROWN_CHANA_LOOSE",
     "name": "BROWN CHANA LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 5.88,
@@ -48,9 +48,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHANA_DAL_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_CHANA_DAL_LOOSE",
     "name": "CHANA DAL LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 2.4,
@@ -60,9 +60,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_DAAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_CHAWLI_DAAL",
     "name": "CHAWLI DAAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7.66,
@@ -72,9 +72,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_CHAWLI_DAL",
     "name": "CHAWLI DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7.66,
@@ -84,9 +84,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_CHAWLI_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_CHAWLI_LOOSE",
     "name": "CHAWLI LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.76,
@@ -96,9 +96,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_FUTANA_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_FUTANA_DAL",
     "name": "FUTANA DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 6.91,
@@ -108,9 +108,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_FUTANA_DAL_NO_TAX",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_FUTANA_DAL_NO_TAX",
     "name": "FUTANA DAL NO TAX",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7,
@@ -120,9 +120,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_GREEN_MOONG_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_GREEN_MOONG_LOOSE",
     "name": "GREEN MOONG LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7.8,
@@ -132,9 +132,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_KABULI_CHANA_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_KABULI_CHANA_LOOSE",
     "name": "KABULI CHANA LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.37,
@@ -144,9 +144,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MASOOR_DAL_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_MASOOR_DAL_LOOSE",
     "name": "MASOOR DAL LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.91,
@@ -156,9 +156,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MASOOR_WHOLE_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_MASOOR_WHOLE_LOOSE",
     "name": "MASOOR WHOLE LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 3.95,
@@ -168,9 +168,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONG_DAL_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_MOONG_DAL_LOOSE",
     "name": "MOONG DAL LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 3.82,
@@ -180,9 +180,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_MOONGDAL_CHILKA",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_MOONGDAL_CHILKA",
     "name": "MOONGDAL CHILKA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7.39,
@@ -192,9 +192,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_RAJMA_REGULAR_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_RAJMA_REGULAR_LOOSE",
     "name": "RAJMA REGULAR LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.46,
@@ -204,9 +204,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_BROWN_CHANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_BROWN_CHANA",
     "name": "SFK BROWN CHANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 5.88,
@@ -216,9 +216,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_CHANA_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_CHANA_DAL",
     "name": "SFK CHANA DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 2.4,
@@ -228,9 +228,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_CHAWLI",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_CHAWLI",
     "name": "SFK CHAWLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.76,
@@ -240,9 +240,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_GREEN_MOONG",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_GREEN_MOONG",
     "name": "SFK GREEN MOONG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 7.8,
@@ -252,9 +252,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_GREEN_VATANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_GREEN_VATANA",
     "name": "SFK GREEN VATANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 3.13,
@@ -264,9 +264,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_KABULI_CHANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_KABULI_CHANA",
     "name": "SFK KABULI CHANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.37,
@@ -276,9 +276,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_MASOOR_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_MASOOR_DAL",
     "name": "SFK MASOOR DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.91,
@@ -288,9 +288,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_MASOOR_WHOLE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_MASOOR_WHOLE",
     "name": "SFK MASOOR WHOLE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 3.95,
@@ -300,9 +300,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_MOONG_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_MOONG_DAL",
     "name": "SFK MOONG DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 3.82,
@@ -312,9 +312,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_RAJMA_BIG",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_RAJMA_BIG",
     "name": "SFK RAJMA BIG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 4.46,
@@ -324,9 +324,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_UDID_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_UDID_DAL",
     "name": "SFK UDID DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 5.65,
@@ -336,9 +336,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_SFK_WHITE_VATANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_SFK_WHITE_VATANA",
     "name": "SFK WHITE VATANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 13,
@@ -348,9 +348,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_UDID_DAL_BHAARI",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_UDID_DAL_BHAARI",
     "name": "UDID DAL BHAARI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 5.65,
@@ -360,9 +360,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07132000_WHITE_VATANA_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07132000_WHITE_VATANA_LOOSE",
     "name": "WHITE VATANA LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07132000",
     "margin_percent": 12,
@@ -372,9 +372,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07134000_MATKI_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07134000_MATKI_LOOSE",
     "name": "MATKI LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07134000",
     "margin_percent": 3.13,
@@ -384,9 +384,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07134000_SFK_MATKI",
+    "code": "SANSHRAY_FOODS_GROCERY_07134000_SFK_MATKI",
     "name": "SFK MATKI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07134000",
     "margin_percent": 3.13,
@@ -396,9 +396,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07135000_VAAL_DAAL",
+    "code": "SANSHRAY_FOODS_GROCERY_07135000_VAAL_DAAL",
     "name": "VAAL DAAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07135000",
     "margin_percent": 3.7,
@@ -408,9 +408,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07136000_TOORDAL_PRESIDENT_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_07136000_TOORDAL_PRESIDENT_LOOSE",
     "name": "TOORDAL PRESIDENT LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07136000",
     "margin_percent": 10.44,
@@ -420,9 +420,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07139010_TOORDAL_PRESIDENT",
+    "code": "SANSHRAY_FOODS_GROCERY_07139010_TOORDAL_PRESIDENT",
     "name": "TOORDAL PRESIDENT",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07139010",
     "margin_percent": 10.44,
@@ -432,9 +432,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07139010_TOORDAL_VILLAGE",
+    "code": "SANSHRAY_FOODS_GROCERY_07139010_TOORDAL_VILLAGE",
     "name": "TOORDAL VILLAGE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07139010",
     "margin_percent": 10.44,
@@ -444,9 +444,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07149010_SABUDANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07149010_SABUDANA",
     "name": "SABUDANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07149010",
     "margin_percent": 9,
@@ -456,9 +456,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_07149010_SFK_SABUDANA",
+    "code": "SANSHRAY_FOODS_GROCERY_07149010_SFK_SABUDANA",
     "name": "SFK SABUDANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "07149010",
     "margin_percent": 9,
@@ -468,9 +468,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08011100_KHOBRA_KHIS",
+    "code": "SANSHRAY_FOODS_GROCERY_08011100_KHOBRA_KHIS",
     "name": "KHOBRA KHIS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08011100",
     "margin_percent": 30,
@@ -480,9 +480,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08011100_SFK_KHOBRA_KHIS",
+    "code": "SANSHRAY_FOODS_GROCERY_08011100_SFK_KHOBRA_KHIS",
     "name": "SFK KHOBRA KHIS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08011100",
     "margin_percent": 30,
@@ -492,9 +492,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08013100_KAJU_TUKDA",
+    "code": "SANSHRAY_FOODS_GROCERY_08013100_KAJU_TUKDA",
     "name": "KAJU TUKDA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08013100",
     "margin_percent": 7,
@@ -504,9 +504,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08013100_SFK_KAJU_TUKDA",
+    "code": "SANSHRAY_FOODS_GROCERY_08013100_SFK_KAJU_TUKDA",
     "name": "SFK KAJU TUKDA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08013100",
     "margin_percent": 8.38,
@@ -516,9 +516,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08013210_KAJUKANI_BHARI",
+    "code": "SANSHRAY_FOODS_GROCERY_08013210_KAJUKANI_BHARI",
     "name": "KAJUKANI BHARI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08013210",
     "margin_percent": 8,
@@ -528,9 +528,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08013210_KAJUPAKLI",
+    "code": "SANSHRAY_FOODS_GROCERY_08013210_KAJUPAKLI",
     "name": "KAJUPAKLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08013210",
     "margin_percent": 8.38,
@@ -540,9 +540,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08021100_ALMOND_FLAKES_BADAM_KATRI",
+    "code": "SANSHRAY_FOODS_GROCERY_08021100_ALMOND_FLAKES_BADAM_KATRI",
     "name": "ALMOND FLAKES (BADAM KATRI)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08021100",
     "margin_percent": 12,
@@ -552,9 +552,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08021100_PISTA_FLAKE",
+    "code": "SANSHRAY_FOODS_GROCERY_08021100_PISTA_FLAKE",
     "name": "PISTA FLAKE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08021100",
     "margin_percent": 4.08,
@@ -564,9 +564,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08021100_PISTA_FLAKES",
+    "code": "SANSHRAY_FOODS_GROCERY_08021100_PISTA_FLAKES",
     "name": "PISTA FLAKES",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08021100",
     "margin_percent": 4.08,
@@ -576,9 +576,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08021100_SFK_ALMOND_FLAKES",
+    "code": "SANSHRAY_FOODS_GROCERY_08021100_SFK_ALMOND_FLAKES",
     "name": "SFK ALMOND FLAKES",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08021100",
     "margin_percent": 16.63,
@@ -588,9 +588,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08021200_SFK_ALMOND",
+    "code": "SANSHRAY_FOODS_GROCERY_08021200_SFK_ALMOND",
     "name": "SFK ALMOND",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08021200",
     "margin_percent": 7.29,
@@ -600,9 +600,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08023200_SFK_WALNUT_250GMS",
+    "code": "SANSHRAY_FOODS_GROCERY_08023200_SFK_WALNUT_250GMS",
     "name": "SFK WALNUT 250GMS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "08023200",
     "margin_percent": 3.96,
@@ -612,9 +612,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08025100_SFK_PISTA",
+    "code": "SANSHRAY_FOODS_GROCERY_08025100_SFK_PISTA",
     "name": "SFK PISTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08025100",
     "margin_percent": 7,
@@ -624,9 +624,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08041020_KHADHI_SHAKAR_RAVALGAON",
+    "code": "SANSHRAY_FOODS_GROCERY_08041020_KHADHI_SHAKAR_RAVALGAON",
     "name": "KHADHI SHAKAR RAVALGAON",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08041020",
     "margin_percent": 3.33,
@@ -636,9 +636,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08041020_KHADHI_SHAKAR_RAVALGAON_CONTINUED_TO_PAGE_NUMBER",
+    "code": "SANSHRAY_FOODS_GROCERY_08041020_KHADHI_SHAKAR_RAVALGAON_CONTINUED_TO_PAGE_NUMBER",
     "name": "KHADHI SHAKAR RAVALGAON continued to page number 3",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08041020",
     "margin_percent": 3.33,
@@ -648,9 +648,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08041020_SFK_KHAJUR_SEEDLESS",
+    "code": "SANSHRAY_FOODS_GROCERY_08041020_SFK_KHAJUR_SEEDLESS",
     "name": "SFK KHAJUR SEEDLESS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08041020",
     "margin_percent": 6,
@@ -660,9 +660,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08042090_ANJEER",
+    "code": "SANSHRAY_FOODS_GROCERY_08042090_ANJEER",
     "name": "ANJEER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08042090",
     "margin_percent": 5,
@@ -672,9 +672,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08042090_SFK_ANJEER",
+    "code": "SANSHRAY_FOODS_GROCERY_08042090_SFK_ANJEER",
     "name": "SFK ANJEER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08042090",
     "margin_percent": 5,
@@ -684,9 +684,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08062010_KISHMISH_YELLOW",
+    "code": "SANSHRAY_FOODS_GROCERY_08062010_KISHMISH_YELLOW",
     "name": "KISHMISH YELLOW",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08062010",
     "margin_percent": 7,
@@ -696,9 +696,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08062010_SFK_KISHMISH",
+    "code": "SANSHRAY_FOODS_GROCERY_08062010_SFK_KISHMISH",
     "name": "SFK KISHMISH",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08062010",
     "margin_percent": 8.53,
@@ -708,9 +708,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08109020_IMLI",
+    "code": "SANSHRAY_FOODS_GROCERY_08109020_IMLI",
     "name": "IMLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08109020",
     "margin_percent": 7.2,
@@ -720,9 +720,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_08134010_SFK_IMLI",
+    "code": "SANSHRAY_FOODS_GROCERY_08134010_SFK_IMLI",
     "name": "SFK IMLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "08134010",
     "margin_percent": 7.2,
@@ -732,9 +732,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09023020_TATA_TEA_AGNI_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_09023020_TATA_TEA_AGNI_1KG",
     "name": "TATA TEA AGNI 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09023020",
     "margin_percent": 5,
@@ -744,9 +744,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_BEDGI_MIRCHI_WHOLE_NON_SPICY",
+    "code": "SANSHRAY_FOODS_GROCERY_09042110_BEDGI_MIRCHI_WHOLE_NON_SPICY",
     "name": "BEDGI MIRCHI WHOLE ( NON SPICY)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09042110",
     "margin_percent": 7,
@@ -756,9 +756,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_BORIYA_MIRCHI_BOR_GOL",
+    "code": "SANSHRAY_FOODS_GROCERY_09042110_BORIYA_MIRCHI_BOR_GOL",
     "name": "BORIYA MIRCHI (BOR/GOL)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09042110",
     "margin_percent": 7,
@@ -768,9 +768,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_KALIMIRI_BLACK_PEPPER_WHOLE",
+    "code": "SANSHRAY_FOODS_GROCERY_09042110_KALIMIRI_BLACK_PEPPER_WHOLE",
     "name": "KALIMIRI (BLACK PEPPER WHOLE)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09042110",
     "margin_percent": 7.89,
@@ -780,9 +780,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_KASHMIRI_CHILLY_WHOLE",
+    "code": "SANSHRAY_FOODS_GROCERY_09042110_KASHMIRI_CHILLY_WHOLE",
     "name": "KASHMIRI CHILLY WHOLE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09042110",
     "margin_percent": 20,
@@ -792,9 +792,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042110_SFK_KALI_MIRI",
+    "code": "SANSHRAY_FOODS_GROCERY_09042110_SFK_KALI_MIRI",
     "name": "SFK KALI MIRI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09042110",
     "margin_percent": 7.89,
@@ -804,9 +804,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09042211_MDH_DEGI_MIRCHI_100GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09042211_MDH_DEGI_MIRCHI_100GM",
     "name": "MDH DEGI MIRCHI 100GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09042211",
     "margin_percent": 6,
@@ -816,9 +816,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09061190_DALCHINI",
+    "code": "SANSHRAY_FOODS_GROCERY_09061190_DALCHINI",
     "name": "DALCHINI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09061190",
     "margin_percent": 3.13,
@@ -828,9 +828,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09061190_SFK_DALCHINI",
+    "code": "SANSHRAY_FOODS_GROCERY_09061190_SFK_DALCHINI",
     "name": "SFK DALCHINI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09061190",
     "margin_percent": 3.13,
@@ -840,9 +840,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09071010_DAGADPHOOL_STONE_FLOWER",
+    "code": "SANSHRAY_FOODS_GROCERY_09071010_DAGADPHOOL_STONE_FLOWER",
     "name": "DAGADPHOOL (STONE FLOWER)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09071010",
     "margin_percent": 9.63,
@@ -852,9 +852,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09071010_LAVANG_CLOVE",
+    "code": "SANSHRAY_FOODS_GROCERY_09071010_LAVANG_CLOVE",
     "name": "LAVANG (CLOVE)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09071010",
     "margin_percent": 9.63,
@@ -864,9 +864,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09071010_SFK_LAVANG",
+    "code": "SANSHRAY_FOODS_GROCERY_09071010_SFK_LAVANG",
     "name": "SFK LAVANG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09071010",
     "margin_percent": 9.63,
@@ -876,9 +876,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09081110_JAIFAL_NUTMEG",
+    "code": "SANSHRAY_FOODS_GROCERY_09081110_JAIFAL_NUTMEG",
     "name": "JAIFAL (NUTMEG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09081110",
     "margin_percent": 19.32,
@@ -888,9 +888,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09081110_SFK_JAIFAL",
+    "code": "SANSHRAY_FOODS_GROCERY_09081110_SFK_JAIFAL",
     "name": "SFK JAIFAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09081110",
     "margin_percent": 19.32,
@@ -900,9 +900,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09082100_JAVANTRI_MACE",
+    "code": "SANSHRAY_FOODS_GROCERY_09082100_JAVANTRI_MACE",
     "name": "JAVANTRI (MACE)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09082100",
     "margin_percent": 5.25,
@@ -912,9 +912,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09082100_SFK_JAVANTRI",
+    "code": "SANSHRAY_FOODS_GROCERY_09082100_SFK_JAVANTRI",
     "name": "SFK JAVANTRI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09082100",
     "margin_percent": 5.25,
@@ -924,9 +924,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09083110_MASALA_ELAICHI",
+    "code": "SANSHRAY_FOODS_GROCERY_09083110_MASALA_ELAICHI",
     "name": "MASALA ELAICHI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09083110",
     "margin_percent": 3.67,
@@ -936,9 +936,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09083190_GREEN_ELAICHI_GREEN_CARDAMOM",
+    "code": "SANSHRAY_FOODS_GROCERY_09083190_GREEN_ELAICHI_GREEN_CARDAMOM",
     "name": "GREEN ELAICHI (GREEN CARDAMOM)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09083190",
     "margin_percent": 3.67,
@@ -948,9 +948,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09092190_DHANA_WHOLE_CORIANDER_SEEDS",
+    "code": "SANSHRAY_FOODS_GROCERY_09092190_DHANA_WHOLE_CORIANDER_SEEDS",
     "name": "DHANA WHOLE (Coriander Seeds)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09092190",
     "margin_percent": 14,
@@ -960,9 +960,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09092190_SFK_DHANA",
+    "code": "SANSHRAY_FOODS_GROCERY_09092190_SFK_DHANA",
     "name": "SFK DHANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09092190",
     "margin_percent": 14.53,
@@ -972,9 +972,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09093119_KALONJI",
+    "code": "SANSHRAY_FOODS_GROCERY_09093119_KALONJI",
     "name": "KALONJI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09093119",
     "margin_percent": 8.2,
@@ -984,9 +984,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09093129_JEERA_CUMMIN_SEEDS",
+    "code": "SANSHRAY_FOODS_GROCERY_09093129_JEERA_CUMMIN_SEEDS",
     "name": "JEERA (CUMMIN SEEDS)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09093129",
     "margin_percent": 7,
@@ -996,9 +996,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09093129_SFK_JEERA",
+    "code": "SANSHRAY_FOODS_GROCERY_09093129_SFK_JEERA",
     "name": "SFK JEERA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09093129",
     "margin_percent": 7,
@@ -1008,9 +1008,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09096119_BADALPHOOL_STAR_ANISE",
+    "code": "SANSHRAY_FOODS_GROCERY_09096119_BADALPHOOL_STAR_ANISE",
     "name": "BADALPHOOL (STAR ANISE)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09096119",
     "margin_percent": 18.75,
@@ -1020,9 +1020,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09096139_BADISHEP_FENNEL_SEEDS",
+    "code": "SANSHRAY_FOODS_GROCERY_09096139_BADISHEP_FENNEL_SEEDS",
     "name": "BADISHEP (FENNEL SEEDS)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09096139",
     "margin_percent": 3,
@@ -1032,9 +1032,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09096139_SFK_BADISHEP",
+    "code": "SANSHRAY_FOODS_GROCERY_09096139_SFK_BADISHEP",
     "name": "SFK BADISHEP",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09096139",
     "margin_percent": 3.33,
@@ -1044,9 +1044,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_090962_SFK_BADAL_PHOL",
+    "code": "SANSHRAY_FOODS_GROCERY_090962_SFK_BADAL_PHOL",
     "name": "SFK BADAL PHOL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "090962",
     "margin_percent": 18.75,
@@ -1056,9 +1056,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_AMBARI_DHANIYA_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_AMBARI_DHANIYA_POWDER",
     "name": "AMBARI DHANIYA POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1068,9 +1068,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_AMBARI_HALDI_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_AMBARI_HALDI_POWDER",
     "name": "AMBARI HALDI POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1080,9 +1080,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_AMBARI_MIRCHI_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_AMBARI_MIRCHI_POWDER",
     "name": "AMBARI MIRCHI POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1092,9 +1092,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_PRAVIN_AMBARI_DHANIYA_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_PRAVIN_AMBARI_DHANIYA_POWDER",
     "name": "PRAVIN AMBARI DHANIYA POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1104,9 +1104,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_PRAVIN_AMBARI_HALDI_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_PRAVIN_AMBARI_HALDI_POWDER",
     "name": "PRAVIN AMBARI HALDI POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1116,9 +1116,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_PRAVIN_AMBARI_MIRCHI_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_PRAVIN_AMBARI_MIRCHI_POWDER",
     "name": "PRAVIN AMBARI MIRCHI POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1128,9 +1128,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_PRAVIN_GODA_MASALA",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_PRAVIN_GODA_MASALA",
     "name": "PRAVIN GODA MASALA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1140,9 +1140,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09103090_TAMAL_PATRA_BAYLEAF",
+    "code": "SANSHRAY_FOODS_GROCERY_09103090_TAMAL_PATRA_BAYLEAF",
     "name": "TAMAL PATRA (BAYLEAF)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09103090",
     "margin_percent": 7,
@@ -1152,9 +1152,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_AAMCHOOR_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_AAMCHOOR_POWDER",
     "name": "AAMCHOOR POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109100",
     "margin_percent": 13.16,
@@ -1164,9 +1164,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_BADSHAH_CHAT_MASALA_500_GRM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_BADSHAH_CHAT_MASALA_500_GRM",
     "name": "BADSHAH CHAT MASALA 500 GRM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 11,
@@ -1176,9 +1176,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_BIRYANI_MASALA_200GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_BIRYANI_MASALA_200GM",
     "name": "EVEREST BIRYANI MASALA 200GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 7,
@@ -1188,9 +1188,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_CHAT_MASALA_500GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_CHAT_MASALA_500GM",
     "name": "EVEREST CHAT MASALA 500GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 11,
@@ -1200,9 +1200,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_CHOLE_MASALA_200GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_CHOLE_MASALA_200GM",
     "name": "EVEREST CHOLE MASALA 200GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 12,
@@ -1212,9 +1212,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KASHMIRI_CHILLY_POWDER",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KASHMIRI_CHILLY_POWDER",
     "name": "EVEREST KASHMIRI CHILLY POWDER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Pack",
     "hsn": "09109100",
     "margin_percent": 6,
@@ -1224,9 +1224,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KASHMIRI_CHILLY_POWDER_500GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KASHMIRI_CHILLY_POWDER_500GM",
     "name": "EVEREST KASHMIRI CHILLY POWDER 500GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 6,
@@ -1236,9 +1236,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KASHMIRI_CHILLY_POWDER_500GM_CONTINUED_T",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KASHMIRI_CHILLY_POWDER_500GM_CONTINUED_T",
     "name": "EVEREST KASHMIRI CHILLY POWDER 500GM continued to page number 2",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 6,
@@ -1248,9 +1248,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KITCHEN_KING_500GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KITCHEN_KING_500GM",
     "name": "EVEREST KITCHEN KING 500GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 15.57,
@@ -1260,9 +1260,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_KITCHEN_KING_500GMS",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_KITCHEN_KING_500GMS",
     "name": "EVEREST KITCHEN KING 500GMS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 15.57,
@@ -1272,9 +1272,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_EVEREST_RAJMA_MASALA_50GM",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_EVEREST_RAJMA_MASALA_50GM",
     "name": "EVEREST RAJMA MASALA 50GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "09109100",
     "margin_percent": 7,
@@ -1284,9 +1284,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_JALANI_JALJEERA_MASALA",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_JALANI_JALJEERA_MASALA",
     "name": "JALANI JALJEERA MASALA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109100",
     "margin_percent": 15.47,
@@ -1296,9 +1296,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_PRAVIN_KANDA_LASOON_MASALA",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_PRAVIN_KANDA_LASOON_MASALA",
     "name": "PRAVIN KANDA LASOON MASALA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109100",
     "margin_percent": 12.32,
@@ -1308,9 +1308,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_PRAVIN_KANDA_MASALA",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_PRAVIN_KANDA_MASALA",
     "name": "PRAVIN KANDA MASALA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109100",
     "margin_percent": 12,
@@ -1320,9 +1320,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109100_SF_JALJEERA",
+    "code": "SANSHRAY_FOODS_GROCERY_09109100_SF_JALJEERA",
     "name": "SF JALJEERA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109100",
     "margin_percent": 15.5,
@@ -1332,9 +1332,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109912_METHI_SEEDS",
+    "code": "SANSHRAY_FOODS_GROCERY_09109912_METHI_SEEDS",
     "name": "METHI SEEDS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109912",
     "margin_percent": 4.55,
@@ -1344,9 +1344,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109912_SFK_METHI",
+    "code": "SANSHRAY_FOODS_GROCERY_09109912_SFK_METHI",
     "name": "SFK METHI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109912",
     "margin_percent": 4.55,
@@ -1356,9 +1356,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109914_OVA_AJWAIN",
+    "code": "SANSHRAY_FOODS_GROCERY_09109914_OVA_AJWAIN",
     "name": "OVA AJWAIN",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109914",
     "margin_percent": 24,
@@ -1368,9 +1368,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109929_BADSHAH_RAJWADI_GARAM_MASALA",
+    "code": "SANSHRAY_FOODS_GROCERY_09109929_BADSHAH_RAJWADI_GARAM_MASALA",
     "name": "BADSHAH RAJWADI GARAM MASALA (",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109929",
     "margin_percent": 7,
@@ -1380,9 +1380,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109929_BADSHAH_RAJWADI_GARAM_MASALA_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_09109929_BADSHAH_RAJWADI_GARAM_MASALA_1KG",
     "name": "BADSHAH RAJWADI GARAM MASALA (1KG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109929",
     "margin_percent": 7,
@@ -1392,9 +1392,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_09109990_UTSAV_KASTURI_METHI",
+    "code": "SANSHRAY_FOODS_GROCERY_09109990_UTSAV_KASTURI_METHI",
     "name": "UTSAV KASTURI METHI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "09109990",
     "margin_percent": 8,
@@ -1404,9 +1404,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10059000_SFK_MAKKA_ATTA",
+    "code": "SANSHRAY_FOODS_GROCERY_10059000_SFK_MAKKA_ATTA",
     "name": "SFK MAKKA ATTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10059000",
     "margin_percent": 11,
@@ -1416,9 +1416,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063010_BASMATI_RICE_HEAVEN_HARVEST",
+    "code": "SANSHRAY_FOODS_GROCERY_10063010_BASMATI_RICE_HEAVEN_HARVEST",
     "name": "BASMATI RICE HEAVEN HARVEST",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063010",
     "margin_percent": 8.6,
@@ -1428,9 +1428,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063010_HEAVEN_HARVEST_BASMATI_RICE",
+    "code": "SANSHRAY_FOODS_GROCERY_10063010_HEAVEN_HARVEST_BASMATI_RICE",
     "name": "HEAVEN HARVEST BASMATI RICE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063010",
     "margin_percent": 8.6,
@@ -1440,9 +1440,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063010_STAFF_RICE_YESS_BOSS",
+    "code": "SANSHRAY_FOODS_GROCERY_10063010_STAFF_RICE_YESS_BOSS",
     "name": "STAFF RICE YESS BOSS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063010",
     "margin_percent": 24.25,
@@ -1452,9 +1452,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063010_YESS_BOSS_RICE",
+    "code": "SANSHRAY_FOODS_GROCERY_10063010_YESS_BOSS_RICE",
     "name": "YESS BOSS RICE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063010",
     "margin_percent": 9.07,
@@ -1464,9 +1464,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063020_CHOTU_MASOORI_RICE",
+    "code": "SANSHRAY_FOODS_GROCERY_10063020_CHOTU_MASOORI_RICE",
     "name": "CHOTU MASOORI RICE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063020",
     "margin_percent": 24.25,
@@ -1476,9 +1476,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063020_STAFF_RICE_CHOTU",
+    "code": "SANSHRAY_FOODS_GROCERY_10063020_STAFF_RICE_CHOTU",
     "name": "STAFF RICE CHOTU",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063020",
     "margin_percent": 24.25,
@@ -1488,9 +1488,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10063090_SFK_RICE_ATTA",
+    "code": "SANSHRAY_FOODS_GROCERY_10063090_SFK_RICE_ATTA",
     "name": "SFK RICE ATTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10063090",
     "margin_percent": 7,
@@ -1500,9 +1500,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_10064000_STAR_BROKEN_STEAM_RICE",
+    "code": "SANSHRAY_FOODS_GROCERY_10064000_STAR_BROKEN_STEAM_RICE",
     "name": "STAR BROKEN STEAM RICE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "10064000",
     "margin_percent": 7,
@@ -1512,9 +1512,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_100821_SFK_JAWARI_ATTA",
+    "code": "SANSHRAY_FOODS_GROCERY_100821_SFK_JAWARI_ATTA",
     "name": "SFK JAWARI ATTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "100821",
     "margin_percent": 4.9,
@@ -1524,9 +1524,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_1101_WAAL",
+    "code": "SANSHRAY_FOODS_GROCERY_1101_WAAL",
     "name": "WAAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "1101",
     "margin_percent": 4,
@@ -1536,9 +1536,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_AMBEMOHAR_RICE",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_AMBEMOHAR_RICE",
     "name": "AMBEMOHAR RICE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 12,
@@ -1548,9 +1548,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_DALIYA",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_DALIYA",
     "name": "DALIYA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 2.27,
@@ -1560,9 +1560,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_JADA_ATTA",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_JADA_ATTA",
     "name": "JADA ATTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 9.56,
@@ -1572,9 +1572,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_JADA_BESAN",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_JADA_BESAN",
     "name": "JADA BESAN",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 3.98,
@@ -1584,9 +1584,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_MAIDA_SAMRAT",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_MAIDA_SAMRAT",
     "name": "MAIDA SAMRAT",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 7,
@@ -1596,9 +1596,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_RICE_ATTA_RICE_FLOUR",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_RICE_ATTA_RICE_FLOUR",
     "name": "RICE ATTA (RICE FLOUR)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 7,
@@ -1608,9 +1608,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_ATTA_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SAMRAT_ATTA_LOOSE",
     "name": "SAMRAT ATTA LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 10.15,
@@ -1620,9 +1620,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SAMRAT_MAIDA",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SAMRAT_MAIDA",
     "name": "SAMRAT MAIDA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 9.72,
@@ -1632,9 +1632,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SFK_BAJRI_ATTA",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SFK_BAJRI_ATTA",
     "name": "SFK BAJRI ATTA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 5.21,
@@ -1644,9 +1644,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SFK_BESAN",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SFK_BESAN",
     "name": "SFK BESAN",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 7.2,
@@ -1656,9 +1656,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SFK_SAMRAT_ATTA_50KG",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SFK_SAMRAT_ATTA_50KG",
     "name": "SFK SAMRAT ATTA 50KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 7,
@@ -1668,9 +1668,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SHINGDANA_PAKLI",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SHINGDANA_PAKLI",
     "name": "SHINGDANA PAKLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 7,
@@ -1680,9 +1680,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11010000_SUJI_RAVA",
+    "code": "SANSHRAY_FOODS_GROCERY_11010000_SUJI_RAVA",
     "name": "SUJI RAVA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11010000",
     "margin_percent": 2.62,
@@ -1692,9 +1692,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11031110_SUJI_RAVA_BADA",
+    "code": "SANSHRAY_FOODS_GROCERY_11031110_SUJI_RAVA_BADA",
     "name": "SUJI RAVA (BADA)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11031110",
     "margin_percent": 2.62,
@@ -1704,9 +1704,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11061000_HIRA_BESAN_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_11061000_HIRA_BESAN_LOOSE",
     "name": "HIRA BESAN LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11061000",
     "margin_percent": 7,
@@ -1716,9 +1716,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11061090_TATA_BESAN_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_11061090_TATA_BESAN_1KG",
     "name": "TATA BESAN 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "11061090",
     "margin_percent": 7.2,
@@ -1728,9 +1728,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11081200_CORNFLOUR_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_11081200_CORNFLOUR_LOOSE",
     "name": "CORNFLOUR LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11081200",
     "margin_percent": 22.99,
@@ -1740,9 +1740,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_11081990_SFK_CORNFLOUR",
+    "code": "SANSHRAY_FOODS_GROCERY_11081990_SFK_CORNFLOUR",
     "name": "SFK CORNFLOUR",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "11081990",
     "margin_percent": 22.99,
@@ -1752,9 +1752,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12024210_SFK_SHINGDANA",
+    "code": "SANSHRAY_FOODS_GROCERY_12024210_SFK_SHINGDANA",
     "name": "SFK SHINGDANA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12024210",
     "margin_percent": 4,
@@ -1764,9 +1764,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12024210_SHINGDANA_PAKLI",
+    "code": "SANSHRAY_FOODS_GROCERY_12024210_SHINGDANA_PAKLI",
     "name": "SHINGDANA PAKLI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12024210",
     "margin_percent": 7,
@@ -1776,9 +1776,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12024210_SHINGDANA_WHOLE",
+    "code": "SANSHRAY_FOODS_GROCERY_12024210_SHINGDANA_WHOLE",
     "name": "SHINGDANA WHOLE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12024210",
     "margin_percent": 2.23,
@@ -1788,9 +1788,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12074090_WHITE_SESAME_TILL",
+    "code": "SANSHRAY_FOODS_GROCERY_12074090_WHITE_SESAME_TILL",
     "name": "WHITE SESAME TILL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12074090",
     "margin_percent": 14,
@@ -1800,9 +1800,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12074090_WHITE_TILL",
+    "code": "SANSHRAY_FOODS_GROCERY_12074090_WHITE_TILL",
     "name": "WHITE TILL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12074090",
     "margin_percent": 14,
@@ -1812,9 +1812,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12075010_MOHARI",
+    "code": "SANSHRAY_FOODS_GROCERY_12075010_MOHARI",
     "name": "MOHARI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12075010",
     "margin_percent": 7,
@@ -1824,9 +1824,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12075010_MOHARI_DAL",
+    "code": "SANSHRAY_FOODS_GROCERY_12075010_MOHARI_DAL",
     "name": "MOHARI DAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12075010",
     "margin_percent": 6.29,
@@ -1836,9 +1836,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12075010_MOHARI_RAI",
+    "code": "SANSHRAY_FOODS_GROCERY_12075010_MOHARI_RAI",
     "name": "MOHARI (RAI)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12075010",
     "margin_percent": 7,
@@ -1848,9 +1848,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12077090_KALINGAD_MAGAJ_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_12077090_KALINGAD_MAGAJ_1KG",
     "name": "KALINGAD MAGAJ (1KG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12077090",
     "margin_percent": 6.9,
@@ -1860,9 +1860,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_12077090_SFK_KALINGAD_MAGAJ_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_12077090_SFK_KALINGAD_MAGAJ_1KG",
     "name": "SFK KALINGAD MAGAJ 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "12077090",
     "margin_percent": 6.9,
@@ -1872,9 +1872,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_13019013_LG_HING_50GM",
+    "code": "SANSHRAY_FOODS_GROCERY_13019013_LG_HING_50GM",
     "name": "LG HING (50GM)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "13019013",
     "margin_percent": 16.5,
@@ -1884,9 +1884,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15121910_KIRTIGOLD_SUNFLOWER_TIN",
+    "code": "SANSHRAY_FOODS_GROCERY_15121910_KIRTIGOLD_SUNFLOWER_TIN",
     "name": "KIRTIGOLD SUNFLOWER TIN (",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Tin",
     "hsn": "15121910",
     "margin_percent": 0.4,
@@ -1896,9 +1896,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15121910_SAMRAT_SUNFLOWER_15LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_15121910_SAMRAT_SUNFLOWER_15LTR",
     "name": "SAMRAT SUNFLOWER 15LTR",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Tin",
     "hsn": "15121910",
     "margin_percent": 0.4,
@@ -1908,9 +1908,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15121910_SAMRAT_SUNFLOWER_OIL_TIN_13KG",
+    "code": "SANSHRAY_FOODS_GROCERY_15121910_SAMRAT_SUNFLOWER_OIL_TIN_13KG",
     "name": "SAMRAT SUNFLOWER OIL TIN (13KG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Tin",
     "hsn": "15121910",
     "margin_percent": 0.4,
@@ -1920,9 +1920,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15121910_SFK_KIRTI_GOLD_SUNFLOWER_OIL_13KG",
+    "code": "SANSHRAY_FOODS_GROCERY_15121910_SFK_KIRTI_GOLD_SUNFLOWER_OIL_13KG",
     "name": "SFK KIRTI GOLD SUNFLOWER OIL 13kg",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Tin",
     "hsn": "15121910",
     "margin_percent": 0.4,
@@ -1932,9 +1932,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15149120_MAHAVIR_MUSTARD_OIL_1LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_15149120_MAHAVIR_MUSTARD_OIL_1LTR",
     "name": "MAHAVIR MUSTARD OIL (1LTR)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "15149120",
     "margin_percent": 7,
@@ -1944,9 +1944,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15162029_TILL_OIL",
+    "code": "SANSHRAY_FOODS_GROCERY_15162029_TILL_OIL",
     "name": "TILL OIL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "15162029",
     "margin_percent": 3.9,
@@ -1956,9 +1956,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15162091_DALDA_1LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_15162091_DALDA_1LTR",
     "name": "DALDA (1LTR)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "15162091",
     "margin_percent": 3.14,
@@ -1968,9 +1968,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_15162091_SFK_DALDA_1LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_15162091_SFK_DALDA_1LTR",
     "name": "SFK DALDA 1LTR",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "15162091",
     "margin_percent": 3.14,
@@ -1980,9 +1980,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_17011310_GUD_BLACK",
+    "code": "SANSHRAY_FOODS_GROCERY_17011310_GUD_BLACK",
     "name": "GUD BLACK",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "17011310",
     "margin_percent": 17,
@@ -1992,9 +1992,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_17011490_SFK_SUGAR",
+    "code": "SANSHRAY_FOODS_GROCERY_17011490_SFK_SUGAR",
     "name": "SFK SUGAR",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "17011490",
     "margin_percent": 2.5,
@@ -2004,9 +2004,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_17011490_SUGAR",
+    "code": "SANSHRAY_FOODS_GROCERY_17011490_SUGAR",
     "name": "SUGAR",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "17011490",
     "margin_percent": 2.5,
@@ -2016,9 +2016,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_17019990_SFK_KHADHI_SHAKAR_RAVALGAON",
+    "code": "SANSHRAY_FOODS_GROCERY_17019990_SFK_KHADHI_SHAKAR_RAVALGAON",
     "name": "SFK KHADHI SHAKAR RAVALGAON",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "17019990",
     "margin_percent": 3.33,
@@ -2028,9 +2028,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19023090_NOODLES",
+    "code": "SANSHRAY_FOODS_GROCERY_19023090_NOODLES",
     "name": "NOODLES",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "19023090",
     "margin_percent": 7,
@@ -2040,9 +2040,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19041020_PATLA_POHA",
+    "code": "SANSHRAY_FOODS_GROCERY_19041020_PATLA_POHA",
     "name": "PATLA POHA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19041020",
     "margin_percent": 7,
@@ -2052,9 +2052,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19041020_POHA_LOOSE",
+    "code": "SANSHRAY_FOODS_GROCERY_19041020_POHA_LOOSE",
     "name": "POHA LOOSE",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19041020",
     "margin_percent": 5.8,
@@ -2064,9 +2064,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19041020_SFK_POHA",
+    "code": "SANSHRAY_FOODS_GROCERY_19041020_SFK_POHA",
     "name": "SFK POHA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19041020",
     "margin_percent": 7,
@@ -2076,9 +2076,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19041090_POHA_NYLON",
+    "code": "SANSHRAY_FOODS_GROCERY_19041090_POHA_NYLON",
     "name": "POHA NYLON",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19041090",
     "margin_percent": 5.8,
@@ -2088,9 +2088,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19041090_SFK_MURMURA",
+    "code": "SANSHRAY_FOODS_GROCERY_19041090_SFK_MURMURA",
     "name": "SFK MURMURA",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19041090",
     "margin_percent": 2.59,
@@ -2100,9 +2100,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19054000_HABIT_PANKO_BREAD_CRUMB",
+    "code": "SANSHRAY_FOODS_GROCERY_19054000_HABIT_PANKO_BREAD_CRUMB",
     "name": "HABIT PANKO BREAD CRUMB",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "19054000",
     "margin_percent": 7,
@@ -2112,9 +2112,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19054000_PANKO_BREAD_CRUMB",
+    "code": "SANSHRAY_FOODS_GROCERY_19054000_PANKO_BREAD_CRUMB",
     "name": "PANKO BREAD CRUMB",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "19054000",
     "margin_percent": 7,
@@ -2124,9 +2124,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059030_NACHNI_PAPAD",
+    "code": "SANSHRAY_FOODS_GROCERY_19059030_NACHNI_PAPAD",
     "name": "NACHNI PAPAD",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059030",
     "margin_percent": 12.5,
@@ -2136,9 +2136,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059030_NACHNI_PAPAD_CONTINUED_TO_PAGE_NUMBER_2",
+    "code": "SANSHRAY_FOODS_GROCERY_19059030_NACHNI_PAPAD_CONTINUED_TO_PAGE_NUMBER_2",
     "name": "NACHNI PAPAD continued to page number 2",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059030",
     "margin_percent": 7,
@@ -2148,9 +2148,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059030_SAMOSA_PAPAD_1",
+    "code": "SANSHRAY_FOODS_GROCERY_19059030_SAMOSA_PAPAD_1",
     "name": "SAMOSA PAPAD 1",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059030",
     "margin_percent": 14,
@@ -2160,9 +2160,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059030_SAMOSA_PAPAD_NOBLE_1KG_PACKING",
+    "code": "SANSHRAY_FOODS_GROCERY_19059030_SAMOSA_PAPAD_NOBLE_1KG_PACKING",
     "name": "SAMOSA PAPAD NOBLE 1KG PACKING",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059030",
     "margin_percent": 12,
@@ -2172,9 +2172,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059040_LIJJAT_PAPAD_BIG",
+    "code": "SANSHRAY_FOODS_GROCERY_19059040_LIJJAT_PAPAD_BIG",
     "name": "LIJJAT PAPAD BIG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059040",
     "margin_percent": 7,
@@ -2184,9 +2184,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059040_LIJJAT_PAPAD_SMALL",
+    "code": "SANSHRAY_FOODS_GROCERY_19059040_LIJJAT_PAPAD_SMALL",
     "name": "LIJJAT PAPAD SMALL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059040",
     "margin_percent": 5.5,
@@ -2196,9 +2196,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_19059040_SF_LIJJAT_PAPAD_SMALL",
+    "code": "SANSHRAY_FOODS_GROCERY_19059040_SF_LIJJAT_PAPAD_SMALL",
     "name": "SF LIJJAT PAPAD SMALL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "19059040",
     "margin_percent": 5.5,
@@ -2208,9 +2208,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20011000_MANGO_PICKLE_5KG",
+    "code": "SANSHRAY_FOODS_GROCERY_20011000_MANGO_PICKLE_5KG",
     "name": "MANGO PICKLE (5KG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20011000",
     "margin_percent": 8.5,
@@ -2220,9 +2220,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20011000_PICKLE_SACHET",
+    "code": "SANSHRAY_FOODS_GROCERY_20011000_PICKLE_SACHET",
     "name": "PICKLE SACHET",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Pack",
     "hsn": "20011000",
     "margin_percent": 7.5,
@@ -2232,9 +2232,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20060000_MIX_DRY_FRUIT",
+    "code": "SANSHRAY_FOODS_GROCERY_20060000_MIX_DRY_FRUIT",
     "name": "MIX DRY FRUIT",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "20060000",
     "margin_percent": 7,
@@ -2244,9 +2244,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20079990_MIX_PICKLE_5KG",
+    "code": "SANSHRAY_FOODS_GROCERY_20079990_MIX_PICKLE_5KG",
     "name": "MIX PICKLE 5KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20079990",
     "margin_percent": 8.5,
@@ -2256,9 +2256,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20081920_VYOM_S_PEANUTS",
+    "code": "SANSHRAY_FOODS_GROCERY_20081920_VYOM_S_PEANUTS",
     "name": "VYOM S PEANUTS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "20081920",
     "margin_percent": 7,
@@ -2268,9 +2268,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20081920_VYOM_SALTED_PEANUTS",
+    "code": "SANSHRAY_FOODS_GROCERY_20081920_VYOM_SALTED_PEANUTS",
     "name": "VYOM SALTED PEANUTS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20081920",
     "margin_percent": 7,
@@ -2280,9 +2280,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_KALA_KHATTA_CORDIAL_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_KALA_KHATTA_CORDIAL_750ML",
     "name": "MANAMA KALA KHATTA CORDIAL (750ML)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 15,
@@ -2292,9 +2292,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_LIME_MINT_MOJITO",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_LIME_MINT_MOJITO",
     "name": "MANAMA LIME & MINT MOJITO",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 5.74,
@@ -2304,9 +2304,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_MANGO_SYRUP_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_MANGO_SYRUP_750ML",
     "name": "MANAMA MANGO SYRUP ( 750ML)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 7,
@@ -2316,9 +2316,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_ORANGE_SYRUP",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_ORANGE_SYRUP",
     "name": "MANAMA ORANGE SYRUP",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 4.62,
@@ -2328,9 +2328,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_PINEAPPLE_CRUSH_1LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_PINEAPPLE_CRUSH_1LTR",
     "name": "MANAMA PINEAPPLE CRUSH (1LTR)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 7,
@@ -2340,9 +2340,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_PINEAPPLE_SYRUP",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_PINEAPPLE_SYRUP",
     "name": "MANAMA PINEAPPLE SYRUP",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 7,
@@ -2352,9 +2352,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_STRAWBERRY_CRUSH",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_STRAWBERRY_CRUSH",
     "name": "MANAMA STRAWBERRY CRUSH",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 9.96,
@@ -2364,9 +2364,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_STRAWBERRY_SYRUP",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_STRAWBERRY_SYRUP",
     "name": "MANAMA STRAWBERRY SYRUP(",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 4.6,
@@ -2376,9 +2376,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089911_MANAMA_STRAWBERRY_SYRUP_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_20089911_MANAMA_STRAWBERRY_SYRUP_750ML",
     "name": "MANAMA STRAWBERRY SYRUP(750ML)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089911",
     "margin_percent": 8,
@@ -2388,9 +2388,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089912_MANAMA_LIME_MINT_MOJITO_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_20089912_MANAMA_LIME_MINT_MOJITO_750ML",
     "name": "MANAMA LIME & MINT MOJITO 750ML",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089912",
     "margin_percent": 7,
@@ -2400,9 +2400,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089914_KOKAM_SYRUP_1LTR",
+    "code": "SANSHRAY_FOODS_GROCERY_20089914_KOKAM_SYRUP_1LTR",
     "name": "KOKAM SYRUP (1LTR)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089914",
     "margin_percent": 11.03,
@@ -2412,9 +2412,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089919_MANAMA_KALA_KHATTA_CORDIAL",
+    "code": "SANSHRAY_FOODS_GROCERY_20089919_MANAMA_KALA_KHATTA_CORDIAL",
     "name": "MANAMA KALA KHATTA CORDIAL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089919",
     "margin_percent": 12,
@@ -2424,9 +2424,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089919_MANAMA_ORANGE_SYRUP",
+    "code": "SANSHRAY_FOODS_GROCERY_20089919_MANAMA_ORANGE_SYRUP",
     "name": "MANAMA ORANGE SYRUP",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089919",
     "margin_percent": 4.62,
@@ -2436,9 +2436,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_20089919_MANAMA_PINEAPPLE_SYRUP",
+    "code": "SANSHRAY_FOODS_GROCERY_20089919_MANAMA_PINEAPPLE_SYRUP",
     "name": "MANAMA PINEAPPLE SYRUP",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "20089919",
     "margin_percent": 7,
@@ -2448,9 +2448,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21031000_CHINGS_DARK_SOYA_SAUCE_750GMS",
+    "code": "SANSHRAY_FOODS_GROCERY_21031000_CHINGS_DARK_SOYA_SAUCE_750GMS",
     "name": "CHINGS DARK SOYA SAUCE 750GMS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21031000",
     "margin_percent": 9.09,
@@ -2460,9 +2460,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21031000_CHINGS_RED_CHILLY_SAUCE_BTL",
+    "code": "SANSHRAY_FOODS_GROCERY_21031000_CHINGS_RED_CHILLY_SAUCE_BTL",
     "name": "CHINGS RED CHILLY SAUCE BTL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21031000",
     "margin_percent": 9.09,
@@ -2472,9 +2472,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21032000_FOODRITE_SCHEZWAN_CHUTNEY_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_21032000_FOODRITE_SCHEZWAN_CHUTNEY_1KG",
     "name": "FOODRITE SCHEZWAN CHUTNEY 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21032000",
     "margin_percent": 7,
@@ -2484,9 +2484,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21032000_KISSAN_DIP_SAUCE_930GM",
+    "code": "SANSHRAY_FOODS_GROCERY_21032000_KISSAN_DIP_SAUCE_930GM",
     "name": "KISSAN DIP SAUCE ( 930GM)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21032000",
     "margin_percent": 7.21,
@@ -2496,9 +2496,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21032000_KISSAN_DIP_SAUCE_POUCH_930GM",
+    "code": "SANSHRAY_FOODS_GROCERY_21032000_KISSAN_DIP_SAUCE_POUCH_930GM",
     "name": "KISSAN DIP SAUCE POUCH 930GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21032000",
     "margin_percent": 7.21,
@@ -2508,9 +2508,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21032000_TOMATO_SACHET",
+    "code": "SANSHRAY_FOODS_GROCERY_21032000_TOMATO_SACHET",
     "name": "TOMATO SACHET",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21032000",
     "margin_percent": 7,
@@ -2520,9 +2520,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21039020_CHINGS_GREEN_CHILLY_SAUCE_680GMS",
+    "code": "SANSHRAY_FOODS_GROCERY_21039020_CHINGS_GREEN_CHILLY_SAUCE_680GMS",
     "name": "CHINGS GREEN CHILLY SAUCE 680GMS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21039020",
     "margin_percent": 9.09,
@@ -2532,9 +2532,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21039020_CHINGS_GREEN_CHILLY_SAUCE_BTL",
+    "code": "SANSHRAY_FOODS_GROCERY_21039020_CHINGS_GREEN_CHILLY_SAUCE_BTL",
     "name": "CHINGS GREEN CHILLY SAUCE BTL",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21039020",
     "margin_percent": 9.09,
@@ -2544,9 +2544,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21039020_CHINGS_RED_CHILLY_SAUCE_680GMS",
+    "code": "SANSHRAY_FOODS_GROCERY_21039020_CHINGS_RED_CHILLY_SAUCE_680GMS",
     "name": "CHINGS RED CHILLY SAUCE 680GMS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21039020",
     "margin_percent": 9.09,
@@ -2556,9 +2556,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21039040_KNORR_AROMAT_POWDER_500GM",
+    "code": "SANSHRAY_FOODS_GROCERY_21039040_KNORR_AROMAT_POWDER_500GM",
     "name": "KNORR AROMAT POWDER ( 500GM)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21039040",
     "margin_percent": 7,
@@ -2568,9 +2568,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069011_MALAS_KESAR_SYRUP_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_21069011_MALAS_KESAR_SYRUP_750ML",
     "name": "MALAS KESAR SYRUP (750ML)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21069011",
     "margin_percent": 7.56,
@@ -2580,9 +2580,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069019_MAPRO_VARIYALI_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_21069019_MAPRO_VARIYALI_750ML",
     "name": "MAPRO VARIYALI 750ML",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21069019",
     "margin_percent": 7,
@@ -2592,9 +2592,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069019_MAPRO_VARIYALI_SHARBAT_750ML",
+    "code": "SANSHRAY_FOODS_GROCERY_21069019_MAPRO_VARIYALI_SHARBAT_750ML",
     "name": "MAPRO VARIYALI SHARBAT 750ML",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "21069019",
     "margin_percent": 9,
@@ -2604,9 +2604,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069080_JAD_SHEV",
+    "code": "SANSHRAY_FOODS_GROCERY_21069080_JAD_SHEV",
     "name": "JAD SHEV",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069080",
     "margin_percent": 4.17,
@@ -2616,9 +2616,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069080_SOYAWADI_BADI",
+    "code": "SANSHRAY_FOODS_GROCERY_21069080_SOYAWADI_BADI",
     "name": "SOYAWADI BADI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069080",
     "margin_percent": 7,
@@ -2628,9 +2628,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069080_SOYAWADI_BIG",
+    "code": "SANSHRAY_FOODS_GROCERY_21069080_SOYAWADI_BIG",
     "name": "SOYAWADI BIG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069080",
     "margin_percent": 7,
@@ -2640,9 +2640,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_CHITALE_GULAB_JAMUN_MIX",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_CHITALE_GULAB_JAMUN_MIX",
     "name": "CHITALE GULAB JAMUN MIX",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 5.32,
@@ -2652,9 +2652,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_CHITLE_GULABJAMUN_MIX_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_CHITLE_GULABJAMUN_MIX_1KG",
     "name": "CHITLE GULABJAMUN MIX 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 5.32,
@@ -2664,9 +2664,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_FARSAN",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_FARSAN",
     "name": "FARSAN",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 7.5,
@@ -2676,9 +2676,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_FARSAN_CHAT_PAPPDI",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_FARSAN_CHAT_PAPPDI",
     "name": "FARSAN CHAT PAPPDI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 7.5,
@@ -2688,9 +2688,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_FARSAN_KHARA_BOONDI",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_FARSAN_KHARA_BOONDI",
     "name": "FARSAN KHARA BOONDI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 4.41,
@@ -2700,9 +2700,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_KHARA_BOONDI",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_KHARA_BOONDI",
     "name": "KHARA BOONDI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 4.41,
@@ -2712,9 +2712,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_SF_KHARA_BOONDI",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_SF_KHARA_BOONDI",
     "name": "SF KHARA BOONDI",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 4.41,
@@ -2724,9 +2724,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_SF_ZERO_SEV",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_SF_ZERO_SEV",
     "name": "SF ZERO SEV",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 5,
@@ -2736,9 +2736,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_TALOD_DHOKLA_MIX_YELLOW_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_TALOD_DHOKLA_MIX_YELLOW_1KG",
     "name": "TALOD DHOKLA MIX YELLOW (1KG)",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 10.53,
@@ -2748,9 +2748,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_21069099_ZERO_SEV",
+    "code": "SANSHRAY_FOODS_GROCERY_21069099_ZERO_SEV",
     "name": "ZERO SEV",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "21069099",
     "margin_percent": 5,
@@ -2760,9 +2760,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_250100_SFK_BLACK_SALT",
+    "code": "SANSHRAY_FOODS_GROCERY_250100_SFK_BLACK_SALT",
     "name": "SFK BLACK SALT",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "250100",
     "margin_percent": 7,
@@ -2772,9 +2772,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_25010010_BLACK_SALT_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_25010010_BLACK_SALT_1KG",
     "name": "BLACK SALT 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "25010010",
     "margin_percent": 52,
@@ -2784,9 +2784,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_28276090_TATA_SALT_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_28276090_TATA_SALT_1KG",
     "name": "TATA SALT 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "28276090",
     "margin_percent": 3.3,
@@ -2796,9 +2796,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_29181400_CITRIC_ACID",
+    "code": "SANSHRAY_FOODS_GROCERY_29181400_CITRIC_ACID",
     "name": "CITRIC ACID",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "29181400",
     "margin_percent": 7,
@@ -2808,9 +2808,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_29181400_SF_CITRIC_ACID",
+    "code": "SANSHRAY_FOODS_GROCERY_29181400_SF_CITRIC_ACID",
     "name": "SF CITRIC ACID",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "29181400",
     "margin_percent": 7,
@@ -2820,9 +2820,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_29224220_SFK_AJINO_MOTO",
+    "code": "SANSHRAY_FOODS_GROCERY_29224220_SFK_AJINO_MOTO",
     "name": "SFK AJINO MOTO",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "29224220",
     "margin_percent": 7,
@@ -2832,9 +2832,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_30049011_ENO",
+    "code": "SANSHRAY_FOODS_GROCERY_30049011_ENO",
     "name": "ENO",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "30049011",
     "margin_percent": 15.5,
@@ -2844,9 +2844,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_33030030_ROSE_WATER",
+    "code": "SANSHRAY_FOODS_GROCERY_33030030_ROSE_WATER",
     "name": "ROSE WATER",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "33030030",
     "margin_percent": 14.52,
@@ -2856,9 +2856,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_34029011_NIRMA_1KG_PACKING",
+    "code": "SANSHRAY_FOODS_GROCERY_34029011_NIRMA_1KG_PACKING",
     "name": "NIRMA 1KG PACKING",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "34029011",
     "margin_percent": 3.34,
@@ -2868,9 +2868,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_34029011_SF_NIRMA_500GM",
+    "code": "SANSHRAY_FOODS_GROCERY_34029011_SF_NIRMA_500GM",
     "name": "SF NIRMA 500GM",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "34029011",
     "margin_percent": 3.34,
@@ -2880,9 +2880,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_34029011_SF_NIRMA_POWDER_1KG",
+    "code": "SANSHRAY_FOODS_GROCERY_34029011_SF_NIRMA_POWDER_1KG",
     "name": "SF NIRMA POWDER 1KG",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Kg",
     "hsn": "34029011",
     "margin_percent": 3.34,
@@ -2892,9 +2892,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_MANUAL_KHAJUR_SEEDLESS",
+    "code": "SANSHRAY_FOODS_GROCERY_MANUAL_KHAJUR_SEEDLESS",
     "name": "KHAJUR SEEDLESS",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "MANUAL",
     "margin_percent": 6,
@@ -2904,9 +2904,9 @@
     "disabled": 0
   },
   {
-    "code": "SANSHRAY_FOODS_RAW_MATERIAL_MANUAL_NEEDLES",
+    "code": "SANSHRAY_FOODS_GROCERY_MANUAL_NEEDLES",
     "name": "needles",
-    "item_group": "Raw Material",
+    "item_group": "Grocery",
     "stock_uom": "Nos",
     "hsn": "MANUAL",
     "margin_percent": 7,

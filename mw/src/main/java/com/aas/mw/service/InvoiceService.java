@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.config.ErpSetupProperties;
 import feign.FeignException;
 import java.math.BigDecimal;
 import com.aas.mw.dto.InvoiceRequest;
@@ -38,13 +39,12 @@ public class InvoiceService {
             ErpNextClient erpNextClient,
             PaymentDueService paymentDueService,
             @Value("${app.billing.gst-template:}") String gstTemplate,
-            @Value("${erp.setup.full-name:Administrator}") String erpSetupUsername,
-            @Value("${erp.setup.password:admin}") String erpSetupPassword) {
+            ErpSetupProperties erpSetupProperties) {
         this.erpNextClient = erpNextClient;
         this.paymentDueService = paymentDueService;
         this.gstTemplate = gstTemplate == null ? "" : gstTemplate.trim();
-        this.erpSetupUsername = erpSetupUsername;
-        this.erpSetupPassword = erpSetupPassword;
+        this.erpSetupUsername = erpSetupProperties.getFullName();
+        this.erpSetupPassword = erpSetupProperties.getPassword();
     }
 
     public Map<String, Object> createInvoice(InvoiceRequest request) {

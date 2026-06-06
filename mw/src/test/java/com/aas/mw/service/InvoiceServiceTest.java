@@ -1,6 +1,7 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.config.ErpSetupProperties;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,11 +21,15 @@ class InvoiceServiceTest {
 
     private ErpNextClient erpNextClient;
     private InvoiceService invoiceService;
+    private ErpSetupProperties erpSetupProperties;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        invoiceService = new InvoiceService(erpNextClient, mock(PaymentDueService.class), "", "Administrator", "admin");
+        erpSetupProperties = new ErpSetupProperties();
+        erpSetupProperties.setFullName("Administrator");
+        erpSetupProperties.setPassword("admin");
+        invoiceService = new InvoiceService(erpNextClient, mock(PaymentDueService.class), "", erpSetupProperties);
     }
 
     @Test
@@ -132,7 +137,7 @@ class InvoiceServiceTest {
     @Test
     void downloadPdfBackfillsMissingCategoryDueSnapshot() {
         PaymentDueService paymentDueService = mock(PaymentDueService.class);
-        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", "Administrator", "admin");
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", erpSetupProperties);
 
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00020"))
                 .thenReturn(Map.of("data", Map.of(
@@ -170,7 +175,7 @@ class InvoiceServiceTest {
     @Test
     void downloadPdfRepairsStaleCategoryDueSnapshot() {
         PaymentDueService paymentDueService = mock(PaymentDueService.class);
-        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", "Administrator", "admin");
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", erpSetupProperties);
 
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00023"))
                 .thenReturn(Map.of("data", Map.of(

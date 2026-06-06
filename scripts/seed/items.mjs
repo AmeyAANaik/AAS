@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -12,9 +12,71 @@ const USERNAME = process.env.MW_USERNAME || process.env.ERP_USERNAME || 'Adminis
 const PASSWORD = process.env.MW_PASSWORD || process.env.ERP_PASSWORD || 'admin';
 const DEFAULT_MARGIN = Number(process.env.DEFAULT_MARGIN ?? 7);
 const DRY_RUN = process.env.DRY_RUN === '1';
-const PRESERVE_OLD_ITEMS = (process.env.PRESERVE_OLD_ITEMS ?? '1') !== '0';
+const RESET_GROCERY = process.env.RESET_GROCERY === '1';
+const PRESERVE_OLD_ITEMS = RESET_GROCERY ? false : (process.env.PRESERVE_OLD_ITEMS ?? '1') !== '0';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = path.join(SCRIPT_DIR, 'items.snapshot.json');
+const ITEM_GROUP_SNAPSHOT_PATH = path.join(SCRIPT_DIR, 'item-groups.snapshot.json');
+const GROCERY_GROUP = 'Grocery';
+const GROCERY_CATEGORY_CODE = 'GROCERY';
+
+function normalizeCatalogCode(code) {
+  const normalized = String(code || '').trim();
+  if (!normalized || normalized.startsWith('AAS-')) {
+    return normalized;
+  }
+  return normalized.replace(/RAW_MATERIAL/g, GROCERY_CATEGORY_CODE);
+}
+
+function normalizeCatalogItemGroup(itemGroup) {
+  const normalized = String(itemGroup || '').trim();
+  if (!normalized || normalized === 'All Item Groups') {
+    return normalized || GROCERY_GROUP;
+  }
+  return GROCERY_GROUP;
+}
+
+async function normalizeSnapshots() {
+  const rawItems = await readFile(SNAPSHOT_PATH, 'utf8');
+  const parsedItems = JSON.parse(rawItems);
+  if (!Array.isArray(parsedItems)) {
+    throw new Error(`Invalid item seed snapshot: ${SNAPSHOT_PATH}`);
+  }
+
+  const normalizedItems = parsedItems.map(item => {
+    const currentCode = String(item?.code || '').trim();
+    const currentGroup = String(item?.item_group || '').trim();
+    return {
+      ...item,
+      code: currentCode ? normalizeCatalogCode(currentCode) : currentCode,
+      item_group: normalizeCatalogItemGroup(currentGroup || GROCERY_GROUP)
+    };
+  });
+
+  const rawItemGroups = await readFile(ITEM_GROUP_SNAPSHOT_PATH, 'utf8');
+  const parsedItemGroups = JSON.parse(rawItemGroups);
+  if (!Array.isArray(parsedItemGroups)) {
+    throw new Error(`Invalid item group snapshot: ${ITEM_GROUP_SNAPSHOT_PATH}`);
+  }
+
+  const normalizedItemGroups = [
+    {
+      item_group_name: 'All Item Groups',
+      parent_item_group: '',
+      is_group: 1,
+      aas_category_code: ''
+    },
+    {
+      item_group_name: GROCERY_GROUP,
+      parent_item_group: 'All Item Groups',
+      is_group: 0,
+      aas_category_code: GROCERY_CATEGORY_CODE
+    }
+  ];
+
+  await writeFile(SNAPSHOT_PATH, JSON.stringify(normalizedItems, null, 2) + '\n', 'utf8');
+  await writeFile(ITEM_GROUP_SNAPSHOT_PATH, JSON.stringify(normalizedItemGroups, null, 2) + '\n', 'utf8');
+}
 
 async function buildItems() {
   const raw = await readFile(SNAPSHOT_PATH, 'utf8');
@@ -23,10 +85,10 @@ async function buildItems() {
     throw new Error(`Invalid item seed snapshot: ${SNAPSHOT_PATH}`);
   }
   return parsed.map(item => ({
-    code: String(item.code || '').trim(),
+    code: normalizeCatalogCode(item.code),
     hsn: String(item.hsn || '').trim(),
     name: String(item.name || item.code || '').trim(),
-    item_group: String(item.item_group || 'Grocery').trim(),
+    item_group: normalizeCatalogItemGroup(item.item_group || GROCERY_GROUP),
     stock_uom: String(item.stock_uom || 'Nos').trim(),
     margin_percent: Number.isFinite(Number(item.margin_percent)) ? Number(item.margin_percent) : DEFAULT_MARGIN,
     vendor_rate: Number.isFinite(Number(item.vendor_rate)) ? Number(item.vendor_rate) : 0,
@@ -59,8 +121,8 @@ async function loginErp() {
   return cookie;
 }
 
-async function erpRequest(path, cookie, options = {}) {
-  const res = await fetch(`${ERP_BASE_URL}${path}`, {
+async function erpRequest(pathname, cookie, options = {}) {
+  const res = await fetch(`${ERP_BASE_URL}${pathname}`, {
     ...options,
     headers: {
       ...(options.headers || {}),
@@ -71,12 +133,26 @@ async function erpRequest(path, cookie, options = {}) {
     const text = await res.text();
     throw new Error(`ERP request failed: ${res.status} ${text}`);
   }
-  return res.json();
+  if (res.status === 204) {
+    return {};
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : {};
 }
 
 async function listAllItems(cookie) {
   const params = new URLSearchParams({
-    fields: JSON.stringify(['name', 'item_code', 'disabled']),
+    fields: JSON.stringify(['name', 'item_code', 'item_group', 'disabled']),
+    limit_page_length: '2000'
+  });
+  const data = await erpRequest(`/api/resource/Item?${params}`, cookie);
+  return data.data || [];
+}
+
+async function listItemsByGroup(cookie, itemGroup) {
+  const params = new URLSearchParams({
+    fields: JSON.stringify(['name', 'item_code', 'item_group', 'disabled']),
+    filters: JSON.stringify([['Item', 'item_group', '=', itemGroup]]),
     limit_page_length: '2000'
   });
   const data = await erpRequest(`/api/resource/Item?${params}`, cookie);
@@ -170,7 +246,8 @@ async function createItemGroup(cookie, groupName, parentName) {
   const payload = {
     item_group_name: groupName,
     parent_item_group: parentName || '',
-    is_group: parentName ? 0 : 1
+    is_group: parentName ? 0 : 1,
+    aas_category_code: groupName === GROCERY_GROUP ? GROCERY_CATEGORY_CODE : ''
   };
   try {
     await erpRequest('/api/resource/Item Group', cookie, {
@@ -181,6 +258,22 @@ async function createItemGroup(cookie, groupName, parentName) {
   } catch (err) {
     throw new Error(`Failed to create Item Group "${groupName}": ${err?.message || err}`);
   }
+}
+
+async function updateItemGroup(cookie, groupName, parentName) {
+  const payload = {
+    item_group_name: groupName,
+    parent_item_group: parentName || '',
+    is_group: parentName ? 0 : 1
+  };
+  if (groupName === GROCERY_GROUP) {
+    payload.aas_category_code = GROCERY_CATEGORY_CODE;
+  }
+  await erpRequest(`/api/resource/Item%20Group/${encodeURIComponent(groupName)}`, cookie, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
 }
 
 async function ensureItemGroupsExist(cookie, items) {
@@ -195,15 +288,20 @@ async function ensureItemGroupsExist(cookie, items) {
 
   const created = [];
   const wouldCreate = [];
+  const updated = [];
   const ordered = [...required].sort((a, b) => a.localeCompare(b));
 
   for (const groupName of ordered) {
+    const parent = groupName === 'All Item Groups' ? '' : 'All Item Groups';
     const existing = await getItemGroup(cookie, groupName);
     if (existing) {
+      if (!DRY_RUN && groupName === GROCERY_GROUP && existing.aas_category_code !== GROCERY_CATEGORY_CODE) {
+        await updateItemGroup(cookie, groupName, parent);
+        updated.push(groupName);
+      }
       continue;
     }
 
-    const parent = groupName === 'All Item Groups' ? '' : 'All Item Groups';
     if (DRY_RUN) {
       wouldCreate.push(groupName);
       continue;
@@ -223,6 +321,10 @@ async function ensureItemGroupsExist(cookie, items) {
     console.log(`Item Groups missing (DRY_RUN=1; would create): ${wouldCreate.length} (${wouldCreate.join(', ')})`);
   } else {
     console.log('Item Groups created: 0');
+  }
+
+  if (updated.length) {
+    console.log(`Item Groups updated: ${updated.length} (${updated.join(', ')})`);
   }
 }
 
@@ -259,19 +361,97 @@ async function disableItem(cookie, name) {
   });
 }
 
+async function deleteItem(cookie, name) {
+  if (DRY_RUN) {
+    return;
+  }
+  await erpRequest(`/api/resource/Item/${encodeURIComponent(name)}`, cookie, {
+    method: 'DELETE'
+  });
+}
+
+function isLinkExistsError(message) {
+  return String(message || '').includes('You can disable this Item instead of deleting it.');
+}
+
+async function resetGroceryItems(cookie) {
+  const groceryItems = await listItemsByGroup(cookie, GROCERY_GROUP);
+  const failures = [];
+  let deleted = 0;
+  let disabled = 0;
+
+  console.log(`Grocery items found before reset: ${groceryItems.length}`);
+
+  for (const row of groceryItems) {
+    const itemCode = String(row.name || row.item_code || '').trim();
+    if (!itemCode) {
+      continue;
+    }
+    if (DRY_RUN) {
+      console.log(`[DRY_RUN] Would reset Grocery item: ${itemCode}`);
+      continue;
+    }
+    try {
+      await deleteItem(cookie, itemCode);
+      deleted += 1;
+    } catch (err) {
+      const message = err?.message || String(err);
+      if (isLinkExistsError(message)) {
+        try {
+          await disableItem(cookie, itemCode);
+          disabled += 1;
+        } catch (disableErr) {
+          failures.push(`${itemCode}: ${disableErr?.message || disableErr}`);
+        }
+      } else {
+        failures.push(`${itemCode}: ${message}`);
+      }
+    }
+  }
+
+  if (DRY_RUN) {
+    console.log('Grocery items deleted: 0');
+    console.log('Grocery items disabled: 0');
+    console.log('Grocery item reset failures: 0');
+    return;
+  }
+
+  console.log(`Grocery items deleted: ${deleted}`);
+  console.log(`Grocery items disabled: ${disabled}`);
+  if (failures.length) {
+    console.log(`Grocery item reset failures (${failures.length}):`);
+    for (const failure of failures) {
+      console.log(`- ${failure}`);
+    }
+  } else {
+    console.log('Grocery item reset failures: 0');
+  }
+}
+
 async function run() {
+  await normalizeSnapshots();
+
   const cookie = await loginErp();
   const items = await buildItems();
   const targetCodes = new Set(items.map(item => item.code));
+
+  if (RESET_GROCERY) {
+    await resetGroceryItems(cookie);
+  }
+
   await ensureUomsExist(cookie, items);
   await ensureItemGroupsExist(cookie, items);
 
   const existingBefore = await listAllItems(cookie);
   const existingNames = new Set(existingBefore.map(row => row.name));
+  const plannedDisable = !PRESERVE_OLD_ITEMS
+    ? existingBefore.filter(row => !targetCodes.has(row.name) && row.disabled !== 1).length
+    : 0;
 
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  const upsertFailures = [];
   for (const item of items) {
     const exists = existingNames.has(item.code);
     const payload = {
@@ -292,16 +472,43 @@ async function run() {
     if (item.vendor) {
       payload.aas_vendor = item.vendor;
     }
-    await upsertItem(cookie, payload, exists);
-    if (exists) {
-      if (PRESERVE_OLD_ITEMS) {
-        skipped += 1;
+    try {
+      await upsertItem(cookie, payload, exists);
+      if (exists) {
+        if (PRESERVE_OLD_ITEMS) {
+          skipped += 1;
+        } else {
+          updated += 1;
+        }
       } else {
-        updated += 1;
+        created += 1;
+      }
+    } catch (err) {
+      upsertFailures.push(`${item.code}: ${err?.message || err}`);
+    }
+  }
+
+  if (DRY_RUN) {
+    const activeTargets = items.filter(item => item.disabled !== 1);
+    const activeGroceryTargets = activeTargets.filter(item => item.item_group === GROCERY_GROUP);
+    console.log(`Items disabled: ${plannedDisable}`);
+    console.log(`Items created: ${created}`);
+    console.log(`Items updated: ${updated}`);
+    if (PRESERVE_OLD_ITEMS) {
+      console.log(`Items skipped (existing): ${skipped}`);
+    }
+    console.log(`Active items from list: ${activeTargets.length}`);
+    console.log(`Final Grocery items total: ${activeGroceryTargets.length}`);
+    console.log(`Final active Grocery items: ${activeGroceryTargets.length}`);
+    if (upsertFailures.length) {
+      console.log(`Item upsert failures (${upsertFailures.length}):`);
+      for (const failure of upsertFailures) {
+        console.log(`- ${failure}`);
       }
     } else {
-      created += 1;
+      console.log('Item upsert failures: 0');
     }
+    return;
   }
 
   const finalItems = await listAllItems(cookie);
@@ -318,6 +525,8 @@ async function run() {
 
   const refreshed = await listAllItems(cookie);
   const active = refreshed.filter(row => row.disabled !== 1 && targetCodes.has(row.name));
+  const finalGroceryItems = refreshed.filter(row => row.item_group === GROCERY_GROUP);
+  const finalActiveGroceryItems = finalGroceryItems.filter(row => row.disabled !== 1);
   const missing = items.filter(item => !active.some(row => row.name === item.code));
 
   console.log(`Items disabled: ${disabled}`);
@@ -327,10 +536,26 @@ async function run() {
     console.log(`Items skipped (existing): ${skipped}`);
   }
   console.log(`Active items from list: ${active.length}`);
+  console.log(`Final Grocery items total: ${finalGroceryItems.length}`);
+  console.log(`Final active Grocery items: ${finalActiveGroceryItems.length}`);
+  if (upsertFailures.length) {
+    console.log(`Item upsert failures (${upsertFailures.length}):`);
+    for (const failure of upsertFailures) {
+      console.log(`- ${failure}`);
+    }
+  } else {
+    console.log('Item upsert failures: 0');
+  }
   if (missing.length) {
     console.log('Missing items:', missing.map(item => item.code).join(', '));
   }
 }
+
+console.log(`MW base URL: ${MW_BASE_URL}`);
+console.log(`ERP base URL: ${ERP_BASE_URL}`);
+console.log(`RESET_GROCERY=${RESET_GROCERY ? '1' : '0'}`);
+console.log(`DRY_RUN=${DRY_RUN ? '1' : '0'}`);
+console.log(`PRESERVE_OLD_ITEMS=${PRESERVE_OLD_ITEMS ? '1' : '0'}`);
 
 run().catch(err => {
   console.error(err);

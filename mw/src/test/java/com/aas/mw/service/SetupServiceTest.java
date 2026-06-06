@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.atLeastOnce;
 
 import com.aas.mw.client.ErpNextClient;
+import com.aas.mw.config.AppDefaultsProperties;
 import feign.Request;
 import feign.Response;
 import com.aas.mw.meta.VendorFieldRegistry;
@@ -28,6 +29,23 @@ class SetupServiceTest {
     private VendorFieldRegistry vendorFieldRegistry;
     private CatalogRoutingService catalogRoutingService;
     private SetupService service;
+
+    private AppDefaultsProperties buildDefaults(boolean enabled) {
+        AppDefaultsProperties properties = new AppDefaultsProperties();
+        properties.setEnabled(enabled);
+        properties.getVendor().setEmail("vendor@example.com");
+        properties.getVendor().setName("Vendor User");
+        properties.getVendor().setPassword("vendor123");
+        properties.getVendor().setSupplier("FreshHarvest Agro Foods");
+        properties.getShop().setEmail("shop@example.com");
+        properties.getShop().setName("Shop User");
+        properties.getShop().setPassword("shop123");
+        properties.getShop().setCustomer("Sukarta Aundh");
+        properties.getHelper().setEmail("helper@example.com");
+        properties.getHelper().setName("Helper User");
+        properties.getHelper().setPassword("helper123");
+        return properties;
+    }
 
     @BeforeEach
     void setup() {
@@ -83,27 +101,18 @@ class SetupServiceTest {
                         Map.of("name", "ITEM-3", "aas_margin_percent", 3.0)))
                 .thenReturn(Collections.emptyList());
 
+        AppDefaultsProperties appDefaultsProperties = buildDefaults(false);
+
         service = new SetupService(
                 erpNextClient,
                 customFieldProvisioner,
                 vendorFieldRegistry,
                 catalogRoutingService,
-                false,
+                appDefaultsProperties,
                 "Supplier",
                 "Customer",
                 "Stock User",
                 "Accounts User,Sales User",
-                "vendor@example.com",
-                "Vendor User",
-                "vendor123",
-                "FreshHarvest Agro Foods",
-                "shop@example.com",
-                "Shop User",
-                "shop123",
-                "Sukarta Aundh",
-                "helper@example.com",
-                "Helper User",
-                "helper123",
                 7.0);
     }
 
@@ -195,22 +204,11 @@ class SetupServiceTest {
                 customFieldProvisioner,
                 vendorFieldRegistry,
                 catalogRoutingService,
-                true,
+                buildDefaults(true),
                 "Supplier",
                 "Customer",
                 "Stock User",
                 "Accounts User,Sales User",
-                "vendor@example.com",
-                "Vendor User",
-                "vendor123",
-                "FreshHarvest Agro Foods",
-                "shop@example.com",
-                "Shop User",
-                "shop123",
-                "Sukarta Aundh",
-                "helper@example.com",
-                "Helper User",
-                "helper123",
                 7.0);
 
         service.ensureSetup();
@@ -234,22 +232,11 @@ class SetupServiceTest {
                 customFieldProvisioner,
                 vendorFieldRegistry,
                 catalogRoutingService,
-                true,
+                buildDefaults(true),
                 "Supplier",
                 "Customer",
                 "Stock User",
                 "Accounts User,Sales User",
-                "vendor@example.com",
-                "Vendor User",
-                "vendor123",
-                "FreshHarvest Agro Foods",
-                "shop@example.com",
-                "Shop User",
-                "shop123",
-                "Sukarta Aundh",
-                "helper@example.com",
-                "Helper User",
-                "helper123",
                 7.0);
 
         service.ensureSetup();

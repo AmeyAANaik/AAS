@@ -2,11 +2,11 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.config.AppRole;
+import com.aas.mw.config.ErpSetupProperties;
 import com.aas.mw.config.RoleResolver;
 import com.aas.mw.dto.AuthRequest;
 import com.aas.mw.dto.AuthResponse;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -26,14 +26,13 @@ public class AuthenticationService {
             JwtService jwtService,
             ErpSessionStore erpSessionStore,
             RoleResolver roleResolver,
-            @Value("${erp.setup.full-name:Administrator}") String erpSetupUsername,
-            @Value("${erp.setup.password:admin}") String erpSetupPassword) {
+            ErpSetupProperties erpSetupProperties) {
         this.erpNextClient = erpNextClient;
         this.jwtService = jwtService;
         this.erpSessionStore = erpSessionStore;
         this.roleResolver = roleResolver;
-        this.erpSetupUsername = erpSetupUsername;
-        this.erpSetupPassword = erpSetupPassword;
+        this.erpSetupUsername = erpSetupProperties.getFullName();
+        this.erpSetupPassword = erpSetupProperties.getPassword();
     }
 
     public AuthResponse login(AuthRequest request) {
