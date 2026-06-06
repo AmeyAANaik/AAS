@@ -7,6 +7,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -194,6 +195,63 @@ public class ReportService {
         result.sort((a, b) -> Double.compare(
                 Math.abs(asDouble(b.get("price_change"))),
                 Math.abs(asDouble(a.get("price_change")))));
+        return result;
+    }
+
+    public List<Map<String, Object>> itemPriceFunnel(String from, String to) {
+        DateRange range = resolveDateRange(from, to);
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
+        params.put("order_by", "valid_from asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("price_list", "=", "Standard Selling"));
+        filters.add(List.of("valid_from", ">=", range.start()));
+        filters.add(List.of("valid_from", "<=", range.end()));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> prices = erpNextClient.listResources("Item Price", params);
+
+        Map<String, Map<String, Object>> latestPriceByItem = new LinkedHashMap<>();
+        for (Map<String, Object> entry : prices) {
+            String code = asString(entry.get("item_code")).trim();
+            if (code.isBlank()) {
+                continue;
+            }
+            latestPriceByItem.put(code, entry);
+        }
+
+        Map<String, PriceBandAggregate> bucketMap = new LinkedHashMap<>();
+        for (String band : List.of("₹0–50", "₹51–100", "₹101–200", "₹201–500", "₹500+")) {
+            bucketMap.put(band, new PriceBandAggregate());
+        }
+
+        for (Map<String, Object> entry : latestPriceByItem.values()) {
+            double price = asDouble(entry.get("price_list_rate"));
+            PriceBandAggregate aggregate = bucketMap.get(resolvePriceBand(price));
+            if (aggregate == null) {
+                continue;
+            }
+            aggregate.itemCount += 1;
+            aggregate.totalPrice += price;
+            aggregate.minPrice = aggregate.itemCount == 1 ? price : Math.min(aggregate.minPrice, price);
+            aggregate.maxPrice = aggregate.itemCount == 1 ? price : Math.max(aggregate.maxPrice, price);
+        }
+
+        int totalItems = latestPriceByItem.size();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<String, PriceBandAggregate> entry : bucketMap.entrySet()) {
+            PriceBandAggregate aggregate = entry.getValue();
+            if (aggregate.itemCount == 0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("price_band", entry.getKey());
+            row.put("item_count", aggregate.itemCount);
+            row.put("share_pct", totalItems > 0 ? round((aggregate.itemCount * 100.0) / totalItems) : 0.0);
+            row.put("avg_price", round(aggregate.totalPrice / aggregate.itemCount));
+            row.put("min_price", round(aggregate.minPrice));
+            row.put("max_price", round(aggregate.maxPrice));
+            result.add(row);
+        }
         return result;
     }
 
@@ -543,6 +601,22 @@ public class ReportService {
         return Math.round(value * 100.0) / 100.0;
     }
 
+    private String resolvePriceBand(double price) {
+        if (price <= 50) {
+            return "₹0–50";
+        }
+        if (price <= 100) {
+            return "₹51–100";
+        }
+        if (price <= 200) {
+            return "₹101–200";
+        }
+        if (price <= 500) {
+            return "₹201–500";
+        }
+        return "₹500+";
+    }
+
     record DateRange(String start, String end) {
     }
 
@@ -556,6 +630,13 @@ public class ReportService {
         int orders;
         double salesTotal;
         double costTotal;
+    }
+
+    private static final class PriceBandAggregate {
+        int itemCount;
+        double totalPrice;
+        double minPrice;
+        double maxPrice;
     }
 
     private enum TrendGroupBy {

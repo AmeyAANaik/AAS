@@ -42,7 +42,7 @@ export class AdjustmentNoteFormComponent {
     partyType: ['Customer', Validators.required],
     partyId: ['', Validators.required],
     categoryId: ['', Validators.required],
-    invoiceId: ['', Validators.required],
+    invoiceId: [''],
     direction: ['GIVE', Validators.required],
     amount: [0, [Validators.required, Validators.min(0.01)]],
     noteDate: [new Date(), Validators.required],
@@ -173,12 +173,15 @@ export class AdjustmentNoteFormComponent {
       partyType: String(value.partyType ?? '').trim(),
       partyId: String(value.partyId ?? '').trim(),
       categoryId: String(value.categoryId ?? '').trim(),
-      invoiceId: String(value.invoiceId ?? '').trim(),
       direction: String(value.direction ?? '').trim(),
       amount: Number(value.amount ?? 0),
       noteDate: formatApiDate(value.noteDate),
       reason: String(value.reason ?? '').trim() || undefined
     };
+    const invoiceId = String(value.invoiceId ?? '').trim();
+    if (invoiceId) {
+      payload.invoiceId = invoiceId;
+    }
     this.isSubmitting = true;
     this.statusMessage = `Submitting ${this.noteLabel.toLowerCase()} for admin review...`;
     this.billsService.createAdjustmentNoteWithAttachments(payload, this.noteFiles)

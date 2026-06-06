@@ -73,7 +73,7 @@
 
         <div class="adjustment-section">
           <div class="section-title">Reference invoice</div>
-          <div class="section-subtitle">Invoice reference is required for v1 note creation.</div>
+          <div class="section-subtitle">Optional. Link an invoice only when you want this note tied to a specific bill.</div>
           <div class="form-grid">
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full-width">
               <mat-label>Invoice</mat-label>
@@ -85,7 +85,6 @@
                 <mat-option value="">Select invoice</mat-option>
                 <mat-option *ngFor="let invoice of invoiceOptions" [value]="invoice.id">{{ invoice.label }}</mat-option>
               </mat-select>
-              <mat-error *ngIf="form.get('invoiceId')?.hasError('required')">Invoice reference is required.</mat-error>
             </mat-form-field>
           </div>
         </div>

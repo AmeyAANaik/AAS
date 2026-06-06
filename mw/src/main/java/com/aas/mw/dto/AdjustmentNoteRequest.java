@@ -16,7 +16,6 @@ public class AdjustmentNoteRequest {
     @NotBlank
     private String categoryId;
 
-    @NotBlank
     private String invoiceId;
 
     @NotBlank

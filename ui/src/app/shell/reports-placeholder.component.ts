@@ -192,8 +192,20 @@ export class ReportsPlaceholderComponent {
     return String(value);
   }
 
+  formatCellForColumn(column: string, value: unknown): string {
+    const text = this.formatCell(value);
+    if (text === '-' || text === '') {
+      return text;
+    }
+    return column === 'share_pct' ? `${text}%` : text;
+  }
+
   isPriceTrendReport(): boolean {
     return this.selectedReport?.id === 'item-price-trend';
+  }
+
+  isItemPriceFunnelReport(): boolean {
+    return this.selectedReport?.id === 'item-price-funnel';
   }
 
   isPriceChangeColumn(key: string): boolean {
@@ -359,7 +371,61 @@ export class ReportsPlaceholderComponent {
 
   private buildChart(): void {
     this.chartData = null;
+    this.chartType = 'line';
+    this.chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: true } }
+    };
     if (!this.rows.length) {
+      return;
+    }
+    if (this.isItemPriceFunnelReport()) {
+      const labels = this.rows.map(r => String(r['price_band'] ?? ''));
+      const counts = this.rows.map(r => this.asNumber(r['item_count']));
+      if (!labels.length || !counts.some(v => v > 0)) {
+        return;
+      }
+      const barColor = this.cssVar('--primary', '#4f46e5');
+      const borderColor = this.cssVar('--primary-strong', '#4338ca');
+      this.chartType = 'bar';
+      this.chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: true }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: 'Items'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Price band'
+            }
+          }
+        }
+      };
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Items',
+            data: counts,
+            backgroundColor: labels.map((_label, index) => this.funnelColor(index, barColor)),
+            borderColor,
+            borderWidth: 1,
+            borderRadius: 8
+          }
+        ]
+      } as ChartConfiguration['data'];
       return;
     }
     if (!this.columns.includes('period_start')) {
@@ -409,6 +475,17 @@ export class ReportsPlaceholderComponent {
           : [])
       ]
     } as ChartConfiguration['data'];
+  }
+
+  private funnelColor(index: number, fallback: string): string {
+    const palette = [
+      'rgba(79, 70, 229, 0.95)',
+      'rgba(99, 102, 241, 0.88)',
+      'rgba(129, 140, 248, 0.82)',
+      'rgba(165, 180, 252, 0.76)',
+      'rgba(199, 210, 254, 0.7)'
+    ];
+    return palette[index] ?? fallback;
   }
 
   private buildTotalsRow(): Record<string, unknown> | null {

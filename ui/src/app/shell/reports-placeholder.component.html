@@ -94,17 +94,17 @@
                   <ng-container *ngIf="isProfitColumn(column); else normalCell">
                     <span class="profit-cell" [ngClass]="signClass(row[column])">
                       <span class="profit-icon">{{ signIcon(row[column]) }}</span>
-                      <span>{{ formatCell(row[column]) }}</span>
+                      <span>{{ formatCellForColumn(column, row[column]) }}</span>
                     </span>
                   </ng-container>
-                  <ng-template #normalCell>{{ formatCell(row[column]) }}</ng-template>
+                  <ng-template #normalCell>{{ formatCellForColumn(column, row[column]) }}</ng-template>
                 </ng-template>
               </td>
             </tr>
           </tbody>
           <tfoot *ngIf="totalsRow && rows.length > 1">
             <tr class="totals-row">
-              <td *ngFor="let column of columns">{{ formatCell(totalsRow[column]) }}</td>
+              <td *ngFor="let column of columns">{{ formatCellForColumn(column, totalsRow[column]) }}</td>
             </tr>
           </tfoot>
         </table>

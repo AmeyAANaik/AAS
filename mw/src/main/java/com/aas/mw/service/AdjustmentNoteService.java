@@ -51,20 +51,23 @@ public class AdjustmentNoteService {
         BigDecimal amount = request.getAmount() == null ? BigDecimal.ZERO : request.getAmount();
 
         InvoiceContext invoiceContext = resolveInvoiceContext(partyType);
-        Map<String, Object> invoice = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource(invoiceContext.doctype(), invoiceId));
-        if (invoice.isEmpty()) {
-            throw new IllegalArgumentException("Reference invoice not found.");
-        }
-        String invoiceParty = adjustmentNoteErpService.asText(invoice.get(invoiceContext.partyField()));
-        if (!invoiceParty.equals(partyId)) {
-            throw new IllegalArgumentException("Reference invoice does not belong to the selected party.");
-        }
-        String invoiceCategory = adjustmentNoteErpService.asText(invoice.get(AdjustmentNoteErpService.FIELD_CATEGORY));
-        if (!invoiceCategory.isBlank() && !invoiceCategory.equals(categoryId)) {
-            throw new IllegalArgumentException("Reference invoice category does not match the selected category.");
+        Map<String, Object> invoice = Map.of();
+        if (!invoiceId.isBlank()) {
+            invoice = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource(invoiceContext.doctype(), invoiceId));
+            if (invoice.isEmpty()) {
+                throw new IllegalArgumentException("Reference invoice not found.");
+            }
+            String invoiceParty = adjustmentNoteErpService.asText(invoice.get(invoiceContext.partyField()));
+            if (!invoiceParty.equals(partyId)) {
+                throw new IllegalArgumentException("Reference invoice does not belong to the selected party.");
+            }
+            String invoiceCategory = adjustmentNoteErpService.asText(invoice.get(AdjustmentNoteErpService.FIELD_CATEGORY));
+            if (!invoiceCategory.isBlank() && !invoiceCategory.equals(categoryId)) {
+                throw new IllegalArgumentException("Reference invoice category does not match the selected category.");
+            }
         }
 
-        String company = adjustmentNoteErpService.asText(invoice.get("company"));
+        String company = resolveDraftCompany(partyType, partyId, categoryId, invoiceContext, invoice);
         Map<String, Object> companyDoc = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource("Company", company));
         String partyAccount = partyType.equals(AdjustmentNoteErpService.PARTY_SUPPLIER)
                 ? adjustmentNoteErpService.asText(companyDoc.get("default_payable_account"))
@@ -102,8 +105,10 @@ public class AdjustmentNoteService {
         payload.put(AdjustmentNoteErpService.FIELD_PARTY_TYPE, partyType);
         payload.put(AdjustmentNoteErpService.FIELD_PARTY, partyId);
         payload.put(AdjustmentNoteErpService.FIELD_CATEGORY, categoryId);
-        payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE, invoiceId);
-        payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE_DOCTYPE, invoiceContext.doctype());
+        if (!invoiceId.isBlank()) {
+            payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE, invoiceId);
+            payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE_DOCTYPE, invoiceContext.doctype());
+        }
         payload.put(AdjustmentNoteErpService.FIELD_AMOUNT, amount);
         payload.put(AdjustmentNoteErpService.FIELD_DUE_AMOUNT, dueSnapshot);
         payload.put(AdjustmentNoteErpService.FIELD_REASON, adjustmentNoteErpService.asText(request.getReason()));
@@ -140,11 +145,10 @@ public class AdjustmentNoteService {
         if (adjustmentNoteErpService.asText(request.getPartyType()).isBlank()
                 || adjustmentNoteErpService.asText(request.getPartyId()).isBlank()
                 || adjustmentNoteErpService.asText(request.getCategoryId()).isBlank()
-                || adjustmentNoteErpService.asText(request.getInvoiceId()).isBlank()
                 || adjustmentNoteErpService.asText(request.getDirection()).isBlank()
                 || request.getAmount() == null
                 || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("partyType, partyId, categoryId, invoiceId, direction, and amount are required.");
+            throw new IllegalArgumentException("partyType, partyId, categoryId, direction, and amount are required.");
         }
         if (files == null || files.length == 0) {
             throw new IllegalArgumentException("Evidence upload is required.");
@@ -190,7 +194,10 @@ public class AdjustmentNoteService {
     private String buildRemark(String partyType, String partyId, String direction, String invoiceId, String reason) {
         String kind = AdjustmentNoteErpService.DIRECTION_TAKE.equals(direction) ? "Debit Note" : "Credit Note";
         String text = adjustmentNoteErpService.asText(reason);
-        String remark = kind + " · " + partyType + " " + partyId + " · Ref " + invoiceId;
+        String remark = kind + " · " + partyType + " " + partyId;
+        if (!adjustmentNoteErpService.asText(invoiceId).isBlank()) {
+            remark = remark + " · Ref " + invoiceId;
+        }
         return text.isBlank() ? remark : remark + " · " + text;
     }
 
@@ -199,6 +206,65 @@ public class AdjustmentNoteService {
             return new InvoiceContext("Purchase Invoice", "supplier");
         }
         return new InvoiceContext("Sales Invoice", "customer");
+    }
+
+    private String resolveDraftCompany(
+            String partyType,
+            String partyId,
+            String categoryId,
+            InvoiceContext invoiceContext,
+            Map<String, Object> invoice) {
+        String invoiceCompany = adjustmentNoteErpService.asText(invoice.get("company"));
+        if (!invoiceCompany.isBlank()) {
+            return invoiceCompany;
+        }
+
+        String discovered = resolveCompanyFromPartyHistory(partyId, categoryId, invoiceContext);
+        if (!discovered.isBlank()) {
+            return discovered;
+        }
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\"]");
+        params.put("limit_page_length", 1);
+        List<Map<String, Object>> companies = erpNextClient.listResources("Company", params);
+        if (companies != null && !companies.isEmpty()) {
+            String first = adjustmentNoteErpService.asText(companies.get(0).get("name"));
+            if (!first.isBlank()) {
+                return first;
+            }
+        }
+
+        throw new IllegalStateException("Unable to resolve company for the selected " + partyType + ".");
+    }
+
+    private String resolveCompanyFromPartyHistory(String partyId, String categoryId, InvoiceContext invoiceContext) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"company\",\"" + AdjustmentNoteErpService.FIELD_CATEGORY + "\"]");
+        params.put("order_by", "posting_date desc");
+        params.put("limit_page_length", 20);
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of(invoiceContext.partyField(), "=", partyId));
+        filters.add(List.of("docstatus", "!=", "2"));
+        params.put("filters", adjustmentNoteErpService.toJson(filters));
+        List<Map<String, Object>> invoices = erpNextClient.listResources(invoiceContext.doctype(), params);
+        if (invoices == null || invoices.isEmpty()) {
+            return "";
+        }
+        for (Map<String, Object> row : invoices) {
+            String rowCategory = adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_CATEGORY));
+            String rowCompany = adjustmentNoteErpService.asText(row.get("company"));
+            if (!rowCompany.isBlank() && (categoryId.isBlank() || rowCategory.isBlank() || rowCategory.equals(categoryId))) {
+                return rowCompany;
+            }
+        }
+        for (Map<String, Object> row : invoices) {
+            String rowCompany = adjustmentNoteErpService.asText(row.get("company"));
+            if (!rowCompany.isBlank()) {
+                return rowCompany;
+            }
+        }
+        return "";
     }
 
     private String resolveTemporaryOpeningAccount(String companyName, Map<String, Object> companyDoc) {

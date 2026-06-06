@@ -138,7 +138,7 @@ export interface AdjustmentNotePayload {
   partyType: 'Customer' | 'Supplier' | string;
   partyId: string;
   categoryId: string;
-  invoiceId: string;
+  invoiceId?: string;
   direction: 'GIVE' | 'TAKE' | string;
   amount: number;
   noteDate?: string;

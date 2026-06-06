@@ -49,6 +49,11 @@ public class ReportsController {
                         "All items with their previous vs current sell price, sorted by biggest movers first.",
                         "item-price-trend"),
                 catalogItem(
+                        "item-price-funnel",
+                        "Item Price Funnel",
+                        "Distribution of items across selling price bands based on latest item prices in the selected date range.",
+                        "item-price-funnel"),
+                catalogItem(
                         "supplier-expenses",
                         "Supplier Expenses",
                         "Expenses grouped by supplier for a date range.",
@@ -74,6 +79,24 @@ public class ReportsController {
         String csv = CsvUtil.toCsv(reportService.itemPriceTrend(from, to));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"item-price-trend.csv\"")
+                .contentType(MediaType.valueOf("text/csv"))
+                .body(csv);
+    }
+
+    @GetMapping("/item-price-funnel")
+    public ResponseEntity<List<Map<String, Object>>> itemPriceFunnel(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        return ResponseEntity.ok(reportService.itemPriceFunnel(from, to));
+    }
+
+    @GetMapping("/item-price-funnel/export")
+    public ResponseEntity<String> itemPriceFunnelExport(
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
+        String csv = CsvUtil.toCsv(reportService.itemPriceFunnel(from, to));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"item-price-funnel.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
                 .body(csv);
     }
