@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { map } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { InvoiceCreatePayload, InvoiceDeliveryPreview, InvoiceDeliveryRequest, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentPayload, UploadedFileInfo } from './bills.model';
+import { AdjustmentNoteDocument, AdjustmentNotePayload, AdjustmentNoteResult, InvoiceCreatePayload, InvoiceDeliveryPreview, InvoiceDeliveryRequest, InvoiceFilters, InvoiceSummary, OrderSnapshot, PaymentDueSummary, PaymentPayload, UploadedFileInfo } from './bills.model';
 
 @Injectable({
   providedIn: 'root'
@@ -118,6 +118,25 @@ export class BillsService {
     });
   }
 
+  createAdjustmentNoteWithAttachments(
+    payload: AdjustmentNotePayload,
+    files: File[]
+  ): Observable<AdjustmentNoteResult> {
+    const form = new FormData();
+    form.append('note', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'note.json');
+    (files ?? []).forEach(file => form.append('files', file, file.name));
+    return this.http.post<AdjustmentNoteResult>('/api/adjustment-notes/with-attachments', form, {
+      headers: this.authHeaders()
+    });
+  }
+
+  listInvoiceOptions(partyType: string, partyId: string): Observable<InvoiceSummary[]> {
+    return this.listInvoices({
+      partyType,
+      partyId
+    });
+  }
+
   uploadPaymentAttachments(paymentId: string, files: File[]): Observable<{ paymentId: string; files: UploadedFileInfo[] }> {
     const form = new FormData();
     (files ?? []).forEach(file => form.append('files', file, file.name));
@@ -130,12 +149,12 @@ export class BillsService {
     partyType: string,
     partyId: string,
     categoryId: string
-  ): Observable<{ dueAmount: number; underReviewAmount?: number; availableDueAmount?: number }> {
+  ): Observable<PaymentDueSummary> {
     const params = new HttpParams()
       .set('partyType', partyType)
       .set('partyId', partyId)
       .set('categoryId', categoryId);
-    return this.http.get<{ dueAmount: number; underReviewAmount?: number; availableDueAmount?: number }>('/api/payments/due-by-category', { headers: this.authHeaders(), params });
+    return this.http.get<PaymentDueSummary>('/api/payments/due-by-category', { headers: this.authHeaders(), params });
   }
 
   private authHeaders(): HttpHeaders {

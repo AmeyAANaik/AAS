@@ -1,15 +1,24 @@
+export type BillReviewItemType = 'PAYMENT' | 'CREDIT_NOTE' | 'DEBIT_NOTE' | string;
+
 export interface BillReviewListItem {
-  paymentId: string;
+  itemType: BillReviewItemType;
+  documentId: string;
+  documentLabel: string;
+  paymentId?: string;
   partyType: string;
   party: string;
   partyName: string;
   postingDate: string;
-  paidAmount: number;
-  receivedAmount: number;
+  amount: number;
+  paidAmount?: number;
+  receivedAmount?: number;
   categoryId: string;
   dueAmount: number;
-  modeOfPayment: string;
-  referenceNo: string;
+  modeOfPayment?: string;
+  direction?: string;
+  referenceNo?: string;
+  referenceInvoice?: string;
+  reason?: string;
   docstatus: number;
   createdAt: string;
   createdBy: string;
@@ -27,11 +36,16 @@ export interface BillReviewAttachment {
 }
 
 export interface BillReviewDetail {
-  payment: Record<string, any>;
+  itemType: BillReviewItemType;
+  documentId: string;
+  document: Record<string, any>;
+  payment?: Record<string, any>;
   attachments: BillReviewAttachment[];
   warnings?: Array<{ code: string; recordedDue?: number; currentDue?: number }>;
   currentDueAmount?: number;
   currentAvailableDueAmount?: number;
+  expectedDueAfterApproval?: number;
+  signedImpact?: number;
 }
 
 export interface ReviewDecisionRequest {

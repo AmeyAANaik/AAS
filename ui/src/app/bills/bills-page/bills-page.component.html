@@ -183,15 +183,15 @@
   <mat-accordion>
     <mat-expansion-panel>
       <mat-expansion-panel-header>
-        <mat-panel-title>Create invoice</mat-panel-title>
-        <mat-panel-description>Order-driven or manual</mat-panel-description>
+        <mat-panel-title>Credit / Debit note</mat-panel-title>
+        <mat-panel-description>Admin-reviewed branch and vendor adjustments</mat-panel-description>
       </mat-expansion-panel-header>
-      <app-invoice-create
+      <app-adjustment-note-form
         [customers]="customers"
-        [items]="items"
-        [orders]="orders"
+        [vendors]="vendors"
+        [categories]="categories"
         (created)="onInvoiceCreated()">
-      </app-invoice-create>
+      </app-adjustment-note-form>
     </mat-expansion-panel>
 
     <mat-expansion-panel>

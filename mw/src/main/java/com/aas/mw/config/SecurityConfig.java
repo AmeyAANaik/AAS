@@ -81,6 +81,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/bill-review/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/payments").hasAnyRole("ADMIN", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/payments/with-attachments").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.POST, "/api/adjustment-notes/with-attachments").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(new AntPathRequestMatcher("/api/payments/*/attachments", "POST")).hasAnyRole("ADMIN", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.GET, "/api/payments/due-by-category").hasAnyRole("ADMIN", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.GET, "/api/orders").hasAnyRole("ADMIN", "VENDOR", "SHOP", "HELPER")

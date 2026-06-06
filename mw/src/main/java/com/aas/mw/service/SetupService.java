@@ -848,6 +848,118 @@ public class SetupService {
                 "Datetime",
                 null,
                 "aas_payment_reviewed_by");
+        boolean adjustmentReviewStatusField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_review_status",
+                "Adjustment Review Status",
+                "Select",
+                "UNDER_REVIEW\nAPPROVED\nREJECTED",
+                "company");
+        boolean adjustmentCategoryField = ensureCustomField(
+                "Journal Entry",
+                "aas_category",
+                "Category",
+                "Link",
+                "Item Group",
+                "aas_adjustment_review_status");
+        boolean adjustmentDueAmountField = ensureCustomField(
+                "Journal Entry",
+                "aas_due_amount",
+                "Due Amount",
+                "Currency",
+                null,
+                "aas_category");
+        boolean adjustmentDirectionField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_direction",
+                "Adjustment Direction",
+                "Select",
+                "GIVE\nTAKE",
+                "aas_due_amount");
+        boolean adjustmentNoteTypeField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_note_type",
+                "Adjustment Note Type",
+                "Select",
+                "CREDIT_NOTE\nDEBIT_NOTE",
+                "aas_adjustment_direction");
+        boolean adjustmentPartyTypeField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_party_type",
+                "Adjustment Party Type",
+                "Data",
+                null,
+                "aas_adjustment_note_type");
+        boolean adjustmentPartyField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_party",
+                "Adjustment Party",
+                "Data",
+                null,
+                "aas_adjustment_party_type");
+        boolean adjustmentAmountField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_amount",
+                "Adjustment Amount",
+                "Currency",
+                null,
+                "aas_adjustment_party");
+        boolean adjustmentReasonField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_reason",
+                "Adjustment Reason",
+                "Small Text",
+                null,
+                "aas_adjustment_amount");
+        boolean adjustmentReferenceInvoiceField = ensureCustomField(
+                "Journal Entry",
+                "aas_reference_invoice",
+                "Reference Invoice",
+                "Data",
+                null,
+                "aas_adjustment_reason");
+        boolean adjustmentReferenceInvoiceDoctypeField = ensureCustomField(
+                "Journal Entry",
+                "aas_reference_invoice_doctype",
+                "Reference Invoice Doctype",
+                "Data",
+                null,
+                "aas_reference_invoice");
+        boolean adjustmentReviewNotesField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_review_notes",
+                "Adjustment Review Notes",
+                "Small Text",
+                null,
+                "aas_reference_invoice_doctype");
+        boolean adjustmentCreatedByField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_created_by",
+                "Adjustment Created By",
+                "Data",
+                null,
+                "aas_adjustment_review_notes");
+        boolean adjustmentCreatedAtField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_created_at",
+                "Adjustment Created At",
+                "Datetime",
+                null,
+                "aas_adjustment_created_by");
+        boolean adjustmentReviewedByField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_reviewed_by",
+                "Adjustment Reviewed By",
+                "Data",
+                null,
+                "aas_adjustment_created_at");
+        boolean adjustmentReviewedAtField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_reviewed_at",
+                "Adjustment Reviewed At",
+                "Datetime",
+                null,
+                "aas_adjustment_reviewed_by");
         Map<String, Object> result = new HashMap<>();
         result.put("usernameLoginEnabled", usernameLoginEnabled);
         result.put("vendorFieldCreated", vendorField);
@@ -869,6 +981,22 @@ public class SetupService {
         result.put("paymentCreatedAtFieldCreated", paymentCreatedAtField);
         result.put("paymentReviewedByFieldCreated", paymentReviewedByField);
         result.put("paymentReviewedAtFieldCreated", paymentReviewedAtField);
+        result.put("adjustmentReviewStatusFieldCreated", adjustmentReviewStatusField);
+        result.put("adjustmentCategoryFieldCreated", adjustmentCategoryField);
+        result.put("adjustmentDueAmountFieldCreated", adjustmentDueAmountField);
+        result.put("adjustmentDirectionFieldCreated", adjustmentDirectionField);
+        result.put("adjustmentNoteTypeFieldCreated", adjustmentNoteTypeField);
+        result.put("adjustmentPartyTypeFieldCreated", adjustmentPartyTypeField);
+        result.put("adjustmentPartyFieldCreated", adjustmentPartyField);
+        result.put("adjustmentAmountFieldCreated", adjustmentAmountField);
+        result.put("adjustmentReasonFieldCreated", adjustmentReasonField);
+        result.put("adjustmentReferenceInvoiceFieldCreated", adjustmentReferenceInvoiceField);
+        result.put("adjustmentReferenceInvoiceDoctypeFieldCreated", adjustmentReferenceInvoiceDoctypeField);
+        result.put("adjustmentReviewNotesFieldCreated", adjustmentReviewNotesField);
+        result.put("adjustmentCreatedByFieldCreated", adjustmentCreatedByField);
+        result.put("adjustmentCreatedAtFieldCreated", adjustmentCreatedAtField);
+        result.put("adjustmentReviewedByFieldCreated", adjustmentReviewedByField);
+        result.put("adjustmentReviewedAtFieldCreated", adjustmentReviewedAtField);
         result.put("vendorPdfFieldCreated", vendorPdfField);
         result.put("purchaseOrderFieldCreated", purchaseOrderField);
         result.put("branchSalesOrderFieldCreated", branchSalesOrderField);
@@ -1012,7 +1140,11 @@ public class SetupService {
         final int pageSize = 500;
         while (true) {
             Map<String, Object> params = new HashMap<>();
-            params.put("fields", "[\"name\",\"" + fieldname + "\"]");
+            params.put(
+                    "fields",
+                    "Item".equals(doctype)
+                            ? "[\"name\",\"" + fieldname + "\",\"disabled\"]"
+                            : "[\"name\",\"" + fieldname + "\"]");
             params.put("limit_page_length", pageSize);
             params.put("limit_start", start);
             List<Map<String, Object>> rows = erpNextClient.listResources(doctype, params);
@@ -1025,6 +1157,9 @@ public class SetupService {
                 }
                 String name = asText(row.get("name"));
                 if (name.isBlank() || !shouldBackfillMargin(row.get(fieldname))) {
+                    continue;
+                }
+                if ("Item".equals(doctype) && isDisabled(row.get("disabled"))) {
                     continue;
                 }
                 erpNextClient.updateResource(doctype, name, Map.of(fieldname, defaultMarginPercent));

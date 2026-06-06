@@ -27,6 +27,42 @@ public class BillReviewController {
         return ResponseEntity.ok(billReviewService.getPendingCount());
     }
 
+    @GetMapping("/items")
+    public ResponseEntity<Object> listItems(
+            @RequestParam(defaultValue = "UNDER_REVIEW") String status,
+            @RequestParam(required = false) String partyType) {
+        return ResponseEntity.ok(billReviewService.listItemsByStatus(status, partyType));
+    }
+
+    @GetMapping("/items/{itemType}/{documentId}")
+    public ResponseEntity<Map<String, Object>> itemDetail(
+            @PathVariable String itemType,
+            @PathVariable String documentId) {
+        return ResponseEntity.ok(billReviewService.getReviewDetail(itemType, documentId));
+    }
+
+    @PutMapping("/items/{itemType}/{documentId}/approve")
+    public ResponseEntity<Map<String, Object>> approveItem(
+            @PathVariable String itemType,
+            @PathVariable String documentId,
+            @RequestBody(required = false) Map<String, Object> body,
+            Authentication authentication) {
+        String notes = body == null ? "" : String.valueOf(body.getOrDefault("notes", "")).trim();
+        String actor = authentication == null ? "" : String.valueOf(authentication.getName());
+        return ResponseEntity.ok(billReviewService.approve(itemType, documentId, notes, actor));
+    }
+
+    @PutMapping("/items/{itemType}/{documentId}/reject")
+    public ResponseEntity<Map<String, Object>> rejectItem(
+            @PathVariable String itemType,
+            @PathVariable String documentId,
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        String notes = body == null ? "" : String.valueOf(body.getOrDefault("notes", "")).trim();
+        String actor = authentication == null ? "" : String.valueOf(authentication.getName());
+        return ResponseEntity.ok(billReviewService.reject(itemType, documentId, notes, actor));
+    }
+
     @GetMapping("/payments")
     public ResponseEntity<Object> listPayments(
             @RequestParam(defaultValue = "UNDER_REVIEW") String status,
@@ -46,7 +82,7 @@ public class BillReviewController {
             Authentication authentication) {
         String notes = body == null ? "" : String.valueOf(body.getOrDefault("notes", "")).trim();
         String actor = authentication == null ? "" : String.valueOf(authentication.getName());
-        return ResponseEntity.ok(billReviewService.approve(paymentId, notes, actor));
+        return ResponseEntity.ok(billReviewService.approve(BillReviewService.ITEM_TYPE_PAYMENT, paymentId, notes, actor));
     }
 
     @PutMapping("/payments/{paymentId}/reject")
@@ -56,6 +92,6 @@ public class BillReviewController {
             Authentication authentication) {
         String notes = body == null ? "" : String.valueOf(body.getOrDefault("notes", "")).trim();
         String actor = authentication == null ? "" : String.valueOf(authentication.getName());
-        return ResponseEntity.ok(billReviewService.reject(paymentId, notes, actor));
+        return ResponseEntity.ok(billReviewService.reject(BillReviewService.ITEM_TYPE_PAYMENT, paymentId, notes, actor));
     }
 }

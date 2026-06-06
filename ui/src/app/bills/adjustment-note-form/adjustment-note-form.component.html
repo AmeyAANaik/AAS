@@ -1,0 +1,189 @@
+<mat-card class="adjustment-card">
+  <div class="card-header">
+    <div>
+      <div class="card-title" data-testid="adjustment-note-title">{{ noteLabel }}</div>
+      <div class="card-subtitle">Create an admin-reviewed adjustment against a branch or vendor invoice.</div>
+      <div class="direction-hint" data-testid="adjustment-note-direction-hint">
+        {{ noteLabel }} affects dues only after admin approval.
+      </div>
+    </div>
+  </div>
+  <mat-divider></mat-divider>
+  <mat-card-content>
+    <div class="status-message" *ngIf="!canCreateNotes" data-testid="adjustment-note-access-message">
+      Credit/debit notes can be submitted only by Admin/Helper users. Contact an administrator.
+    </div>
+
+    <form [formGroup]="form" class="adjustment-layout" data-testid="adjustment-note-form">
+      <div class="adjustment-main">
+        <div class="adjustment-section">
+          <div class="section-title">Party</div>
+          <div class="section-subtitle">Choose whether the adjustment is for a branch or a vendor.</div>
+          <mat-button-toggle-group
+            formControlName="partyType"
+            (change)="onPartyTypeChange()"
+            appearance="standard"
+            class="toggle-group"
+            data-testid="adjustment-note-party-type">
+            <mat-button-toggle value="Customer" data-testid="adjustment-note-party-customer">Branch (Customer)</mat-button-toggle>
+            <mat-button-toggle value="Supplier" data-testid="adjustment-note-party-supplier">Vendor (Supplier)</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
+
+        <div class="adjustment-section">
+          <div class="form-grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full-width">
+              <mat-label>{{ partyLabel }}</mat-label>
+              <mat-select formControlName="partyId" (selectionChange)="onPartyChange()" data-testid="adjustment-note-party-select">
+                <mat-option value="">Select</mat-option>
+                <mat-option *ngFor="let party of partyOptions" [value]="party.id">{{ party.name }}</mat-option>
+              </mat-select>
+              <mat-error *ngIf="form.get('partyId')?.hasError('required')">{{ partyLabel }} is required.</mat-error>
+            </mat-form-field>
+          </div>
+        </div>
+
+        <div class="adjustment-section">
+          <div class="form-grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Category</mat-label>
+              <mat-select formControlName="categoryId" (selectionChange)="onCategoryChange()" [disabled]="!form.get('partyId')?.value" data-testid="adjustment-note-category-select">
+                <mat-option value="">Select category</mat-option>
+                <mat-option *ngFor="let category of categories" [value]="category.id">{{ category.name }}</mat-option>
+              </mat-select>
+              <mat-error *ngIf="form.get('categoryId')?.hasError('required')">Category is required.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Direction</mat-label>
+              <mat-select formControlName="direction" data-testid="adjustment-note-direction-select">
+                <mat-option value="GIVE" data-testid="adjustment-note-direction-give">Give · Credit note</mat-option>
+                <mat-option value="TAKE" data-testid="adjustment-note-direction-take">Take · Debit note</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="inline-due" *ngIf="form.get('categoryId')?.value && hasLoadedDue" data-testid="adjustment-note-due-summary">
+            <span>Current due:</span>
+            <strong data-testid="adjustment-note-current-due">{{ selectedDue | number:'1.2-2' }}</strong>
+            <span class="inline-meta" data-testid="adjustment-note-pending-payments">Pending payments under review: ₹{{ pendingPaymentApprovalAmount | number:'1.2-2' }}</span>
+            <span class="inline-meta" data-testid="adjustment-note-pending-notes">Pending notes under review: ₹{{ pendingAdjustmentAmount | number:'1.2-2' }}</span>
+          </div>
+        </div>
+
+        <div class="adjustment-section">
+          <div class="section-title">Reference invoice</div>
+          <div class="section-subtitle">Invoice reference is required for v1 note creation.</div>
+          <div class="form-grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full-width">
+              <mat-label>Invoice</mat-label>
+              <mat-select
+                formControlName="invoiceId"
+                (selectionChange)="onInvoiceChange()"
+                [disabled]="!form.get('partyId')?.value || isLoadingInvoices"
+                data-testid="adjustment-note-invoice-select">
+                <mat-option value="">Select invoice</mat-option>
+                <mat-option *ngFor="let invoice of invoiceOptions" [value]="invoice.id">{{ invoice.label }}</mat-option>
+              </mat-select>
+              <mat-error *ngIf="form.get('invoiceId')?.hasError('required')">Invoice reference is required.</mat-error>
+            </mat-form-field>
+          </div>
+        </div>
+
+        <div class="adjustment-section">
+          <div class="section-title">{{ noteLabel }} details</div>
+          <div class="form-grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Amount</mat-label>
+              <input matInput type="number" formControlName="amount" min="0.01" data-testid="adjustment-note-amount-input" />
+              <mat-error *ngIf="form.get('amount')?.hasError('required')">Amount is required.</mat-error>
+              <mat-error *ngIf="form.get('amount')?.hasError('min')">Amount must be greater than zero.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Note date</mat-label>
+              <input matInput [matDatepicker]="noteDatePicker" formControlName="noteDate" data-testid="adjustment-note-date-input" />
+              <mat-datepicker-toggle matSuffix [for]="noteDatePicker"></mat-datepicker-toggle>
+              <mat-datepicker #noteDatePicker></mat-datepicker>
+              <mat-error *ngIf="form.get('noteDate')?.hasError('required')">Note date is required.</mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-grid">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full-width">
+              <mat-label>Reason / note</mat-label>
+              <textarea matInput formControlName="reason" rows="3" placeholder="Why are we giving or taking this amount?" data-testid="adjustment-note-reason-input"></textarea>
+            </mat-form-field>
+          </div>
+
+          <div class="voucher-upload" data-testid="adjustment-note-evidence-panel">
+            <div class="voucher-label">Upload evidence</div>
+            <input type="file" multiple accept="image/*,application/pdf" (change)="onFilesSelected($event)" data-testid="adjustment-note-evidence-input" />
+            <div class="voucher-hint" *ngIf="noteFiles.length" data-testid="adjustment-note-evidence-count">{{ noteFiles.length }} file(s) selected</div>
+            <div class="voucher-error" *ngIf="!noteFiles.length" data-testid="adjustment-note-evidence-required">Evidence is required to submit the note.</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            (click)="submit()"
+            [disabled]="isSubmitting || !canCreateNotes || form.invalid || !noteFiles.length"
+            data-testid="adjustment-note-submit">
+            Submit {{ noteLabel }}
+          </button>
+          <button mat-stroked-button color="primary" type="button" (click)="reset()" [disabled]="isSubmitting" data-testid="adjustment-note-clear">Clear</button>
+          <span class="status" *ngIf="statusMessage" data-testid="adjustment-note-status">{{ statusMessage }}</span>
+        </div>
+      </div>
+
+      <div class="adjustment-preview">
+        <mat-card class="preview-card" data-testid="adjustment-note-preview">
+          <div class="preview-title">Preview</div>
+          <div class="preview-row">
+            <span>Type</span>
+            <strong data-testid="adjustment-note-preview-type">{{ noteLabel }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="selectedPartyName">
+            <span>{{ partyLabel }}</span>
+            <strong data-testid="adjustment-note-preview-party">{{ selectedPartyName }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="selectedCategoryName">
+            <span>Category</span>
+            <strong data-testid="adjustment-note-preview-category">{{ selectedCategoryName }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="selectedInvoiceLabel">
+            <span>Related invoice</span>
+            <strong data-testid="adjustment-note-preview-invoice">{{ selectedInvoiceLabel }}</strong>
+          </div>
+          <div class="preview-divider"></div>
+          <div class="preview-row">
+            <span>Direction</span>
+            <strong data-testid="adjustment-note-preview-direction">{{ directionLabel }}</strong>
+          </div>
+          <div class="preview-row">
+            <span>Amount</span>
+            <strong data-testid="adjustment-note-preview-amount">{{ form.get('amount')?.value || 0 | number:'1.2-2' }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="hasLoadedDue">
+            <span>Current due</span>
+            <strong data-testid="adjustment-note-preview-current-due">{{ selectedDue | number:'1.2-2' }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="hasLoadedDue">
+            <span>Net due impact</span>
+            <strong data-testid="adjustment-note-preview-impact">{{ dueImpact | number:'1.2-2' }}</strong>
+          </div>
+          <div class="preview-row" *ngIf="hasLoadedDue">
+            <span>Due after approval</span>
+            <strong data-testid="adjustment-note-preview-due-after">{{ dueAfterApproval | number:'1.2-2' }}</strong>
+          </div>
+          <div class="preview-hint" *ngIf="!hasLoadedDue" data-testid="adjustment-note-preview-hint">
+            Select party and category to calculate due impact.
+          </div>
+        </mat-card>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

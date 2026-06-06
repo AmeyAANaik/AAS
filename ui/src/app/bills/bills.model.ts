@@ -3,11 +3,14 @@ export type InvoiceStatus = 'Paid' | 'Unpaid' | 'Overdue' | 'Draft' | string;
 export interface InvoiceSummary {
   name?: string;
   customer?: string;
+  supplier?: string;
   company?: string;
   posting_date?: string;
   grand_total?: number;
   outstanding_amount?: number;
   status?: string;
+  aas_category?: string;
+  [key: string]: unknown;
 }
 
 export interface InvoiceDeliveryChannelPreview {
@@ -102,6 +105,14 @@ export interface PaymentPayload {
   categoryId?: string;
 }
 
+export interface PaymentDueSummary {
+  dueAmount: number;
+  underReviewAmount?: number;
+  pendingAdminApprovalAmount?: number;
+  pendingAdjustmentAmount?: number;
+  availableDueAmount?: number;
+}
+
 export interface OptionItem {
   id: string;
   name: string;
@@ -121,6 +132,39 @@ export interface UploadedFileInfo {
   fileName: string;
   fileUrl?: string | null;
   fileId?: string | null;
+}
+
+export interface AdjustmentNotePayload {
+  partyType: 'Customer' | 'Supplier' | string;
+  partyId: string;
+  categoryId: string;
+  invoiceId: string;
+  direction: 'GIVE' | 'TAKE' | string;
+  amount: number;
+  noteDate?: string;
+  reason?: string;
+}
+
+export interface AdjustmentNoteDocument {
+  name?: string;
+  posting_date?: string;
+  docstatus?: number;
+  aas_adjustment_direction?: string;
+  aas_adjustment_note_type?: string;
+  aas_adjustment_party_type?: string;
+  aas_adjustment_party?: string;
+  aas_adjustment_amount?: number;
+  aas_adjustment_reason?: string;
+  aas_reference_invoice?: string;
+  aas_reference_invoice_doctype?: string;
+  aas_adjustment_review_status?: string;
+  aas_due_amount?: number;
+  aas_category?: string;
+}
+
+export interface AdjustmentNoteResult {
+  note: AdjustmentNoteDocument;
+  files: UploadedFileInfo[];
 }
 
 export interface ItemOption {

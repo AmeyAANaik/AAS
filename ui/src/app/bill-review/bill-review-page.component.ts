@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { finalize, Subscription } from 'rxjs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { formatUiError } from '../shared/error-message.util';
-import { BillReviewDetail, BillReviewListItem } from './bill-review.model';
+import { BillReviewDetail, BillReviewItemType, BillReviewListItem } from './bill-review.model';
 import { BillReviewService } from './bill-review.service';
 
 type BillReviewPartyGroup = {
@@ -45,7 +45,8 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
   selectedStatus = 'UNDER_REVIEW';
   selectedPartyType = '';
   selectedItem: BillReviewDetail | null = null;
-  selectedPaymentId = '';
+  selectedDocumentId = '';
+  selectedItemType: BillReviewItemType = 'PAYMENT';
   notes = '';
   isLoading = false;
   isDetailLoading = false;
@@ -72,123 +73,178 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
 
   applyStatus(status: string): void {
     this.selectedStatus = status;
-    this.selectedItem = null;
-    this.selectedPaymentId = '';
-    this.notes = '';
+    this.clearSelection();
     this.loadQueue(true);
   }
 
   applyPartyFilter(partyType: string): void {
     this.selectedPartyType = partyType;
-    this.selectedItem = null;
-    this.selectedPaymentId = '';
-    this.notes = '';
+    this.clearSelection();
     this.loadQueue(true);
   }
 
-  selectPayment(paymentId: string): void {
-    if (!paymentId) {
+  selectItem(item: BillReviewListItem): void {
+    if (!item?.documentId) {
       return;
     }
-    this.selectedPaymentId = paymentId;
+    this.selectedDocumentId = item.documentId;
+    this.selectedItemType = item.itemType;
     this.isDetailLoading = true;
     this.errorMessage = '';
-    this.billReviewService.getDetail(paymentId)
+    this.billReviewService.getDetail(item.itemType, item.documentId)
       .pipe(finalize(() => (this.isDetailLoading = false)))
       .subscribe({
         next: detail => {
           this.selectedItem = detail;
-          this.notes = String((detail.payment?.['aas_payment_review_notes'] ?? '') as string).trim();
+          this.notes = this.existingNotes(detail);
         },
         error: err => {
           this.selectedItem = null;
-          this.errorMessage = formatUiError(err, 'Unable to load payment details.');
+          this.errorMessage = formatUiError(err, 'Unable to load review details.');
         }
       });
   }
 
   approve(): void {
-    if (!this.selectedPaymentId || this.isSaving) {
+    if (!this.selectedDocumentId || this.isSaving) {
       return;
     }
     this.isSaving = true;
     this.statusMessage = '';
     this.errorMessage = '';
-    this.billReviewService.approve(this.selectedPaymentId, { notes: this.notes.trim() || undefined })
+    this.billReviewService.approve(this.selectedItemType, this.selectedDocumentId, { notes: this.notes.trim() || undefined })
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: detail => {
           this.selectedItem = detail ?? null;
-          const warnings = (detail as any)?.warnings as Array<{ code?: string; recordedDue?: any; currentDue?: any }> | undefined;
-          const dueChanged = Array.isArray(warnings) && warnings.some(w => String(w?.code ?? '').toUpperCase() === 'DUE_CHANGED');
-          if (dueChanged) {
-            const first = warnings?.find(w => String(w?.code ?? '').toUpperCase() === 'DUE_CHANGED');
-            const recorded = Number(first?.recordedDue ?? (detail as any)?.payment?.['aas_due_amount'] ?? 0);
-            const current = Number(first?.currentDue ?? (detail as any)?.currentDueAmount ?? 0);
-            this.statusMessage = `Payment approved (due changed: recorded ₹${recorded.toFixed(2)}, current ₹${current.toFixed(2)}).`;
-          } else {
-            this.statusMessage = 'Payment approved and submitted.';
-          }
+          this.statusMessage = this.approvalMessage(detail);
           this.loadCount();
           this.loadQueue(true);
         },
         error: err => {
-          this.errorMessage = formatUiError(err, 'Unable to approve payment.');
+          this.errorMessage = formatUiError(err, 'Unable to approve review item.');
         }
       });
   }
 
   reject(): void {
-    if (!this.selectedPaymentId || this.isSaving) {
+    if (!this.selectedDocumentId || this.isSaving) {
       return;
     }
     if (!this.notes.trim()) {
-      this.errorMessage = 'Notes are required when rejecting a payment.';
+      this.errorMessage = `Notes are required when rejecting a ${this.selectedLabel.toLowerCase()}.`;
       return;
     }
     this.isSaving = true;
     this.statusMessage = '';
     this.errorMessage = '';
-    this.billReviewService.reject(this.selectedPaymentId, { notes: this.notes.trim() })
+    this.billReviewService.reject(this.selectedItemType, this.selectedDocumentId, { notes: this.notes.trim() })
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: () => {
-          this.statusMessage = 'Payment rejected.';
+          this.statusMessage = `${this.selectedLabel} rejected.`;
           this.loadCount();
           this.loadQueue(true);
         },
         error: err => {
-          this.errorMessage = formatUiError(err, 'Unable to reject payment.');
+          this.errorMessage = formatUiError(err, 'Unable to reject review item.');
         }
       });
+  }
+
+  get canDecide(): boolean {
+    return this.selectedStatus === 'UNDER_REVIEW';
+  }
+
+  get document(): Record<string, any> | null {
+    return this.selectedItem?.document ?? this.selectedItem?.payment ?? null;
+  }
+
+  get selectedLabel(): string {
+    return this.itemTypeLabel(this.selectedItem?.itemType || this.selectedItemType);
+  }
+
+  get itemAmount(): number {
+    const document = this.document;
+    if (!document) {
+      return 0;
+    }
+    const type = (this.selectedItem?.itemType || this.selectedItemType || '').toUpperCase();
+    if (type === 'PAYMENT') {
+      const value = document['paid_amount'] ?? document['received_amount'] ?? 0;
+      return Number(value) || 0;
+    }
+    return Number(document['aas_adjustment_amount'] ?? 0) || 0;
+  }
+
+  get groupedItems(): BillReviewPartyGroup[] {
+    const grouped = new Map<string, BillReviewPartyGroup>();
+    for (const item of this.items ?? []) {
+      const partyType = (item.partyType || '').trim();
+      const party = (item.party || '').trim();
+      const partyName = (item.partyName || item.party || '').trim();
+      const key = `${partyType}::${party}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.items.push(item);
+        existing.count += 1;
+        existing.totalAmount += Number(item.amount ?? 0) || 0;
+        continue;
+      }
+      const label = `${this.prettyPartyType(partyType)} · ${partyName || party || 'Unknown'}`;
+      grouped.set(key, {
+        key,
+        label,
+        partyType,
+        party,
+        partyName,
+        count: 1,
+        totalAmount: Number(item.amount ?? 0) || 0,
+        items: [item]
+      });
+    }
+    return Array.from(grouped.values());
+  }
+
+  trackByDocumentId(_index: number, item: BillReviewListItem): string {
+    return `${item.itemType}:${item.documentId}`;
+  }
+
+  itemTypeLabel(itemType: BillReviewItemType): string {
+    const normalized = String(itemType ?? '').toUpperCase();
+    if (normalized === 'DEBIT_NOTE') {
+      return 'Debit note';
+    }
+    if (normalized === 'CREDIT_NOTE') {
+      return 'Credit note';
+    }
+    return 'Payment';
   }
 
   private loadQueue(resetSelection: boolean): void {
     this.isLoading = true;
     this.errorMessage = '';
-    this.billReviewService.listPayments(this.selectedStatus, this.selectedPartyType)
+    this.billReviewService.listItems(this.selectedStatus, this.selectedPartyType)
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
         next: items => {
           this.items = items ?? [];
-          if (!resetSelection && this.selectedPaymentId) {
-            const stillExists = this.items.some(item => item.paymentId === this.selectedPaymentId);
+          if (!resetSelection && this.selectedDocumentId) {
+            const stillExists = this.items.some(item => item.documentId === this.selectedDocumentId && item.itemType === this.selectedItemType);
             if (stillExists) {
               return;
             }
           }
-          const nextSelected = this.items[0]?.paymentId ?? '';
+          const nextSelected = this.items[0];
           if (nextSelected) {
-            this.selectPayment(nextSelected);
+            this.selectItem(nextSelected);
           } else {
-            this.selectedItem = null;
-            this.selectedPaymentId = '';
+            this.clearSelection();
           }
         },
         error: err => {
           this.items = [];
-          this.selectedItem = null;
-          this.selectedPaymentId = '';
+          this.clearSelection();
           this.errorMessage = formatUiError(err, 'Unable to load bill review queue.');
         }
       });
@@ -205,55 +261,33 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  get canDecide(): boolean {
-    return this.selectedStatus === 'UNDER_REVIEW';
+  private clearSelection(): void {
+    this.selectedItem = null;
+    this.selectedDocumentId = '';
+    this.selectedItemType = 'PAYMENT';
+    this.notes = '';
   }
 
-  trackByPaymentId(_index: number, item: BillReviewListItem): string {
-    return item.paymentId;
-  }
-
-  get payment(): Record<string, any> | null {
-    return this.selectedItem?.payment ?? null;
-  }
-
-  get paymentAmount(): number {
-    const payment = this.payment;
-    if (!payment) {
-      return 0;
+  private approvalMessage(detail: BillReviewDetail | null): string {
+    const label = this.itemTypeLabel(detail?.itemType || this.selectedItemType);
+    const warnings = detail?.warnings as Array<{ code?: string; recordedDue?: any; currentDue?: any }> | undefined;
+    const dueChanged = Array.isArray(warnings) && warnings.some(w => String(w?.code ?? '').toUpperCase() === 'DUE_CHANGED');
+    if (dueChanged) {
+      const first = warnings?.find(w => String(w?.code ?? '').toUpperCase() === 'DUE_CHANGED');
+      const recorded = Number(first?.recordedDue ?? detail?.document?.['aas_due_amount'] ?? 0);
+      const current = Number(first?.currentDue ?? detail?.currentDueAmount ?? 0);
+      return `${label} approved (due changed: recorded ₹${recorded.toFixed(2)}, current ₹${current.toFixed(2)}).`;
     }
-    const value = payment['paid_amount'] ?? payment['received_amount'] ?? 0;
-    const number = Number(value);
-    return Number.isFinite(number) ? number : 0;
+    return label === 'Payment' ? 'Payment approved and submitted.' : `${label} approved and posted.`;
   }
 
-  get groupedItems(): BillReviewPartyGroup[] {
-    const grouped = new Map<string, BillReviewPartyGroup>();
-    for (const item of this.items ?? []) {
-      const partyType = (item.partyType || '').trim();
-      const party = (item.party || '').trim();
-      const partyName = (item.partyName || item.party || '').trim();
-      const key = `${partyType}::${party}`;
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.items.push(item);
-        existing.count += 1;
-        existing.totalAmount += Number(item.paidAmount ?? 0) || 0;
-        continue;
-      }
-      const label = `${this.prettyPartyType(partyType)} · ${partyName || party || 'Unknown'}`;
-      grouped.set(key, {
-        key,
-        label,
-        partyType,
-        party,
-        partyName,
-        count: 1,
-        totalAmount: Number(item.paidAmount ?? 0) || 0,
-        items: [item]
-      });
+  private existingNotes(detail: BillReviewDetail | null): string {
+    const document = detail?.document ?? detail?.payment ?? {};
+    const type = String(detail?.itemType ?? '').toUpperCase();
+    if (type === 'PAYMENT') {
+      return String(document?.['aas_payment_review_notes'] ?? '').trim();
     }
-    return Array.from(grouped.values());
+    return String(document?.['aas_adjustment_review_notes'] ?? '').trim();
   }
 
   private prettyPartyType(partyType: string): string {

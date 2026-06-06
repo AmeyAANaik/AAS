@@ -37,7 +37,22 @@ public class ErpNextClient {
             "aas_review_default_margin_used",
             "aas_whatsapp_number",
             "aas_food_license_no",
-            "tax_id");
+            "tax_id",
+            "aas_due_amount",
+            "aas_adjustment_review_status",
+            "aas_adjustment_review_notes",
+            "aas_adjustment_created_by",
+            "aas_adjustment_created_at",
+            "aas_adjustment_reviewed_by",
+            "aas_adjustment_reviewed_at",
+            "aas_adjustment_direction",
+            "aas_adjustment_note_type",
+            "aas_adjustment_party_type",
+            "aas_adjustment_party",
+            "aas_adjustment_amount",
+            "aas_adjustment_reason",
+            "aas_reference_invoice",
+            "aas_reference_invoice_doctype");
 
     private final ErpNextFeignClient feignClient;
 

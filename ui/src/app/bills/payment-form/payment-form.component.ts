@@ -4,7 +4,7 @@ import { finalize } from 'rxjs/operators';
 import { formatUiError } from '../../shared/error-message.util';
 import { AuthTokenService } from '../../shared/auth-token.service';
 import { BillsService } from '../bills.service';
-import { InvoiceOption, OptionItem, PaymentPayload } from '../bills.model';
+import { InvoiceOption, OptionItem, PaymentDueSummary, PaymentPayload } from '../bills.model';
 
 function formatApiDate(value: unknown): string | undefined {
   if (!value) {
@@ -51,6 +51,7 @@ export class PaymentFormComponent implements OnChanges {
   isSubmitting = false;
   selectedDue = 0;
   underReviewAmount = 0;
+  pendingAdminApprovalAmount = 0;
   availableDueAmount = 0;
   hasLoadedDue = false;
   voucherFiles: File[] = [];
@@ -77,7 +78,7 @@ export class PaymentFormComponent implements OnChanges {
 
   get canRecordPayments(): boolean {
     const role = String(this.tokenStore.getRole() ?? '').trim().toLowerCase();
-    return role === 'admin' || role === 'helper';
+    return role === 'admin' || role === 'administrator' || role === 'helper';
   }
 
   get partyLabel(): string {
@@ -116,6 +117,7 @@ export class PaymentFormComponent implements OnChanges {
       categoryId: '',
       selectedDue: 0,
       underReviewAmount: 0,
+      pendingAdminApprovalAmount: 0,
       availableDueAmount: 0,
       hasLoadedDue: false
     });
@@ -130,6 +132,7 @@ export class PaymentFormComponent implements OnChanges {
       categoryId,
       selectedDue: 0,
       underReviewAmount: 0,
+      pendingAdminApprovalAmount: 0,
       availableDueAmount: 0,
       hasLoadedDue: false
     });
@@ -148,7 +151,7 @@ export class PaymentFormComponent implements OnChanges {
     const partyId = String(this.form.get('customer')?.value ?? '').trim();
     const categoryId = String(this.form.get('categoryId')?.value ?? '').trim();
     if (!partyId || !categoryId) {
-      this.resetDownstream({ selectedDue: 0, underReviewAmount: 0, availableDueAmount: 0, hasLoadedDue: false });
+      this.resetDownstream({ selectedDue: 0, underReviewAmount: 0, pendingAdminApprovalAmount: 0, availableDueAmount: 0, hasLoadedDue: false });
       return;
     }
     this.hasLoadedDue = false;
@@ -156,13 +159,15 @@ export class PaymentFormComponent implements OnChanges {
     this.billsService.dueByCategory(partyType, partyId, categoryId).subscribe({
       next: result => {
         const dueAmount = Number(result?.dueAmount ?? 0);
-        const reservedAmount = Number((result as any)?.underReviewAmount ?? 0);
+        const summary = result as PaymentDueSummary;
+        const pendingApprovalAmount = Number(summary?.pendingAdminApprovalAmount ?? summary?.underReviewAmount ?? 0);
         const availableAmount = Number((result as any)?.availableDueAmount ?? dueAmount);
-        const safeReserved = Number.isFinite(reservedAmount) ? reservedAmount : 0;
+        const safePendingApproval = Number.isFinite(pendingApprovalAmount) ? pendingApprovalAmount : 0;
         const safeAvailable = Number.isFinite(availableAmount) ? availableAmount : 0;
         this.resetDownstream({
           selectedDue: Number.isFinite(dueAmount) ? dueAmount : 0,
-          underReviewAmount: safeReserved,
+          underReviewAmount: safePendingApproval,
+          pendingAdminApprovalAmount: safePendingApproval,
           availableDueAmount: safeAvailable,
           amountPrefill: safeAvailable,
           hasLoadedDue: true
@@ -173,7 +178,7 @@ export class PaymentFormComponent implements OnChanges {
       },
       error: err => {
         this.statusMessage = this.formatError(err, 'Unable to load due amount');
-        this.resetDownstream({ selectedDue: 0, underReviewAmount: 0, availableDueAmount: 0, hasLoadedDue: false });
+        this.resetDownstream({ selectedDue: 0, underReviewAmount: 0, pendingAdminApprovalAmount: 0, availableDueAmount: 0, hasLoadedDue: false });
       }
     });
   }
@@ -249,6 +254,7 @@ export class PaymentFormComponent implements OnChanges {
     });
     this.selectedDue = 0;
     this.underReviewAmount = 0;
+    this.pendingAdminApprovalAmount = 0;
     this.availableDueAmount = 0;
     this.hasLoadedDue = false;
     this.statusMessage = '';
@@ -321,6 +327,7 @@ export class PaymentFormComponent implements OnChanges {
     categoryId?: string;
     selectedDue?: number;
     underReviewAmount?: number;
+    pendingAdminApprovalAmount?: number;
     availableDueAmount?: number;
     hasLoadedDue?: boolean;
     amountPrefill?: number;
@@ -337,6 +344,9 @@ export class PaymentFormComponent implements OnChanges {
     }
     if (options.underReviewAmount !== undefined) {
       this.underReviewAmount = options.underReviewAmount;
+    }
+    if (options.pendingAdminApprovalAmount !== undefined) {
+      this.pendingAdminApprovalAmount = options.pendingAdminApprovalAmount;
     }
     if (options.availableDueAmount !== undefined) {
       this.availableDueAmount = options.availableDueAmount;

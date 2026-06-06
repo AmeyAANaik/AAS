@@ -1,18 +1,26 @@
 package com.aas.mw.service;
 
+import com.aas.mw.service.AdjustmentNoteErpService;
 import com.aas.mw.client.ErpNextClient;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
 public class BillReviewService {
+
+    public static final String ITEM_TYPE_PAYMENT = "PAYMENT";
+    public static final String ITEM_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
+    public static final String ITEM_TYPE_DEBIT_NOTE = "DEBIT_NOTE";
 
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String FILE = "File";
@@ -31,15 +39,58 @@ public class BillReviewService {
 
     private final ErpNextClient erpNextClient;
     private final PaymentDueService paymentDueService;
+    private final AdjustmentNoteErpService adjustmentNoteErpService;
 
-    public BillReviewService(ErpNextClient erpNextClient, PaymentDueService paymentDueService) {
+    public BillReviewService(
+            ErpNextClient erpNextClient,
+            PaymentDueService paymentDueService,
+            AdjustmentNoteErpService adjustmentNoteErpService) {
         this.erpNextClient = erpNextClient;
         this.paymentDueService = paymentDueService;
+        this.adjustmentNoteErpService = adjustmentNoteErpService;
     }
 
     public Map<String, Object> getPendingCount() {
-        List<Map<String, Object>> pending = listPaymentsByStatus(STATUS_UNDER_REVIEW);
-        return Map.of("pendingCount", pending.size());
+        int payments = listPaymentsByStatus(STATUS_UNDER_REVIEW).size();
+        int notes = listAdjustmentNotesByStatus(STATUS_UNDER_REVIEW, null).size();
+        return Map.of("pendingCount", payments + notes);
+    }
+
+    public List<Map<String, Object>> listItemsByStatus(String status, String partyType) {
+        List<Map<String, Object>> items = new ArrayList<>();
+        items.addAll(listPaymentsByStatus(status, partyType));
+        items.addAll(listAdjustmentNotesByStatus(status, partyType));
+        items.sort(Comparator
+                .comparing((Map<String, Object> row) -> sortDate(row), Comparator.reverseOrder())
+                .thenComparing(row -> asText(row.get("documentId"))));
+        return items;
+    }
+
+    public Map<String, Object> getReviewDetail(String itemType, String documentId) {
+        String normalizedItemType = normalizeItemType(itemType, Map.of("name", documentId));
+        if (ITEM_TYPE_PAYMENT.equals(normalizedItemType)) {
+            return getPaymentDetail(documentId);
+        }
+        return getAdjustmentNoteDetail(documentId);
+    }
+
+    public Map<String, Object> approve(String itemType, String documentId, String notes, String reviewedBy) {
+        String normalizedItemType = normalizeItemType(itemType, Map.of("name", documentId));
+        if (ITEM_TYPE_PAYMENT.equals(normalizedItemType)) {
+            return approvePayment(documentId, notes, reviewedBy);
+        }
+        return approveAdjustmentNote(documentId, notes, reviewedBy);
+    }
+
+    public Map<String, Object> reject(String itemType, String documentId, String notes, String reviewedBy) {
+        String normalizedItemType = normalizeItemType(itemType, Map.of("name", documentId));
+        if (notes == null || notes.trim().isBlank()) {
+            throw new IllegalArgumentException("notes is required when rejecting a review item.");
+        }
+        if (ITEM_TYPE_PAYMENT.equals(normalizedItemType)) {
+            return rejectPayment(documentId, notes, reviewedBy);
+        }
+        return rejectAdjustmentNote(documentId, notes, reviewedBy);
     }
 
     public List<Map<String, Object>> listPaymentsByStatus(String status) {
@@ -74,38 +125,51 @@ public class BillReviewService {
         params.put("filters", toJson(filters));
 
         List<Map<String, Object>> rows = erpNextClient.listResources(PAYMENT_ENTRY, params);
-        Map<String, String> partyNames = resolvePartyNames(rows);
-        return rows.stream().map(row -> toListRow(row, partyNames)).toList();
+        Map<String, String> partyNames = resolvePartyNames(rows, "party_type", "party");
+        return rows.stream().map(row -> toPaymentListRow(row, partyNames)).toList();
     }
 
     public Map<String, Object> getPaymentDetail(String paymentId) {
-        String id = paymentId == null ? "" : paymentId.trim();
-        if (id.isBlank()) {
-            throw new IllegalArgumentException("paymentId is required.");
-        }
+        String id = requireId(paymentId, "paymentId");
         Map<String, Object> payment = unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, id));
         List<Map<String, Object>> attachments = listPaymentAttachments(id);
-        return Map.of(
-                "payment", payment,
-                "attachments", attachments);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("itemType", ITEM_TYPE_PAYMENT);
+        detail.put("documentId", id);
+        detail.put("document", payment);
+        detail.put("payment", payment);
+        detail.put("attachments", attachments);
+        return detail;
     }
 
-    public Map<String, Object> approve(String paymentId, String notes, String reviewedBy) {
-        return approvePayment(paymentId, notes, reviewedBy);
+    public Map<String, Object> getAdjustmentNoteDetail(String noteId) {
+        String id = requireId(noteId, "documentId");
+        Map<String, Object> note = adjustmentNoteErpService.getNote(id);
+        List<Map<String, Object>> attachments = adjustmentNoteErpService.listNoteAttachments(id);
+        Map<String, Object> warningPayload = computeAdjustmentDueWarning(note, id);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        String itemType = normalizeItemType(null, note);
+        detail.put("itemType", itemType);
+        detail.put("documentId", id);
+        detail.put("document", note);
+        detail.put("attachments", attachments);
+        detail.put("warnings", warningPayload.getOrDefault("warnings", List.of()));
+        detail.put("currentDueAmount", warningPayload.getOrDefault("currentDueAmount", BigDecimal.ZERO));
+        detail.put("expectedDueAfterApproval", warningPayload.getOrDefault("expectedDueAfterApproval", BigDecimal.ZERO));
+        detail.put("signedImpact", warningPayload.getOrDefault("signedImpact", BigDecimal.ZERO));
+        return detail;
     }
 
-    public Map<String, Object> reject(String paymentId, String notes, String reviewedBy) {
-        if (notes == null || notes.trim().isBlank()) {
-            throw new IllegalArgumentException("notes is required when rejecting a payment.");
-        }
-        return rejectPayment(paymentId, notes, reviewedBy);
+    private List<Map<String, Object>> listAdjustmentNotesByStatus(String status, String partyType) {
+        List<Map<String, Object>> rows = adjustmentNoteErpService.listNotesByStatus(status, partyType);
+        Map<String, String> partyNames = resolvePartyNames(rows,
+                AdjustmentNoteErpService.FIELD_PARTY_TYPE,
+                AdjustmentNoteErpService.FIELD_PARTY);
+        return rows.stream().map(row -> toAdjustmentListRow(row, partyNames)).toList();
     }
 
     private Map<String, Object> approvePayment(String paymentId, String notes, String reviewedBy) {
-        String id = paymentId == null ? "" : paymentId.trim();
-        if (id.isBlank()) {
-            throw new IllegalArgumentException("paymentId is required.");
-        }
+        String id = requireId(paymentId, "paymentId");
         Map<String, Object> payment = unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, id));
         int docstatus = asInt(payment.get("docstatus"));
         String reviewStatus = asText(payment.get(FIELD_REVIEW_STATUS));
@@ -117,12 +181,12 @@ public class BillReviewService {
             throw new IllegalArgumentException("Evidence is required before approving a payment.");
         }
 
-        Map<String, Object> warningPayload = computeDueWarning(payment, id);
+        Map<String, Object> warningPayload = computePaymentDueWarning(payment, id);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> warnings = (List<Map<String, Object>>) warningPayload.getOrDefault("warnings", List.of());
 
-        String now = LocalDateTime.now(ZoneId.systemDefault()).format(ERP_DATETIME);
-        String actor = reviewedBy == null ? "" : reviewedBy.trim();
+        String now = now();
+        String actor = safeActor(reviewedBy);
 
         Map<String, Object> update = new HashMap<>();
         update.put(FIELD_REVIEW_STATUS, STATUS_APPROVED);
@@ -141,69 +205,139 @@ public class BillReviewService {
                 payment = submitted;
             }
         } catch (Exception ex) {
-            // Best-effort revert so the queue remains consistent.
-            try {
-                erpNextClient.updateResource(PAYMENT_ENTRY, id, Map.of(FIELD_REVIEW_STATUS, STATUS_UNDER_REVIEW));
-            } catch (Exception ignored) {
-                // ignore
-            }
+            revertPaymentReviewStatus(id);
             throw ex;
         }
         payment = unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, id));
-        return Map.of(
-                "payment", payment,
-                "attachments", attachments,
-                "warnings", warnings,
-                "currentDueAmount", warningPayload.getOrDefault("currentDueAmount", java.math.BigDecimal.ZERO),
-                "currentAvailableDueAmount", warningPayload.getOrDefault("currentAvailableDueAmount", java.math.BigDecimal.ZERO));
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("itemType", ITEM_TYPE_PAYMENT);
+        detail.put("documentId", id);
+        detail.put("document", payment);
+        detail.put("payment", payment);
+        detail.put("attachments", attachments);
+        detail.put("warnings", warnings);
+        detail.put("currentDueAmount", warningPayload.getOrDefault("currentDueAmount", BigDecimal.ZERO));
+        detail.put("currentAvailableDueAmount", warningPayload.getOrDefault("currentAvailableDueAmount", BigDecimal.ZERO));
+        return detail;
     }
 
     private Map<String, Object> rejectPayment(String paymentId, String notes, String reviewedBy) {
-        String id = paymentId == null ? "" : paymentId.trim();
-        if (id.isBlank()) {
-            throw new IllegalArgumentException("paymentId is required.");
-        }
+        String id = requireId(paymentId, "paymentId");
         Map<String, Object> payment = unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, id));
         int docstatus = asInt(payment.get("docstatus"));
         String reviewStatus = asText(payment.get(FIELD_REVIEW_STATUS));
         if (docstatus != 0 || !STATUS_UNDER_REVIEW.equalsIgnoreCase(reviewStatus)) {
             throw new IllegalArgumentException("Only draft payments under review can be rejected.");
         }
-        String now = LocalDateTime.now(ZoneId.systemDefault()).format(ERP_DATETIME);
-        String actor = reviewedBy == null ? "" : reviewedBy.trim();
-
         Map<String, Object> update = new HashMap<>();
         update.put(FIELD_REVIEW_STATUS, STATUS_REJECTED);
         update.put(FIELD_REVIEW_NOTES, notes.trim());
-        if (!actor.isBlank()) {
-            update.put(FIELD_REVIEWED_BY, actor);
+        if (!safeActor(reviewedBy).isBlank()) {
+            update.put(FIELD_REVIEWED_BY, safeActor(reviewedBy));
         }
-        update.put(FIELD_REVIEWED_AT, now);
+        update.put(FIELD_REVIEWED_AT, now());
         erpNextClient.updateResource(PAYMENT_ENTRY, id, update);
         payment = unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, id));
-        return Map.of(
-                "payment", payment,
-                "attachments", listPaymentAttachments(id));
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("itemType", ITEM_TYPE_PAYMENT);
+        detail.put("documentId", id);
+        detail.put("document", payment);
+        detail.put("payment", payment);
+        detail.put("attachments", listPaymentAttachments(id));
+        return detail;
     }
 
-    private Map<String, Object> computeDueWarning(Map<String, Object> payment, String paymentId) {
+    private Map<String, Object> approveAdjustmentNote(String noteId, String notes, String reviewedBy) {
+        String id = requireId(noteId, "documentId");
+        Map<String, Object> note = adjustmentNoteErpService.getNote(id);
+        int docstatus = adjustmentNoteErpService.asInt(note.get("docstatus"));
+        String reviewStatus = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_REVIEW_STATUS));
+        if (docstatus != 0 || !STATUS_UNDER_REVIEW.equalsIgnoreCase(reviewStatus)) {
+            throw new IllegalArgumentException("Only draft notes under review can be approved.");
+        }
+        List<Map<String, Object>> attachments = adjustmentNoteErpService.listNoteAttachments(id);
+        if (attachments.isEmpty()) {
+            throw new IllegalArgumentException("Evidence is required before approving a note.");
+        }
+
+        Map<String, Object> warningPayload = computeAdjustmentDueWarning(note, id);
+        String actor = safeActor(reviewedBy);
+        Map<String, Object> update = new HashMap<>();
+        update.put(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, STATUS_APPROVED);
+        if (notes != null && !notes.trim().isBlank()) {
+            update.put(AdjustmentNoteErpService.FIELD_REVIEW_NOTES, notes.trim());
+        }
+        if (!actor.isBlank()) {
+            update.put(AdjustmentNoteErpService.FIELD_REVIEWED_BY, actor);
+        }
+        update.put(AdjustmentNoteErpService.FIELD_REVIEWED_AT, now());
+        erpNextClient.updateResource(AdjustmentNoteErpService.JOURNAL_ENTRY, id, update);
+        note = adjustmentNoteErpService.getNote(id);
+        try {
+            Map<String, Object> submitted = adjustmentNoteErpService.unwrapDoc(erpNextClient.submitDoc(note));
+            if (!submitted.isEmpty()) {
+                note = submitted;
+            }
+        } catch (Exception ex) {
+            revertAdjustmentReviewStatus(id);
+            throw ex;
+        }
+        note = adjustmentNoteErpService.getNote(id);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("itemType", normalizeItemType(null, note));
+        detail.put("documentId", id);
+        detail.put("document", note);
+        detail.put("attachments", attachments);
+        detail.put("warnings", warningPayload.getOrDefault("warnings", List.of()));
+        detail.put("currentDueAmount", warningPayload.getOrDefault("currentDueAmount", BigDecimal.ZERO));
+        detail.put("expectedDueAfterApproval", warningPayload.getOrDefault("expectedDueAfterApproval", BigDecimal.ZERO));
+        detail.put("signedImpact", warningPayload.getOrDefault("signedImpact", BigDecimal.ZERO));
+        return detail;
+    }
+
+    private Map<String, Object> rejectAdjustmentNote(String noteId, String notes, String reviewedBy) {
+        String id = requireId(noteId, "documentId");
+        Map<String, Object> note = adjustmentNoteErpService.getNote(id);
+        int docstatus = adjustmentNoteErpService.asInt(note.get("docstatus"));
+        String reviewStatus = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_REVIEW_STATUS));
+        if (docstatus != 0 || !STATUS_UNDER_REVIEW.equalsIgnoreCase(reviewStatus)) {
+            throw new IllegalArgumentException("Only draft notes under review can be rejected.");
+        }
+        Map<String, Object> update = new HashMap<>();
+        update.put(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, STATUS_REJECTED);
+        update.put(AdjustmentNoteErpService.FIELD_REVIEW_NOTES, notes.trim());
+        if (!safeActor(reviewedBy).isBlank()) {
+            update.put(AdjustmentNoteErpService.FIELD_REVIEWED_BY, safeActor(reviewedBy));
+        }
+        update.put(AdjustmentNoteErpService.FIELD_REVIEWED_AT, now());
+        erpNextClient.updateResource(AdjustmentNoteErpService.JOURNAL_ENTRY, id, update);
+        note = adjustmentNoteErpService.getNote(id);
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("itemType", normalizeItemType(null, note));
+        detail.put("documentId", id);
+        detail.put("document", note);
+        detail.put("attachments", adjustmentNoteErpService.listNoteAttachments(id));
+        return detail;
+    }
+
+    private Map<String, Object> computePaymentDueWarning(Map<String, Object> payment, String paymentId) {
         String partyType = asText(payment.get("party_type"));
         String party = asText(payment.get("party"));
         String categoryId = asText(payment.get(FIELD_CATEGORY));
-        java.math.BigDecimal recordedDue = asDecimal(payment.get(FIELD_DUE_AMOUNT));
-        java.math.BigDecimal amount = asDecimal(firstNonBlank(payment.get("paid_amount"), payment.get("received_amount")));
+        BigDecimal recordedDue = asDecimal(payment.get(FIELD_DUE_AMOUNT));
+        BigDecimal amount = paymentAmount(payment);
         if (partyType.isBlank() || party.isBlank() || categoryId.isBlank()) {
             return Map.of("warnings", List.of(), "currentDueAmount", recordedDue, "currentAvailableDueAmount", recordedDue);
         }
-        java.math.BigDecimal currentDue = recordedDue;
-        java.math.BigDecimal currentAvailable = recordedDue;
+        BigDecimal currentDue = recordedDue;
+        BigDecimal currentAvailable = recordedDue;
         List<Map<String, Object>> warnings = new ArrayList<>();
         try {
-            Map<String, Object> due = paymentDueService == null ? Map.of() : paymentDueService.dueByCategory(partyType, party, categoryId);
+            Map<String, Object> due = paymentDueService.dueByCategory(partyType, party, categoryId);
             currentDue = asDecimal(due.get("dueAmount"));
-            java.math.BigDecimal underReviewAmount = asDecimal(due.get("underReviewAmount"));
-            java.math.BigDecimal underReviewExcluding = underReviewAmount.subtract(amount).max(java.math.BigDecimal.ZERO);
-            currentAvailable = currentDue.subtract(underReviewExcluding).max(java.math.BigDecimal.ZERO);
+            BigDecimal underReviewAmount = asDecimal(due.get("underReviewAmount"));
+            BigDecimal underReviewExcluding = underReviewAmount.subtract(amount).max(BigDecimal.ZERO);
+            currentAvailable = currentDue.subtract(underReviewExcluding).max(BigDecimal.ZERO);
             if (currentDue.compareTo(recordedDue) != 0) {
                 warnings.add(Map.of(
                         "code", "DUE_CHANGED",
@@ -211,7 +345,6 @@ public class BillReviewService {
                         "currentDue", currentDue));
             }
         } catch (Exception ignored) {
-            // Ignore warning failures; approval should still work.
         }
         return Map.of(
                 "warnings", warnings,
@@ -219,24 +352,58 @@ public class BillReviewService {
                 "currentAvailableDueAmount", currentAvailable);
     }
 
-    private Object firstNonBlank(Object first, Object fallback) {
-        String firstText = asText(first);
-        if (!firstText.isBlank()) {
-            return first;
+    private Map<String, Object> computeAdjustmentDueWarning(Map<String, Object> note, String noteId) {
+        String partyType = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_PARTY_TYPE));
+        String partyId = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_PARTY));
+        String categoryId = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_CATEGORY));
+        BigDecimal recordedDue = adjustmentNoteErpService.asDecimal(note.get(AdjustmentNoteErpService.FIELD_DUE_AMOUNT));
+        BigDecimal amount = adjustmentNoteErpService.asDecimal(note.get(AdjustmentNoteErpService.FIELD_AMOUNT));
+        BigDecimal signedImpact = adjustmentNoteErpService.signedImpact(
+                partyType,
+                note.get(AdjustmentNoteErpService.FIELD_DIRECTION) == null ? "" : String.valueOf(note.get(AdjustmentNoteErpService.FIELD_DIRECTION)),
+                amount);
+        if (partyType.isBlank() || partyId.isBlank() || categoryId.isBlank()) {
+            return Map.of(
+                    "warnings", List.of(),
+                    "currentDueAmount", recordedDue,
+                    "expectedDueAfterApproval", recordedDue.add(signedImpact),
+                    "signedImpact", signedImpact);
         }
-        return fallback;
+        BigDecimal currentDue = recordedDue;
+        List<Map<String, Object>> warnings = new ArrayList<>();
+        try {
+            Map<String, Object> due = paymentDueService.dueByCategory(partyType, partyId, categoryId);
+            currentDue = adjustmentNoteErpService.asDecimal(due.get("dueAmount"));
+            if (currentDue.compareTo(recordedDue) != 0) {
+                warnings.add(Map.of(
+                        "code", "DUE_CHANGED",
+                        "recordedDue", recordedDue,
+                        "currentDue", currentDue));
+            }
+        } catch (Exception ignored) {
+        }
+        return Map.of(
+                "warnings", warnings,
+                "currentDueAmount", currentDue,
+                "expectedDueAfterApproval", currentDue.add(signedImpact),
+                "signedImpact", signedImpact);
     }
 
-    private Map<String, Object> toListRow(Map<String, Object> row, Map<String, String> partyNames) {
-        Map<String, Object> out = new LinkedHashMap<>();
+    private Map<String, Object> toPaymentListRow(Map<String, Object> row, Map<String, String> partyNames) {
         String paymentId = asText(row.get("name"));
         String partyType = asText(row.get("party_type"));
         String party = asText(row.get("party"));
+        BigDecimal amount = paymentAmount(row);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("itemType", ITEM_TYPE_PAYMENT);
+        out.put("documentId", paymentId);
+        out.put("documentLabel", "Payment");
         out.put("paymentId", paymentId);
         out.put("partyType", partyType);
         out.put("party", party);
         out.put("partyName", partyNames.getOrDefault(partyType + "::" + party, party));
         out.put("postingDate", asText(row.get("posting_date")));
+        out.put("amount", amount);
         out.put("paidAmount", asDecimal(row.get("paid_amount")));
         out.put("receivedAmount", asDecimal(row.get("received_amount")));
         out.put("categoryId", asText(row.get(FIELD_CATEGORY)));
@@ -252,14 +419,42 @@ public class BillReviewService {
         return out;
     }
 
-    private Map<String, String> resolvePartyNames(List<Map<String, Object>> rows) {
+    private Map<String, Object> toAdjustmentListRow(Map<String, Object> row, Map<String, String> partyNames) {
+        String itemType = normalizeItemType(null, row);
+        String partyType = adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_PARTY_TYPE));
+        String party = adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_PARTY));
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("itemType", itemType);
+        out.put("documentId", adjustmentNoteErpService.asText(row.get("name")));
+        out.put("documentLabel", ITEM_TYPE_DEBIT_NOTE.equals(itemType) ? "Debit note" : "Credit note");
+        out.put("partyType", partyType);
+        out.put("party", party);
+        out.put("partyName", partyNames.getOrDefault(partyType + "::" + party, party));
+        out.put("postingDate", adjustmentNoteErpService.asText(row.get("posting_date")));
+        out.put("amount", adjustmentNoteErpService.asDecimal(row.get(AdjustmentNoteErpService.FIELD_AMOUNT)));
+        out.put("categoryId", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_CATEGORY)));
+        out.put("dueAmount", adjustmentNoteErpService.asDecimal(row.get(AdjustmentNoteErpService.FIELD_DUE_AMOUNT)));
+        out.put("direction", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_DIRECTION)));
+        out.put("referenceNo", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE)));
+        out.put("referenceInvoice", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE)));
+        out.put("reason", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REASON)));
+        out.put("docstatus", adjustmentNoteErpService.asInt(row.get("docstatus")));
+        out.put("createdAt", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_CREATED_AT)));
+        out.put("createdBy", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_CREATED_BY)));
+        out.put("reviewStatus", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REVIEW_STATUS)));
+        out.put("reviewedAt", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REVIEWED_AT)));
+        out.put("reviewedBy", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REVIEWED_BY)));
+        return out;
+    }
+
+    private Map<String, String> resolvePartyNames(List<Map<String, Object>> rows, String partyTypeField, String partyField) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
         }
         Map<String, String> resolved = new HashMap<>();
         for (Map<String, Object> row : rows) {
-            String partyType = asText(row.get("party_type"));
-            String party = asText(row.get("party"));
+            String partyType = asText(row.get(partyTypeField));
+            String party = asText(row.get(partyField));
             if (partyType.isBlank() || party.isBlank()) {
                 continue;
             }
@@ -284,6 +479,32 @@ public class BillReviewService {
         return resolved;
     }
 
+    private String normalizeItemType(String itemType, Map<String, Object> note) {
+        String normalized = asText(itemType).toUpperCase(Locale.ROOT);
+        if (ITEM_TYPE_PAYMENT.equals(normalized)) {
+            return ITEM_TYPE_PAYMENT;
+        }
+        if (ITEM_TYPE_CREDIT_NOTE.equals(normalized)) {
+            return ITEM_TYPE_CREDIT_NOTE;
+        }
+        if (ITEM_TYPE_DEBIT_NOTE.equals(normalized)) {
+            return ITEM_TYPE_DEBIT_NOTE;
+        }
+        String noteType = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_NOTE_TYPE)).toUpperCase(Locale.ROOT);
+        if (ITEM_TYPE_DEBIT_NOTE.equals(noteType) || "DEBIT_NOTE".equals(noteType)) {
+            return ITEM_TYPE_DEBIT_NOTE;
+        }
+        return ITEM_TYPE_CREDIT_NOTE;
+    }
+
+    private String sortDate(Map<String, Object> row) {
+        String createdAt = asText(row.get("createdAt"));
+        if (!createdAt.isBlank()) {
+            return createdAt;
+        }
+        return asText(row.get("postingDate"));
+    }
+
     private String normalizePartyType(String partyType) {
         String value = partyType == null ? "" : partyType.trim();
         if (value.equalsIgnoreCase("Supplier") || value.equalsIgnoreCase("Vendor")) {
@@ -293,6 +514,47 @@ public class BillReviewService {
             return "Customer";
         }
         return "";
+    }
+
+    private void revertPaymentReviewStatus(String id) {
+        try {
+            erpNextClient.updateResource(PAYMENT_ENTRY, id, Map.of(FIELD_REVIEW_STATUS, STATUS_UNDER_REVIEW));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void revertAdjustmentReviewStatus(String id) {
+        try {
+            erpNextClient.updateResource(
+                    AdjustmentNoteErpService.JOURNAL_ENTRY,
+                    id,
+                    Map.of(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, STATUS_UNDER_REVIEW));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String safeActor(String reviewedBy) {
+        return reviewedBy == null ? "" : reviewedBy.trim();
+    }
+
+    private String now() {
+        return LocalDateTime.now(ZoneId.systemDefault()).format(ERP_DATETIME);
+    }
+
+    private String requireId(String id, String field) {
+        String value = id == null ? "" : id.trim();
+        if (value.isBlank()) {
+            throw new IllegalArgumentException(field + " is required.");
+        }
+        return value;
+    }
+
+    private BigDecimal paymentAmount(Map<String, Object> payment) {
+        BigDecimal paid = asDecimal(payment.get("paid_amount"));
+        if (paid.compareTo(BigDecimal.ZERO) > 0) {
+            return paid;
+        }
+        return asDecimal(payment.get("received_amount"));
     }
 
     private String firstNonBlank(String first, String fallback) {
@@ -354,20 +616,20 @@ public class BillReviewService {
         }
     }
 
-    private java.math.BigDecimal asDecimal(Object value) {
-        if (value instanceof java.math.BigDecimal number) {
+    private BigDecimal asDecimal(Object value) {
+        if (value instanceof BigDecimal number) {
             return number;
         }
         if (value instanceof Number number) {
-            return java.math.BigDecimal.valueOf(number.doubleValue());
+            return BigDecimal.valueOf(number.doubleValue());
         }
         if (value == null) {
-            return java.math.BigDecimal.ZERO;
+            return BigDecimal.ZERO;
         }
         try {
-            return new java.math.BigDecimal(value.toString());
+            return new BigDecimal(value.toString());
         } catch (Exception ex) {
-            return java.math.BigDecimal.ZERO;
+            return BigDecimal.ZERO;
         }
     }
 

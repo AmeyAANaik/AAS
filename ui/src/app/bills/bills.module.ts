@@ -19,6 +19,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { StatusPillComponent } from '../shared/status-pill/status-pill.component';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
+import { AdjustmentNoteFormComponent } from './adjustment-note-form/adjustment-note-form.component';
 import { BillsPageComponent } from './bills-page/bills-page.component';
 import { InvoiceDeliveryDialogComponent } from './invoice-delivery-dialog/invoice-delivery-dialog.component';
 import { InvoiceCreateComponent } from './invoice-create/invoice-create.component';
@@ -26,7 +27,7 @@ import { PaymentFormComponent } from './payment-form/payment-form.component';
 import { BillsRoutingModule } from './bills-routing.module';
 
 @NgModule({
-  declarations: [BillsPageComponent, InvoiceCreateComponent, PaymentFormComponent, InvoiceDeliveryDialogComponent],
+  declarations: [BillsPageComponent, InvoiceCreateComponent, PaymentFormComponent, InvoiceDeliveryDialogComponent, AdjustmentNoteFormComponent],
   imports: [
     CommonModule,
     ReactiveFormsModule,

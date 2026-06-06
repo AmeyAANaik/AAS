@@ -16,12 +16,18 @@ import static org.mockito.Mockito.when;
 class PaymentDueServiceTest {
 
     private ErpNextClient erpNextClient;
+    private AdjustmentNoteErpService adjustmentNoteErpService;
     private PaymentDueService paymentDueService;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
-        paymentDueService = new PaymentDueService(erpNextClient);
+        adjustmentNoteErpService = mock(AdjustmentNoteErpService.class);
+        when(adjustmentNoteErpService.approvedDueImpact(org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString()))
+                .thenReturn(BigDecimal.ZERO);
+        when(adjustmentNoteErpService.pendingAmount(org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString(), org.mockito.Mockito.anyString(), org.mockito.Mockito.any()))
+                .thenReturn(BigDecimal.ZERO);
+        paymentDueService = new PaymentDueService(erpNextClient, adjustmentNoteErpService);
     }
 
     @Test
@@ -254,6 +260,43 @@ class PaymentDueServiceTest {
         Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery");
 
         assertEquals(new BigDecimal("110.000000"), response.get("dueAmount"));
+    }
+
+    @Test
+    void dueByCategoryIncludesPendingAdminApprovalAmountAlias() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-1",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("200.00"),
+                        "grand_total", new BigDecimal("200.00"))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-1"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-1",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("200.00"),
+                        "grand_total", new BigDecimal("200.00"),
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("200.00"))))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> params = invocation.getArgument(1);
+                    String filters = String.valueOf(params.get("filters"));
+                    if (filters.contains("UNDER_REVIEW")) {
+                        return List.of(Map.of(
+                                "name", "PAY-1",
+                                "received_amount", new BigDecimal("50.00")));
+                    }
+                    return List.of();
+                });
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery");
+
+        assertEquals(new BigDecimal("50.00"), response.get("underReviewAmount"));
+        assertEquals(new BigDecimal("50.00"), response.get("pendingAdminApprovalAmount"));
+        assertEquals(new BigDecimal("150.000000"), response.get("availableDueAmount"));
     }
 
     @Test

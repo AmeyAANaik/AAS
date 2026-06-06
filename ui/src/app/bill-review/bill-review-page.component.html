@@ -2,15 +2,15 @@
   <app-page-header
     kicker="Administration"
     title="Bill Review"
-    subtitle="Approve or reject recorded payments before they affect the ledger.">
+    subtitle="Approve or reject payments and credit/debit notes before they affect the ledger.">
     <button mat-stroked-button color="primary" (click)="billReviewService.notifyRefresh()" [disabled]="isLoading || isSaving">Refresh</button>
   </app-page-header>
 
-  <div class="notification" *ngIf="pendingCount > 0">
+  <div class="notification" *ngIf="pendingCount > 0" data-testid="bill-review-notification">
     <span class="material-icons" aria-hidden="true">campaign</span>
     <div>
       <strong>Admin notification</strong>
-      <div>{{ pendingCount }} payment{{ pendingCount === 1 ? '' : 's' }} waiting for review.</div>
+      <div>{{ pendingCount }} review item{{ pendingCount === 1 ? '' : 's' }} waiting for approval.</div>
     </div>
   </div>
 
@@ -18,142 +18,162 @@
   <div class="error-message" *ngIf="errorMessage">{{ errorMessage }}</div>
 
   <div class="review-grid">
-  <mat-card class="queue-card">
-    <div class="queue-head">
-      <div class="queue-title">Approval queue</div>
-      <div class="queue-tabs">
+    <mat-card class="queue-card" data-testid="bill-review-queue">
+      <div class="queue-head">
+        <div class="queue-title">Approval queue</div>
+        <div class="queue-tabs">
         <button
           *ngFor="let filter of statusFilters"
           mat-button
           type="button"
           [class.active-tab]="selectedStatus === filter.value"
-          (click)="applyStatus(filter.value)">
+          (click)="applyStatus(filter.value)"
+          [attr.data-testid]="'bill-review-status-' + filter.value.toLowerCase()">
+          {{ filter.label }}
+        </button>
+        </div>
+      </div>
+
+      <div class="queue-filters">
+        <button
+          *ngFor="let filter of partyFilters"
+          mat-stroked-button
+          type="button"
+          [class.active-filter]="selectedPartyType === filter.value"
+          (click)="applyPartyFilter(filter.value)">
           {{ filter.label }}
         </button>
       </div>
-    </div>
-    <div class="queue-filters">
-      <button
-        *ngFor="let filter of partyFilters"
-        mat-stroked-button
-        type="button"
-        [class.active-filter]="selectedPartyType === filter.value"
-        (click)="applyPartyFilter(filter.value)">
-        {{ filter.label }}
-      </button>
-    </div>
 
-    <div class="queue-body" *ngIf="items.length; else emptyQueue">
-      <div class="party-group" *ngFor="let group of groupedItems">
-        <div class="party-group-head">
-          <div class="party-group-label">{{ group.label }}</div>
-          <div class="party-group-meta">{{ group.count }} payment{{ group.count === 1 ? '' : 's' }} · ₹{{ group.totalAmount | number:'1.0-2' }}</div>
+      <div class="queue-body" *ngIf="items.length; else emptyQueue" data-testid="bill-review-items">
+        <div class="party-group" *ngFor="let group of groupedItems">
+          <div class="party-group-head">
+            <div class="party-group-label">{{ group.label }}</div>
+            <div class="party-group-meta">{{ group.count }} item{{ group.count === 1 ? '' : 's' }} · ₹{{ group.totalAmount | number:'1.0-2' }}</div>
+          </div>
+          <button
+            *ngFor="let item of group.items; trackBy: trackByDocumentId"
+            type="button"
+            class="queue-item"
+            [class.selected]="item.documentId === selectedDocumentId && item.itemType === selectedItemType"
+            (click)="selectItem(item)"
+            [attr.data-testid]="'bill-review-item-' + item.itemType + '-' + item.documentId">
+            <div class="queue-item-top">
+              <strong>{{ item.postingDate || '—' }}</strong>
+              <span class="queue-item-status">{{ item.reviewStatus || selectedStatus }}</span>
+            </div>
+            <div class="queue-item-bottom">
+              <span [attr.data-testid]="'bill-review-item-label-' + item.documentId">{{ item.documentLabel }}</span>
+              <span class="queue-item-amount">₹{{ item.amount | number:'1.0-2' }}</span>
+            </div>
+            <div class="queue-item-meta">
+              <span>{{ item.categoryId || '—' }}</span>
+              <span *ngIf="item.referenceInvoice">Invoice: {{ item.referenceInvoice }}</span>
+              <span *ngIf="item.modeOfPayment">{{ item.modeOfPayment }}</span>
+              <span *ngIf="item.direction">{{ item.direction }}</span>
+            </div>
+          </button>
         </div>
-        <button
-          *ngFor="let item of group.items; trackBy: trackByPaymentId"
-          type="button"
-          class="queue-item"
-          [class.selected]="item.paymentId === selectedPaymentId"
-          (click)="selectPayment(item.paymentId)">
-          <div class="queue-item-top">
-            <strong>{{ item.postingDate || '—' }}</strong>
-            <span class="queue-item-status">{{ item.reviewStatus || selectedStatus }}</span>
-          </div>
-          <div class="queue-item-bottom">
-            <span>{{ item.categoryId || '—' }}</span>
-            <span class="queue-item-amount">₹{{ item.paidAmount | number:'1.0-2' }}</span>
-          </div>
-          <div class="queue-item-meta">
-            <span>{{ item.modeOfPayment || '—' }}</span>
-            <span *ngIf="item.dueAmount !== null && item.dueAmount !== undefined">Due: ₹{{ item.dueAmount | number:'1.0-2' }}</span>
-            <span *ngIf="item.referenceNo">Ref: {{ item.referenceNo }}</span>
-          </div>
-        </button>
       </div>
-    </div>
 
-    <ng-template #emptyQueue>
-      <div class="empty-state">
-        <span class="material-icons" aria-hidden="true">inbox</span>
-        <div>No payments found for this status.</div>
-      </div>
-    </ng-template>
-  </mat-card>
-
-  <mat-card class="detail-card" *ngIf="selectedItem; else emptyDetail">
-    <div class="detail-head">
-      <div>
-        <div class="detail-title">Review detail</div>
-        <div class="detail-subtitle">{{ selectedPaymentId }}</div>
-      </div>
-      <div class="detail-actions" *ngIf="canDecide">
-        <button mat-flat-button color="primary" type="button" (click)="approve()" [disabled]="isSaving">Approve</button>
-        <button mat-stroked-button color="warn" type="button" (click)="reject()" [disabled]="isSaving">Reject</button>
-      </div>
-    </div>
-
-    <div class="detail-grid">
-      <div class="detail-block">
-        <div class="detail-label">Party</div>
-        <div class="detail-value">{{ payment?.['party_type'] }} · {{ payment?.['party'] }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Posting date</div>
-        <div class="detail-value">{{ payment?.['posting_date'] || '—' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Amount</div>
-        <div class="detail-value">₹{{ paymentAmount | number:'1.0-2' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Mode of payment</div>
-        <div class="detail-value">{{ payment?.['mode_of_payment'] || '—' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Category</div>
-        <div class="detail-value">{{ payment?.['aas_category'] || '—' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Due</div>
-        <div class="detail-value">₹{{ (payment?.['aas_due_amount'] ?? 0) | number:'1.0-2' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Reference</div>
-        <div class="detail-value">{{ payment?.['reference_no'] || '—' }}</div>
-      </div>
-      <div class="detail-block">
-        <div class="detail-label">Created</div>
-        <div class="detail-value">{{ payment?.['aas_payment_created_by'] || '—' }} · {{ payment?.['aas_payment_created_at'] || '—' }}</div>
-      </div>
-    </div>
-
-    <div class="notes-block">
-      <div class="detail-label">Notes</div>
-      <textarea [(ngModel)]="notes" rows="3" [disabled]="!canDecide" placeholder="Enter review notes (required for rejection)."></textarea>
-    </div>
-
-    <div class="attachments-block">
-      <div class="detail-label">Attachments</div>
-      <div *ngIf="selectedItem.attachments?.length; else noAttachments" class="attachments-list">
-        <a *ngFor="let attachment of selectedItem.attachments" [href]="attachment.url" target="_blank" rel="noopener noreferrer">
-          <span class="material-icons" aria-hidden="true">attach_file</span>
-          {{ attachment.name || attachment.id }}
-        </a>
-      </div>
-      <ng-template #noAttachments>
-        <div class="muted">No attachments uploaded.</div>
+      <ng-template #emptyQueue>
+        <div class="empty-state">
+          <span class="material-icons" aria-hidden="true">inbox</span>
+          <div>No review items found for this status.</div>
+        </div>
       </ng-template>
-    </div>
-  </mat-card>
+    </mat-card>
 
-  <ng-template #emptyDetail>
-    <mat-card class="detail-card empty-detail">
-      <div class="empty-state">
-        <span class="material-icons" aria-hidden="true">fact_check</span>
-        <div *ngIf="isDetailLoading">Loading payment details…</div>
-        <div *ngIf="!isDetailLoading">Select a payment to review.</div>
+    <mat-card class="detail-card" *ngIf="selectedItem; else emptyDetail" data-testid="bill-review-detail">
+      <div class="detail-head">
+        <div>
+          <div class="detail-title">Review detail</div>
+          <div class="detail-subtitle">{{ selectedLabel }} · {{ selectedDocumentId }}</div>
+        </div>
+        <div class="detail-actions" *ngIf="canDecide">
+          <button mat-flat-button color="primary" type="button" (click)="approve()" [disabled]="isSaving" data-testid="bill-review-approve">Approve</button>
+          <button mat-stroked-button color="warn" type="button" (click)="reject()" [disabled]="isSaving" data-testid="bill-review-reject">Reject</button>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-block">
+          <div class="detail-label">Party</div>
+          <div class="detail-value" data-testid="bill-review-detail-party">{{ document?.['party_type'] || document?.['aas_adjustment_party_type'] }} · {{ document?.['party'] || document?.['aas_adjustment_party'] }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Posting date</div>
+          <div class="detail-value">{{ document?.['posting_date'] || '—' }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Amount</div>
+          <div class="detail-value" data-testid="bill-review-detail-amount">₹{{ itemAmount | number:'1.2-2' }}</div>
+        </div>
+        <div class="detail-block" *ngIf="selectedItemType === 'PAYMENT'">
+          <div class="detail-label">Mode of payment</div>
+          <div class="detail-value" data-testid="bill-review-detail-mode">{{ document?.['mode_of_payment'] || '—' }}</div>
+        </div>
+        <div class="detail-block" *ngIf="selectedItemType !== 'PAYMENT'">
+          <div class="detail-label">Direction</div>
+          <div class="detail-value" data-testid="bill-review-detail-direction">{{ document?.['aas_adjustment_direction'] || '—' }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Category</div>
+          <div class="detail-value" data-testid="bill-review-detail-category">{{ document?.['aas_category'] || '—' }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Due snapshot</div>
+          <div class="detail-value" data-testid="bill-review-detail-due">₹{{ (document?.['aas_due_amount'] ?? 0) | number:'1.2-2' }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Reference</div>
+          <div class="detail-value" data-testid="bill-review-detail-reference">{{ document?.['reference_no'] || document?.['aas_reference_invoice'] || '—' }}</div>
+        </div>
+        <div class="detail-block" *ngIf="selectedItemType !== 'PAYMENT'">
+          <div class="detail-label">Reason</div>
+          <div class="detail-value" data-testid="bill-review-detail-reason">{{ document?.['aas_adjustment_reason'] || '—' }}</div>
+        </div>
+        <div class="detail-block">
+          <div class="detail-label">Created</div>
+          <div class="detail-value">
+            {{ document?.['aas_payment_created_by'] || document?.['aas_adjustment_created_by'] || '—' }}
+            ·
+            {{ document?.['aas_payment_created_at'] || document?.['aas_adjustment_created_at'] || '—' }}
+          </div>
+        </div>
+        <div class="detail-block" *ngIf="selectedItemType !== 'PAYMENT'">
+          <div class="detail-label">Expected due after approval</div>
+          <div class="detail-value" data-testid="bill-review-detail-due-after">₹{{ (selectedItem.expectedDueAfterApproval ?? 0) | number:'1.2-2' }}</div>
+        </div>
+      </div>
+
+      <div class="notes-block">
+        <div class="detail-label">Notes</div>
+        <textarea [(ngModel)]="notes" rows="3" [disabled]="!canDecide" placeholder="Enter review notes (required for rejection)." data-testid="bill-review-notes"></textarea>
+      </div>
+
+      <div class="attachments-block">
+        <div class="detail-label">Attachments</div>
+        <div *ngIf="selectedItem.attachments?.length; else noAttachments" class="attachments-list">
+          <a *ngFor="let attachment of selectedItem.attachments" [href]="attachment.url" target="_blank" rel="noopener noreferrer">
+            <span class="material-icons" aria-hidden="true">attach_file</span>
+            {{ attachment.name || attachment.id }}
+          </a>
+        </div>
+        <ng-template #noAttachments>
+          <div class="muted">No attachments uploaded.</div>
+        </ng-template>
       </div>
     </mat-card>
-  </ng-template>
-</div>
+
+    <ng-template #emptyDetail>
+      <mat-card class="detail-card empty-detail">
+        <div class="empty-state">
+          <span class="material-icons" aria-hidden="true">fact_check</span>
+          <div *ngIf="isDetailLoading">Loading review details…</div>
+          <div *ngIf="!isDetailLoading">Select a payment or note to review.</div>
+        </div>
+      </mat-card>
+    </ng-template>
+  </div>
 </div>

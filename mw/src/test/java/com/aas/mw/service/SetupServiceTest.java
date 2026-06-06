@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -265,6 +266,21 @@ class SetupServiceTest {
                 eq("System Settings"),
                 eq("System Settings"),
                 eq(Map.of("allow_login_using_user_name", 1)));
+    }
+
+    @Test
+    void ensureSetupSkipsDisabledItemsDuringMarginBackfill() {
+        when(erpNextClient.listResources(eq("Item"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of("name", "ACTIVE-ITEM", "aas_margin_percent", 0.0, "disabled", 0),
+                        Map.of("name", "DISABLED-ITEM", "aas_margin_percent", 0.0, "disabled", 1)))
+                .thenReturn(Collections.emptyList());
+
+        Map<String, Object> result = service.ensureSetup();
+
+        assertEquals(1, result.get("itemsMarginBackfilled"));
+        verify(erpNextClient).updateResource(eq("Item"), eq("ACTIVE-ITEM"), eq(Map.of("aas_margin_percent", 7.0)));
+        verify(erpNextClient, never()).updateResource(eq("Item"), eq("DISABLED-ITEM"), anyMap());
     }
 
     @Test

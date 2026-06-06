@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { BillReviewDetail, BillReviewListItem, ReviewDecisionRequest } from './bill-review.model';
+import { BillReviewDetail, BillReviewItemType, BillReviewListItem, ReviewDecisionRequest } from './bill-review.model';
 
 @Injectable({ providedIn: 'root' })
 export class BillReviewService {
@@ -19,7 +19,7 @@ export class BillReviewService {
     return this.http.get<{ pendingCount: number }>('/api/bill-review/count', { headers: this.authHeaders() });
   }
 
-  listPayments(status = 'UNDER_REVIEW', partyType = '') {
+  listItems(status = 'UNDER_REVIEW', partyType = '') {
     let params = new HttpParams();
     if (status.trim()) {
       params = params.set('status', status.trim());
@@ -27,20 +27,31 @@ export class BillReviewService {
     if (partyType.trim()) {
       params = params.set('partyType', partyType.trim());
     }
-    return this.http.get<BillReviewListItem[]>('/api/bill-review/payments', { headers: this.authHeaders(), params });
+    return this.http.get<BillReviewListItem[]>('/api/bill-review/items', { headers: this.authHeaders(), params });
   }
 
-  getDetail(paymentId: string) {
-    return this.http.get<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}`, { headers: this.authHeaders() });
+  getDetail(itemType: BillReviewItemType, documentId: string) {
+    return this.http.get<BillReviewDetail>(
+      `/api/bill-review/items/${encodeURIComponent(itemType)}/${encodeURIComponent(documentId)}`,
+      { headers: this.authHeaders() }
+    );
   }
 
-  approve(paymentId: string, payload: ReviewDecisionRequest) {
-    return this.http.put<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}/approve`, payload ?? {}, { headers: this.authHeaders() })
+  approve(itemType: BillReviewItemType, documentId: string, payload: ReviewDecisionRequest) {
+    return this.http.put<BillReviewDetail>(
+      `/api/bill-review/items/${encodeURIComponent(itemType)}/${encodeURIComponent(documentId)}/approve`,
+      payload ?? {},
+      { headers: this.authHeaders() }
+    )
       .pipe(tap(() => this.refreshSubject.next()));
   }
 
-  reject(paymentId: string, payload: ReviewDecisionRequest) {
-    return this.http.put<BillReviewDetail>(`/api/bill-review/payments/${encodeURIComponent(paymentId)}/reject`, payload ?? {}, { headers: this.authHeaders() })
+  reject(itemType: BillReviewItemType, documentId: string, payload: ReviewDecisionRequest) {
+    return this.http.put<BillReviewDetail>(
+      `/api/bill-review/items/${encodeURIComponent(itemType)}/${encodeURIComponent(documentId)}/reject`,
+      payload ?? {},
+      { headers: this.authHeaders() }
+    )
       .pipe(tap(() => this.refreshSubject.next()));
   }
 

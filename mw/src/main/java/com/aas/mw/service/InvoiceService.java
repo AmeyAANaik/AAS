@@ -302,7 +302,7 @@ public class InvoiceService {
                 "fields",
                 "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\","
                         + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\","
-                        + "\"is_opening\",\"po_no\",\"remarks\"]");
+                        + "\"is_opening\",\"po_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (partyId != null && !partyId.isBlank()) {
@@ -339,7 +339,7 @@ public class InvoiceService {
 
     private List<Map<String, Object>> listPurchaseInvoices(String supplier, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\"]");
+        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
         List<List<String>> filters = new ArrayList<>();
         if (supplier != null && !supplier.isBlank()) {

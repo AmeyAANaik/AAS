@@ -16,13 +16,17 @@ class BillReviewServiceTest {
 
     private ErpNextClient erpNextClient;
     private PaymentDueService paymentDueService;
+    private AdjustmentNoteErpService adjustmentNoteErpService;
     private BillReviewService billReviewService;
 
     @BeforeEach
     void setup() {
         erpNextClient = mock(ErpNextClient.class);
         paymentDueService = mock(PaymentDueService.class);
-        billReviewService = new BillReviewService(erpNextClient, paymentDueService);
+        adjustmentNoteErpService = mock(AdjustmentNoteErpService.class);
+        when(adjustmentNoteErpService.listNotesByStatus(org.mockito.Mockito.anyString(), org.mockito.Mockito.any()))
+                .thenReturn(List.of());
+        billReviewService = new BillReviewService(erpNextClient, paymentDueService, adjustmentNoteErpService);
     }
 
     @Test
@@ -66,7 +70,7 @@ class BillReviewServiceTest {
                 .thenReturn(Map.of("dueAmount", 100, "underReviewAmount", 10, "availableDueAmount", 90));
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> response = billReviewService.approve("PAY-1", "ok", "admin");
+        Map<String, Object> response = billReviewService.approve(BillReviewService.ITEM_TYPE_PAYMENT, "PAY-1", "ok", "admin");
         Map<String, Object> payment = (Map<String, Object>) response.get("payment");
 
         assertEquals("PAY-1", payment.get("name"));
@@ -88,7 +92,7 @@ class BillReviewServiceTest {
                 .thenReturn(List.of());
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> response = billReviewService.reject("PAY-2", "no", "admin");
+        Map<String, Object> response = billReviewService.reject(BillReviewService.ITEM_TYPE_PAYMENT, "PAY-2", "no", "admin");
         Map<String, Object> payment = (Map<String, Object>) response.get("payment");
 
         assertEquals("PAY-2", payment.get("name"));

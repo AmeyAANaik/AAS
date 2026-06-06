@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 public class PaymentDueService {
 
     private final ErpNextClient erpNextClient;
+    private final AdjustmentNoteErpService adjustmentNoteErpService;
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String FIELD_REVIEW_STATUS = "aas_payment_review_status";
     private static final String FIELD_CATEGORY = "aas_category";
@@ -19,8 +20,9 @@ public class PaymentDueService {
     private static final String INVOICE_VERSION_OLD = "OLD";
     private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
 
-    public PaymentDueService(ErpNextClient erpNextClient) {
+    public PaymentDueService(ErpNextClient erpNextClient, AdjustmentNoteErpService adjustmentNoteErpService) {
         this.erpNextClient = erpNextClient;
+        this.adjustmentNoteErpService = adjustmentNoteErpService;
     }
 
     public Map<String, Object> dueByCategory(String partyType, String partyId, String categoryId) {
@@ -39,6 +41,7 @@ public class PaymentDueService {
                 : dueByCategoryForCustomer(normalizedPartyId, normalizedCategoryId);
 
         BigDecimal underReviewAmount = underReviewAmount(normalizedPartyType, normalizedPartyId, normalizedCategoryId, null);
+        BigDecimal pendingAdjustmentAmount = adjustmentPendingAmount(normalizedPartyType, normalizedPartyId, normalizedCategoryId, null);
         BigDecimal availableDueAmount = selectedDue.subtract(underReviewAmount).max(BigDecimal.ZERO);
         Map<String, Object> response = new HashMap<>();
         response.put("partyType", normalizedPartyType);
@@ -46,6 +49,8 @@ public class PaymentDueService {
         response.put("categoryId", normalizedCategoryId);
         response.put("dueAmount", selectedDue);
         response.put("underReviewAmount", underReviewAmount);
+        response.put("pendingAdminApprovalAmount", underReviewAmount);
+        response.put("pendingAdjustmentAmount", pendingAdjustmentAmount);
         response.put("availableDueAmount", availableDueAmount);
         return response;
     }
@@ -78,7 +83,8 @@ public class PaymentDueService {
         }
         BigDecimal selectedDue = dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
         BigDecimal submittedPayments = submittedCategoryPayments("Customer", customerId, categoryId);
-        return selectedDue.subtract(submittedPayments).max(BigDecimal.ZERO);
+        BigDecimal approvedAdjustments = approvedAdjustmentImpact("Customer", customerId, categoryId);
+        return selectedDue.subtract(submittedPayments).add(approvedAdjustments).max(BigDecimal.ZERO);
     }
 
     private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {
@@ -119,7 +125,8 @@ public class PaymentDueService {
                 dueByCategory.merge(entry.getKey(), share, BigDecimal::add);
             }
         }
-        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
+        BigDecimal approvedAdjustments = approvedAdjustmentImpact("Supplier", supplierId, categoryId);
+        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO).add(approvedAdjustments).max(BigDecimal.ZERO);
     }
 
     private List<Map<String, Object>> fetchOpenPurchaseInvoices(String supplierId) {
@@ -340,6 +347,23 @@ public class PaymentDueService {
             if (message.contains("field not permitted in query")) {
                 return BigDecimal.ZERO;
             }
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal approvedAdjustmentImpact(String partyType, String partyId, String categoryId) {
+        try {
+            return adjustmentNoteErpService.approvedDueImpact(partyType, partyId, categoryId);
+        } catch (Exception ex) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+    private BigDecimal adjustmentPendingAmount(String partyType, String partyId, String categoryId, String excludeNoteId) {
+        try {
+            BigDecimal impact = adjustmentNoteErpService.pendingAmount(partyType, partyId, categoryId, excludeNoteId);
+            return impact.abs();
+        } catch (Exception ex) {
             return BigDecimal.ZERO;
         }
     }
