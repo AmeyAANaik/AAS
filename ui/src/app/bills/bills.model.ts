@@ -113,6 +113,12 @@ export interface PaymentDueSummary {
   availableDueAmount?: number;
 }
 
+export interface PaymentPrefillSelection {
+  partyType?: string;
+  partyId?: string;
+  categoryId?: string;
+}
+
 export interface OptionItem {
   id: string;
   name: string;

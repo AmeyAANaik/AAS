@@ -90,9 +90,19 @@
           <div class="detail-title">Review detail</div>
           <div class="detail-subtitle">{{ selectedLabel }} · {{ selectedDocumentId }}</div>
         </div>
-        <div class="detail-actions" *ngIf="canDecide">
+        <div class="detail-actions">
+          <a
+            *ngIf="canCaptureReceipt"
+            mat-stroked-button
+            color="primary"
+            routerLink="/bills"
+            [queryParams]="receiptQueryParams">
+            Capture receipt
+          </a>
+          <ng-container *ngIf="canDecide">
           <button mat-flat-button color="primary" type="button" (click)="approve()" [disabled]="isSaving" data-testid="bill-review-approve">Approve</button>
           <button mat-stroked-button color="warn" type="button" (click)="reject()" [disabled]="isSaving" data-testid="bill-review-reject">Reject</button>
+          </ng-container>
         </div>
       </div>
 

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { formatUiError } from '../shared/error-message.util';
@@ -24,7 +25,7 @@ type BillReviewPartyGroup = {
 @Component({
   selector: 'app-bill-review-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatIconModule, PageHeaderComponent],
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatIconModule, RouterLink, PageHeaderComponent],
   templateUrl: './bill-review-page.component.html',
   styleUrl: './bill-review-page.component.scss'
 })
@@ -175,6 +176,24 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
       return Number(value) || 0;
     }
     return Number(document['aas_adjustment_amount'] ?? 0) || 0;
+  }
+
+  get canCaptureReceipt(): boolean {
+    if (this.selectedItemType === 'PAYMENT') {
+      return false;
+    }
+    const partyType = String(this.document?.['aas_adjustment_party_type'] ?? '').trim().toLowerCase();
+    const categoryId = String(this.document?.['aas_category'] ?? '').trim();
+    const partyId = String(this.document?.['aas_adjustment_party'] ?? '').trim();
+    return partyType === 'customer' && !!partyId && !!categoryId;
+  }
+
+  get receiptQueryParams(): Record<string, string> {
+    return {
+      partyType: String(this.document?.['aas_adjustment_party_type'] ?? 'Customer').trim() || 'Customer',
+      partyId: String(this.document?.['aas_adjustment_party'] ?? '').trim(),
+      categoryId: String(this.document?.['aas_category'] ?? '').trim()
+    };
   }
 
   get groupedItems(): BillReviewPartyGroup[] {

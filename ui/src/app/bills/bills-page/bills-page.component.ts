@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { finalize } from 'rxjs/operators';
@@ -12,7 +13,7 @@ import { formatUiError } from '../../shared/error-message.util';
 import { VendorService } from '../../vendors/vendor.service';
 import { InvoiceDeliveryDialogComponent, InvoiceDeliveryDialogResult } from '../invoice-delivery-dialog/invoice-delivery-dialog.component';
 import { BillsService } from '../bills.service';
-import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem } from '../bills.model';
+import { InvoiceFilters, InvoiceOption, InvoiceSummary, InvoiceView, ItemOption, OptionItem, PaymentPrefillSelection } from '../bills.model';
 
 @Component({
   selector: 'app-bills-page',
@@ -40,6 +41,8 @@ export class BillsPageComponent implements OnInit {
   summary = { total: 0, paid: 0, open: 0, totalAmount: 0 };
   statusMessage = '';
   isLoading = false;
+  paymentPanelExpanded = false;
+  paymentPrefill: PaymentPrefillSelection | null = null;
   deletingInvoiceId = '';
   private actionFeedback = new Map<string, { tone: 'success' | 'error'; message: string }>();
 
@@ -52,6 +55,7 @@ export class BillsPageComponent implements OnInit {
     private orderService: OrderService,
     private vendorService: VendorService,
     private companyContextService: CompanyContextService,
+    private readonly route: ActivatedRoute,
     private readonly dialog: MatDialog
   ) {
     const today = new Date();
@@ -59,6 +63,18 @@ export class BillsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params => {
+      const partyType = String(params.get('partyType') ?? '').trim();
+      const partyId = String(params.get('partyId') ?? '').trim();
+      const categoryId = String(params.get('categoryId') ?? '').trim();
+      if (partyType && partyId && categoryId) {
+        this.paymentPrefill = { partyType, partyId, categoryId };
+        this.paymentPanelExpanded = true;
+        return;
+      }
+      this.paymentPrefill = null;
+      this.paymentPanelExpanded = false;
+    });
     this.loadCompanyContext();
     this.loadReferenceData();
     this.loadInvoices();

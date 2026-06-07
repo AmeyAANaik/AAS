@@ -4,7 +4,7 @@ import { finalize } from 'rxjs/operators';
 import { formatUiError } from '../../shared/error-message.util';
 import { AuthTokenService } from '../../shared/auth-token.service';
 import { BillsService } from '../bills.service';
-import { InvoiceOption, OptionItem, PaymentDueSummary, PaymentPayload } from '../bills.model';
+import { InvoiceOption, OptionItem, PaymentDueSummary, PaymentPayload, PaymentPrefillSelection } from '../bills.model';
 
 function formatApiDate(value: unknown): string | undefined {
   if (!value) {
@@ -31,6 +31,7 @@ export class PaymentFormComponent implements OnChanges {
   @Input() categories: OptionItem[] = [];
   @Input() invoices: InvoiceOption[] = [];
   @Input() defaultCompany = '';
+  @Input() initialSelection: PaymentPrefillSelection | null = null;
   @Output() created = new EventEmitter<void>();
 
   @ViewChild('paymentDetails') paymentDetails?: ElementRef<HTMLElement>;
@@ -57,6 +58,7 @@ export class PaymentFormComponent implements OnChanges {
   voucherFiles: File[] = [];
   readonly modeOfPaymentOptions = ['Cash', 'UPI Transfer', 'Cheque','RTGS','NEFT'];
   private lastDefaultCompany = '';
+  private lastAppliedSelectionKey = '';
 
   constructor(
     private fb: FormBuilder,
@@ -65,20 +67,30 @@ export class PaymentFormComponent implements OnChanges {
   ) {}
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['defaultCompany']) {
-      return;
+    if (changes['defaultCompany']) {
+      const nextDefault = String(changes['defaultCompany'].currentValue ?? '').trim();
+      const currentCompany = String(this.form.get('company')?.value ?? '').trim();
+      if (!currentCompany || currentCompany === this.lastDefaultCompany) {
+        this.form.patchValue({ company: nextDefault }, { emitEvent: false });
+      }
+      this.lastDefaultCompany = nextDefault;
     }
-    const nextDefault = String(changes['defaultCompany'].currentValue ?? '').trim();
-    const currentCompany = String(this.form.get('company')?.value ?? '').trim();
-    if (!currentCompany || currentCompany === this.lastDefaultCompany) {
-      this.form.patchValue({ company: nextDefault }, { emitEvent: false });
-    }
-    this.lastDefaultCompany = nextDefault;
+    this.applyInitialSelectionIfReady();
   }
 
   get canRecordPayments(): boolean {
     const role = String(this.tokenStore.getRole() ?? '').trim().toLowerCase();
     return role === 'admin' || role === 'administrator' || role === 'helper';
+  }
+
+  get recordActionLabel(): string {
+    return this.isSupplierMode ? 'Record payment' : 'Record receipt';
+  }
+
+  get recordSubtitle(): string {
+    return this.isSupplierMode
+      ? 'Capture outgoing payments for vendor dues and approved adjustments.'
+      : 'Capture incoming receipts after invoices and approved credit/debit notes.';
   }
 
   get partyLabel(): string {
@@ -378,6 +390,43 @@ export class PaymentFormComponent implements OnChanges {
     const customerId = String(this.form.get('customer')?.value ?? '').trim();
     const company = this.customers.find(customer => customer.id === customerId)?.company?.trim() || this.defaultCompany;
     this.form.patchValue({ company }, { emitEvent: false });
+  }
+
+  private applyInitialSelectionIfReady(): void {
+    const selection = this.initialSelection;
+    if (!selection) {
+      return;
+    }
+    const partyType = String(selection.partyType ?? '').trim();
+    const partyId = String(selection.partyId ?? '').trim();
+    const categoryId = String(selection.categoryId ?? '').trim();
+    if (!partyType || !partyId || !categoryId) {
+      return;
+    }
+    const normalizedPartyType = partyType.toLowerCase() === 'supplier' ? 'Supplier' : 'Customer';
+    const partyOptions = normalizedPartyType === 'Supplier' ? this.vendors : this.customers;
+    if (!partyOptions.some(option => option.id === partyId) || !this.categories.some(category => category.id === categoryId)) {
+      return;
+    }
+    const selectionKey = `${normalizedPartyType}::${partyId}::${categoryId}`;
+    if (selectionKey === this.lastAppliedSelectionKey) {
+      return;
+    }
+    this.lastAppliedSelectionKey = selectionKey;
+    this.form.patchValue(
+      {
+        partyType: normalizedPartyType,
+        customer: partyId,
+        categoryId
+      },
+      { emitEvent: false }
+    );
+    if (normalizedPartyType === 'Customer') {
+      this.syncCompanyFromCustomer();
+    } else {
+      this.form.patchValue({ company: this.defaultCompany }, { emitEvent: false });
+    }
+    this.onCategoryChange();
   }
 
   private formatError(err: unknown, fallback: string): string {

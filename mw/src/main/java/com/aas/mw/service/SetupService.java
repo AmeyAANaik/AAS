@@ -1052,6 +1052,7 @@ public class SetupService {
         MarginBackfillResult salesOrderBackfill = backfillSalesOrdersAndItems();
         result.put("salesOrdersMarginBackfilled", salesOrderBackfill.documentCount());
         result.put("salesOrderItemsMarginBackfilled", salesOrderBackfill.itemCount());
+        result.put("salesOrdersMarginBackfillSkipped", salesOrderBackfill.skippedCount());
         result.put("itemsMarginBackfilled", backfillMarginPercent("Item", "aas_margin_percent"));
         result.putAll(ensureDefaultUsers());
         return result;
@@ -1076,6 +1077,7 @@ public class SetupService {
     private MarginBackfillResult backfillSalesOrdersAndItems() {
         int ordersUpdated = 0;
         int itemsUpdated = 0;
+        int skipped = 0;
         int start = 0;
         final int pageSize = 200;
         while (true) {
@@ -1120,18 +1122,22 @@ public class SetupService {
                 if (changedItemsForOrder > 0) {
                     payload.put("items", updatedItems);
                 }
-                erpNextClient.updateResource("Sales Order", name, payload);
-                if (documentChanged) {
-                    ordersUpdated++;
+                try {
+                    erpNextClient.updateResource("Sales Order", name, payload);
+                    if (documentChanged) {
+                        ordersUpdated++;
+                    }
+                    itemsUpdated += changedItemsForOrder;
+                } catch (Exception ignored) {
+                    skipped++;
                 }
-                itemsUpdated += changedItemsForOrder;
             }
             if (rows.size() < pageSize) {
                 break;
             }
             start += pageSize;
         }
-        return new MarginBackfillResult(ordersUpdated, itemsUpdated);
+        return new MarginBackfillResult(ordersUpdated, itemsUpdated, skipped);
     }
 
     private int backfillMarginPercent(String doctype, String fieldname) {
@@ -1258,7 +1264,7 @@ public class SetupService {
         return resource;
     }
 
-    private record MarginBackfillResult(int documentCount, int itemCount) {
+    private record MarginBackfillResult(int documentCount, int itemCount, int skippedCount) {
     }
 
     private boolean ensureSupplierGroupRoot() {

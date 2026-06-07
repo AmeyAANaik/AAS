@@ -1,8 +1,8 @@
 <mat-card class="payment-card">
   <div class="card-header">
     <div>
-      <div class="card-title">Record payment</div>
-      <div class="card-subtitle">Capture incoming receipts against invoices.</div>
+      <div class="card-title">{{ recordActionLabel }}</div>
+      <div class="card-subtitle">{{ recordSubtitle }}</div>
     </div>
   </div>
   <mat-divider></mat-divider>
@@ -99,12 +99,12 @@
               <div class="voucher-label">Upload voucher</div>
               <input type="file" multiple accept="image/*,application/pdf" (change)="onVoucherFilesSelected($event)" [disabled]="!hasLoadedDue || !canRecordPayments" />
               <div class="voucher-hint" *ngIf="voucherFiles.length">{{ voucherFiles.length }} file(s) selected</div>
-              <div class="voucher-error" *ngIf="hasLoadedDue && !voucherFiles.length">Evidence is required to record the payment.</div>
+              <div class="voucher-error" *ngIf="hasLoadedDue && !voucherFiles.length">Evidence is required to {{ recordActionLabel.toLowerCase() }}.</div>
             </div>
           </div>
 
           <div class="actions">
-            <button mat-flat-button color="primary" (click)="submit()" [disabled]="isSubmitting || !hasLoadedDue || !canRecordPayments || form.invalid || !voucherFiles.length">Record payment</button>
+            <button mat-flat-button color="primary" (click)="submit()" [disabled]="isSubmitting || !hasLoadedDue || !canRecordPayments || form.invalid || !voucherFiles.length">{{ recordActionLabel }}</button>
             <button mat-stroked-button color="primary" (click)="reset()" [disabled]="isSubmitting">Clear</button>
             <span class="status" *ngIf="statusMessage">{{ statusMessage }}</span>
           </div>

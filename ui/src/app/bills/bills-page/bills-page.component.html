@@ -194,16 +194,17 @@
       </app-adjustment-note-form>
     </mat-expansion-panel>
 
-    <mat-expansion-panel>
+    <mat-expansion-panel [expanded]="paymentPanelExpanded">
       <mat-expansion-panel-header>
-        <mat-panel-title>Record payment</mat-panel-title>
-        <mat-panel-description>Customer receipts</mat-panel-description>
+        <mat-panel-title>Record payment / receipt</mat-panel-title>
+        <mat-panel-description>Customer receipts and vendor payments</mat-panel-description>
       </mat-expansion-panel-header>
       <app-payment-form
         [customers]="customers"
         [vendors]="vendors"
         [categories]="categories"
         [invoices]="invoiceOptions"
+        [initialSelection]="paymentPrefill"
         [defaultCompany]="currentCompanyId"
         (created)="onPaymentCreated()">
       </app-payment-form>
