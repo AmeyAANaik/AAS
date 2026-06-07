@@ -15,28 +15,36 @@ describe('ReportsPlaceholderComponent', () => {
       label: 'Branchwise Sales & Profit',
       description: 'Sales, cost, and profit totals grouped by branch for a date range.',
       path: 'company/branch-sales-profit',
-      supportsExport: true
+      supportsExport: true,
+      supportedCompareBy: ['none', 'wow', 'mom', 'qoq'],
+      defaultCompareBy: 'none'
     },
     {
       id: 'overall-sales-profit',
       label: 'Company Overall Sales & Profit',
       description: 'Overall sales, cost, and profit totals across all branches for a date range.',
       path: 'company/overall-sales-profit',
-      supportsExport: true
+      supportsExport: true,
+      supportedCompareBy: ['none', 'wow', 'mom', 'qoq'],
+      defaultCompareBy: 'none'
     },
     {
       id: 'supplier-expenses',
       label: 'Supplier Expenses',
       description: 'Expenses grouped by supplier for a date range.',
       path: 'company/supplier-expenses',
-      supportsExport: true
+      supportsExport: true,
+      supportedCompareBy: ['none', 'wow', 'mom', 'qoq'],
+      defaultCompareBy: 'none'
     },
     {
       id: 'branch-income',
       label: 'Branch Income',
       description: 'Income grouped by branch for a date range.',
       path: 'company/branch-income',
-      supportsExport: true
+      supportsExport: true,
+      supportedCompareBy: ['none', 'wow', 'mom', 'qoq'],
+      defaultCompareBy: 'none'
     }
   ];
 
@@ -79,7 +87,22 @@ describe('ReportsPlaceholderComponent', () => {
     expect(reportsService.runReport).toHaveBeenCalled();
     const args = reportsService.runReport.calls.mostRecent().args;
     expect(args[0]).toBe('company/branch-sales-profit');
-    expect(args[1]).toEqual({ from: '2026-04-01', to: '2026-04-10', groupBy: undefined });
+    expect(args[1]).toEqual({ from: '2026-04-01', to: '2026-04-10', groupBy: undefined, compareBy: 'none' });
+  });
+
+  it('passes compareBy when selected by the user', () => {
+    component.reportForm.patchValue({
+      from: new Date('2026-04-01T00:00:00'),
+      to: new Date('2026-04-10T00:00:00'),
+      compareBy: 'mom'
+    });
+    component.selectReport(catalog[0]);
+    fixture.detectChanges();
+
+    component.run();
+
+    const args = reportsService.runReport.calls.mostRecent().args;
+    expect(args[1]).toEqual({ from: '2026-04-01', to: '2026-04-10', groupBy: undefined, compareBy: 'mom' });
   });
 
   it('shows a negative indicator for profit columns', () => {

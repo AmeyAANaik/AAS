@@ -39,9 +39,16 @@
         <mat-form-field appearance="outline" *ngIf="supportsGroupBy()">
           <mat-label>Group by</mat-label>
           <mat-select formControlName="groupBy">
-            <mat-option value="day">Day</mat-option>
-            <mat-option value="week">Week</mat-option>
-            <mat-option value="month">Month</mat-option>
+            <mat-option *ngFor="let option of groupByOptions()" [value]="option">{{ formatHeader(option) }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="supportsCompareBy()">
+          <mat-label>Compare by</mat-label>
+          <mat-select formControlName="compareBy">
+            <mat-option *ngFor="let option of compareByOptions()" [value]="option">
+              {{ option === 'none' ? 'None' : option.toUpperCase() }}
+            </mat-option>
           </mat-select>
         </mat-form-field>
 

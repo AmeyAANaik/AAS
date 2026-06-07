@@ -7,6 +7,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -127,5 +128,42 @@ class BillReviewServiceTest {
         assertEquals(1, branches.size());
         assertEquals("Sanshray Foods", vendors.get(0).get("partyName"));
         assertEquals("Sukarta Aundh", branches.get(0).get("partyName"));
+    }
+
+    @Test
+    void approvalBlocksCreditNoteAboveAvailableDue() {
+        when(adjustmentNoteErpService.getNote("NOTE-1"))
+                .thenReturn(Map.ofEntries(
+                        Map.entry("doctype", "Journal Entry"),
+                        Map.entry("name", "NOTE-1"),
+                        Map.entry("docstatus", 0),
+                        Map.entry("posting_date", "2026-06-07"),
+                        Map.entry("aas_adjustment_review_status", "UNDER_REVIEW"),
+                        Map.entry("aas_adjustment_party_type", "Customer"),
+                        Map.entry("aas_adjustment_party", "BRANCH-1"),
+                        Map.entry("aas_category", "Grocery"),
+                        Map.entry("aas_adjustment_direction", "GIVE"),
+                        Map.entry("aas_adjustment_amount", 200000.0),
+                        Map.entry("aas_due_amount", 118422.0)));
+        when(adjustmentNoteErpService.listNoteAttachments("NOTE-1"))
+                .thenReturn(List.of(Map.of("name", "FILE-1")));
+        when(adjustmentNoteErpService.asInt(org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
+        when(adjustmentNoteErpService.asText(org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
+        when(adjustmentNoteErpService.asDecimal(org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
+        when(adjustmentNoteErpService.normalizePartyType(org.mockito.ArgumentMatchers.anyString())).thenCallRealMethod();
+        when(adjustmentNoteErpService.normalizeDirection(org.mockito.ArgumentMatchers.any())).thenCallRealMethod();
+        when(adjustmentNoteErpService.signedImpact(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenCallRealMethod();
+        when(paymentDueService.dueByCategory("Customer", "BRANCH-1", "Grocery"))
+                .thenReturn(Map.of(
+                        "dueAmount", new java.math.BigDecimal("118422.00"),
+                        "availableDueAmount", new java.math.BigDecimal("118422.00"),
+                        "pendingAdjustmentAmount", java.math.BigDecimal.ZERO));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> billReviewService.approve(BillReviewService.ITEM_TYPE_CREDIT_NOTE, "NOTE-1", "ok", "admin"));
+
+        assertEquals("Adjustment amount exceeds available due for this category.", ex.getMessage());
+        verify(erpNextClient, never()).submitDoc(org.mockito.Mockito.anyMap());
     }
 }

@@ -65,7 +65,8 @@ export class ReportsPlaceholderComponent {
   reportForm = new FormGroup({
     from: new FormControl<Date | null>(null),
     to: new FormControl<Date | null>(null),
-    groupBy: new FormControl<string>('day')
+    groupBy: new FormControl<string>('day'),
+    compareBy: new FormControl<string>('none')
   });
 
   constructor(private reportsService: ReportsService) {
@@ -100,6 +101,19 @@ export class ReportsPlaceholderComponent {
     return Array.isArray(supported) && supported.length > 0;
   }
 
+  supportsCompareBy(): boolean {
+    const supported = this.selectedReport?.supportedCompareBy ?? [];
+    return Array.isArray(supported) && supported.length > 0;
+  }
+
+  groupByOptions(): string[] {
+    return this.selectedReport?.supportedGroupBy ?? [];
+  }
+
+  compareByOptions(): string[] {
+    return this.selectedReport?.supportedCompareBy ?? [];
+  }
+
   run(): void {
     if (!this.selectedReport) {
       this.status = 'Select a report.';
@@ -108,6 +122,7 @@ export class ReportsPlaceholderComponent {
     const from = this.reportForm.get('from')?.value ?? null;
     const to = this.reportForm.get('to')?.value ?? null;
     const groupBy = this.supportsGroupBy() ? (this.reportForm.get('groupBy')?.value ?? 'day') : undefined;
+    const compareBy = this.supportsCompareBy() ? (this.reportForm.get('compareBy')?.value ?? 'none') : undefined;
     if (!this.isValidDateRange(from, to)) {
       this.status = 'From date must be on or before To date.';
       return;
@@ -119,7 +134,8 @@ export class ReportsPlaceholderComponent {
       .runReport(this.selectedReport.path, {
         from: this.formatDate(from),
         to: this.formatDate(to),
-        groupBy: groupBy ? String(groupBy) : undefined
+        groupBy: groupBy ? String(groupBy) : undefined,
+        compareBy: compareBy ? String(compareBy) : undefined
       })
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
@@ -145,6 +161,7 @@ export class ReportsPlaceholderComponent {
     const from = this.reportForm.get('from')?.value ?? null;
     const to = this.reportForm.get('to')?.value ?? null;
     const groupBy = this.supportsGroupBy() ? (this.reportForm.get('groupBy')?.value ?? 'day') : undefined;
+    const compareBy = this.supportsCompareBy() ? (this.reportForm.get('compareBy')?.value ?? 'none') : undefined;
     if (!this.isValidDateRange(from, to)) {
       this.status = 'From date must be on or before To date.';
       return;
@@ -155,7 +172,8 @@ export class ReportsPlaceholderComponent {
       .exportReport(this.selectedReport.path, {
         from: this.formatDate(from),
         to: this.formatDate(to),
-        groupBy: groupBy ? String(groupBy) : undefined
+        groupBy: groupBy ? String(groupBy) : undefined,
+        compareBy: compareBy ? String(compareBy) : undefined
       })
       .subscribe({
         next: blob => {
@@ -196,6 +214,9 @@ export class ReportsPlaceholderComponent {
     const text = this.formatCell(value);
     if (text === '-' || text === '') {
       return text;
+    }
+    if (column === 'compare_by') {
+      return text.toUpperCase();
     }
     return column === 'share_pct' ? `${text}%` : text;
   }
@@ -268,7 +289,8 @@ export class ReportsPlaceholderComponent {
     this.reportForm.reset({
       from: this.firstDayOfMonth(now),
       to: now,
-      groupBy: 'day'
+      groupBy: 'day',
+      compareBy: 'none'
     });
   }
 
@@ -336,12 +358,20 @@ export class ReportsPlaceholderComponent {
   private applyGroupByDefaults(): void {
     if (!this.supportsGroupBy()) {
       this.reportForm.patchValue({ groupBy: 'day' }, { emitEvent: false });
+    } else {
+      const supported = this.selectedReport?.supportedGroupBy ?? [];
+      const preferred = String(this.selectedReport?.defaultGroupBy ?? '').trim().toLowerCase() || 'day';
+      const next = supported.includes(preferred) ? preferred : supported[0] ?? 'day';
+      this.reportForm.patchValue({ groupBy: next }, { emitEvent: false });
+    }
+    if (!this.supportsCompareBy()) {
+      this.reportForm.patchValue({ compareBy: 'none' }, { emitEvent: false });
       return;
     }
-    const supported = this.selectedReport?.supportedGroupBy ?? [];
-    const preferred = String(this.selectedReport?.defaultGroupBy ?? '').trim().toLowerCase() || 'day';
-    const next = supported.includes(preferred) ? preferred : supported[0] ?? 'day';
-    this.reportForm.patchValue({ groupBy: next }, { emitEvent: false });
+    const supportedCompareBy = this.selectedReport?.supportedCompareBy ?? [];
+    const preferredCompareBy = String(this.selectedReport?.defaultCompareBy ?? '').trim().toLowerCase() || 'none';
+    const nextCompareBy = supportedCompareBy.includes(preferredCompareBy) ? preferredCompareBy : supportedCompareBy[0] ?? 'none';
+    this.reportForm.patchValue({ compareBy: nextCompareBy }, { emitEvent: false });
   }
 
   private asNumber(value: unknown): number {
@@ -505,7 +535,7 @@ export class ReportsPlaceholderComponent {
         }
         continue;
       }
-      if (column.endsWith('_percent')) {
+      if (column.endsWith('_percent') || column.endsWith('_pct') || column.startsWith('change_pct_')) {
         totals[column] = '';
         continue;
       }

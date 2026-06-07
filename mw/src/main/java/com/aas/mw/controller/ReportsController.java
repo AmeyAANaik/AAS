@@ -30,53 +30,69 @@ public class ReportsController {
                         "branch-sales-profit",
                         "Branchwise Sales & Profit",
                         "Sales, cost, and profit totals grouped by branch for a date range.",
-                        "company/branch-sales-profit"),
+                        "company/branch-sales-profit",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItem(
                         "overall-sales-profit",
                         "Company Overall Sales & Profit",
                         "Overall sales, cost, and profit totals across all branches for a date range.",
-                        "company/overall-sales-profit"),
+                        "company/overall-sales-profit",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItemWithGroupBy(
                         "sales-profit-trend",
                         "Sales & Profit Trend",
                         "Sales, cost, and profit totals grouped by day/week/month for a date range.",
                         "company/sales-profit-trend",
-                        List.of("day", "week", "month"),
-                        "day"),
+                        List.of("day", "week", "month", "quarter"),
+                        "day",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItem(
                         "item-price-trend",
                         "Item Price Changes",
                         "All items with their previous vs current sell price, sorted by biggest movers first.",
-                        "item-price-trend"),
+                        "item-price-trend",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItem(
                         "item-price-funnel",
                         "Item Price Funnel",
                         "Distribution of items across selling price bands based on latest item prices in the selected date range.",
-                        "item-price-funnel"),
+                        "item-price-funnel",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItem(
                         "supplier-expenses",
                         "Supplier Expenses",
                         "Expenses grouped by supplier for a date range.",
-                        "company/supplier-expenses"),
+                        "company/supplier-expenses",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none"),
                 catalogItem(
                         "branch-income",
                         "Branch Income",
                         "Income grouped by branch for a date range.",
-                        "company/branch-income")));
+                        "company/branch-income",
+                        List.of("none", "wow", "mom", "qoq"),
+                        "none")));
     }
 
     @GetMapping("/item-price-trend")
     public ResponseEntity<List<Map<String, Object>>> itemPriceTrend(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.itemPriceTrend(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.itemPriceTrend(from, to, compareBy));
     }
 
     @GetMapping("/item-price-trend/export")
     public ResponseEntity<String> itemPriceTrendExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.itemPriceTrend(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.itemPriceTrend(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"item-price-trend.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -86,15 +102,17 @@ public class ReportsController {
     @GetMapping("/item-price-funnel")
     public ResponseEntity<List<Map<String, Object>>> itemPriceFunnel(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.itemPriceFunnel(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.itemPriceFunnel(from, to, compareBy));
     }
 
     @GetMapping("/item-price-funnel/export")
     public ResponseEntity<String> itemPriceFunnelExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.itemPriceFunnel(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.itemPriceFunnel(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"item-price-funnel.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -104,15 +122,17 @@ public class ReportsController {
     @GetMapping("/company/branch-sales-profit")
     public ResponseEntity<List<Map<String, Object>>> companyBranchSalesProfit(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.companyBranchSalesProfit(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.companyBranchSalesProfit(from, to, compareBy));
     }
 
     @GetMapping("/company/branch-sales-profit/export")
     public ResponseEntity<String> companyBranchSalesProfitExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.companyBranchSalesProfit(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.companyBranchSalesProfit(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-sales-profit.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -122,15 +142,17 @@ public class ReportsController {
     @GetMapping("/company/overall-sales-profit")
     public ResponseEntity<List<Map<String, Object>>> companyOverallSalesProfit(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.companyOverallSalesProfit(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.companyOverallSalesProfit(from, to, compareBy));
     }
 
     @GetMapping("/company/overall-sales-profit/export")
     public ResponseEntity<String> companyOverallSalesProfitExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.companyOverallSalesProfit(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.companyOverallSalesProfit(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"overall-sales-profit.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -140,15 +162,17 @@ public class ReportsController {
     @GetMapping("/company/supplier-expenses")
     public ResponseEntity<List<Map<String, Object>>> companySupplierExpenses(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.companySupplierExpenses(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.companySupplierExpenses(from, to, compareBy));
     }
 
     @GetMapping("/company/supplier-expenses/export")
     public ResponseEntity<String> companySupplierExpensesExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.companySupplierExpenses(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.companySupplierExpenses(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"supplier-expenses.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -158,15 +182,17 @@ public class ReportsController {
     @GetMapping("/company/branch-income")
     public ResponseEntity<List<Map<String, Object>>> companyBranchIncome(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        return ResponseEntity.ok(reportService.companyBranchIncome(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.companyBranchIncome(from, to, compareBy));
     }
 
     @GetMapping("/company/branch-income/export")
     public ResponseEntity<String> companyBranchIncomeExport(
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
-        String csv = CsvUtil.toCsv(reportService.companyBranchIncome(from, to));
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.companyBranchIncome(from, to, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-income.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -177,16 +203,18 @@ public class ReportsController {
     public ResponseEntity<List<Map<String, Object>>> companySalesProfitTrend(
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(required = false) String groupBy) {
-        return ResponseEntity.ok(reportService.companySalesProfitTrend(from, to, groupBy));
+            @RequestParam(required = false) String groupBy,
+            @RequestParam(required = false) String compareBy) {
+        return ResponseEntity.ok(reportService.companySalesProfitTrend(from, to, groupBy, compareBy));
     }
 
     @GetMapping("/company/sales-profit-trend/export")
     public ResponseEntity<String> companySalesProfitTrendExport(
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(required = false) String groupBy) {
-        String csv = CsvUtil.toCsv(reportService.companySalesProfitTrend(from, to, groupBy));
+            @RequestParam(required = false) String groupBy,
+            @RequestParam(required = false) String compareBy) {
+        String csv = CsvUtil.toCsv(reportService.companySalesProfitTrend(from, to, groupBy, compareBy));
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"sales-profit-trend.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
@@ -314,16 +342,35 @@ public class ReportsController {
                 "supportsExport", true);
     }
 
+    private static Map<String, Object> catalogItem(
+            String id,
+            String label,
+            String description,
+            String path,
+            List<String> supportedCompareBy,
+            String defaultCompareBy) {
+        Objects.requireNonNull(supportedCompareBy, "supportedCompareBy");
+        Objects.requireNonNull(defaultCompareBy, "defaultCompareBy");
+        Map<String, Object> base = new java.util.LinkedHashMap<>(catalogItem(id, label, description, path));
+        base.put("supportedCompareBy", supportedCompareBy);
+        base.put("defaultCompareBy", defaultCompareBy);
+        return Map.copyOf(base);
+    }
+
     private static Map<String, Object> catalogItemWithGroupBy(
             String id,
             String label,
             String description,
             String path,
             List<String> supportedGroupBy,
-            String defaultGroupBy) {
+            String defaultGroupBy,
+            List<String> supportedCompareBy,
+            String defaultCompareBy) {
         Objects.requireNonNull(supportedGroupBy, "supportedGroupBy");
         Objects.requireNonNull(defaultGroupBy, "defaultGroupBy");
-        Map<String, Object> base = new java.util.LinkedHashMap<>(catalogItem(id, label, description, path));
+        Objects.requireNonNull(supportedCompareBy, "supportedCompareBy");
+        Objects.requireNonNull(defaultCompareBy, "defaultCompareBy");
+        Map<String, Object> base = new java.util.LinkedHashMap<>(catalogItem(id, label, description, path, supportedCompareBy, defaultCompareBy));
         base.put("supportedGroupBy", supportedGroupBy);
         base.put("defaultGroupBy", defaultGroupBy);
         return Map.copyOf(base);

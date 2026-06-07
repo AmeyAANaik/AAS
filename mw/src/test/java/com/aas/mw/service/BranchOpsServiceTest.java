@@ -4,6 +4,7 @@ import com.aas.mw.client.ErpNextClient;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -19,9 +21,54 @@ class BranchOpsServiceTest {
 
     @Mock
     private ErpNextClient erpNextClient;
+    @Mock
+    private AdjustmentNoteErpService adjustmentNoteErpService;
 
     @InjectMocks
     private BranchOpsService branchOpsService;
+
+    @BeforeEach
+    void setup() {
+        lenient().when(erpNextClient.listResources(eq("Journal Entry"), anyMap())).thenReturn(List.of());
+        lenient().when(adjustmentNoteErpService.signedImpact(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    String direction = String.valueOf((Object) invocation.getArgument(1));
+                    Object rawAmount = invocation.getArgument(2);
+                    java.math.BigDecimal amount;
+                    if (rawAmount instanceof java.math.BigDecimal bigDecimal) {
+                        amount = bigDecimal;
+                    } else if (rawAmount instanceof Number number) {
+                        amount = java.math.BigDecimal.valueOf(number.doubleValue());
+                    } else if (rawAmount == null) {
+                        amount = java.math.BigDecimal.ZERO;
+                    } else {
+                        amount = new java.math.BigDecimal(String.valueOf(rawAmount));
+                    }
+                    if ("TAKE".equalsIgnoreCase(direction)) {
+                        return amount;
+                    }
+                    return amount.negate();
+                });
+        lenient().when(adjustmentNoteErpService.normalizeDirection(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    String value = String.valueOf((Object) invocation.getArgument(0));
+                    return "TAKE".equalsIgnoreCase(value) ? "TAKE" : "GIVE";
+                });
+        lenient().when(adjustmentNoteErpService.asDecimal(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    Object rawValue = invocation.getArgument(0);
+                    if (rawValue instanceof java.math.BigDecimal bigDecimal) {
+                        return bigDecimal;
+                    }
+                    if (rawValue instanceof Number number) {
+                        return java.math.BigDecimal.valueOf(number.doubleValue());
+                    }
+                    if (rawValue == null) {
+                        return java.math.BigDecimal.ZERO;
+                    }
+                    return new java.math.BigDecimal(String.valueOf(rawValue));
+                });
+    }
 
     @Test
     void getBranchLedgerIncludesDraftInvoicesButOnlySubmittedPayments() {
@@ -319,6 +366,64 @@ class BranchOpsServiceTest {
                 .containsEntry("voucherNo", "ACC-SINV-2026-00023")
                 .containsEntry("debit", 148791.0)
                 .containsEntry("runningBalance", 148791.0);
+    }
+
+    @Test
+    void getBranchLedgerIncludesApprovedCreditNotesAndReducesBalance() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukarta Aundh")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-07",
+                        "grand_total", 118422.0,
+                        "outstanding_amount", 118422.0,
+                        "docstatus", 1)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00033"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-07",
+                        "grand_total", 118422.0,
+                        "outstanding_amount", 118422.0,
+                        "docstatus", 1,
+                        "aas_category", "Grocery",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-1",
+                                "item_group", "Grocery",
+                                "amount", 118422.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap())).thenReturn(List.of());
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(Map.ofEntries(
+                        Map.entry("name", "ACC-JV-2026-00001"),
+                        Map.entry("posting_date", "2026-06-07"),
+                        Map.entry("docstatus", 1),
+                        Map.entry("modified", "2026-06-07 17:30:00"),
+                        Map.entry("aas_adjustment_party", "BRANCH-1"),
+                        Map.entry("aas_adjustment_party_type", "Customer"),
+                        Map.entry("aas_category", "Grocery"),
+                        Map.entry("aas_adjustment_direction", "GIVE"),
+                        Map.entry("aas_adjustment_amount", 10000.0),
+                        Map.entry("aas_adjustment_reason", "Credit note"),
+                        Map.entry("aas_reference_invoice", "ACC-SINV-2026-00033"),
+                        Map.entry("aas_adjustment_review_status", "APPROVED"))));
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherType"))
+                .containsExactly("Sales Invoice", "Credit Note");
+        assertThat(entries.get(1))
+                .containsEntry("credit", 10000.0)
+                .containsEntry("runningBalance", 108422.0);
+        assertThat(response.get("balance")).isEqualTo(108422.0);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 108422.0));
     }
 
     @Test

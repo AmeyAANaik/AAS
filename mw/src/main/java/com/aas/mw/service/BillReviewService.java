@@ -261,6 +261,7 @@ public class BillReviewService {
         }
 
         Map<String, Object> warningPayload = computeAdjustmentDueWarning(note, id);
+        enforceAdjustmentApprovalLimit(note, warningPayload);
         String actor = safeActor(reviewedBy);
         Map<String, Object> update = new HashMap<>();
         update.put(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, STATUS_APPROVED);
@@ -293,6 +294,19 @@ public class BillReviewService {
         detail.put("expectedDueAfterApproval", warningPayload.getOrDefault("expectedDueAfterApproval", BigDecimal.ZERO));
         detail.put("signedImpact", warningPayload.getOrDefault("signedImpact", BigDecimal.ZERO));
         return detail;
+    }
+
+    private void enforceAdjustmentApprovalLimit(Map<String, Object> note, Map<String, Object> warningPayload) {
+        String partyType = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_PARTY_TYPE));
+        String direction = adjustmentNoteErpService.asText(note.get(AdjustmentNoteErpService.FIELD_DIRECTION));
+        if (!reducesDue(partyType, direction)) {
+            return;
+        }
+        BigDecimal amount = adjustmentNoteErpService.asDecimal(note.get(AdjustmentNoteErpService.FIELD_AMOUNT));
+        BigDecimal available = adjustmentNoteErpService.asDecimal(warningPayload.get("currentAvailableReducibleDue"));
+        if (amount.compareTo(available.max(BigDecimal.ZERO)) > 0) {
+            throw new IllegalArgumentException("Adjustment amount exceeds available due for this category.");
+        }
     }
 
     private Map<String, Object> rejectAdjustmentNote(String noteId, String notes, String reviewedBy) {
@@ -370,10 +384,15 @@ public class BillReviewService {
                     "signedImpact", signedImpact);
         }
         BigDecimal currentDue = recordedDue;
+        BigDecimal currentAvailableReducibleDue = recordedDue;
         List<Map<String, Object>> warnings = new ArrayList<>();
         try {
             Map<String, Object> due = paymentDueService.dueByCategory(partyType, partyId, categoryId);
             currentDue = adjustmentNoteErpService.asDecimal(due.get("dueAmount"));
+            BigDecimal availableDueAmount = adjustmentNoteErpService.asDecimal(due.get("availableDueAmount"));
+            BigDecimal pendingAdjustmentAmount = adjustmentNoteErpService.asDecimal(due.get("pendingAdjustmentAmount"));
+            BigDecimal pendingExcludingSelf = pendingAdjustmentAmount.subtract(signedImpact);
+            currentAvailableReducibleDue = availableDueAmount.add(minZero(pendingExcludingSelf)).max(BigDecimal.ZERO);
             if (currentDue.compareTo(recordedDue) != 0) {
                 warnings.add(Map.of(
                         "code", "DUE_CHANGED",
@@ -385,8 +404,24 @@ public class BillReviewService {
         return Map.of(
                 "warnings", warnings,
                 "currentDueAmount", currentDue,
+                "currentAvailableReducibleDue", currentAvailableReducibleDue,
                 "expectedDueAfterApproval", currentDue.add(signedImpact),
                 "signedImpact", signedImpact);
+    }
+
+    private boolean reducesDue(String partyType, String direction) {
+        String normalizedPartyType = adjustmentNoteErpService.normalizePartyType(partyType);
+        String normalizedDirection = adjustmentNoteErpService.normalizeDirection(direction);
+        return AdjustmentNoteErpService.PARTY_SUPPLIER.equals(normalizedPartyType)
+                ? AdjustmentNoteErpService.DIRECTION_TAKE.equals(normalizedDirection)
+                : AdjustmentNoteErpService.DIRECTION_GIVE.equals(normalizedDirection);
+    }
+
+    private BigDecimal minZero(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) >= 0) {
+            return BigDecimal.ZERO;
+        }
+        return value;
     }
 
     private Map<String, Object> toPaymentListRow(Map<String, Object> row, Map<String, String> partyNames) {

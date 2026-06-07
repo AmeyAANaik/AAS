@@ -11,6 +11,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -151,7 +153,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> itemPriceTrend(String from, String to) {
+        return itemPriceTrend(from, to, null);
+    }
+
+    public List<Map<String, Object>> itemPriceTrend(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                itemPriceTrend(range),
+                this::itemPriceTrend,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> itemPriceTrend(DateRange range) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
         params.put("order_by", "valid_from asc");
@@ -199,7 +214,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> itemPriceFunnel(String from, String to) {
+        return itemPriceFunnel(from, to, null);
+    }
+
+    public List<Map<String, Object>> itemPriceFunnel(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                itemPriceFunnel(range),
+                this::itemPriceFunnel,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> itemPriceFunnel(DateRange range) {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
         params.put("order_by", "valid_from asc");
@@ -256,7 +284,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> companyBranchSalesProfit(String from, String to) {
+        return companyBranchSalesProfit(from, to, null);
+    }
+
+    public List<Map<String, Object>> companyBranchSalesProfit(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                companyBranchSalesProfit(range),
+                this::companyBranchSalesProfit,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> companyBranchSalesProfit(DateRange range) {
         List<Map<String, Object>> orders = fetchSalesOrders(range);
         Map<String, OrderCost> costMap = computeOrderCosts(orders);
         Map<String, BranchSalesProfit> aggregated = new HashMap<>();
@@ -290,7 +331,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> companyOverallSalesProfit(String from, String to) {
+        return companyOverallSalesProfit(from, to, null);
+    }
+
+    public List<Map<String, Object>> companyOverallSalesProfit(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                companyOverallSalesProfit(range),
+                this::companyOverallSalesProfit,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> companyOverallSalesProfit(DateRange range) {
         List<Map<String, Object>> orders = fetchSalesOrders(range);
         Map<String, OrderCost> costMap = computeOrderCosts(orders);
         int ordersCount = 0;
@@ -314,7 +368,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> companySupplierExpenses(String from, String to) {
+        return companySupplierExpenses(from, to, null);
+    }
+
+    public List<Map<String, Object>> companySupplierExpenses(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                companySupplierExpenses(range),
+                this::companySupplierExpenses,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> companySupplierExpenses(DateRange range) {
         Map<String, Double> totals = paymentSummaryRange("Supplier", range);
         return totals.entrySet().stream()
                 .map(e -> Map.<String, Object>of("vendor", e.getKey(), "paid_total", round(e.getValue())))
@@ -323,7 +390,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> companyBranchIncome(String from, String to) {
+        return companyBranchIncome(from, to, null);
+    }
+
+    public List<Map<String, Object>> companyBranchIncome(String from, String to, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                companyBranchIncome(range),
+                this::companyBranchIncome,
+                ComparisonKeyStrategy.DIMENSION);
+    }
+
+    private List<Map<String, Object>> companyBranchIncome(DateRange range) {
         Map<String, Double> totals = paymentSummaryRange("Customer", range);
         return totals.entrySet().stream()
                 .map(e -> Map.<String, Object>of("shop", e.getKey(), "paid_total", round(e.getValue())))
@@ -332,7 +412,20 @@ public class ReportService {
     }
 
     public List<Map<String, Object>> companySalesProfitTrend(String from, String to, String groupBy) {
+        return companySalesProfitTrend(from, to, groupBy, null);
+    }
+
+    public List<Map<String, Object>> companySalesProfitTrend(String from, String to, String groupBy, String compareBy) {
         DateRange range = resolveDateRange(from, to);
+        return applyComparison(
+                range,
+                compareBy,
+                companySalesProfitTrend(range, groupBy),
+                previousRange -> companySalesProfitTrend(previousRange, groupBy),
+                ComparisonKeyStrategy.INDEX);
+    }
+
+    private List<Map<String, Object>> companySalesProfitTrend(DateRange range, String groupBy) {
         TrendGroupBy grouping = TrendGroupBy.parse(groupBy);
         List<Map<String, Object>> orders = fetchSalesOrders(range);
         Map<String, OrderCost> costMap = computeOrderCosts(orders);
@@ -369,6 +462,118 @@ public class ReportService {
                     return row;
                 })
                 .toList();
+    }
+
+    private List<Map<String, Object>> applyComparison(
+            DateRange currentRange,
+            String compareBy,
+            List<Map<String, Object>> currentRows,
+            RangeReportRunner previousRunner,
+            ComparisonKeyStrategy keyStrategy) {
+        ComparisonMode mode = ComparisonMode.parse(compareBy);
+        if (mode == ComparisonMode.NONE || currentRows.isEmpty()) {
+            return currentRows;
+        }
+        DateRange previousRange = mode.shift(currentRange);
+        List<Map<String, Object>> previousRows = previousRunner.run(previousRange);
+        return mergeComparisonRows(currentRows, previousRows, previousRange, mode, keyStrategy);
+    }
+
+    private List<Map<String, Object>> mergeComparisonRows(
+            List<Map<String, Object>> currentRows,
+            List<Map<String, Object>> previousRows,
+            DateRange previousRange,
+            ComparisonMode mode,
+            ComparisonKeyStrategy keyStrategy) {
+        if (currentRows.isEmpty()) {
+            return currentRows;
+        }
+        List<String> numericColumns = numericColumns(currentRows, previousRows);
+        List<String> dimensionColumns = dimensionColumns(currentRows, previousRows, numericColumns);
+        Map<String, Map<String, Object>> previousByKey = new LinkedHashMap<>();
+        if (keyStrategy == ComparisonKeyStrategy.DIMENSION) {
+            for (Map<String, Object> previousRow : previousRows) {
+                previousByKey.put(comparisonKey(previousRow, dimensionColumns), previousRow);
+            }
+        }
+        List<Map<String, Object>> merged = new ArrayList<>();
+        for (int index = 0; index < currentRows.size(); index++) {
+            Map<String, Object> currentRow = currentRows.get(index);
+            Map<String, Object> previousRow = keyStrategy == ComparisonKeyStrategy.INDEX
+                    ? (index < previousRows.size() ? previousRows.get(index) : Map.of())
+                    : previousByKey.getOrDefault(comparisonKey(currentRow, dimensionColumns), Map.of());
+            Map<String, Object> row = new LinkedHashMap<>(currentRow);
+            row.put("compare_by", mode.apiValue);
+            row.put("compare_period_start", previousRange.start());
+            row.put("compare_period_end", previousRange.end());
+            if (currentRow.containsKey("period_start")) {
+                row.put("previous_period_start", previousRow.getOrDefault("period_start", ""));
+            }
+            if (currentRow.containsKey("period_end")) {
+                row.put("previous_period_end", previousRow.getOrDefault("period_end", ""));
+            }
+            for (String numericColumn : numericColumns) {
+                double currentValue = asDouble(currentRow.get(numericColumn));
+                double previousValue = asDouble(previousRow.get(numericColumn));
+                double change = round(currentValue - previousValue);
+                row.put("previous_" + numericColumn, round(previousValue));
+                row.put("change_" + numericColumn, change);
+                row.put("change_pct_" + numericColumn, previousValue != 0.0 ? round((change / previousValue) * 100.0) : null);
+            }
+            merged.add(row);
+        }
+        return merged;
+    }
+
+    private List<String> numericColumns(List<Map<String, Object>> currentRows, List<Map<String, Object>> previousRows) {
+        Set<String> keys = new LinkedHashSet<>();
+        currentRows.forEach(row -> keys.addAll(row.keySet()));
+        previousRows.forEach(row -> keys.addAll(row.keySet()));
+        List<String> numericColumns = new ArrayList<>();
+        for (String key : keys) {
+            if (hasNumericValue(currentRows, key) || hasNumericValue(previousRows, key)) {
+                numericColumns.add(key);
+            }
+        }
+        return numericColumns;
+    }
+
+    private List<String> dimensionColumns(
+            List<Map<String, Object>> currentRows,
+            List<Map<String, Object>> previousRows,
+            List<String> numericColumns) {
+        Set<String> numeric = Set.copyOf(numericColumns);
+        Set<String> keys = new LinkedHashSet<>();
+        currentRows.forEach(row -> keys.addAll(row.keySet()));
+        previousRows.forEach(row -> keys.addAll(row.keySet()));
+        List<String> dimensions = new ArrayList<>();
+        for (String key : keys) {
+            if (!numeric.contains(key)) {
+                dimensions.add(key);
+            }
+        }
+        return dimensions;
+    }
+
+    private boolean hasNumericValue(List<Map<String, Object>> rows, String key) {
+        for (Map<String, Object> row : rows) {
+            Object value = row.get(key);
+            if (value instanceof Number) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String comparisonKey(Map<String, Object> row, List<String> dimensionColumns) {
+        if (dimensionColumns.isEmpty()) {
+            return "__overall__";
+        }
+        StringBuilder builder = new StringBuilder();
+        for (String key : dimensionColumns) {
+            builder.append(key).append('=').append(asString(row.get(key))).append('|');
+        }
+        return builder.toString();
     }
 
     DateRange resolveDateRange(String from, String to) {
@@ -639,6 +844,73 @@ public class ReportService {
         double maxPrice;
     }
 
+    @FunctionalInterface
+    private interface RangeReportRunner {
+        List<Map<String, Object>> run(DateRange range);
+    }
+
+    private enum ComparisonKeyStrategy {
+        DIMENSION,
+        INDEX
+    }
+
+    private enum ComparisonMode {
+        NONE("none") {
+            @Override
+            DateRange shift(DateRange range) {
+                return range;
+            }
+        },
+        WOW("wow") {
+            @Override
+            DateRange shift(DateRange range) {
+                return shiftDays(range, 7);
+            }
+        },
+        MOM("mom") {
+            @Override
+            DateRange shift(DateRange range) {
+                return shiftMonths(range, 1);
+            }
+        },
+        QOQ("qoq") {
+            @Override
+            DateRange shift(DateRange range) {
+                return shiftMonths(range, 3);
+            }
+        };
+
+        private final String apiValue;
+
+        ComparisonMode(String apiValue) {
+            this.apiValue = apiValue;
+        }
+
+        abstract DateRange shift(DateRange range);
+
+        static ComparisonMode parse(String raw) {
+            String key = raw == null ? "" : raw.trim().toLowerCase();
+            return switch (key) {
+                case "wow", "week", "weekly" -> WOW;
+                case "mom", "month", "monthly" -> MOM;
+                case "qoq", "quarter", "quarterly" -> QOQ;
+                default -> NONE;
+            };
+        }
+
+        private static DateRange shiftDays(DateRange range, int days) {
+            LocalDate start = LocalDate.parse(range.start()).minusDays(days);
+            LocalDate end = LocalDate.parse(range.end()).minusDays(days);
+            return new DateRange(start.toString(), end.toString());
+        }
+
+        private static DateRange shiftMonths(DateRange range, int months) {
+            LocalDate start = LocalDate.parse(range.start()).minusMonths(months);
+            LocalDate end = LocalDate.parse(range.end()).minusMonths(months);
+            return new DateRange(start.toString(), end.toString());
+        }
+    }
+
     private enum TrendGroupBy {
         DAY {
             @Override
@@ -663,6 +935,15 @@ public class ReportService {
                 LocalDate end = ym.atEndOfMonth();
                 return new PeriodKey(start.toString(), end.toString());
             }
+        },
+        QUARTER {
+            @Override
+            PeriodKey periodFor(LocalDate date) {
+                int quarterStartMonth = ((date.getMonthValue() - 1) / 3) * 3 + 1;
+                LocalDate start = LocalDate.of(date.getYear(), quarterStartMonth, 1);
+                LocalDate end = start.plusMonths(2).with(TemporalAdjusters.lastDayOfMonth());
+                return new PeriodKey(start.toString(), end.toString());
+            }
         };
 
         abstract PeriodKey periodFor(LocalDate date);
@@ -672,6 +953,7 @@ public class ReportService {
             return switch (key) {
                 case "week", "weekly" -> WEEK;
                 case "month", "monthly" -> MONTH;
+                case "quarter", "quarterly", "qoq" -> QUARTER;
                 case "day", "daily", "" -> DAY;
                 default -> DAY;
             };

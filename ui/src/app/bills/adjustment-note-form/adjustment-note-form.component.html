@@ -66,6 +66,7 @@
           <div class="inline-due" *ngIf="form.get('categoryId')?.value && hasLoadedDue" data-testid="adjustment-note-due-summary">
             <span>Current due:</span>
             <strong data-testid="adjustment-note-current-due">{{ selectedDue | number:'1.2-2' }}</strong>
+            <span class="inline-meta" data-testid="adjustment-note-available-due">Available to reduce: ₹{{ availableReducibleDue | number:'1.2-2' }}</span>
             <span class="inline-meta" data-testid="adjustment-note-pending-payments">Pending payments under review: ₹{{ pendingPaymentApprovalAmount | number:'1.2-2' }}</span>
             <span class="inline-meta" data-testid="adjustment-note-pending-notes">Pending notes under review: ₹{{ pendingAdjustmentAmount | number:'1.2-2' }}</span>
           </div>
@@ -97,6 +98,7 @@
               <input matInput type="number" formControlName="amount" min="0.01" data-testid="adjustment-note-amount-input" />
               <mat-error *ngIf="form.get('amount')?.hasError('required')">Amount is required.</mat-error>
               <mat-error *ngIf="form.get('amount')?.hasError('min')">Amount must be greater than zero.</mat-error>
+              <mat-error *ngIf="amountExceedsReducibleDue">{{ noteLabel }} cannot exceed available due of ₹{{ availableReducibleDue | number:'1.2-2' }}.</mat-error>
             </mat-form-field>
 
             <mat-form-field appearance="outline" subscriptSizing="dynamic">

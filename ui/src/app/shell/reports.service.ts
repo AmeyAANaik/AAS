@@ -11,6 +11,8 @@ export interface ReportsCatalogItem {
   supportsExport: boolean;
   supportedGroupBy?: string[];
   defaultGroupBy?: string;
+  supportedCompareBy?: string[];
+  defaultCompareBy?: string;
 }
 
 @Injectable({
@@ -25,14 +27,14 @@ export class ReportsService {
     });
   }
 
-  runReport(path: string, params: { from?: string; to?: string; groupBy?: string } = {}): Observable<Array<Record<string, unknown>>> {
+  runReport(path: string, params: { from?: string; to?: string; groupBy?: string; compareBy?: string } = {}): Observable<Array<Record<string, unknown>>> {
     return this.http.get<Array<Record<string, unknown>>>(`/api/reports/${path}`, {
       headers: this.authHeaders(),
       params: this.queryParams(params)
     });
   }
 
-  exportReport(path: string, params: { from?: string; to?: string; groupBy?: string } = {}): Observable<Blob> {
+  exportReport(path: string, params: { from?: string; to?: string; groupBy?: string; compareBy?: string } = {}): Observable<Blob> {
     return this.http.get(`/api/reports/${path}/export`, {
       headers: this.authHeaders(),
       params: this.queryParams(params),
@@ -48,7 +50,7 @@ export class ReportsService {
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
   }
 
-  private queryParams(input: { from?: string; to?: string; groupBy?: string }): Record<string, string> {
+  private queryParams(input: { from?: string; to?: string; groupBy?: string; compareBy?: string }): Record<string, string> {
     const params: Record<string, string> = {};
     if (input.from) {
       params['from'] = input.from;
@@ -58,6 +60,9 @@ export class ReportsService {
     }
     if (input.groupBy) {
       params['groupBy'] = input.groupBy;
+    }
+    if (input.compareBy) {
+      params['compareBy'] = input.compareBy;
     }
     return params;
   }

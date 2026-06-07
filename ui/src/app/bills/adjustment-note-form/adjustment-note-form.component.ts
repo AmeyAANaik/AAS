@@ -57,6 +57,7 @@ export class AdjustmentNoteFormComponent {
   isLoadingDue = false;
   isSubmitting = false;
   selectedDue = 0;
+  availableReducibleDue = 0;
   pendingPaymentApprovalAmount = 0;
   pendingAdjustmentAmount = 0;
   hasLoadedDue = false;
@@ -128,6 +129,18 @@ export class AdjustmentNoteFormComponent {
     return this.selectedDue + this.dueImpact;
   }
 
+  get reducesDue(): boolean {
+    return this.isSupplierMode ? !this.isGiveMode : this.isGiveMode;
+  }
+
+  get amountExceedsReducibleDue(): boolean {
+    const amount = Number(this.form.get('amount')?.value ?? 0);
+    if (!this.hasLoadedDue || !this.reducesDue || !Number.isFinite(amount) || amount <= 0) {
+      return false;
+    }
+    return amount > this.availableReducibleDue + 0.0001;
+  }
+
   onPartyTypeChange(): void {
     const partyType = this.isSupplierMode ? 'Supplier' : 'Customer';
     this.form.patchValue({ partyType, partyId: '', categoryId: '', invoiceId: '' }, { emitEvent: false });
@@ -166,6 +179,10 @@ export class AdjustmentNoteFormComponent {
     }
     if (!this.noteFiles.length) {
       this.statusMessage = 'Please upload evidence before submitting the note.';
+      return;
+    }
+    if (this.amountExceedsReducibleDue) {
+      this.statusMessage = `${this.noteLabel} cannot exceed the available due of ₹${this.availableReducibleDue.toFixed(2)}.`;
       return;
     }
     const value = this.form.getRawValue();
@@ -275,6 +292,8 @@ export class AdjustmentNoteFormComponent {
           this.selectedDue = Number(safeSummary?.dueAmount ?? 0) || 0;
           this.pendingPaymentApprovalAmount = Number(safeSummary?.pendingAdminApprovalAmount ?? safeSummary?.underReviewAmount ?? 0) || 0;
           this.pendingAdjustmentAmount = Number(safeSummary?.pendingAdjustmentAmount ?? 0) || 0;
+          const availableDueAmount = Number(safeSummary?.availableDueAmount ?? this.selectedDue - this.pendingPaymentApprovalAmount) || 0;
+          this.availableReducibleDue = Math.max(0, availableDueAmount + Math.min(0, this.pendingAdjustmentAmount));
           this.hasLoadedDue = true;
           this.statusMessage = '';
         },
@@ -287,6 +306,7 @@ export class AdjustmentNoteFormComponent {
 
   private resetDue(): void {
     this.selectedDue = 0;
+    this.availableReducibleDue = 0;
     this.pendingPaymentApprovalAmount = 0;
     this.pendingAdjustmentAmount = 0;
     this.hasLoadedDue = false;

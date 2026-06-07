@@ -29,15 +29,18 @@ public class BranchOpsService {
     private static final String SALES_ORDER = "Sales Order";
     private static final String SALES_INVOICE = "Sales Invoice";
     private static final String PAYMENT_ENTRY = "Payment Entry";
+    private static final String JOURNAL_ENTRY = "Journal Entry";
     private static final String PLACEHOLDER_ITEM = "AAS-SYSTEM-BRANCH-IMAGE";
     private static final String INVOICE_VERSION_OLD = "OLD";
     private static final Set<String> OPEN_STATUSES = Set.of("DRAFT", "VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED", "SELL_ORDER_CREATED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 
     private final ErpNextClient erpNextClient;
+    private final AdjustmentNoteErpService adjustmentNoteErpService;
 
-    public BranchOpsService(ErpNextClient erpNextClient) {
+    public BranchOpsService(ErpNextClient erpNextClient, AdjustmentNoteErpService adjustmentNoteErpService) {
         this.erpNextClient = erpNextClient;
+        this.adjustmentNoteErpService = adjustmentNoteErpService;
     }
 
     public Map<String, Object> getSummary() {
@@ -45,9 +48,10 @@ public class BranchOpsService {
         List<Map<String, Object>> orders = fetchOrderRows(null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(null);
         List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(null, invoices), fetchCustomerCategoryPayments(null));
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(null, null);
 
         List<Map<String, Object>> rows = branches.stream()
-                .map(branch -> buildBranchSummary(branch, orders, invoices, payments))
+                .map(branch -> buildBranchSummary(branch, orders, invoices, payments, adjustmentNotes))
                 .sorted(Comparator
                         .comparingDouble((Map<String, Object> row) -> asDouble(row.get("pendingOrders"))).reversed()
                         .thenComparing(row -> asText(row.get("branchName"))))
@@ -72,7 +76,8 @@ public class BranchOpsService {
         List<Map<String, Object>> orderRows = getBranchOrders(branchId, null, null, null, null);
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
         List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(branchId, invoices), fetchCustomerCategoryPayments(branchId));
-        List<Map<String, Object>> ledgerEntries = buildLedgerEntries(invoices, payments);
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(branchId, null);
+        List<Map<String, Object>> ledgerEntries = buildLedgerEntries(invoices, payments, adjustmentNotes);
 
         Map<String, Object> branchInfo = new LinkedHashMap<>();
         branchInfo.put("branchId", asText(branch.get("name")));
@@ -96,6 +101,7 @@ public class BranchOpsService {
         billing.put("invoicesRaised", invoices.size());
         billing.put("openInvoices", invoices.stream().filter(invoice -> resolveInvoiceDueAmount(invoice) > 0).count());
         billing.put("paymentsReceived", payments.size());
+        billing.put("approvedAdjustmentNotes", adjustmentNotes.size());
         billing.put("ledgerBalance", getLedgerBalance(ledgerEntries));
 
         Map<String, Object> exceptions = new LinkedHashMap<>();
@@ -202,18 +208,20 @@ public class BranchOpsService {
         }
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
         List<Map<String, Object>> payments = mergePayments(fetchCustomerPayments(branchId, invoices), fetchCustomerCategoryPayments(branchId));
-        List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments);
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(branchId, null);
+        List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments, adjustmentNotes);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
         List<Map<String, Object>> filteredInvoices = filterByPostingDate(invoices, range);
         List<Map<String, Object>> categoryPayments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(branchId), range);
+        List<Map<String, Object>> categoryAdjustmentNotes = filterAdjustmentNotesByPostingDate(fetchApprovedCustomerAdjustmentNotes(branchId, null), range);
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
                 "openingBalance", window.openingBalance,
                 "closingBalance", window.closingBalance,
                 "balance", window.closingBalance,
-                "categorySummary", buildCategoryBalanceSummary(filteredInvoices, categoryPayments),
+                "categorySummary", buildCategoryBalanceSummary(filteredInvoices, categoryPayments, categoryAdjustmentNotes),
                 "entries", window.entries);
     }
 
@@ -236,7 +244,9 @@ public class BranchOpsService {
         List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
                 fetchCustomerPaymentsByCategory(branchId, normalizedCategory),
                 false);
-        List<Map<String, Object>> fullEntries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, true);
+        List<Map<String, Object>> adjustmentEntries = buildCategoryLedgerEntriesFromAdjustments(
+                fetchApprovedCustomerAdjustmentNotes(branchId, normalizedCategory));
+        List<Map<String, Object>> fullEntries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, adjustmentEntries, true);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
 
@@ -423,7 +433,7 @@ public class BranchOpsService {
                 .toList();
     }
 
-    private List<Map<String, Object>> buildCategoryBalanceSummary(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
+    private List<Map<String, Object>> buildCategoryBalanceSummary(List<Map<String, Object>> invoices, List<Map<String, Object>> payments, List<Map<String, Object>> adjustmentNotes) {
         if (invoices == null || invoices.isEmpty()) {
             invoices = List.of();
         }
@@ -484,6 +494,19 @@ public class BranchOpsService {
                     continue;
                 }
                 totals.merge(category, -amount, Double::sum);
+            }
+        }
+        if (adjustmentNotes != null) {
+            for (Map<String, Object> note : adjustmentNotes) {
+                if (asInt(note.get("docstatus")) != 1) {
+                    continue;
+                }
+                String category = asText(note.get(AdjustmentNoteErpService.FIELD_CATEGORY));
+                double netChange = round(adjustmentNetChange(note));
+                if (!hasText(category) || netChange == 0.0) {
+                    continue;
+                }
+                totals.merge(category, netChange, Double::sum);
             }
         }
         return totals.entrySet().stream()
@@ -562,9 +585,37 @@ public class BranchOpsService {
         return entries;
     }
 
+    private List<Map<String, Object>> buildCategoryLedgerEntriesFromAdjustments(List<Map<String, Object>> notes) {
+        if (notes == null || notes.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> entries = new ArrayList<>();
+        for (Map<String, Object> note : notes) {
+            if (asInt(note.get("docstatus")) != 1) {
+                continue;
+            }
+            double amount = round(asDouble(note.get(AdjustmentNoteErpService.FIELD_AMOUNT)));
+            double netChange = round(adjustmentNetChange(note));
+            if (amount <= 0 || netChange == 0.0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(note.get("posting_date")));
+            row.put("voucherType", adjustmentVoucherType(note));
+            row.put("voucherNo", asText(note.get("name")));
+            row.put("reference", adjustmentReference(note));
+            row.put("debit", netChange > 0 ? amount : 0.0);
+            row.put("credit", netChange < 0 ? amount : 0.0);
+            row.put("netChange", netChange);
+            entries.add(row);
+        }
+        return entries;
+    }
+
     private List<Map<String, Object>> mergeAndFinalizeLedger(
             List<Map<String, Object>> invoiceEntries,
             List<Map<String, Object>> paymentEntries,
+            List<Map<String, Object>> adjustmentEntries,
             boolean includeRunningBalance) {
         List<Map<String, Object>> entries = new ArrayList<>();
         if (invoiceEntries != null) {
@@ -572,6 +623,9 @@ public class BranchOpsService {
         }
         if (paymentEntries != null) {
             entries.addAll(paymentEntries);
+        }
+        if (adjustmentEntries != null) {
+            entries.addAll(adjustmentEntries);
         }
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
@@ -594,10 +648,13 @@ public class BranchOpsService {
         if (normalized.contains("invoice")) {
             return 0;
         }
-        if (normalized.contains("payment")) {
+        if (normalized.contains("credit note") || normalized.contains("debit note")) {
             return 1;
         }
-        return 2;
+        if (normalized.contains("payment")) {
+            return 2;
+        }
+        return 3;
     }
 
     private Map<String, Double> allocateInvoiceShares(
@@ -695,6 +752,7 @@ public class BranchOpsService {
                         LinkedHashMap::new));
         List<Map<String, Object>> entries = new ArrayList<>();
         List<Map<String, Object>> invoices = fetchSalesInvoices(null);
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(null, null);
 
         for (Map<String, Object> invoice : invoices) {
             if (asInt(invoice.get("docstatus")) == 2) {
@@ -733,6 +791,28 @@ public class BranchOpsService {
             row.put("netChange", round(-credit));
             entries.add(row);
         }
+        for (Map<String, Object> note : adjustmentNotes) {
+            if (asInt(note.get("docstatus")) != 1) {
+                continue;
+            }
+            String branchId = asText(note.get(AdjustmentNoteErpService.FIELD_PARTY));
+            double amount = round(asDouble(note.get(AdjustmentNoteErpService.FIELD_AMOUNT)));
+            double netChange = round(adjustmentNetChange(note));
+            if (!hasText(branchId) || amount <= 0 || netChange == 0.0) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("date", asText(note.get("posting_date")));
+            row.put("branchId", branchId);
+            row.put("branchName", branchNames.getOrDefault(branchId, branchId));
+            row.put("voucherType", adjustmentVoucherType(note));
+            row.put("voucherNo", asText(note.get("name")));
+            row.put("reference", adjustmentReference(note));
+            row.put("debit", netChange > 0 ? amount : 0.0);
+            row.put("credit", netChange < 0 ? amount : 0.0);
+            row.put("netChange", netChange);
+            entries.add(row);
+        }
 
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
@@ -752,12 +832,16 @@ public class BranchOpsService {
             Map<String, Object> branch,
             List<Map<String, Object>> orders,
             List<Map<String, Object>> invoices,
-            List<Map<String, Object>> payments) {
+            List<Map<String, Object>> payments,
+            List<Map<String, Object>> adjustmentNotes) {
         String branchId = asText(branch.get("name"));
         List<Map<String, Object>> branchOrders = orders.stream().filter(order -> branchId.equals(asText(order.get("customer")))).toList();
         List<Map<String, Object>> branchInvoices = invoices.stream().filter(invoice -> branchId.equals(asText(invoice.get("customer")))).toList();
         List<Map<String, Object>> branchPayments = payments.stream().filter(payment -> branchId.equals(asText(payment.get("party")))).toList();
-        List<Map<String, Object>> ledger = buildLedgerEntries(branchInvoices, branchPayments);
+        List<Map<String, Object>> branchAdjustmentNotes = adjustmentNotes.stream()
+                .filter(note -> branchId.equals(asText(note.get(AdjustmentNoteErpService.FIELD_PARTY))))
+                .toList();
+        List<Map<String, Object>> ledger = buildLedgerEntries(branchInvoices, branchPayments, branchAdjustmentNotes);
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("branchId", branchId);
@@ -770,14 +854,15 @@ public class BranchOpsService {
         row.put("lastActivity", resolveLastActivity(
                 branchOrders.stream().map(order -> asText(order.get("modified"))).toList(),
                 branchInvoices.stream().map(invoice -> asText(invoice.get("modified"))).toList(),
-                branchPayments.stream().map(payment -> asText(payment.get("modified"))).toList()));
+                branchPayments.stream().map(payment -> asText(payment.get("modified"))).toList(),
+                branchAdjustmentNotes.stream().map(note -> asText(note.get("modified"))).toList()));
         row.put("location", asText(branch.get("aas_branch_location")));
         row.put("ledgerBalance", getLedgerBalance(ledger));
         row.put("paymentCollectionRate", calculatePaymentCollectionRate(branchInvoices, branchPayments));
         return row;
     }
 
-    private List<Map<String, Object>> buildLedgerEntries(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
+    private List<Map<String, Object>> buildLedgerEntries(List<Map<String, Object>> invoices, List<Map<String, Object>> payments, List<Map<String, Object>> adjustmentNotes) {
         List<Map<String, Object>> entries = new ArrayList<>();
         for (Map<String, Object> invoice : invoices) {
             if (asInt(invoice.get("docstatus")) == 2) {
@@ -809,6 +894,27 @@ public class BranchOpsService {
             row.put("netChange", round(-credit));
             entries.add(row);
         }
+        if (adjustmentNotes != null) {
+            for (Map<String, Object> note : adjustmentNotes) {
+                if (asInt(note.get("docstatus")) != 1) {
+                    continue;
+                }
+                double amount = round(asDouble(note.get(AdjustmentNoteErpService.FIELD_AMOUNT)));
+                double netChange = round(adjustmentNetChange(note));
+                if (amount <= 0 || netChange == 0.0) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("date", asText(note.get("posting_date")));
+                row.put("voucherType", adjustmentVoucherType(note));
+                row.put("voucherNo", asText(note.get("name")));
+                row.put("reference", adjustmentReference(note));
+                row.put("debit", netChange > 0 ? amount : 0.0);
+                row.put("credit", netChange < 0 ? amount : 0.0);
+                row.put("netChange", netChange);
+                entries.add(row);
+            }
+        }
         entries.sort(Comparator
                 .comparing((Map<String, Object> row) -> asText(row.get("date")))
                 .thenComparing(row -> ledgerVoucherSortOrder(asText(row.get("voucherType"))))
@@ -820,6 +926,61 @@ public class BranchOpsService {
             entry.put("runningBalance", running);
         }
         return entries;
+    }
+
+    private List<Map<String, Object>> fetchApprovedCustomerAdjustmentNotes(String branchId, String categoryId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields",
+                "[\"name\",\"posting_date\",\"docstatus\",\"modified\",\""
+                        + AdjustmentNoteErpService.FIELD_PARTY + "\",\""
+                        + AdjustmentNoteErpService.FIELD_PARTY_TYPE + "\",\""
+                        + AdjustmentNoteErpService.FIELD_CATEGORY + "\",\""
+                        + AdjustmentNoteErpService.FIELD_DIRECTION + "\",\""
+                        + AdjustmentNoteErpService.FIELD_AMOUNT + "\",\""
+                        + AdjustmentNoteErpService.FIELD_REASON + "\",\""
+                        + AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE + "\"]");
+        params.put("order_by", "posting_date asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("docstatus", "=", "1"));
+        filters.add(List.of(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, "=", AdjustmentNoteErpService.STATUS_APPROVED));
+        filters.add(List.of(AdjustmentNoteErpService.FIELD_PARTY_TYPE, "=", AdjustmentNoteErpService.PARTY_CUSTOMER));
+        if (hasText(branchId)) {
+            filters.add(List.of(AdjustmentNoteErpService.FIELD_PARTY, "=", branchId));
+        }
+        if (hasText(categoryId)) {
+            filters.add(List.of(AdjustmentNoteErpService.FIELD_CATEGORY, "=", categoryId));
+        }
+        params.put("filters", toJson(filters));
+        return listResourcesPaged(JOURNAL_ENTRY, params);
+    }
+
+    private List<Map<String, Object>> filterAdjustmentNotesByPostingDate(List<Map<String, Object>> notes, LedgerRange range) {
+        if (notes == null || notes.isEmpty() || range == null || !range.hasBounds()) {
+            return notes == null ? List.of() : notes;
+        }
+        return notes.stream()
+                .filter(note -> withinDateRange(asText(note.get("posting_date")), range.fromInclusive, range.toInclusive))
+                .toList();
+    }
+
+    private double adjustmentNetChange(Map<String, Object> note) {
+        return adjustmentNoteErpService.signedImpact(
+                AdjustmentNoteErpService.PARTY_CUSTOMER,
+                asText(note.get(AdjustmentNoteErpService.FIELD_DIRECTION)),
+                adjustmentNoteErpService.asDecimal(note.get(AdjustmentNoteErpService.FIELD_AMOUNT))).doubleValue();
+    }
+
+    private String adjustmentVoucherType(Map<String, Object> note) {
+        String direction = adjustmentNoteErpService.normalizeDirection(note.get(AdjustmentNoteErpService.FIELD_DIRECTION));
+        return AdjustmentNoteErpService.DIRECTION_TAKE.equals(direction) ? "Debit Note" : "Credit Note";
+    }
+
+    private String adjustmentReference(Map<String, Object> note) {
+        String invoiceId = asText(note.get(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE));
+        if (hasText(invoiceId)) {
+            return invoiceId;
+        }
+        return asText(note.get(AdjustmentNoteErpService.FIELD_REASON));
     }
 
     private double resolveInvoiceDueAmount(Map<String, Object> invoice) {

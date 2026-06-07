@@ -67,6 +67,22 @@ public class AdjustmentNoteService {
             }
         }
 
+        BigDecimal dueSnapshot = BigDecimal.ZERO;
+        try {
+            Map<String, Object> due = paymentDueService.dueByCategory(partyType, partyId, categoryId);
+            dueSnapshot = adjustmentNoteErpService.asDecimal(due.get("dueAmount"));
+            validateReducibleAmountLimit(
+                    partyType,
+                    direction,
+                    amount,
+                    adjustmentNoteErpService.asDecimal(due.get("availableDueAmount")),
+                    adjustmentNoteErpService.asDecimal(due.get("pendingAdjustmentAmount")));
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ignored) {
+            dueSnapshot = BigDecimal.ZERO;
+        }
+
         String company = resolveDraftCompany(partyType, partyId, categoryId, invoiceContext, invoice);
         Map<String, Object> companyDoc = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource("Company", company));
         String partyAccount = partyType.equals(AdjustmentNoteErpService.PARTY_SUPPLIER)
@@ -78,14 +94,6 @@ public class AdjustmentNoteService {
         }
         if (offsetAccount.isBlank()) {
             throw new IllegalStateException("Temporary Opening Account is not configured for company " + company + ".");
-        }
-
-        BigDecimal dueSnapshot = BigDecimal.ZERO;
-        try {
-            Map<String, Object> due = paymentDueService.dueByCategory(partyType, partyId, categoryId);
-            dueSnapshot = adjustmentNoteErpService.asDecimal(due.get("dueAmount"));
-        } catch (Exception ignored) {
-            dueSnapshot = BigDecimal.ZERO;
         }
 
         String actor = createdBy == null ? "" : createdBy.trim();
@@ -136,6 +144,40 @@ public class AdjustmentNoteService {
         return Map.of(
                 "note", reloaded,
                 "files", uploadedFiles);
+    }
+
+    private void validateReducibleAmountLimit(
+            String partyType,
+            String direction,
+            BigDecimal amount,
+            BigDecimal availableDueAmount,
+            BigDecimal pendingAdjustmentAmount) {
+        if (!reducesDue(partyType, direction)) {
+            return;
+        }
+        BigDecimal available = safe(availableDueAmount).add(minZero(safe(pendingAdjustmentAmount)));
+        if (safe(amount).compareTo(available.max(BigDecimal.ZERO)) > 0) {
+            throw new IllegalArgumentException("Adjustment amount exceeds available due for this category.");
+        }
+    }
+
+    private boolean reducesDue(String partyType, String direction) {
+        String normalizedPartyType = adjustmentNoteErpService.normalizePartyType(partyType);
+        String normalizedDirection = adjustmentNoteErpService.normalizeDirection(direction);
+        return AdjustmentNoteErpService.PARTY_SUPPLIER.equals(normalizedPartyType)
+                ? AdjustmentNoteErpService.DIRECTION_TAKE.equals(normalizedDirection)
+                : AdjustmentNoteErpService.DIRECTION_GIVE.equals(normalizedDirection);
+    }
+
+    private BigDecimal safe(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private BigDecimal minZero(BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) >= 0) {
+            return BigDecimal.ZERO;
+        }
+        return value;
     }
 
     private void validateRequest(AdjustmentNoteRequest request, MultipartFile[] files) {
