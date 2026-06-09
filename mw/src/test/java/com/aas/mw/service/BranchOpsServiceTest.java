@@ -305,7 +305,9 @@ class BranchOpsServiceTest {
                         "name", "ACC-SINV-2026-00033",
                         "customer", "BRANCH-1",
                         "posting_date", "2026-06-09",
-                        "grand_total", 150838.0,
+                        "grand_total", 150838.12,
+                        "rounded_total", 150838.0,
+                        "rounding_adjustment", -0.12,
                         "outstanding_amount", 150838.0,
                         "docstatus", 1)));
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00033"))
@@ -313,7 +315,9 @@ class BranchOpsServiceTest {
                         "name", "ACC-SINV-2026-00033",
                         "customer", "BRANCH-1",
                         "posting_date", "2026-06-09",
-                        "grand_total", 150838.0,
+                        "grand_total", 150838.12,
+                        "rounded_total", 150838.0,
+                        "rounding_adjustment", -0.12,
                         "outstanding_amount", 150838.0,
                         "docstatus", 1,
                         "aas_category", "Grocery",
@@ -351,6 +355,81 @@ class BranchOpsServiceTest {
                 "Grocery",
                 "2026-06-03",
                 "2026-06-10");
+        assertThat(categoryLedger)
+                .containsEntry("balance", 0.0)
+                .containsEntry("closingBalance", 0.0);
+    }
+
+    @Test
+    void getBranchCategoryLedgerIncludesPaymentLinkedToCategoryInvoice() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukarta Aundh")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.12,
+                        "rounded_total", 150838.0,
+                        "rounding_adjustment", -0.12,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 1)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00033"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.12,
+                        "rounded_total", 150838.0,
+                        "rounding_adjustment", -0.12,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 1,
+                        "aas_category", "Grocery",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-ITEM",
+                                "item_group", "Grocery",
+                                "amount", 150838.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> params = invocation.getArgument(1);
+                    if (String.valueOf(params.get("filters")).contains("aas_category")) {
+                        return List.of();
+                    }
+                    return List.of(Map.of(
+                            "name", "PAY-LINKED",
+                            "party", "BRANCH-1",
+                            "party_type", "Customer",
+                            "posting_date", "2026-06-10",
+                            "paid_amount", 150838.12,
+                            "docstatus", 1));
+                });
+        when(erpNextClient.getResource("Payment Entry", "PAY-LINKED"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-LINKED",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "ACC-SINV-2026-00033",
+                                "allocated_amount", 150838.0)))));
+
+        Map<String, Object> categoryLedger = branchOpsService.getBranchLedgerByCategory(
+                "BRANCH-1",
+                "Grocery",
+                "2026-06-03",
+                "2026-06-10");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherNo"))
+                .containsExactly("ACC-SINV-2026-00033", "PAY-LINKED");
+        assertThat(entries.get(0))
+                .containsEntry("voucherType", "Sales Invoice")
+                .containsEntry("debit", 150838.0)
+                .containsEntry("runningBalance", 150838.0);
+        assertThat(entries.get(1))
+                .containsEntry("voucherType", "Payment Entry")
+                .containsEntry("credit", 150838.0)
+                .containsEntry("runningBalance", 0.0);
         assertThat(categoryLedger)
                 .containsEntry("balance", 0.0)
                 .containsEntry("closingBalance", 0.0);

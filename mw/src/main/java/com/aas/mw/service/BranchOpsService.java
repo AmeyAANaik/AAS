@@ -95,7 +95,7 @@ public class BranchOpsService {
         kpis.put("awaitingVendorAssignment", orderRows.stream().filter(row -> "DRAFT".equals(asText(row.get("status")))).count());
         kpis.put("awaitingVendorResponse", orderRows.stream().filter(row -> "VENDOR_ASSIGNED".equals(asText(row.get("status"))) || "VENDOR_PDF_RECEIVED".equals(asText(row.get("status")))).count());
         kpis.put("openReceivableAmount", openReceivableAmount(ledgerEntries));
-        kpis.put("invoicedAmount", round(invoices.stream().mapToDouble(invoice -> asDouble(invoice.get("grand_total"))).sum()));
+        kpis.put("invoicedAmount", round(invoices.stream().mapToDouble(this::invoiceLedgerAmount).sum()));
         kpis.put("paymentCollectionRate", calculatePaymentCollectionRate(invoices, payments));
 
         Map<String, Object> billing = new LinkedHashMap<>();
@@ -242,8 +242,11 @@ public class BranchOpsService {
 
         List<Map<String, Object>> invoices = fetchSalesInvoices(branchId);
         List<Map<String, Object>> invoiceEntries = buildCategoryLedgerEntriesFromInvoices(invoices, normalizedCategory);
-        List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
+        List<Map<String, Object>> categoryPayments = mergePayments(
                 fetchCustomerPaymentsByCategory(branchId, normalizedCategory),
+                fetchCustomerPaymentsLinkedToCategoryInvoices(branchId, invoices, normalizedCategory));
+        List<Map<String, Object>> paymentEntries = buildCategoryLedgerEntriesFromPayments(
+                categoryPayments,
                 false);
         List<Map<String, Object>> adjustmentEntries = buildCategoryLedgerEntriesFromAdjustments(
                 fetchApprovedCustomerAdjustmentNotes(branchId, normalizedCategory));
@@ -384,10 +387,7 @@ public class BranchOpsService {
             if (invoice.isEmpty()) {
                 continue;
             }
-            double dueBase = asDouble(invoice.get("outstanding_amount"));
-            if (dueBase <= 0) {
-                dueBase = asDouble(invoice.get("grand_total"));
-            }
+            double dueBase = invoiceLedgerAmount(invoice);
             if (dueBase <= 0) {
                 continue;
             }
@@ -467,10 +467,7 @@ public class BranchOpsService {
             if (invoice.isEmpty()) {
                 continue;
             }
-            double dueBase = asDouble(invoice.get("outstanding_amount"));
-            if (dueBase <= 0) {
-                dueBase = asDouble(invoice.get("grand_total"));
-            }
+            double dueBase = invoiceLedgerAmount(invoice);
             if (dueBase <= 0) {
                 continue;
             }
@@ -576,15 +573,12 @@ public class BranchOpsService {
             if (invoice.isEmpty()) {
                 continue;
             }
-            double dueBase = asDouble(invoice.get("outstanding_amount"));
-            if (dueBase <= 0) {
-                dueBase = asDouble(invoice.get("grand_total"));
-            }
+            double dueBase = invoiceLedgerAmount(invoice);
             if (dueBase <= 0) {
                 continue;
             }
-        Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
-        double share = shares.getOrDefault(categoryId, 0.0);
+            Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
+            double share = shares.getOrDefault(categoryId, 0.0);
             if (share <= 0) {
                 continue;
             }
@@ -600,6 +594,80 @@ public class BranchOpsService {
             entries.add(row);
         }
         return entries;
+    }
+
+    private List<Map<String, Object>> fetchCustomerPaymentsLinkedToCategoryInvoices(
+            String branchId,
+            List<Map<String, Object>> invoices,
+            String categoryId) {
+        Set<String> categoryInvoiceIds = resolveCategoryInvoiceIds(invoices, categoryId);
+        if (categoryInvoiceIds.isEmpty()) {
+            return List.of();
+        }
+        return fetchCustomerPayments(branchId, invoices).stream()
+                .map(payment -> paymentAllocationForInvoices(payment, categoryInvoiceIds))
+                .filter(payment -> round(resolvePaymentAmount(payment)) > 0)
+                .toList();
+    }
+
+    private Set<String> resolveCategoryInvoiceIds(List<Map<String, Object>> invoices, String categoryId) {
+        if (invoices == null || invoices.isEmpty() || !hasText(categoryId)) {
+            return Set.of();
+        }
+        ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
+        Set<String> invoiceIds = new LinkedHashSet<>();
+        for (Map<String, Object> invoiceRow : invoices) {
+            String invoiceId = asText(invoiceRow.get("name"));
+            if (!hasText(invoiceId) || asInt(invoiceRow.get("docstatus")) == 2) {
+                continue;
+            }
+            Map<String, Object> invoice = unwrap(erpNextClient.getResource(SALES_INVOICE, invoiceId));
+            if (invoice.isEmpty()) {
+                continue;
+            }
+            double dueBase = invoiceLedgerAmount(invoice);
+            if (dueBase <= 0) {
+                continue;
+            }
+            Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
+            if (shares.getOrDefault(categoryId, 0.0) > 0) {
+                invoiceIds.add(invoiceId);
+            }
+        }
+        return invoiceIds;
+    }
+
+    private Map<String, Object> paymentAllocationForInvoices(Map<String, Object> payment, Set<String> invoiceIds) {
+        if (payment == null || invoiceIds == null || invoiceIds.isEmpty()) {
+            return Map.of();
+        }
+        String paymentName = asText(payment.get("name"));
+        if (!hasText(paymentName)) {
+            return Map.of();
+        }
+        Map<String, Object> paymentDoc = unwrap(erpNextClient.getResource(PAYMENT_ENTRY, paymentName));
+        List<Map<String, Object>> references = childItems(paymentDoc.get("references"));
+        double allocated = 0.0;
+        boolean matched = false;
+        for (Map<String, Object> reference : references) {
+            if (!SALES_INVOICE.equals(asText(reference.get("reference_doctype")))
+                    || !invoiceIds.contains(asText(reference.get("reference_name")))) {
+                continue;
+            }
+            matched = true;
+            allocated += asDouble(firstNonNull(reference.get("allocated_amount"), reference.get("base_allocated_amount")));
+        }
+        if (!matched) {
+            return Map.of();
+        }
+        double amount = allocated > 0 ? allocated : resolvePaymentAmount(payment);
+        if (amount <= 0) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new LinkedHashMap<>(payment);
+        copy.put("paid_amount", round(amount));
+        copy.put("received_amount", 0.0);
+        return copy;
     }
 
     private List<Map<String, Object>> buildCategoryLedgerEntriesFromPayments(List<Map<String, Object>> payments, boolean debit) {
@@ -807,7 +875,7 @@ public class BranchOpsService {
                 continue;
             }
             String branchId = asText(invoice.get("customer"));
-            double debit = round(asDouble(invoice.get("grand_total")));
+            double debit = invoiceLedgerAmount(invoice);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("date", asText(invoice.get("posting_date")));
             row.put("branchId", branchId);
@@ -916,7 +984,7 @@ public class BranchOpsService {
             if (asInt(invoice.get("docstatus")) == 2) {
                 continue;
             }
-            double debit = round(asDouble(invoice.get("grand_total")));
+            double debit = invoiceLedgerAmount(invoice);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("date", asText(invoice.get("posting_date")));
             row.put("voucherType", invoiceVoucherType(invoice, "Sales Invoice"));
@@ -1037,13 +1105,37 @@ public class BranchOpsService {
         }
         int docstatus = asInt(invoice.get("docstatus"));
         if (docstatus == 0) {
-            return asDouble(invoice.get("grand_total"));
+            return invoiceLedgerAmount(invoice);
         }
         if (docstatus == 1) {
             double outstanding = asDouble(invoice.get("outstanding_amount"));
             return outstanding > 0 ? outstanding : 0.0;
         }
         return 0.0;
+    }
+
+    private double invoiceLedgerAmount(Map<String, Object> invoice) {
+        if (invoice == null) {
+            return 0.0;
+        }
+        double roundedTotal = asDouble(invoice.get("rounded_total"));
+        if (roundedTotal > 0) {
+            return round(roundedTotal);
+        }
+        double grandTotal = asDouble(invoice.get("grand_total"));
+        double roundingAdjustment = asDouble(firstNonNull(
+                invoice.get("aas_rounding_adjustment"),
+                invoice.get("rounding_adjustment")));
+        if (Math.abs(roundingAdjustment) > 0.0001) {
+            return round(grandTotal + roundingAdjustment);
+        }
+        double outstandingAmount = asDouble(invoice.get("outstanding_amount"));
+        if (asInt(invoice.get("docstatus")) == 0
+                && outstandingAmount > 0
+                && Math.abs(outstandingAmount - grandTotal) < 1.0) {
+            return round(outstandingAmount);
+        }
+        return round(grandTotal);
     }
 
     private List<Map<String, Object>> fetchBranches() {
@@ -1070,7 +1162,7 @@ public class BranchOpsService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\","
+                "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"rounded_total\",\"rounding_adjustment\",\"aas_rounding_adjustment\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\","
                         + "\"aas_invoice_version_status\",\"aas_replaced_by\",\"aas_source_sales_order\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();
@@ -1391,7 +1483,7 @@ public class BranchOpsService {
     }
 
     private double calculatePaymentCollectionRate(List<Map<String, Object>> invoices, List<Map<String, Object>> payments) {
-        double invoiced = invoices.stream().mapToDouble(invoice -> asDouble(invoice.get("grand_total"))).sum();
+        double invoiced = invoices.stream().mapToDouble(this::invoiceLedgerAmount).sum();
         if (invoiced <= 0) {
             return 0.0;
         }
