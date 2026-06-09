@@ -114,13 +114,15 @@ public class PaymentService {
         if (request.getModeOfPayment() != null && !request.getModeOfPayment().isBlank()) {
             String cashAccount = asString(company.get("default_cash_account"));
             String bankAccount = asString(company.get("default_bank_account"));
-            ensureModeOfPaymentConfigured(
+            String modeOfPayment = ensureModeOfPaymentConfigured(
                     request.getModeOfPayment(),
                     companyName,
                     cashAccount,
                     bankAccount,
                     cashOrBank);
-            payload.put("mode_of_payment", request.getModeOfPayment());
+            if (modeOfPayment != null && !modeOfPayment.isBlank()) {
+                payload.put("mode_of_payment", modeOfPayment);
+            }
         }
         if (request.getReferenceNo() != null && !request.getReferenceNo().isBlank()) {
             payload.put("reference_no", request.getReferenceNo());
@@ -250,7 +252,7 @@ public class PaymentService {
         }
     }
 
-    private void ensureModeOfPaymentConfigured(
+    private String ensureModeOfPaymentConfigured(
             String mode,
             String companyName,
             String cashAccount,
@@ -258,14 +260,14 @@ public class PaymentService {
             String fallbackAccount) {
         String name = mode == null ? "" : mode.trim();
         if (name.isBlank() || companyName == null || companyName.isBlank()) {
-            return;
+            return "";
         }
         String normalizedType = name.equalsIgnoreCase("cash") ? "Cash" : "Bank";
         String preferredAccount = normalizedType.equalsIgnoreCase("cash")
                 ? firstNonBlank(cashAccount, fallbackAccount)
                 : firstNonBlank(bankAccount, fallbackAccount);
         if (preferredAccount == null || preferredAccount.isBlank()) {
-            return;
+            return "";
         }
 
         Map<String, Object> existing = Map.of();
@@ -285,10 +287,11 @@ public class PaymentService {
                     "default_account", preferredAccount)));
             try {
                 erpNextClient.createResource("Mode of Payment", create);
+                return name;
             } catch (Exception ignored) {
-                // Best-effort; payment entry creation will surface any configuration errors.
+                // Best-effort; omit mode so payment entry creation can still proceed.
             }
-            return;
+            return "";
         }
 
         List<Map<String, Object>> accounts = childItems(existing.get("accounts"));
@@ -297,7 +300,7 @@ public class PaymentService {
                         && asString(account.get("default_account")) != null
                         && !asString(account.get("default_account")).isBlank());
         if (hasCompanyAccount) {
-            return;
+            return name;
         }
         List<Map<String, Object>> updatedAccounts = new ArrayList<>(accounts);
         updatedAccounts.add(Map.of(
@@ -305,9 +308,11 @@ public class PaymentService {
                 "default_account", preferredAccount));
         try {
             erpNextClient.updateResource("Mode of Payment", name, Map.of("accounts", updatedAccounts));
+            return name;
         } catch (Exception ignored) {
-            // Best-effort; payment entry creation will surface any configuration errors.
+            // Best-effort; omit mode so payment entry creation can still proceed.
         }
+        return "";
     }
 
     private Map<String, Object> buildReference(String invoiceDoctype, String invoiceId, BigDecimal amount) {

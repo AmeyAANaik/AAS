@@ -53,8 +53,8 @@ describe('BranchOpsPageComponent', () => {
       balance: -0.12,
       entries: [{ voucherNo: 'LEDGER-1' }],
       categorySummary: [
-        { category: 'Aamras', amount: 15700 },
-        { category: 'Grocery', amount: -0.12 },
+        { category: 'Aamras', amount: 15700, balance: 15700 },
+        { category: 'Grocery', amount: 150838, balance: 0 },
         { category: 'All Item Groups', amount: 5 }
       ]
     }));
@@ -64,7 +64,8 @@ describe('BranchOpsPageComponent', () => {
     expect(component.ledgerOpeningBalance).toBe(10);
     expect(component.ledgerClosingBalance).toBe(-0.12);
     expect(component.ledgerCategorySummary.map(row => row.category)).toEqual(['Aamras', 'Grocery']);
-    expect(component.selectedCategoryId).toBe('Aamras');
+    expect(component.ledgerCategorySummary.find(row => row.category === 'Grocery')?.amount).toBe(150838);
+    expect(component.selectedCategoryId).toBe('Grocery');
     expect(component.ledgerScopeNote).toContain('Overall branch balances');
     expect(component.displayAmount(-0.001)).toBe(0);
   });

@@ -81,6 +81,7 @@ export interface BranchOpsLedgerEntry {
 export interface BranchOpsCategorySummaryRow {
   category: string;
   amount: number;
+  balance?: number;
 }
 
 export interface BranchOpsAnalytics {

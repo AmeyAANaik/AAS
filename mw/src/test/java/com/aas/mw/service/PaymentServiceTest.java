@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 class PaymentServiceTest {
 
@@ -244,5 +245,70 @@ class PaymentServiceTest {
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
         verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
         assertEquals("Shree Siddhivinayak Suppliers", payloadCaptor.getValue().get("company"));
+    }
+
+    @Test
+    void createsMissingRtgsModeBeforeUsingItOnPaymentEntry() {
+        when(erpNextClient.getResource("Company", "aas"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_receivable_account", "REC-ACC",
+                        "default_bank_account", "BANK-ACC")));
+        when(erpNextClient.getResource("Mode of Payment", "RTGS")).thenReturn(Map.of());
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Mode of Payment"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("name", "RTGS")));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-RTGS")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-RTGS"))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-RTGS")));
+
+        PaymentRequest request = new PaymentRequest();
+        request.setCustomer("SHOP-1");
+        request.setCompany("aas");
+        request.setAmount(new BigDecimal("102530.00"));
+        request.setPartyType("Customer");
+        request.setModeOfPayment("RTGS");
+
+        paymentService.createPayment(request, "admin", true);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> modeCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Mode of Payment"), modeCaptor.capture());
+        assertEquals("RTGS", modeCaptor.getValue().get("mode_of_payment"));
+        assertEquals("Bank", modeCaptor.getValue().get("type"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
+        assertEquals("RTGS", payloadCaptor.getValue().get("mode_of_payment"));
+    }
+
+    @Test
+    void omitsModeWhenErpRejectsMissingModeCreation() {
+        when(erpNextClient.getResource("Company", "aas"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_receivable_account", "REC-ACC",
+                        "default_bank_account", "BANK-ACC")));
+        when(erpNextClient.getResource("Mode of Payment", "RTGS")).thenReturn(Map.of());
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Mode of Payment"), org.mockito.Mockito.anyMap()))
+                .thenThrow(new IllegalStateException("Could not create Mode of Payment"));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-NO-MODE")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-NO-MODE"))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-NO-MODE")));
+
+        PaymentRequest request = new PaymentRequest();
+        request.setCustomer("SHOP-1");
+        request.setCompany("aas");
+        request.setAmount(new BigDecimal("102530.00"));
+        request.setPartyType("Customer");
+        request.setModeOfPayment("RTGS");
+
+        paymentService.createPayment(request, "admin", true);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
+        org.assertj.core.api.Assertions.assertThat(payloadCaptor.getValue()).doesNotContainKey("mode_of_payment");
+        verify(erpNextClient, never()).updateResource(org.mockito.Mockito.eq("Mode of Payment"), org.mockito.Mockito.anyString(), org.mockito.Mockito.anyMap());
     }
 }
