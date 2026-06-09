@@ -190,6 +190,62 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void allBranchCategorySummariesIncludeApprovedCustomerAdjustments() {
+        when(erpNextClient.listResources(eq("Customer"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-001",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-001",
+                                "party", "BRANCH-1",
+                                "party_type", "Customer",
+                                "posting_date", "2026-03-02",
+                                "paid_amount", 300.0,
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.ofEntries(
+                                Map.entry("name", "ACC-JV-001"),
+                                Map.entry("posting_date", "2026-03-03"),
+                                Map.entry("docstatus", 1),
+                                Map.entry("modified", "2026-03-03 10:00:00"),
+                                Map.entry("aas_adjustment_party", "BRANCH-1"),
+                                Map.entry("aas_adjustment_party_type", "Customer"),
+                                Map.entry("aas_category", "Grocery"),
+                                Map.entry("aas_adjustment_direction", "GIVE"),
+                                Map.entry("aas_adjustment_amount", 100.0),
+                                Map.entry("aas_adjustment_reason", "Return"),
+                                Map.entry("aas_reference_invoice", "SINV-001"))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-001"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-001",
+                        "customer", "BRANCH-1",
+                        "grand_total", 1000.0,
+                        "outstanding_amount", 1000.0,
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_group", "Grocery",
+                                "amount", 1000.0)))));
+
+        List<Map<String, Object>> rows = branchOpsService.getAllBranchCategorySummaries();
+        assertThat(rows).containsExactly(Map.of(
+                "branchId", "BRANCH-1",
+                "branchName", "Downtown Branch",
+                "category", "Grocery",
+                "amount", 600.0));
+    }
+
+    @Test
     void getBranchLedgerOnlyUsesPaymentsLinkedToBranchInvoices() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

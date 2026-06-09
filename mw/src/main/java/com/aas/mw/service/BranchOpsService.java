@@ -367,6 +367,7 @@ public class BranchOpsService {
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         List<Map<String, Object>> invoices = filterByPostingDate(fetchSalesInvoices(null), range);
         List<Map<String, Object>> payments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(null), range);
+        List<Map<String, Object>> adjustmentNotes = filterAdjustmentNotesByPostingDate(fetchApprovedCustomerAdjustmentNotes(null, null), range);
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
 
@@ -408,6 +409,19 @@ public class BranchOpsService {
             }
             Map<String, Double> branchTotals = totals.computeIfAbsent(branchId, key -> new LinkedHashMap<>());
             branchTotals.merge(category, -amount, Double::sum);
+        }
+        for (Map<String, Object> note : adjustmentNotes) {
+            if (asInt(note.get("docstatus")) != 1) {
+                continue;
+            }
+            String branchId = asText(note.get(AdjustmentNoteErpService.FIELD_PARTY));
+            String category = asText(note.get(AdjustmentNoteErpService.FIELD_CATEGORY));
+            double netChange = round(adjustmentNetChange(note));
+            if (!hasText(branchId) || !hasText(category) || netChange == 0.0) {
+                continue;
+            }
+            Map<String, Double> branchTotals = totals.computeIfAbsent(branchId, key -> new LinkedHashMap<>());
+            branchTotals.merge(category, netChange, Double::sum);
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();

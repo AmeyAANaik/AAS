@@ -3,6 +3,8 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,9 +25,56 @@ class VendorOpsServiceTest {
 
     @Mock
     private ErpNextClient erpNextClient;
+    @Mock
+    private AdjustmentNoteErpService adjustmentNoteErpService;
 
     @InjectMocks
     private VendorOpsService vendorOpsService;
+
+    @BeforeEach
+    void setup() {
+        lenient().when(erpNextClient.listResources(eq("Journal Entry"), anyMap())).thenReturn(List.of());
+        lenient().when(adjustmentNoteErpService.signedImpact(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    Object rawDirection = invocation.getArgument(1);
+                    String direction = rawDirection == null ? "" : rawDirection.toString();
+                    Object rawAmount = invocation.getArgument(2);
+                    BigDecimal amount;
+                    if (rawAmount instanceof BigDecimal bigDecimal) {
+                        amount = bigDecimal;
+                    } else if (rawAmount instanceof Number number) {
+                        amount = BigDecimal.valueOf(number.doubleValue());
+                    } else if (rawAmount == null) {
+                        amount = BigDecimal.ZERO;
+                    } else {
+                        amount = new BigDecimal(String.valueOf(rawAmount));
+                    }
+                    if ("TAKE".equalsIgnoreCase(direction)) {
+                        return amount.negate();
+                    }
+                    return amount;
+                });
+        lenient().when(adjustmentNoteErpService.normalizeDirection(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    Object rawValue = invocation.getArgument(0);
+                    String value = rawValue == null ? "" : rawValue.toString();
+                    return "TAKE".equalsIgnoreCase(value) ? "TAKE" : "GIVE";
+                });
+        lenient().when(adjustmentNoteErpService.asDecimal(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    Object rawValue = invocation.getArgument(0);
+                    if (rawValue instanceof BigDecimal bigDecimal) {
+                        return bigDecimal;
+                    }
+                    if (rawValue instanceof Number number) {
+                        return BigDecimal.valueOf(number.doubleValue());
+                    }
+                    if (rawValue == null) {
+                        return BigDecimal.ZERO;
+                    }
+                    return new BigDecimal(String.valueOf(rawValue));
+                });
+    }
 
     @Test
     void summaryPendingBillAmountIncludesOutstandingInvoicesAndPreCaptureOrders() {
@@ -206,6 +256,82 @@ class VendorOpsServiceTest {
     }
 
     @Test
+    void getVendorLedgerIncludesApprovedCreditNoteAndDebitNote() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-001",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "bill_no", "BILL-001",
+                                "docstatus", 1)));
+
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-001",
+                                "party", "VENDOR-1",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-03-02",
+                                "paid_amount", 400.0,
+                                "docstatus", 1)));
+
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.ofEntries(
+                                Map.entry("name", "ACC-JV-001"),
+                                Map.entry("posting_date", "2026-03-03"),
+                                Map.entry("docstatus", 1),
+                                Map.entry("modified", "2026-03-03 10:00:00"),
+                                Map.entry("aas_adjustment_party", "VENDOR-1"),
+                                Map.entry("aas_adjustment_party_type", "Supplier"),
+                                Map.entry("aas_category", "Grocery"),
+                                Map.entry("aas_adjustment_direction", "GIVE"),
+                                Map.entry("aas_adjustment_amount", 200.0),
+                                Map.entry("aas_adjustment_reason", "Reimbursement"),
+                                Map.entry("aas_reference_invoice", "PINV-001")),
+                        Map.ofEntries(
+                                Map.entry("name", "ACC-JV-002"),
+                                Map.entry("posting_date", "2026-03-04"),
+                                Map.entry("docstatus", 1),
+                                Map.entry("modified", "2026-03-04 10:00:00"),
+                                Map.entry("aas_adjustment_party", "VENDOR-1"),
+                                Map.entry("aas_adjustment_party_type", "Supplier"),
+                                Map.entry("aas_category", "Grocery"),
+                                Map.entry("aas_adjustment_direction", "TAKE"),
+                                Map.entry("aas_adjustment_amount", 50.0),
+                                Map.entry("aas_adjustment_reason", "Recovery"),
+                                Map.entry("aas_reference_invoice", "PINV-001"))));
+
+        Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
+
+        assertThat(response.get("balance")).isEqualTo(750.0);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+        assertThat(entries)
+                .extracting(row -> row.get("voucherType"))
+                .contains("Credit Note", "Debit Note");
+        assertThat(entries)
+                .anySatisfy(row -> assertThat(row)
+                        .containsEntry("voucherType", "Credit Note")
+                        .containsEntry("credit", 200.0)
+                        .containsEntry("debit", 0.0)
+                        .containsEntry("netChange", 200.0));
+        assertThat(entries)
+                .anySatisfy(row -> assertThat(row)
+                        .containsEntry("voucherType", "Debit Note")
+                        .containsEntry("debit", 50.0)
+                        .containsEntry("credit", 0.0)
+                        .containsEntry("netChange", -50.0));
+    }
+
+    @Test
     void getVendorLedgerUsesDirectPurchaseInvoiceCategoryForOpeningBalances() {
         when(erpNextClient.getResource("Supplier", "Sanshray Foods"))
                 .thenReturn(Map.of("data", Map.of("name", "Sanshray Foods", "supplier_name", "Sanshray Foods")));
@@ -269,6 +395,59 @@ class VendorOpsServiceTest {
                 .containsEntry("voucherNo", "ACC-PINV-2026-00007")
                 .containsEntry("credit", 139120.84)
                 .containsEntry("runningBalance", 1713824.84);
+    }
+
+    @Test
+    void getVendorLedgerCategorySummaryIncludesApprovedSupplierAdjustments() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-001",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 1000.0,
+                                "outstanding_amount", 1000.0,
+                                "bill_no", "BILL-001",
+                                "aas_category", "Grocery",
+                                "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-001",
+                                "party", "VENDOR-1",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-03-02",
+                                "paid_amount", 400.0,
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.ofEntries(
+                                Map.entry("name", "ACC-JV-001"),
+                                Map.entry("posting_date", "2026-03-03"),
+                                Map.entry("docstatus", 1),
+                                Map.entry("modified", "2026-03-03 10:00:00"),
+                                Map.entry("aas_adjustment_party", "VENDOR-1"),
+                                Map.entry("aas_adjustment_party_type", "Supplier"),
+                                Map.entry("aas_category", "Grocery"),
+                                Map.entry("aas_adjustment_direction", "GIVE"),
+                                Map.entry("aas_adjustment_amount", 200.0),
+                                Map.entry("aas_adjustment_reason", "Reimbursement"),
+                                Map.entry("aas_reference_invoice", "PINV-001"))));
+
+        Map<String, Object> ledger = vendorOpsService.getVendorLedger("VENDOR-1");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.get("categorySummary");
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 800.0));
+
+        Map<String, Object> categoryLedger = vendorOpsService.getVendorLedgerByCategory("VENDOR-1", "Grocery");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
+        assertThat(entries)
+                .extracting(row -> row.get("voucherType"))
+                .contains("Credit Note");
     }
 
     @Test
