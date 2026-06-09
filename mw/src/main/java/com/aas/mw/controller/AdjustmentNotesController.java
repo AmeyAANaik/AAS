@@ -2,14 +2,18 @@ package com.aas.mw.controller;
 
 import com.aas.mw.dto.AdjustmentNoteRequest;
 import com.aas.mw.service.AdjustmentNoteService;
+import com.aas.mw.service.AdjustmentNotePdfService;
 import com.aas.mw.service.ErpSessionStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,12 +26,15 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdjustmentNotesController {
 
     private final AdjustmentNoteService adjustmentNoteService;
+    private final AdjustmentNotePdfService adjustmentNotePdfService;
     private final ObjectMapper objectMapper;
 
     public AdjustmentNotesController(
             AdjustmentNoteService adjustmentNoteService,
+            AdjustmentNotePdfService adjustmentNotePdfService,
             ObjectMapper objectMapper) {
         this.adjustmentNoteService = adjustmentNoteService;
+        this.adjustmentNotePdfService = adjustmentNotePdfService;
         this.objectMapper = objectMapper;
     }
 
@@ -46,6 +53,15 @@ public class AdjustmentNotesController {
         AdjustmentNoteRequest payload = parseRequest(note);
         String actor = authentication == null ? "" : String.valueOf(authentication.getName());
         return ResponseEntity.ok(adjustmentNoteService.createDraftWithAttachments(payload, files, actor, sessionCookie));
+    }
+
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable String id) {
+        byte[] pdf = adjustmentNotePdfService.downloadPdf(id);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"adjustment-note-" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     private AdjustmentNoteRequest parseRequest(MultipartFile note) {

@@ -91,6 +91,14 @@
           <div class="detail-subtitle">{{ selectedLabel }} · {{ selectedDocumentId }}</div>
         </div>
         <div class="detail-actions">
+          <button
+            *ngIf="canDownloadReceipt"
+            mat-stroked-button
+            color="primary"
+            type="button"
+            (click)="downloadReceipt()">
+            Download receipt
+          </button>
           <a
             *ngIf="canCaptureReceipt"
             mat-stroked-button

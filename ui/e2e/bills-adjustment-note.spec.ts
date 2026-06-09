@@ -431,4 +431,102 @@ test.describe('Bills credit/debit note workflow', () => {
     await page.getByTestId('bill-review-approve').click();
     await expect(page.getByText('Credit note approved and posted.')).toBeVisible();
   });
+
+  test('approved credit note shows download receipt action and downloads pdf', async ({ page }) => {
+    await seedAuth(page, ['bill_review.view']);
+    await mockShell(page, ['bill_review.view']);
+
+    await page.route('**/api/bill-review/items?**', async route => {
+      const url = new URL(route.request().url());
+      expect(url.searchParams.get('status')).toBe('UNDER_REVIEW');
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    await page.route('**/api/bill-review/items?status=APPROVED**', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            itemType: 'CREDIT_NOTE',
+            documentId: 'ACC-JV-2026-00002',
+            documentLabel: 'Credit note',
+            partyType: 'Customer',
+            party: 'BR-2',
+            partyName: 'Sukarta Aundh',
+            postingDate: '2026-06-07',
+            amount: 10000,
+            categoryId: 'Grocery',
+            dueAmount: 118422.44,
+            direction: 'GIVE',
+            referenceInvoice: 'ACC-SINV-2026-00033',
+            reason: 'Settlement adjustment',
+            docstatus: 1,
+            createdAt: '2026-06-07 13:03:21',
+            createdBy: 'Administrator',
+            reviewStatus: 'APPROVED',
+            reviewedAt: '2026-06-07 13:07:00',
+            reviewedBy: 'Administrator'
+          }
+        ])
+      });
+    });
+
+    await page.route('**/api/bill-review/items/CREDIT_NOTE/ACC-JV-2026-00002', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          itemType: 'CREDIT_NOTE',
+          documentId: 'ACC-JV-2026-00002',
+          document: {
+            posting_date: '2026-06-07',
+            aas_adjustment_party_type: 'Customer',
+            aas_adjustment_party: 'BR-2',
+            aas_adjustment_amount: 10000,
+            aas_category: 'Grocery',
+            aas_due_amount: 118422.44,
+            aas_reference_invoice: 'ACC-SINV-2026-00033',
+            aas_adjustment_reason: 'Settlement adjustment',
+            aas_adjustment_direction: 'GIVE',
+            aas_adjustment_created_by: 'Administrator',
+            aas_adjustment_created_at: '2026-06-07 13:03:21',
+            aas_adjustment_review_status: 'APPROVED'
+          },
+          attachments: [{ id: 'FILE-9', name: 'evidence.jpeg', url: '/api/files/evidence.jpeg', isPrivate: false, createdAt: '2026-06-07 13:03:21' }],
+          currentDueAmount: 118422.44,
+          expectedDueAfterApproval: 98422.44,
+          signedImpact: -10000
+        })
+      });
+    });
+
+    await page.route('**/api/adjustment-notes/ACC-JV-2026-00002/pdf', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: {
+          'content-disposition': 'attachment; filename="adjustment-note-ACC-JV-2026-00002.pdf"'
+        },
+        body: '%PDF-1.4 approved adjustment note'
+      });
+    });
+
+    await page.goto('/bill-review');
+    await page.getByTestId('bill-review-status-approved').click();
+
+    await page.getByTestId('bill-review-item-CREDIT_NOTE-ACC-JV-2026-00002').click();
+    await expect(page.getByTestId('bill-review-detail')).toBeVisible();
+    await expect(page.getByText('Download receipt')).toBeVisible();
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByText('Download receipt').click();
+    const download = await downloadPromise;
+
+    expect(download.suggestedFilename()).toContain('ACC-JV-2026-00002');
+  });
 });

@@ -188,6 +188,16 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
     return partyType === 'customer' && !!partyId && !!categoryId;
   }
 
+  get canDownloadReceipt(): boolean {
+    if (this.selectedItemType === 'PAYMENT') {
+      return false;
+    }
+    return this.selectedStatus === 'APPROVED'
+      && !!this.selectedDocumentId
+      && !!this.selectedItem
+      && String(this.document?.['aas_adjustment_review_status'] ?? '').trim().toUpperCase() === 'APPROVED';
+  }
+
   get receiptQueryParams(): Record<string, string> {
     return {
       partyType: String(this.document?.['aas_adjustment_party_type'] ?? 'Customer').trim() || 'Customer',
@@ -238,6 +248,30 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
       return 'Credit note';
     }
     return 'Payment';
+  }
+
+  downloadReceipt(): void {
+    if (!this.canDownloadReceipt || !this.selectedDocumentId) {
+      return;
+    }
+    this.statusMessage = '';
+    this.errorMessage = '';
+    this.billReviewService.downloadAdjustmentNotePdf(this.selectedDocumentId).subscribe({
+      next: blob => {
+        if (!blob) {
+          return;
+        }
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${this.selectedDocumentId}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      },
+      error: err => {
+        this.errorMessage = formatUiError(err, 'Unable to download credit/debit note receipt.');
+      }
+    });
   }
 
   private loadQueue(resetSelection: boolean): void {

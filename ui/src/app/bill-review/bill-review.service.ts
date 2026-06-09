@@ -55,6 +55,13 @@ export class BillReviewService {
       .pipe(tap(() => this.refreshSubject.next()));
   }
 
+  downloadAdjustmentNotePdf(documentId: string) {
+    return this.http.get(`/api/adjustment-notes/${encodeURIComponent(documentId)}/pdf`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   notifyRefresh(): void {
     this.refreshSubject.next();
   }

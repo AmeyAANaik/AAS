@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SetupService {
     private static final String SALES_INVOICE_PRINT_FORMAT_NAME = "AAS Sales Invoice Print";
+    private static final String ADJUSTMENT_NOTE_PRINT_FORMAT_NAME = "AAS Adjustment Note Print";
     private static final String SALES_INVOICE_PRINT_FORMAT_HTML = """
             <style>
               .print-format { font-size: 12px; color: #111827; line-height: 1.45; }
@@ -295,6 +296,125 @@ public class SetupService {
                     <p class="aas-signatory-label">Authorized Signatory</p>
                     <p class="aas-signatory-name">For {{ doc.company_name or doc.company }}</p>
                   </div>
+                </td>
+              </tr>
+            </table>
+            """;
+    private static final String ADJUSTMENT_NOTE_PRINT_FORMAT_HTML = """
+            <style>
+              .print-format { font-size: 12px; color: #111827; line-height: 1.5; }
+              .aas-note-header, .aas-note-meta, .aas-note-summary, .aas-note-footer { width: 100%; border-collapse: collapse; }
+              .aas-note-header td, .aas-note-meta td, .aas-note-summary td, .aas-note-summary th { border: 1px solid #111827; padding: 8px 10px; vertical-align: top; }
+              .aas-note-brand { border: none !important; padding: 0 14px 14px 0 !important; width: 56%; }
+              .aas-note-card { border: none !important; padding: 0 !important; width: 44%; }
+              .aas-note-title { margin: 0 0 8px; font-size: 24px; font-weight: 700; }
+              .aas-note-kicker { margin: 0 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5563; font-weight: 700; }
+              .aas-note-company-line, .aas-note-muted { margin: 0 0 2px; color: #374151; }
+              .aas-note-box { border: 1px solid #111827; padding: 12px; }
+              .aas-note-box-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; text-align: center; letter-spacing: 0.05em; }
+              .aas-note-label { width: 34%; font-weight: 600; white-space: nowrap; }
+              .aas-note-summary { margin-top: 16px; }
+              .aas-note-summary th { background: #f3f4f6; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5563; }
+              .aas-note-value { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+              .aas-note-grand td { background: #eef2ff; font-weight: 700; font-size: 13px; }
+              .aas-note-footer { margin-top: 18px; }
+              .aas-note-footer td { border: none; padding: 0; }
+              .aas-note-reason { min-height: 70px; border: 1px solid #111827; padding: 10px 12px; }
+              .aas-note-sign { text-align: center; vertical-align: bottom; }
+              .aas-note-sign-line { border-top: 1px solid #111827; margin: 56px 24px 8px; }
+              .aas-note-sign-label { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5563; }
+            </style>
+            {% set company_doc = frappe.get_doc("Company", doc.company) if doc.company else None %}
+            {% set company_tax_id = (company_doc.tax_id or company_doc.gstin) if company_doc else "" %}
+            {% set party_type = doc.aas_adjustment_party_type or "" %}
+            {% set party_id = doc.aas_adjustment_party or "" %}
+            {% set is_customer = party_type == "Customer" %}
+            {% set party_doc = frappe.get_doc("Customer", party_id) if is_customer and party_id else (frappe.get_doc("Supplier", party_id) if party_id else None) %}
+            {% set direction = doc.aas_adjustment_direction or "GIVE" %}
+            {% set note_type = "Credit Note" if direction == "GIVE" else "Debit Note" %}
+            {% set due_snapshot = frappe.utils.flt(doc.aas_due_amount or 0, 2) %}
+            {% set note_amount = frappe.utils.flt(doc.aas_adjustment_amount or 0, 2) %}
+            {% if party_type == "Supplier" %}
+              {% set signed_impact = note_amount if direction == "GIVE" else (-1 * note_amount) %}
+            {% else %}
+              {% set signed_impact = (-1 * note_amount) if direction == "GIVE" else note_amount %}
+            {% endif %}
+            {% set due_after = frappe.utils.flt(due_snapshot + signed_impact, 2) %}
+            <table class="aas-note-header">
+              <tr>
+                <td class="aas-note-brand">
+                  <p class="aas-note-kicker">Accounting adjustment</p>
+                  <h1 class="aas-note-title">{{ company_doc.company_name if company_doc and company_doc.company_name else doc.company }}</h1>
+                  {% if company_doc %}
+                    {% if company_doc.address_line_1 %}<p class="aas-note-company-line">{{ company_doc.address_line_1 }}</p>{% endif %}
+                    {% if company_doc.address_line_2 %}<p class="aas-note-company-line">{{ company_doc.address_line_2 }}</p>{% endif %}
+                    <p class="aas-note-company-line">
+                      {{ company_doc.city or "" }}{% if company_doc.city and company_doc.state %}, {% endif %}{{ company_doc.state or "" }} {{ company_doc.pincode or "" }}
+                    </p>
+                  {% endif %}
+                  {% if company_tax_id %}<p class="aas-note-company-line"><strong>GSTIN:</strong> {{ company_tax_id }}</p>{% endif %}
+                </td>
+                <td class="aas-note-card">
+                  <div class="aas-note-box">
+                    <p class="aas-note-box-title">{{ note_type | upper }}</p>
+                    <table class="aas-note-meta">
+                      <tr><td class="aas-note-label">Receipt no</td><td>{{ doc.name }}</td></tr>
+                      <tr><td class="aas-note-label">Posting date</td><td>{{ frappe.format(doc.posting_date, {"fieldtype": "Date"}) }}</td></tr>
+                      <tr><td class="aas-note-label">Status</td><td>{{ doc.aas_adjustment_review_status or "APPROVED" }}</td></tr>
+                      <tr><td class="aas-note-label">Direction</td><td>{{ "Give" if direction == "GIVE" else "Take" }}</td></tr>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <table class="aas-note-meta" style="margin-top: 12px;">
+              <tr>
+                <td class="aas-note-label">Party</td>
+                <td>{{ party_type }} · {{ party_doc.customer_name if is_customer and party_doc and party_doc.customer_name else (party_doc.supplier_name if party_doc and party_doc.supplier_name else party_id) }}</td>
+              </tr>
+              <tr>
+                <td class="aas-note-label">Category</td>
+                <td>{{ doc.aas_category or "—" }}</td>
+              </tr>
+              <tr>
+                <td class="aas-note-label">Reference invoice</td>
+                <td>{{ doc.aas_reference_invoice or "—" }}</td>
+              </tr>
+            </table>
+
+            <table class="aas-note-summary">
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th class="aas-note-value">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{{ note_type }} for {{ doc.aas_category or "selected category" }}</td>
+                  <td class="aas-note-value">{{ frappe.utils.fmt_money(note_amount, currency=doc.multi_currency and doc.account_currency or doc.company_currency) }}</td>
+                </tr>
+                <tr>
+                  <td>Due snapshot at submission</td>
+                  <td class="aas-note-value">{{ frappe.utils.fmt_money(due_snapshot, currency=doc.multi_currency and doc.account_currency or doc.company_currency) }}</td>
+                </tr>
+                <tr class="aas-note-grand">
+                  <td>Due after approval</td>
+                  <td class="aas-note-value">{{ frappe.utils.fmt_money(due_after, currency=doc.multi_currency and doc.account_currency or doc.company_currency) }}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table class="aas-note-footer">
+              <tr>
+                <td style="width: 62%; padding-right: 16px;">
+                  <p class="aas-note-kicker">Reason / note</p>
+                  <div class="aas-note-reason">{{ doc.aas_adjustment_reason or doc.user_remark or "—" }}</div>
+                </td>
+                <td class="aas-note-sign" style="width: 38%;">
+                  <div class="aas-note-sign-line"></div>
+                  <p class="aas-note-sign-label">Authorized signatory</p>
                 </td>
               </tr>
             </table>
@@ -1030,6 +1150,7 @@ public class SetupService {
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
+        result.put("adjustmentNotePrintFormatEnsured", ensureAdjustmentNotePrintFormat());
         result.put("temporaryOpeningAccountEnsured", ensureTemporaryOpeningAccount());
         result.put("salesOrderCategoryFieldCreated", salesOrderCategoryField);
         result.put("salesInvoiceCategoryFieldCreated", salesInvoiceCategoryField);
@@ -1657,6 +1778,11 @@ public class SetupService {
         return changed;
     }
 
+    private boolean ensureAdjustmentNotePrintFormat() {
+        String printFormatName = ensureAdjustmentNotePrintFormatDoc();
+        return !printFormatName.isBlank();
+    }
+
     private boolean ensureTemporaryOpeningAccount() {
         boolean changed = false;
         int start = 0;
@@ -1802,6 +1928,31 @@ public class SetupService {
         if (existing != null && !existing.isEmpty()) {
             erpNextClient.updateResource("Print Format", SALES_INVOICE_PRINT_FORMAT_NAME, payload);
             return SALES_INVOICE_PRINT_FORMAT_NAME;
+        }
+        Map<String, Object> created = erpNextClient.createResource("Print Format", payload);
+        return asText(unwrap(created).get("name"));
+    }
+
+    private String ensureAdjustmentNotePrintFormatDoc() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\"]");
+        params.put(
+                "filters",
+                "[[\"name\",\"=\",\"" + escape(ADJUSTMENT_NOTE_PRINT_FORMAT_NAME) + "\"],[\"doc_type\",\"=\",\"Journal Entry\"]]");
+        params.put("limit_page_length", 1);
+        List<Map<String, Object>> existing = erpNextClient.listResources("Print Format", params);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", ADJUSTMENT_NOTE_PRINT_FORMAT_NAME);
+        payload.put("doc_type", "Journal Entry");
+        payload.put("module", "Accounts");
+        payload.put("custom_format", 1);
+        payload.put("print_format_type", "Jinja");
+        payload.put("raw_printing", 0);
+        payload.put("disabled", 0);
+        payload.put("html", ADJUSTMENT_NOTE_PRINT_FORMAT_HTML);
+        if (existing != null && !existing.isEmpty()) {
+            erpNextClient.updateResource("Print Format", ADJUSTMENT_NOTE_PRINT_FORMAT_NAME, payload);
+            return ADJUSTMENT_NOTE_PRINT_FORMAT_NAME;
         }
         Map<String, Object> created = erpNextClient.createResource("Print Format", payload);
         return asText(unwrap(created).get("name"));

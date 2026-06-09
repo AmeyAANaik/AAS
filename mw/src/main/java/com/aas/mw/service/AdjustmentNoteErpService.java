@@ -88,7 +88,7 @@ public class AdjustmentNoteErpService {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("id", asText(file.get("name")));
             out.put("name", asText(file.get("file_name")));
-            out.put("url", asText(file.get("file_url")));
+            out.put("url", toProxyFileUrl(asText(file.get("file_url"))));
             out.put("isPrivate", asInt(file.get("is_private")) == 1);
             out.put("createdAt", asText(file.get("creation")));
             return out;
@@ -262,5 +262,30 @@ public class AdjustmentNoteErpService {
 
     private String escape(String value) {
         return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private String toProxyFileUrl(String fileUrl) {
+        String value = asText(fileUrl);
+        if (value.isBlank()) {
+            return value;
+        }
+        if (value.startsWith("/api/files/") || value.startsWith("/api/private/files/")) {
+            return value;
+        }
+        String path = value;
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            try {
+                path = java.net.URI.create(value).getPath();
+            } catch (Exception ignored) {
+                return value;
+            }
+        }
+        if (path.startsWith("/private/files/")) {
+            return "/api" + path;
+        }
+        if (path.startsWith("/files/")) {
+            return "/api" + path;
+        }
+        return value;
     }
 }
