@@ -129,6 +129,13 @@ export class OrderService {
     });
   }
 
+  downloadFile(fileUrl: string): Observable<Blob> {
+    return this.http.get(this.toProxyFileUrl(fileUrl), {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
   downloadVendorPdfFile(orderId: string): Observable<Blob> {
     return this.http.get(`/api/orders/${encodeURIComponent(orderId)}/vendor-pdf`, {
       headers: this.authHeaders(),
@@ -189,5 +196,21 @@ export class OrderService {
       return new HttpHeaders();
     }
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
+  }
+
+  private toProxyFileUrl(fileUrl: string): string {
+    const value = (fileUrl ?? '').trim();
+    if (!value || value.startsWith('/api/files/') || value.startsWith('/api/private/files/')) {
+      return value;
+    }
+    try {
+      const url = new URL(value, window.location.origin);
+      if (url.pathname.startsWith('/private/files/') || url.pathname.startsWith('/files/')) {
+        return `/api${url.pathname}${url.search}`;
+      }
+    } catch {
+      return value;
+    }
+    return value;
   }
 }

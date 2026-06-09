@@ -197,6 +197,25 @@ class OrderServiceTest {
     }
 
     @Test
+    void getOrderReturnsBranchImagesThroughFileProxy() {
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1")))
+                .thenReturn(new HashMap<>(Map.of("name", "SO-1", "aas_status", "DRAFT")));
+        when(erpNextClient.listResources(eq("File"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "FILE-1",
+                        "file_name", "branch_order.jpeg",
+                        "file_url", "http://erp.local/private/files/branch_order.jpeg?download=1",
+                        "creation", "2026-06-10 10:00:00")));
+
+        Map<String, Object> order = orderService.getOrder("SO-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> images = (List<Map<String, Object>>) order.get("branch_images");
+        assertEquals(1, images.size());
+        assertEquals("/api/private/files/branch_order.jpeg?download=1", images.get(0).get("file_url"));
+    }
+
+    @Test
     void appliesDefaultMarginWhenCreatingOrderWithoutMargin() {
         when(erpNextClient.getResource(eq("Company"), eq("AAS"))).thenReturn(Map.of("abbr", "A"));
         when(erpNextClient.listResources(eq("Warehouse"), anyMap()))

@@ -1066,8 +1066,33 @@ public class OrderService {
         Map<String, Object> payload = new HashMap<>();
         payload.put("id", asText(row.get("name")));
         payload.put("file_name", asText(row.get("file_name")));
-        payload.put("file_url", resolveFileUrl(asText(row.get("file_url"))));
+        payload.put("file_url", toProxyFileUrl(asText(row.get("file_url"))));
         return payload;
+    }
+
+    private String toProxyFileUrl(String fileUrl) {
+        String value = asText(fileUrl);
+        if (value.isBlank()) {
+            return value;
+        }
+        if (value.startsWith("/api/files/") || value.startsWith("/api/private/files/")) {
+            return value;
+        }
+        String path = value;
+        String query = "";
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            try {
+                java.net.URI uri = java.net.URI.create(value);
+                path = uri.getPath();
+                query = uri.getRawQuery() == null || uri.getRawQuery().isBlank() ? "" : "?" + uri.getRawQuery();
+            } catch (Exception ignored) {
+                return value;
+            }
+        }
+        if (path.startsWith("/private/files/") || path.startsWith("/files/")) {
+            return "/api" + path + query;
+        }
+        return value;
     }
 
     private String ensureUniqueZipEntryName(int index, String preferredName, String fallbackName) {

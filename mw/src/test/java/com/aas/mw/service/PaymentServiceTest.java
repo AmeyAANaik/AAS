@@ -3,6 +3,7 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.PaymentRequest;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -118,6 +119,69 @@ class PaymentServiceTest {
 
         assertFalse(payload.containsKey("references"));
         assertEquals(new BigDecimal("25.00"), payload.get("unallocated_amount"));
+    }
+
+    @Test
+    void createsCategoryPaymentWithMatchingInvoiceAllocation() {
+        when(erpNextClient.getResource("Company", "aas"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_receivable_account", "REC-ACC",
+                        "default_cash_account", "CASH-ACC")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-1",
+                        "docstatus", 0,
+                        "grand_total", new BigDecimal("100.00"),
+                        "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-1"))
+                .thenReturn(
+                        Map.of("data", Map.of(
+                                "name", "ACC-SINV-1",
+                                "docstatus", 0,
+                                "customer", "SHOP-1",
+                                "company", "aas",
+                                "grand_total", new BigDecimal("100.00"),
+                                "aas_category", "Grocery")),
+                        Map.of("data", Map.of(
+                                "name", "ACC-SINV-1",
+                                "docstatus", 1,
+                                "customer", "SHOP-1",
+                                "company", "aas",
+                                "grand_total", new BigDecimal("100.00"),
+                                "outstanding_amount", new BigDecimal("100.00"),
+                                "aas_category", "Grocery")));
+        when(erpNextClient.submitDoc(org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("name", "ACC-SINV-1", "docstatus", 1)));
+        when(paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery"))
+                .thenReturn(Map.of("dueAmount", new BigDecimal("100.00")));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-CAT")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-CAT"))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-CAT")));
+
+        PaymentRequest request = new PaymentRequest();
+        request.setCustomer("SHOP-1");
+        request.setCompany("aas");
+        request.setAmount(new BigDecimal("100.00"));
+        request.setPartyType("Customer");
+        request.setCategoryId("Grocery");
+
+        paymentService.createPayment(request, "helper", false);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
+        Map<String, Object> payload = payloadCaptor.getValue();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> references = (List<Map<String, Object>>) payload.get("references");
+
+        assertEquals(1, references.size());
+        assertEquals("Sales Invoice", references.get(0).get("reference_doctype"));
+        assertEquals("ACC-SINV-1", references.get(0).get("reference_name"));
+        assertEquals(new BigDecimal("100.00"), references.get(0).get("allocated_amount"));
+        assertEquals("Grocery", payload.get("aas_category"));
+        assertEquals(new BigDecimal("100.00"), payload.get("aas_due_amount"));
+        org.mockito.Mockito.verify(erpNextClient).submitDoc(org.mockito.Mockito.argThat(doc -> "ACC-SINV-1".equals(doc.get("name"))));
     }
 
     @Test

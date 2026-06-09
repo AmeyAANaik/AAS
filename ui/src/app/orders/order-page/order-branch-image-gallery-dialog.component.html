@@ -14,7 +14,7 @@
 
   <div class="gallery-body" *ngIf="selectedImage as image">
     <div class="gallery-preview">
-      <img [src]="image.file_url" [alt]="image.file_name || 'Branch image'" />
+      <img [src]="imageSrc(image)" [alt]="image.file_name || 'Branch image'" />
     </div>
     <div class="gallery-strip">
       <button
@@ -23,7 +23,7 @@
         *ngFor="let item of images; let i = index"
         [class.active]="i === selectedIndex"
         (click)="selectImage(i)">
-        <img [src]="item.file_url" [alt]="item.file_name || ('Branch image ' + (i + 1))" />
+        <img [src]="imageSrc(item)" [alt]="item.file_name || ('Branch image ' + (i + 1))" />
         <span>{{ item.file_name || ('Image ' + (i + 1)) }}</span>
       </button>
     </div>
