@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -280,6 +282,56 @@ class PaymentServiceTest {
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
         verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
         assertEquals("RTGS", payloadCaptor.getValue().get("mode_of_payment"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "Cash,Cash,CASH-ACC",
+            "UPI Transfer,Bank,BANK-ACC",
+            "Cheque,Bank,BANK-ACC",
+            "RTGS,Bank,BANK-ACC",
+            "NEFT,Bank,BANK-ACC"
+    })
+    void createsConfiguredModeBeforeUsingItOnCustomerPaymentEntry(
+            String mode,
+            String expectedType,
+            String expectedAccount) {
+        when(erpNextClient.getResource("Company", "aas"))
+                .thenReturn(Map.of("data", Map.of(
+                        "default_receivable_account", "REC-ACC",
+                        "default_cash_account", "CASH-ACC",
+                        "default_bank_account", "BANK-ACC")));
+        when(erpNextClient.getResource("Mode of Payment", mode)).thenReturn(Map.of());
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Mode of Payment"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("name", mode)));
+        when(erpNextClient.createResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-MODE")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-MODE"))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "PAY-MODE")));
+
+        PaymentRequest request = new PaymentRequest();
+        request.setCustomer("SHOP-1");
+        request.setCompany("aas");
+        request.setAmount(new BigDecimal("100.00"));
+        request.setPartyType("Customer");
+        request.setModeOfPayment(mode);
+
+        paymentService.createPayment(request, "admin", true);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> modeCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Mode of Payment"), modeCaptor.capture());
+        Map<String, Object> modePayload = modeCaptor.getValue();
+        assertEquals(mode, modePayload.get("mode_of_payment"));
+        assertEquals(expectedType, modePayload.get("type"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> accounts = (List<Map<String, Object>>) modePayload.get("accounts");
+        assertEquals(expectedAccount, accounts.get(0).get("default_account"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(org.mockito.Mockito.eq("Payment Entry"), payloadCaptor.capture());
+        assertEquals(mode, payloadCaptor.getValue().get("mode_of_payment"));
     }
 
     @Test
