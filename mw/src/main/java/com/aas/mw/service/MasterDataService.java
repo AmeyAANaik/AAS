@@ -659,6 +659,7 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "item_name");
         copyIfPresent(fields, payload, "stock_uom");
         copyIfPresent(fields, payload, "aas_packaging_unit");
+        copyIfPresent(fields, payload, "aas_vendor_rate");
         copyIfPresent(fields, payload, "aas_margin_percent");
         copyIfPresent(fields, payload, "aas_vendor_hsn_code");
         copyIfPresent(fields, payload, "aas_gst_percent");

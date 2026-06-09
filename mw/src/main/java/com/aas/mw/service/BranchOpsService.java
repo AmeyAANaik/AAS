@@ -23,7 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class BranchOpsService {
     private static final String ALL_ITEM_GROUPS = "All Item Groups";
-    private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
+    private static final double CATEGORY_SETTLEMENT_TOLERANCE = 0.5;
 
     private static final int ERP_PAGE_SIZE = 500;
     private static final String CUSTOMER = "Customer";
@@ -250,15 +250,17 @@ public class BranchOpsService {
         List<Map<String, Object>> fullEntries = mergeAndFinalizeLedger(invoiceEntries, paymentEntries, adjustmentEntries, true);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
+        double openingBalance = normalizeCategoryBalance(window.openingBalance);
+        double closingBalance = normalizeCategoryBalance(window.closingBalance);
 
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
                 "categoryId", normalizedCategory,
                 "categoryLabel", normalizedCategory,
-                "openingBalance", window.openingBalance,
-                "closingBalance", window.closingBalance,
-                "balance", window.closingBalance,
+                "openingBalance", openingBalance,
+                "closingBalance", closingBalance,
+                "balance", closingBalance,
                 "entries", window.entries);
     }
 
@@ -391,7 +393,7 @@ public class BranchOpsService {
             }
             Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
             if (shares.isEmpty()) {
-                shares = Map.of("Uncategorized", dueBase);
+                shares = Map.of(resolveInvoiceCategory(invoice), dueBase);
             }
             Map<String, Double> branchTotals = totals.computeIfAbsent(customerId, key -> new LinkedHashMap<>());
             for (Map.Entry<String, Double> entry : shares.entrySet()) {
@@ -430,7 +432,7 @@ public class BranchOpsService {
             String branchId = branchEntry.getKey();
             String branchName = branchNames.getOrDefault(branchId, branchId);
             for (Map.Entry<String, Double> categoryEntry : branchEntry.getValue().entrySet()) {
-                double amount = round(categoryEntry.getValue());
+                double amount = normalizeCategoryBalance(categoryEntry.getValue());
                 if (amount <= 0) {
                     continue;
                 }
@@ -454,6 +456,7 @@ public class BranchOpsService {
         }
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Double> totals = new LinkedHashMap<>();
+        Map<String, Double> activityTotals = new LinkedHashMap<>();
         Set<String> categoriesWithHistory = new LinkedHashSet<>();
         for (Map<String, Object> invoiceRow : invoices) {
             String invoiceId = asText(invoiceRow.get("name"));
@@ -473,8 +476,10 @@ public class BranchOpsService {
             }
             List<Map<String, Object>> items = childItems(invoice.get("items"));
             if (items.isEmpty()) {
-                categoriesWithHistory.add("Uncategorized");
-                totals.merge("Uncategorized", dueBase, Double::sum);
+                String invoiceCategory = resolveInvoiceCategory(invoice);
+                categoriesWithHistory.add(invoiceCategory);
+                totals.merge(invoiceCategory, dueBase, Double::sum);
+                activityTotals.merge(invoiceCategory, dueBase, Double::sum);
                 continue;
             }
             List<LineWeight> weights = new ArrayList<>();
@@ -493,13 +498,16 @@ public class BranchOpsService {
                 totalWeight += amount;
             }
             if (weights.isEmpty() || totalWeight <= 0) {
-                categoriesWithHistory.add("Uncategorized");
-                totals.merge("Uncategorized", dueBase, Double::sum);
+                String invoiceCategory = resolveInvoiceCategory(invoice);
+                categoriesWithHistory.add(invoiceCategory);
+                totals.merge(invoiceCategory, dueBase, Double::sum);
+                activityTotals.merge(invoiceCategory, dueBase, Double::sum);
                 continue;
             }
             for (LineWeight weight : weights) {
                 double share = dueBase * (weight.amount() / totalWeight);
                 totals.merge(weight.group(), share, Double::sum);
+                activityTotals.merge(weight.group(), share, Double::sum);
             }
         }
         if (payments != null) {
@@ -530,10 +538,23 @@ public class BranchOpsService {
                 totals.merge(category, netChange, Double::sum);
             }
         }
-        return totals.entrySet().stream()
-                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null)
-                .filter(entry -> Math.abs(round(entry.getValue())) > 0.009 || categoriesWithHistory.contains(entry.getKey()))
-                .map(entry -> Map.<String, Object>of("category", entry.getKey(), "amount", round(entry.getValue())))
+        Set<String> categories = new LinkedHashSet<>();
+        categories.addAll(categoriesWithHistory);
+        categories.addAll(totals.keySet());
+        categories.addAll(activityTotals.keySet());
+        return categories.stream()
+                .filter(this::hasText)
+                .map(category -> {
+                    double activity = round(activityTotals.getOrDefault(category, 0.0));
+                    double balance = normalizeCategoryBalance(totals.getOrDefault(category, 0.0));
+                    return Map.<String, Object>of(
+                            "category", category,
+                            "amount", activity,
+                            "balance", balance);
+                })
+                .filter(row -> Math.abs(asDouble(row.get("amount"))) > 0.009
+                        || Math.abs(asDouble(row.get("balance"))) > 0.009
+                        || categoriesWithHistory.contains(asText(row.get("category"))))
                 .sorted((left, right) -> Double.compare(Math.abs(asDouble(right.get("amount"))), Math.abs(asDouble(left.get("amount")))))
                 .toList();
     }
@@ -562,8 +583,8 @@ public class BranchOpsService {
             if (dueBase <= 0) {
                 continue;
             }
-            Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
-            double share = shares.getOrDefault(categoryId, 0.0);
+        Map<String, Double> shares = allocateInvoiceShares(invoice, dueBase, resolver);
+        double share = shares.getOrDefault(categoryId, 0.0);
             if (share <= 0) {
                 continue;
             }
@@ -685,7 +706,7 @@ public class BranchOpsService {
             ItemGroupResolver resolver) {
         List<Map<String, Object>> items = childItems(invoice.get("items"));
         if (items.isEmpty() || dueBase <= 0) {
-            return Map.of();
+            return dueBase > 0 ? Map.of(resolveInvoiceCategory(invoice), dueBase) : Map.of();
         }
         Map<String, Double> weights = new HashMap<>();
         double totalWeight = 0.0;
@@ -702,7 +723,7 @@ public class BranchOpsService {
             totalWeight += amount;
         }
         if (weights.isEmpty() || totalWeight <= 0) {
-            return Map.of();
+            return Map.of(resolveInvoiceCategory(invoice), dueBase);
         }
         Map<String, Double> shares = new HashMap<>();
         for (Map.Entry<String, Double> entry : weights.entrySet()) {
@@ -721,10 +742,15 @@ public class BranchOpsService {
             group = resolver.resolve(asText(item.get("item_code")));
         }
         group = normalizeItemGroup(group);
-        if (!hasText(group) && TRANSPORT_ITEM_CODE.equals(asText(item.get("item_code")))) {
-            group = normalizeItemGroup(asText(invoice.get("aas_category")));
+        if (!hasText(group)) {
+            group = resolveInvoiceCategory(invoice);
         }
         return group;
+    }
+
+    private String resolveInvoiceCategory(Map<String, Object> invoice) {
+        String category = normalizeItemGroup(asText(invoice == null ? null : invoice.get("aas_category")));
+        return hasText(category) ? category : "Uncategorized";
     }
 
     private static class ItemGroupResolver {
@@ -1517,6 +1543,11 @@ public class BranchOpsService {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private double normalizeCategoryBalance(double value) {
+        double rounded = round(value);
+        return Math.abs(rounded) <= CATEGORY_SETTLEMENT_TOLERANCE ? 0.0 : rounded;
     }
 
     @SuppressWarnings("unchecked")

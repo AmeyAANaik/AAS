@@ -23,6 +23,7 @@ export interface ItemFormValue {
   measureUnit: string;
   packagingUnit: string;
   marginPercent: number | null;
+  defaultVendorRate: number | null;
 }
 
 export interface ItemCategorySummaryView {
@@ -41,6 +42,7 @@ export interface ItemView {
   measureUnit: string;
   packagingUnit: string;
   marginPercent: number | null;
+  defaultVendorRate: number | null;
   raw: Item;
 }
 

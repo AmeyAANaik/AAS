@@ -13,7 +13,7 @@ import { MatTableModule } from '@angular/material/table';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
@@ -133,6 +133,19 @@ describe('OrderPageComponent', () => {
 
   it('loads orders on init', () => {
     expect(orderService.listOrders).toHaveBeenCalled();
+  });
+
+  it('keeps existing order rows visible when refresh hits a permission error', () => {
+    expect(component.orders.length).toBe(2);
+    orderService.listOrders.and.returnValue(throwError(() => new Error('You don’t have permission to run this report.')));
+
+    component.loadOrders();
+    fixture.detectChanges();
+
+    expect(component.orders.length).toBe(2);
+    expect(component.ordersErrorMessage).toContain('permission');
+    expect(fixture.nativeElement.textContent).toContain('ORD-1');
+    expect(fixture.nativeElement.textContent).toContain('Refresh warning');
   });
 
   it('assigns vendor via order service', () => {

@@ -55,6 +55,11 @@
             <td mat-cell *matCellDef="let item">{{ item.packagingUnit || '—' }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="defaultPrice">
+            <th mat-header-cell *matHeaderCellDef>Default price</th>
+            <td mat-cell *matCellDef="let item">{{ item.defaultVendorRate === null ? '—' : (item.defaultVendorRate | number:'1.2-2') }}</td>
+          </ng-container>
+
           <ng-container matColumnDef="margin">
             <th mat-header-cell *matHeaderCellDef>Margin</th>
             <td mat-cell *matCellDef="let item">{{ item.marginPercent === null ? '—' : (item.marginPercent + '%') }}</td>
@@ -72,8 +77,8 @@
             </td>
           </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="['name', 'unit', 'packaging', 'margin', 'actions']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['name', 'unit', 'packaging', 'margin', 'actions']"></tr>
+          <tr mat-header-row *matHeaderRowDef="['name', 'unit', 'packaging', 'defaultPrice', 'margin', 'actions']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['name', 'unit', 'packaging', 'defaultPrice', 'margin', 'actions']"></tr>
         </table>
       </div>
 

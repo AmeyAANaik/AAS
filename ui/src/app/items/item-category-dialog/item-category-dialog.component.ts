@@ -94,6 +94,7 @@ export class ItemCategoryDialogComponent implements OnInit {
       item_group: this.selectedCategory,
       stock_uom: formValue.measureUnit || 'Nos',
       aas_packaging_unit: formValue.packagingUnit || '',
+      aas_vendor_rate: this.toOptionalPositiveNumber(formValue.defaultVendorRate),
       aas_margin_percent: formValue.marginPercent ?? 0,
       aas_vendor_hsn_code: formValue.vendorHsnCode.trim()
     };
@@ -103,6 +104,7 @@ export class ItemCategoryDialogComponent implements OnInit {
           item_name: payload.item_name,
           stock_uom: payload.stock_uom,
           aas_packaging_unit: payload.aas_packaging_unit,
+          aas_vendor_rate: payload.aas_vendor_rate,
           aas_margin_percent: payload.aas_margin_percent
         })
       : this.itemService.createItem(payload);
@@ -226,7 +228,7 @@ export class ItemCategoryDialogComponent implements OnInit {
 
   private toItemView(
     response: unknown,
-    fallback: { item_name: string; item_group: string; stock_uom: string; aas_packaging_unit: string; aas_margin_percent: number; aas_vendor_hsn_code: string },
+    fallback: { item_name: string; item_group: string; stock_uom: string; aas_packaging_unit: string; aas_vendor_rate: number; aas_margin_percent: number; aas_vendor_hsn_code: string },
     vendor: { id: string; name: string; code: string }
   ): ItemView {
     const saved = this.unwrapResource(response);
@@ -248,6 +250,7 @@ export class ItemCategoryDialogComponent implements OnInit {
       vendorHsnCode,
       measureUnit,
       packagingUnit,
+      defaultVendorRate: this.toNullableNumber(saved['aas_vendor_rate'], fallback.aas_vendor_rate),
       marginPercent: this.toNumber(saved['aas_margin_percent'], fallback.aas_margin_percent),
       raw: {
         item_code: code,
@@ -255,6 +258,7 @@ export class ItemCategoryDialogComponent implements OnInit {
         item_group: category,
         stock_uom: measureUnit,
         aas_packaging_unit: packagingUnit,
+        aas_vendor_rate: this.toNullableNumber(saved['aas_vendor_rate'], fallback.aas_vendor_rate) ?? 0,
         aas_margin_percent: this.toNumber(saved['aas_margin_percent'], fallback.aas_margin_percent),
         aas_vendor: String(saved['aas_vendor'] ?? this.selectedItem?.vendorId ?? vendor.id).trim(),
         aas_vendor_hsn_code: vendorHsnCode
@@ -276,6 +280,19 @@ export class ItemCategoryDialogComponent implements OnInit {
   private toNumber(value: unknown, fallback: number): number {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private toNullableNumber(value: unknown, fallback: number | null): number | null {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+    return fallback && fallback > 0 ? fallback : null;
+  }
+
+  private toOptionalPositiveNumber(value: unknown): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
   }
 
   private priorityOf(value: unknown): number {
@@ -309,6 +326,7 @@ export class ItemCategoryDialogComponent implements OnInit {
       item.code,
       item.measureUnit,
       item.packagingUnit,
+      item.defaultVendorRate,
       item.vendorHsnCode
     ]
       .map(value => this.normalizeSearchValue(value))

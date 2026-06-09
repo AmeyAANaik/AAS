@@ -216,6 +216,25 @@ class OrderServiceTest {
     }
 
     @Test
+    void listOrdersKeepsRowsWhenCostEnrichmentLacksPermission() {
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of(new HashMap<>(Map.of(
+                        "name", "SO-1",
+                        "customer", "Sukarta Aundh",
+                        "aas_status", "VENDOR_ASSIGNED"))));
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1")))
+                .thenThrow(new RuntimeException("You don’t have permission to run this report."));
+        when(erpNextClient.listResources(eq("File"), anyMap())).thenReturn(List.of());
+
+        List<Map<String, Object>> orders = orderService.listOrders(Map.of());
+
+        assertEquals(1, orders.size());
+        assertEquals("SO-1", orders.get(0).get("name"));
+        assertEquals(0.0, orders.get(0).get("aas_cost_total"));
+        assertEquals(0.0, orders.get(0).get("aas_margin_total"));
+    }
+
+    @Test
     void appliesDefaultMarginWhenCreatingOrderWithoutMargin() {
         when(erpNextClient.getResource(eq("Company"), eq("AAS"))).thenReturn(Map.of("abbr", "A"));
         when(erpNextClient.listResources(eq("Warehouse"), anyMap()))

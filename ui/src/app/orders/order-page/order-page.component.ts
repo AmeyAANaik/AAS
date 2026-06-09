@@ -195,6 +195,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   sellPreview: UiSellPreview | null = null;
   errorMessage = '';
+  ordersErrorMessage = '';
   isLoading = false;
 
   private subscriptions = new Subscription();
@@ -324,19 +325,25 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadOrders(): void {
-    this.errorMessage = '';
+    this.ordersErrorMessage = '';
     this.isLoading = true;
     this.orderService.listOrders({})
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
       next: orders => {
+        this.ordersErrorMessage = '';
         this.orders = (orders ?? []).map(order => this.toUiOrder(order));
         this.dataSource.data = this.orders;
         this.updateTableFilter();
         this.refreshSelection();
         this.selectRequestedOrder();
       },
-      error: err => (this.errorMessage = this.formatError(err, 'Unable to load orders'))
+      error: err => {
+        this.ordersErrorMessage = this.formatError(err, 'Unable to load orders');
+        if (!this.orders.length) {
+          this.dataSource.data = [];
+        }
+      }
     });
   }
 

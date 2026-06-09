@@ -1126,8 +1126,13 @@ public class OrderService {
             if (name == null || name.isBlank()) {
                 continue;
             }
-            Map<String, Object> full = erpNextClient.getResource(DOCTYPE, name);
-            OrderCost cost = computeOrderCost(full);
+            OrderCost cost;
+            try {
+                Map<String, Object> full = erpNextClient.getResource(DOCTYPE, name);
+                cost = computeOrderCost(full);
+            } catch (Exception ignored) {
+                cost = new OrderCost(0.0, 0.0, 0.0);
+            }
             order.put("aas_cost_total", cost.costTotal());
             order.put("aas_margin_total", cost.marginTotal());
             order.put("aas_margin_percent", cost.marginPercent());

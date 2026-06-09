@@ -106,6 +106,7 @@ export class ItemListComponent implements OnInit {
       measureUnit: String(item.stock_uom ?? ''),
       packagingUnit: item.aas_packaging_unit ?? item.packagingUnit ?? '',
       marginPercent: typeof item.aas_margin_percent === 'number' ? item.aas_margin_percent : null,
+      defaultVendorRate: typeof item.aas_vendor_rate === 'number' ? item.aas_vendor_rate : null,
       raw: item
     };
   }

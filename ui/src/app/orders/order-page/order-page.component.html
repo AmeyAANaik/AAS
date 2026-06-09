@@ -146,7 +146,15 @@
 
       <div class="feedback loading" *ngIf="isLoading">Loading orders...</div>
 
-      <div class="table-wrapper" *ngIf="!isLoading && !errorMessage; else orderError">
+      <div class="error-alert" *ngIf="!isLoading && ordersErrorMessage && orders.length">
+        <mat-icon>error</mat-icon>
+        <div>
+          <strong>Refresh warning</strong>
+          <p>{{ ordersErrorMessage }}</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" *ngIf="!isLoading && (!ordersErrorMessage || orders.length); else orderError">
         <table mat-table [dataSource]="dataSource" matSort class="orders-table">
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header>Order ID</th>
@@ -202,11 +210,11 @@
         </table>
       </div>
       <ng-template #orderError>
-        <div class="error-alert" *ngIf="!isLoading && errorMessage">
+        <div class="error-alert" *ngIf="!isLoading && ordersErrorMessage">
           <mat-icon>error</mat-icon>
           <div>
             <strong>Error</strong>
-            <p>{{ errorMessage }}</p>
+            <p>{{ ordersErrorMessage }}</p>
           </div>
         </div>
       </ng-template>

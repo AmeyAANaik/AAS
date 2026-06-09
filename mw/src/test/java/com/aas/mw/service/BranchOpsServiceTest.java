@@ -290,7 +290,70 @@ class BranchOpsServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
 
-        assertThat(categories).contains(Map.of("category", "Grocery", "amount", 0.0));
+        assertThat(categories).anySatisfy(row -> assertThat(row)
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 100.0)
+                .containsEntry("balance", 0.0));
+    }
+
+    @Test
+    void getBranchLedgerRoundsTinyCategorySettlementResidualToZero() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukarta Aundh")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.0,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 1)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00033"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.0,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 1,
+                        "aas_category", "Grocery",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-ITEM",
+                                "item_group", "Grocery",
+                                "amount", 150838.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "PAY-GROCERY",
+                        "party", "BRANCH-1",
+                        "party_type", "Customer",
+                        "posting_date", "2026-06-10",
+                        "paid_amount", 150838.12,
+                        "docstatus", 1,
+                        "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-GROCERY"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-GROCERY",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "ACC-SINV-2026-00033")))));
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1", "2026-06-03", "2026-06-10");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).anySatisfy(row -> assertThat(row)
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 150838.0)
+                .containsEntry("balance", 0.0));
+
+        Map<String, Object> categoryLedger = branchOpsService.getBranchLedgerByCategory(
+                "BRANCH-1",
+                "Grocery",
+                "2026-06-03",
+                "2026-06-10");
+        assertThat(categoryLedger)
+                .containsEntry("balance", 0.0)
+                .containsEntry("closingBalance", 0.0);
     }
 
     @Test
@@ -410,7 +473,11 @@ class BranchOpsServiceTest {
         List<Map<String, Object>> categories = (List<Map<String, Object>>) branchLedger.get("categorySummary");
 
         assertThat(branchLedger.get("balance")).isEqualTo(59940.0);
-        assertThat(categories).containsExactly(Map.of("category", "Dairy", "amount", 59940.0));
+        assertThat(categories).hasSize(1);
+        assertThat(categories.get(0))
+                .containsEntry("category", "Dairy")
+                .containsEntry("amount", 159940.0)
+                .containsEntry("balance", 59940.0);
 
         Map<String, Object> detail = branchOpsService.getBranchDetail("BRANCH-1");
 
@@ -459,7 +526,11 @@ class BranchOpsServiceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
-        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 148791.0));
+        assertThat(categories).hasSize(1);
+        assertThat(categories.get(0))
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 148791.0)
+                .containsEntry("balance", 148791.0);
         assertThat(categories).noneMatch(row -> "Uncategorized".equals(row.get("category")));
 
         Map<String, Object> categoryLedger = branchOpsService.getBranchLedgerByCategory("BRANCH-1", "Grocery");
@@ -470,6 +541,57 @@ class BranchOpsServiceTest {
                 .containsEntry("voucherNo", "ACC-SINV-2026-00023")
                 .containsEntry("debit", 148791.0)
                 .containsEntry("runningBalance", 148791.0);
+    }
+
+    @Test
+    void getBranchLedgerUsesInvoiceCategoryWhenItemRowsHaveNoLedgerCategory() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukarta Aundh")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.0,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 0)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00033"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00033",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.0,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 0,
+                        "aas_category", "Grocery",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-ITEM",
+                                "item_group", "All Item Groups",
+                                "amount", 150838.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1", "2026-05-01", "2026-06-10");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).hasSize(1);
+        assertThat(categories.get(0))
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 150838.0)
+                .containsEntry("balance", 150838.0);
+
+        Map<String, Object> categoryLedger = branchOpsService.getBranchLedgerByCategory(
+                "BRANCH-1",
+                "Grocery",
+                "2026-05-01",
+                "2026-06-10");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) categoryLedger.get("entries");
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0))
+                .containsEntry("voucherNo", "ACC-SINV-2026-00033")
+                .containsEntry("debit", 150838.0);
     }
 
     @Test
@@ -527,7 +649,11 @@ class BranchOpsServiceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
-        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 108422.0));
+        assertThat(categories).hasSize(1);
+        assertThat(categories.get(0))
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 118422.0)
+                .containsEntry("balance", 108422.0);
     }
 
     @Test

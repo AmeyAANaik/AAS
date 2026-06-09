@@ -33,6 +33,7 @@ export class ItemFormComponent implements OnChanges {
     category: ['', [Validators.required]],
     measureUnit: ['', [Validators.required, Validators.maxLength(64)]],
     packagingUnit: [''],
+    defaultVendorRate: [null, [Validators.min(0)]],
     marginPercent: [this.defaultMarginPercent, [Validators.required, Validators.min(0), Validators.max(100)]]
   });
 
@@ -51,6 +52,7 @@ export class ItemFormComponent implements OnChanges {
         category: this.item.category,
         measureUnit: this.item.measureUnit,
         packagingUnit: this.item.packagingUnit,
+        defaultVendorRate: this.resolveDefaultVendorRate(this.item.defaultVendorRate),
         marginPercent: this.resolveMarginPercent(this.item.marginPercent)
       });
       this.form.markAsPristine();
@@ -156,6 +158,7 @@ export class ItemFormComponent implements OnChanges {
       category: this.initialCategory || '',
       measureUnit: 'Nos',
       packagingUnit: '',
+      defaultVendorRate: null,
       marginPercent: this.defaultMarginPercent
     });
     this.form.markAsUntouched();
@@ -165,6 +168,13 @@ export class ItemFormComponent implements OnChanges {
   private resolveMarginPercent(value: number | null): number {
     if (value === null || value === undefined || value <= 0) {
       return this.defaultMarginPercent;
+    }
+    return value;
+  }
+
+  private resolveDefaultVendorRate(value: number | null): number | null {
+    if (value === null || value === undefined || value <= 0) {
+      return null;
     }
     return value;
   }
