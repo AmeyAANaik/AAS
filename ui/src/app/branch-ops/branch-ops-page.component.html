@@ -126,32 +126,32 @@
 	        </div>
 
 	        <div class="ledger-strip">
-	          <div class="strip-item">
-	            <span>Opening</span>
-	            <strong>₹{{ ledgerOpeningBalance | number:'1.0-2' }}</strong>
-	          </div>
-	          <div class="strip-item">
-	            <span>Closing</span>
-	            <strong>₹{{ ledgerClosingBalance | number:'1.0-2' }}</strong>
-	          </div>
-	          <div class="strip-item">
-	            <span>Delta</span>
-	            <strong>₹{{ ledgerDelta | number:'1.0-2' }}</strong>
-	          </div>
-	          <div class="strip-note" *ngIf="selectedCategoryId">
-	            Showing balances for {{ selectedCategoryId }} within the selected date range.
-	          </div>
-	        </div>
+          <div class="strip-item">
+            <span>Opening</span>
+            <strong>₹{{ displayAmount(ledgerOpeningBalance) | number:'1.0-2' }}</strong>
+          </div>
+          <div class="strip-item">
+            <span>Closing</span>
+            <strong>₹{{ displayAmount(ledgerClosingBalance) | number:'1.0-2' }}</strong>
+          </div>
+          <div class="strip-item">
+            <span>Delta</span>
+            <strong>₹{{ displayAmount(ledgerDelta) | number:'1.0-2' }}</strong>
+          </div>
+          <div class="strip-note">
+            {{ ledgerScopeNote }}
+          </div>
+        </div>
 
 	        <div class="category-summary" *ngIf="ledgerCategorySummary.length; else emptyCategories">
 	          <div class="category-summary-title">Ledger by category</div>
 	          <table class="category-summary-table">
-	            <tr *ngFor="let row of ledgerCategorySummary" class="category-row" [class.active-category]="row.category === selectedCategoryId" (click)="viewCategoryLedger(row.category)">
-	              <td>{{ row.category }}</td>
-	              <td class="amount-cell">₹{{ row.amount | number:'1.0-2' }}</td>
-	            </tr>
-	          </table>
-	        </div>
+            <tr *ngFor="let row of ledgerCategorySummary" class="category-row" [class.active-category]="row.category === selectedCategoryId" (click)="viewCategoryLedger(row.category)">
+              <td>{{ row.category }}</td>
+              <td class="amount-cell">₹{{ displayAmount(row.amount) | number:'1.0-2' }}</td>
+            </tr>
+          </table>
+        </div>
 	        <ng-template #emptyCategories>
 	          <app-empty-state icon="category" title="No categories" message="Category summary will appear when invoice items are mapped to item groups." hint="Try another date range or check invoice categorization."></app-empty-state>
 	        </ng-template>

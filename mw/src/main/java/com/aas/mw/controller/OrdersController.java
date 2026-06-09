@@ -8,6 +8,7 @@ import com.aas.mw.dto.VendorBillRequest;
 import com.aas.mw.service.OrderBillingService;
 import com.aas.mw.service.OrderService;
 import com.aas.mw.service.UserService;
+import com.aas.mw.service.UserFeatureService;
 import com.aas.mw.service.VendorPdfService;
 import com.aas.mw.util.CsvUtil;
 import jakarta.validation.Valid;
@@ -58,6 +59,7 @@ public class OrdersController {
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> createOrder(@Valid @RequestBody OrderRequest request) {
+        userService.requireFeature(resolveUsername(), UserFeatureService.ORDERS_CREATE);
         return ResponseEntity.ok(orderService.createOrder(request));
     }
 
@@ -65,6 +67,7 @@ public class OrdersController {
     public ResponseEntity<Map<String, Object>> createOrderFromSelectedItems(
             @Valid @RequestBody OrderRequest request,
             HttpServletRequest httpRequest) {
+        userService.requireFeature(resolveUsername(), UserFeatureService.ORDERS_CREATE);
         Object session = httpRequest.getAttribute(ErpSessionStore.REQUEST_ATTR);
         String sessionCookie = session instanceof String cookie && !cookie.isBlank() ? cookie : null;
         return ResponseEntity.ok(orderService.createOrderFromSelectedItems(request, sessionCookie));
@@ -203,6 +206,7 @@ public class OrdersController {
             @RequestParam(required = false, name = "transaction_date") String transactionDate,
             @RequestParam(required = false, name = "delivery_date") String deliveryDate,
             HttpServletRequest request) {
+        userService.requireFeature(resolveUsername(), UserFeatureService.ORDERS_CREATE);
         Object session = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
         if (!(session instanceof String sessionCookie) || sessionCookie.isBlank()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -307,7 +311,13 @@ public class OrdersController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteOrder(@PathVariable String id) {
+        userService.requireFeature(resolveUsername(), UserFeatureService.ORDERS_DELETE);
         return ResponseEntity.ok(orderService.deleteOrder(id));
+    }
+
+    private String resolveUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth == null ? null : auth.getName();
     }
 
     private ResponseEntity<byte[]> fileResponse(DownloadedFile file) {

@@ -19,6 +19,7 @@ import { OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue } 
 import { OrderDeleteConfirmDialogComponent, OrderDeleteConfirmDialogData } from './order-delete-confirm-dialog.component';
 import { OrderBranchImageGalleryDialogComponent } from './order-branch-image-gallery-dialog.component';
 import { formatUiError } from '../../shared/error-message.util';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 type UiOrderStatus =
   | 'DRAFT'
@@ -140,6 +141,8 @@ interface UiOrderLine {
   ]
 })
 export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly createOrderFeature = 'orders.create';
+  readonly deleteOrderFeature = 'orders.delete';
   searchControl = new FormControl<string>('', { nonNullable: true });
   vendorControl = new FormControl<string | null>(null);
   fromDateControl = new FormControl<string>('', { nonNullable: true });
@@ -204,6 +207,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     private readonly vendorService: VendorService,
     private readonly itemService: ItemService,
     private readonly orderService: OrderService,
+    private readonly tokenStore: AuthTokenService,
     private readonly snackBar: MatSnackBar
   ) {}
 
@@ -782,7 +786,15 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   canDeleteOrder(order: UiOrder): boolean {
-    return !!String(order?.name ?? '').trim();
+    return this.canDeleteOrders && !!String(order?.name ?? '').trim();
+  }
+
+  get canCreateOrders(): boolean {
+    return this.tokenStore.getFeatures().includes(this.createOrderFeature);
+  }
+
+  get canDeleteOrders(): boolean {
+    return this.tokenStore.getFeatures().includes(this.deleteOrderFeature);
   }
 
   confirmDeleteOrder(order: UiOrder): void {

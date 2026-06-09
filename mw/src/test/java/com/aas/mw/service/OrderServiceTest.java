@@ -117,6 +117,65 @@ class OrderServiceTest {
     }
 
     @Test
+    void createOrderFromSelectedItemsUsesItemDefaultVendorRateWhenSubmittedRateIsZero() {
+        when(catalogRoutingService.resolveVendorForCategory(eq("SUP-1"), eq("Grocery")))
+                .thenReturn(new CatalogRoutingService.VendorCategoryResolution(
+                        "SUP-1",
+                        "Fresh Harvest",
+                        "SUP-1",
+                        "Grocery",
+                        "Grocery",
+                        "GROCERY"));
+        when(erpNextClient.getResource(eq("Company"), eq("AAS")))
+                .thenReturn(Map.of("abbr", "A"));
+        when(erpNextClient.getResource(eq("Item"), eq("ITEM-1")))
+                .thenReturn(Map.of("aas_vendor_rate", 42.0, "aas_margin_percent", 8.0));
+        when(erpNextClient.listResources(eq("Warehouse"), anyMap()))
+                .thenReturn(List.of(Map.of("name", "Finished Goods - A", "company", "AAS", "is_group", 0, "disabled", 0)));
+        when(erpNextClient.getCount(eq("Sales Order"), anyMap())).thenReturn(0L);
+        when(erpNextClient.createResource(eq("Sales Order"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+        when(erpNextClient.updateResource(eq("Sales Order"), eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("name", "SO-1"));
+        when(orderBillingService.recordGeneratedVendorBill(eq("SO-1"), anyMap()))
+                .thenReturn(Map.of("purchaseInvoice", Map.of("name", "PINV-1")));
+        when(orderBillingService.getSellPreview(eq("SO-1")))
+                .thenReturn(Map.of("sellAmount", 90.72));
+
+        OrderRequest request = new OrderRequest();
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("customer", "Sukarta Aundh");
+        fields.put("company", "AAS");
+        fields.put("aas_category", "Grocery");
+        fields.put("aas_vendor", "SUP-1");
+        fields.put("transaction_date", "2026-06-04");
+        fields.put("delivery_date", "2026-06-04");
+        fields.put("items", List.of(Map.of(
+                "item_code", "ITEM-1",
+                "item_name", "Rice",
+                "qty", 2,
+                "rate", 0)));
+        request.setFields(fields);
+
+        orderService.createOrderFromSelectedItems(request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient).createResource(eq("Sales Order"), payloadCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) payloadCaptor.getValue().get("items");
+        assertEquals(42.0, items.get(0).get("rate"));
+        assertEquals(84.0, items.get(0).get("amount"));
+        assertEquals(42.0, items.get(0).get("aas_vendor_rate"));
+        verify(orderBillingService).recordGeneratedVendorBill(eq("SO-1"), eq(Map.of(
+                "vendor_bill_total", 84.0,
+                "vendor_bill_ref", "SO-1",
+                "vendor_bill_date", "2026-06-04",
+                "transport_charge", 0.0,
+                "rounding_adjustment", 0.0)));
+    }
+
+    @Test
     void acceptsSequentialStatusTransition() {
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1")))
                 .thenReturn(Map.of("aas_status", "DRAFT"));

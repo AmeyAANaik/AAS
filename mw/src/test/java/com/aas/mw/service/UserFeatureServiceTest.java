@@ -17,6 +17,8 @@ class UserFeatureServiceTest {
 
         assertTrue(features.contains(UserFeatureService.DASHBOARD_VIEW));
         assertTrue(features.contains(UserFeatureService.ORDERS_VIEW));
+        assertFalse(features.contains(UserFeatureService.ORDERS_CREATE));
+        assertFalse(features.contains(UserFeatureService.ORDERS_DELETE));
         assertTrue(features.contains(UserFeatureService.STOCK_VIEW));
         assertTrue(features.contains(UserFeatureService.BILLS_VIEW));
         assertTrue(features.contains(UserFeatureService.REPORTS_VIEW));
@@ -38,10 +40,19 @@ class UserFeatureServiceTest {
     void overridesCanAddAndRemoveUiFeatures() {
         Set<String> features = service.resolveFeatures(
                 "helper",
-                java.util.List.of(UserFeatureService.MASTER_DATA_VIEW),
+                java.util.List.of(UserFeatureService.MASTER_DATA_VIEW, UserFeatureService.ORDERS_CREATE),
                 java.util.List.of(UserFeatureService.REPORTS_VIEW));
 
         assertTrue(features.contains(UserFeatureService.MASTER_DATA_VIEW));
+        assertTrue(features.contains(UserFeatureService.ORDERS_CREATE));
         assertFalse(features.contains(UserFeatureService.REPORTS_VIEW));
+    }
+
+    @Test
+    void shopCanCreateOrdersByDefaultButCannotDeleteOrders() {
+        Set<String> features = service.featuresForRole("shop");
+
+        assertTrue(features.contains(UserFeatureService.ORDERS_CREATE));
+        assertFalse(features.contains(UserFeatureService.ORDERS_DELETE));
     }
 }

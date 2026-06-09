@@ -361,6 +361,44 @@ class VendorPdfServiceTest {
     }
 
     @Test
+    void keepsParsedInvoiceRateWhenExistingItemHasDifferentDefaultVendorRate() {
+        MockMultipartFile pdf = validPdf();
+        mockOrderContext();
+        mockNativeProfile();
+        when(nativeLayoutInvoiceService.extract(any(), any()))
+                .thenReturn(new NativeLayoutInvoiceService.ExtractionResult(
+                        List.of(new ParsedItem("Tomatoes", 2, 45, 90, "11010000", 5.0, "KG", null)),
+                        "INV-1",
+                        "2026-02-19",
+                        "90.00",
+                        "",
+                        "",
+                        List.of(),
+                        List.of()));
+        when(erpNextClient.getResource(eq("Item"), eq("VEND_A_GROCERY_11010000_TOMATOES")))
+                .thenReturn(Map.of(
+                        "name", "VEND_A_GROCERY_11010000_TOMATOES",
+                        "stock_uom", "KG",
+                        "disabled", 0,
+                        "aas_vendor_rate", 999.0,
+                        "aas_margin_percent", 7.0));
+        when(erpNextClient.createResource(eq("Purchase Order"), any())).thenReturn(Map.of("name", "PO-0001"));
+
+        service.processVendorPdf("SO-0001", pdf, "sid=abc");
+
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient, Mockito.atLeastOnce()).updateResource(eq("Sales Order"), eq("SO-0001"), updateCaptor.capture());
+        Map<String, Object> itemUpdate = updateCaptor.getAllValues().stream()
+                .filter(update -> update.get("items") instanceof List<?>)
+                .findFirst()
+                .orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> updatedItems = (List<Map<String, Object>>) itemUpdate.get("items");
+        assertEquals(45.0, updatedItems.get(0).get("rate"));
+        assertEquals(45.0, updatedItems.get(0).get("aas_vendor_rate"));
+    }
+
+    @Test
     void rejectsVendorPdfWhenVendorRateExceedsMrp() {
         MockMultipartFile pdf = validPdf();
         mockOrderContext();

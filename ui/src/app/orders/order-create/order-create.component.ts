@@ -14,6 +14,7 @@ import { ItemVendorPricingService } from '../../items/item-vendor-pricing.servic
 import { VendorService } from '../../vendors/vendor.service';
 import { Vendor } from '../../vendors/vendor.model';
 import { CompanyContextService } from '../../shared/company-context.service';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 type CreateMode = 'images' | 'items';
 
@@ -44,6 +45,7 @@ interface CategoryVendorOption {
   styleUrl: './order-create.component.scss'
 })
 export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
+  readonly createOrderFeature = 'orders.create';
   @Input() shops: OrderOption[] = [];
   @Output() created = new EventEmitter<OrderCreateResult>();
 
@@ -105,6 +107,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     private itemVendorPricingService: ItemVendorPricingService,
     private vendorService: VendorService,
     private companyContextService: CompanyContextService,
+    private tokenStore: AuthTokenService,
     private location: Location,
     private router: Router
   ) {
@@ -157,6 +160,13 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       this.statusMessage = 'Choose a vendor before creating the order.';
       return;
     }
+    const missingRateItem = this.createMode === 'items'
+      ? this.selectedOrderItems.find(item => Number(item.rate ?? 0) <= 0)
+      : null;
+    if (missingRateItem) {
+      this.statusMessage = `Enter a positive rate for ${missingRateItem.name || missingRateItem.code} before creating the order.`;
+      return;
+    }
     if (this.createMode === 'items' && this.vendorInvoiceTotal <= 0) {
       this.statusMessage = 'Enter a valid rate for the selected items so the vendor invoice total is greater than zero.';
       return;
@@ -182,7 +192,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
         items: this.selectedOrderItems.map(item => ({
           item_code: item.code,
           item_name: item.name,
-          qty: Math.max(1, Number(item.qty || 1)),
+          qty: this.normalizeQuantity(item.qty),
           rate: Math.max(0, Number(item.rate || 0)),
           aas_margin_percent: item.marginPercent ?? undefined,
           aas_gst_percent: this.applyGst ? Math.max(0, Number(item.gstPercent || 0)) : 0
@@ -303,7 +313,11 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
       : this.selectedOrderItems.length > 0
         && !!String(this.detailsGroup.get('vendor')?.value ?? '').trim()
         && this.vendorInvoiceTotal > 0;
-    return this.form.valid && hasModeInput && !this.isSubmitting;
+    return this.canCreateOrders && this.form.valid && hasModeInput && !this.isSubmitting;
+  }
+
+  get canCreateOrders(): boolean {
+    return this.tokenStore.getFeatures().includes(this.createOrderFeature);
   }
 
   get imageSelected(): boolean {
@@ -498,7 +512,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
 
   toggleItemSelection(itemId: string, selected: boolean): void {
     this.categoryItems = this.categoryItems.map(item => item.id === itemId
-      ? { ...item, selected, qty: selected ? Math.max(item.qty, 1) : 1 }
+      ? { ...item, selected, qty: selected ? this.normalizeQuantity(item.qty) : 1 }
       : item);
     this.syncItemsToMasterList();
   }
@@ -571,7 +585,7 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     if (parsed === null) {
       return;
     }
-    const qty = Math.max(1, parsed);
+    const qty = this.normalizeQuantity(parsed);
     this.categoryItems = this.categoryItems.map(item => item.id === itemId
       ? { ...item, qty, selected: true }
       : item);
@@ -865,6 +879,14 @@ export class OrderCreateComponent implements OnInit, OnChanges, OnDestroy {
     }
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : null;
+  }
+
+  private normalizeQuantity(value: unknown): number {
+    const numeric = this.asNumber(value);
+    if (numeric === null || numeric <= 0) {
+      return 0.01;
+    }
+    return Math.round(numeric * 100) / 100;
   }
 
   private normalizeCategory(value: unknown): string {

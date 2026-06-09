@@ -117,6 +117,23 @@ public class UserService {
         return getUserProfileById(userId);
     }
 
+    public boolean hasFeature(String username, String featureKey) {
+        if (featureKey == null || featureKey.isBlank()) {
+            return true;
+        }
+        Object value = getUserProfile(username).get("features");
+        if (!(value instanceof java.util.Collection<?> features)) {
+            return false;
+        }
+        return features.stream().map(String::valueOf).anyMatch(featureKey::equals);
+    }
+
+    public void requireFeature(String username, String featureKey) {
+        if (!hasFeature(username, featureKey)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Forbidden");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> unwrapResource(Map<String, Object> response) {
         if (response == null) {

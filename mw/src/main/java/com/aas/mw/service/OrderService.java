@@ -138,6 +138,12 @@ public class OrderService {
             if (rate < 0) {
                 throw new IllegalArgumentException("Rate must be non-negative for " + itemCode + ".");
             }
+            if (rate <= 0) {
+                rate = resolveItemDefaultVendorRate(itemCode);
+            }
+            if (rate <= 0) {
+                throw new IllegalArgumentException("Rate must be greater than zero for " + itemCode + ".");
+            }
             double gstPercent = applyGst ? Math.max(0.0, round(asDouble(rawRow.get("aas_gst_percent")))) : 0.0;
             row.put("item_code", itemCode);
             if (hasText(asText(rawRow.get("item_name")))) {
@@ -1904,6 +1910,19 @@ public class OrderService {
             return rawMargin != null && !rawMargin.toString().trim().isEmpty() && margin >= 0 ? margin : null;
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    private double resolveItemDefaultVendorRate(String itemCode) {
+        String code = asText(itemCode);
+        if (code.isBlank()) {
+            return 0.0;
+        }
+        try {
+            Map<String, Object> item = unwrap(erpNextClient.getResource("Item", code));
+            return Math.max(0.0, round(asDouble(item.get("aas_vendor_rate"))));
+        } catch (Exception ex) {
+            return 0.0;
         }
     }
 

@@ -9,6 +9,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -453,6 +454,7 @@ public class BranchOpsService {
         }
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Double> totals = new LinkedHashMap<>();
+        Set<String> categoriesWithHistory = new LinkedHashSet<>();
         for (Map<String, Object> invoiceRow : invoices) {
             String invoiceId = asText(invoiceRow.get("name"));
             if (!hasText(invoiceId) || asInt(invoiceRow.get("docstatus")) == 2) {
@@ -471,6 +473,7 @@ public class BranchOpsService {
             }
             List<Map<String, Object>> items = childItems(invoice.get("items"));
             if (items.isEmpty()) {
+                categoriesWithHistory.add("Uncategorized");
                 totals.merge("Uncategorized", dueBase, Double::sum);
                 continue;
             }
@@ -485,10 +488,12 @@ public class BranchOpsService {
                 if (!hasText(group)) {
                     group = "Uncategorized";
                 }
+                categoriesWithHistory.add(group);
                 weights.add(new LineWeight(group, amount));
                 totalWeight += amount;
             }
             if (weights.isEmpty() || totalWeight <= 0) {
+                categoriesWithHistory.add("Uncategorized");
                 totals.merge("Uncategorized", dueBase, Double::sum);
                 continue;
             }
@@ -507,6 +512,7 @@ public class BranchOpsService {
                 if (!hasText(category) || amount <= 0) {
                     continue;
                 }
+                categoriesWithHistory.add(category);
                 totals.merge(category, -amount, Double::sum);
             }
         }
@@ -520,13 +526,15 @@ public class BranchOpsService {
                 if (!hasText(category) || netChange == 0.0) {
                     continue;
                 }
+                categoriesWithHistory.add(category);
                 totals.merge(category, netChange, Double::sum);
             }
         }
         return totals.entrySet().stream()
-                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
+                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null)
+                .filter(entry -> Math.abs(round(entry.getValue())) > 0.009 || categoriesWithHistory.contains(entry.getKey()))
                 .map(entry -> Map.<String, Object>of("category", entry.getKey(), "amount", round(entry.getValue())))
-                .sorted((left, right) -> Double.compare(asDouble(right.get("amount")), asDouble(left.get("amount"))))
+                .sorted((left, right) -> Double.compare(Math.abs(asDouble(right.get("amount"))), Math.abs(asDouble(left.get("amount")))))
                 .toList();
     }
 

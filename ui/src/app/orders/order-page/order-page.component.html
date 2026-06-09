@@ -3,7 +3,7 @@
     title="Order Workflow"
     subtitle="Track demand from branch image intake through vendor billing and sell-order creation.">
     <button mat-stroked-button color="primary" (click)="loadOrders()" [disabled]="isLoading">Refresh</button>
-    <button mat-flat-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
+    <button *ngIf="canCreateOrders" mat-flat-button color="primary" routerLink="/orders/create" class="create-order-btn">Create New Order</button>
   </app-page-header>
 
   <mat-card class="orders-list-card" *ngIf="!selectedOrder">
@@ -185,6 +185,7 @@
             <td mat-cell *matCellDef="let order">
               <button mat-button color="primary" (click)="selectOrder(order)">Manage</button>
               <button
+                *ngIf="canDeleteOrders"
                 mat-icon-button
                 color="warn"
                 type="button"

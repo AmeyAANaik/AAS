@@ -246,6 +246,54 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void getBranchLedgerCategorySummaryIncludesSettledCategoryHistory() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-001",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 100.0,
+                                "outstanding_amount", 100.0,
+                                "docstatus", 1)));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-001",
+                                "party", "BRANCH-1",
+                                "party_type", "Customer",
+                                "posting_date", "2026-03-02",
+                                "paid_amount", 100.0,
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-001"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-001",
+                        "customer", "BRANCH-1",
+                        "grand_total", 100.0,
+                        "outstanding_amount", 100.0,
+                        "items", List.of(Map.of(
+                                "item_code", "ITEM-1",
+                                "item_group", "Grocery",
+                                "amount", 100.0)))));
+        when(erpNextClient.getResource("Payment Entry", "PAY-001"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-001",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "SINV-001")))));
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+
+        assertThat(categories).contains(Map.of("category", "Grocery", "amount", 0.0));
+    }
+
+    @Test
     void getBranchLedgerOnlyUsesPaymentsLinkedToBranchInvoices() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

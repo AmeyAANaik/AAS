@@ -1,9 +1,30 @@
 import { expect, test } from '@playwright/test';
 
+async function mockLogin(page: import('@playwright/test').Page) {
+  await page.route('**/api/auth/login', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        accessToken: 'test-token',
+        role: 'Administrator'
+      })
+    });
+  });
+}
+
+async function signInToOrdersCreate(page: import('@playwright/test').Page) {
+  await page.goto('/login?returnUrl=%2Forders%2Fcreate');
+  await page.getByPlaceholder('you@company.com').fill('sales@fmcg.com');
+  await page.getByPlaceholder('••••••••').fill('Sales@123');
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await expect(page).not.toHaveURL(/\/auth\/login|\/login/);
+  await page.goto('/orders/create');
+  await expect(page).toHaveURL(/\/orders\/create/);
+}
+
 test('order create direct item flow keeps typed rate and enables create order', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('aas_auth_token', 'test-token');
-    localStorage.setItem('aas_auth_role', 'Administrator');
     localStorage.setItem('aas_auth_features', JSON.stringify([
       'orders.view',
       'dashboard.view',
@@ -110,7 +131,9 @@ test('order create direct item flow keeps typed rate and enables create order', 
     });
   });
 
-  await page.goto('/orders/create');
+  await mockLogin(page);
+
+  await signInToOrdersCreate(page);
 
   await page.locator('mat-select[formcontrolname="customer"]').click();
   await page.getByRole('option', { name: 'Sukarta Aundh' }).click();
@@ -138,4 +161,149 @@ test('order create direct item flow keeps typed rate and enables create order', 
 
   await page.getByRole('button', { name: 'Create order' }).click();
   await expect(page).toHaveURL(/\/orders\?orderId=SO-NEW-1/);
+});
+
+test('order create direct item flow calculates 0.5 quantity correctly', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('aas_auth_features', JSON.stringify([
+      'orders.view',
+      'dashboard.view',
+      'master_data.view',
+      'bills.view',
+      'stock.view',
+      'reports.view'
+    ]));
+    localStorage.setItem(
+      'aas_item_vendor_pricing',
+      JSON.stringify({
+        'ITEM-1::SUP-1': {
+          itemId: 'ITEM-1',
+          itemName: 'Aamras',
+          vendorId: 'SUP-1',
+          vendorName: 'Pragati Foods',
+          originalRate: 14,
+          marginPercent: 0,
+          finalRate: 14
+        }
+      })
+    );
+  });
+
+  await page.route('**/api/company-context', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        company: { id: 'AAS', name: 'AAS' },
+        branch: null,
+        companies: [{ name: 'AAS' }],
+        branches: []
+      })
+    });
+  });
+
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        role: 'Administrator',
+        features: ['orders.view', 'dashboard.view', 'master_data.view', 'bills.view', 'stock.view', 'reports.view'],
+        homeRoute: '/orders'
+      })
+    });
+  });
+
+  await page.route('**/api/shops', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ name: 'SHOP-1', customer_name: 'Sukarta Aundh' }])
+    });
+  });
+
+  await page.route('**/api/categories', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ name: 'Aamras', item_group_name: 'Aamras' }])
+    });
+  });
+
+  await page.route('**/api/vendors', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ name: 'SUP-1', supplier_name: 'Pragati Foods', category: 'Aamras', disabled: 0 }])
+    });
+  });
+
+  await page.route('**/api/items', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          name: 'ITEM-1',
+          item_code: 'ITEM-1',
+          item_name: 'Aamras',
+          item_group: 'Aamras',
+          stock_uom: 'Kg',
+          aas_vendor: 'SUP-1',
+          aas_vendor_rate: 0,
+          aas_gst_percent: 0
+        }
+      ])
+    });
+  });
+
+  await page.route('**/api/orders/direct-item-flow', async route => {
+    const body = route.request().postDataJSON() as { fields?: { items?: Array<{ qty?: number; rate?: number }> } };
+    const qty = Number(body?.fields?.items?.[0]?.qty ?? 0);
+    const rate = Number(body?.fields?.items?.[0]?.rate ?? 0);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        order: { name: 'SO-NEW-2', title: 'SO-NEW-2' },
+        orderId: 'SO-NEW-2',
+        pricing: { vendorBillTotal: qty * rate }
+      })
+    });
+  });
+
+  await mockLogin(page);
+
+  await signInToOrdersCreate(page);
+
+  await page.locator('mat-select[formcontrolname="customer"]').click();
+  await page.getByRole('option', { name: 'Sukarta Aundh' }).click();
+
+  await page.locator('mat-select[formcontrolname="category"]').click();
+  await page.getByRole('option', { name: 'Aamras' }).click();
+
+  await page.getByRole('button', { name: 'Select items' }).click();
+
+  await page.locator('mat-select[formcontrolname="vendor"]').click();
+  await page.getByRole('option', { name: 'Pragati Foods' }).click();
+
+  await page.locator('.item-selection-row mat-checkbox input').first().check({ force: true });
+
+  const qtyInput = page.locator('input[id^="qty-"]').first();
+  const rateInput = page.locator('input[id^="rate-"]').first();
+
+  await qtyInput.fill('');
+  await qtyInput.type('0.5');
+  await qtyInput.press('Tab');
+  await expect(qtyInput).toHaveValue('0.5');
+
+  await expect(rateInput).toHaveValue('14');
+
+  await expect(page.getByText('Line total 7')).toBeVisible();
+  await expect(page.locator('.checkout-summary').getByText('14').first()).not.toBeVisible();
+  await expect(page.locator('.checkout-summary').getByText('7').first()).toBeVisible();
+  await expect(page.getByText('Qty 0.5 · Rate 14 · GST 0%')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Create order' }).click();
+  await expect(page).toHaveURL(/\/orders\?orderId=SO-NEW-2/);
 });

@@ -19,6 +19,7 @@ import { OrderService } from '../order.service';
 import { OrderCreateComponent } from './order-create.component';
 import { CompanyContextService } from '../../shared/company-context.service';
 import { ItemVendorPricingService } from '../../items/item-vendor-pricing.service';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 describe('OrderCreateComponent', () => {
   let component: OrderCreateComponent;
@@ -29,6 +30,7 @@ describe('OrderCreateComponent', () => {
   let vendorService: jasmine.SpyObj<VendorService>;
   let companyContextService: jasmine.SpyObj<CompanyContextService>;
   let itemVendorPricingService: jasmine.SpyObj<ItemVendorPricingService>;
+  let tokenStore: jasmine.SpyObj<AuthTokenService>;
   let location: jasmine.SpyObj<Location>;
   let router: jasmine.SpyObj<Router>;
 
@@ -77,6 +79,8 @@ describe('OrderCreateComponent', () => {
 
     itemVendorPricingService = jasmine.createSpyObj('ItemVendorPricingService', ['listPricing']);
     itemVendorPricingService.listPricing.and.returnValue([]);
+    tokenStore = jasmine.createSpyObj('AuthTokenService', ['getFeatures']);
+    tokenStore.getFeatures.and.returnValue(['orders.view', 'orders.create']);
 
     location = jasmine.createSpyObj('Location', ['back']);
     router = jasmine.createSpyObj('Router', ['navigate']);
@@ -103,6 +107,7 @@ describe('OrderCreateComponent', () => {
         { provide: VendorService, useValue: vendorService },
         { provide: CompanyContextService, useValue: companyContextService },
         { provide: ItemVendorPricingService, useValue: itemVendorPricingService },
+        { provide: AuthTokenService, useValue: tokenStore },
         { provide: Location, useValue: location },
         { provide: Router, useValue: router }
       ]
@@ -115,6 +120,11 @@ describe('OrderCreateComponent', () => {
 
   it('creates the order create component', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('disables create access when orders.create feature is missing', () => {
+    tokenStore.getFeatures.and.returnValue(['orders.view']);
+    expect(component.canCreateOrders).toBeFalse();
   });
 
   it('loads branches into shops', () => {
@@ -142,6 +152,7 @@ describe('OrderCreateComponent', () => {
     component.detailsGroup.patchValue({ category: 'Grocery', vendor: 'SUP-1' });
 
     expect(component.categoryItems.map(item => item.name)).toEqual(['Rice']);
+    expect(component.displayRate(component.categoryItems[0])).toBe('42');
 
     const item = component.categoryItems[0];
     component.toggleItemSelection(item.id, true);
@@ -161,6 +172,68 @@ describe('OrderCreateComponent', () => {
 
     expect(component.transportCharge).toBe(25.5);
     expect(component.vendorInvoiceTotal).toBe(379.5);
+  });
+
+  it('submits the default item vendor rate when no manual rate override is entered', () => {
+    component.setCreateMode('items');
+    component.detailsGroup.patchValue({
+      customer: 'Sukarta Aundh',
+      category: 'Grocery',
+      vendor: 'SUP-1',
+      company: 'Shree Siddhivinayak Suppliers',
+      orderDate: '2026-06-04',
+      deliveryDate: '2026-06-04'
+    });
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+
+    component.submit();
+
+    expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
+      items: [jasmine.objectContaining({ item_code: 'ITEM-1', rate: 42 })]
+    }));
+  });
+
+  it('requires a positive manual rate when an item has no default price', () => {
+    component.setCreateMode('items');
+    component.detailsGroup.patchValue({
+      customer: 'Sukarta Aundh',
+      category: 'Grocery',
+      vendor: 'SUP-1',
+      company: 'Shree Siddhivinayak Suppliers',
+      orderDate: '2026-06-04',
+      deliveryDate: '2026-06-04'
+    });
+    component.categoryItems = component.categoryItems.map(item => ({ ...item, rate: 0 }));
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+
+    component.submit();
+
+    expect(orderService.createDirectOrderFromItems).not.toHaveBeenCalled();
+    expect(component.statusMessage).toContain('Enter a positive rate for Rice');
+
+    component.onRateInput(item.id, '25');
+    component.submit();
+
+    expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
+      items: [jasmine.objectContaining({ item_code: 'ITEM-1', rate: 25 })]
+    }));
+  });
+
+  it('calculates fractional quantities below one correctly', () => {
+    component.detailsGroup.patchValue({ category: 'Grocery', vendor: 'SUP-1' });
+
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.onQtyInput(item.id, '0.5');
+    component.onRateInput(item.id, '14');
+    component.onGstInput(item.id, '0');
+
+    expect(component.selectedOrderItems[0].qty).toBe(0.5);
+    expect(component.vendorSubtotal).toBe(7);
+    expect(component.gstTotal).toBe(0);
+    expect(component.vendorInvoiceTotal).toBe(7);
   });
 
   it('includes transport charge in direct item-flow payload', () => {
@@ -185,6 +258,29 @@ describe('OrderCreateComponent', () => {
     expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
       transport_charge: 30,
       items: [jasmine.objectContaining({ aas_margin_percent: 0 })]
+    }));
+  });
+
+  it('sends fractional quantities below one in direct item-flow payload', () => {
+    component.setCreateMode('items');
+    component.detailsGroup.patchValue({
+      customer: 'Sukarta Aundh',
+      category: 'Grocery',
+      vendor: 'SUP-1',
+      company: 'Shree Siddhivinayak Suppliers',
+      orderDate: '2026-06-04',
+      deliveryDate: '2026-06-04'
+    });
+    const item = component.categoryItems[0];
+    component.toggleItemSelection(item.id, true);
+    component.onQtyInput(item.id, '0.5');
+    component.onRateInput(item.id, '14');
+    component.onGstInput(item.id, '0');
+
+    component.submit();
+
+    expect(orderService.createDirectOrderFromItems).toHaveBeenCalledWith(jasmine.objectContaining({
+      items: [jasmine.objectContaining({ qty: 0.5, rate: 14 })]
     }));
   });
 

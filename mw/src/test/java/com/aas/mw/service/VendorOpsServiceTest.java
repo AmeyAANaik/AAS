@@ -332,6 +332,42 @@ class VendorOpsServiceTest {
     }
 
     @Test
+    void getVendorLedgerCategorySummaryIncludesSettledCategoryHistory() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-001",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-03-01",
+                                "grand_total", 100.0,
+                                "outstanding_amount", 100.0,
+                                "bill_no", "BILL-001",
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-001",
+                                "party", "VENDOR-1",
+                                "party_type", "Supplier",
+                                "posting_date", "2026-03-02",
+                                "paid_amount", 100.0,
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+
+        Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+
+        assertThat(categories).contains(Map.of("category", "Grocery", "amount", 0.0));
+    }
+
+    @Test
     void getVendorLedgerUsesDirectPurchaseInvoiceCategoryForOpeningBalances() {
         when(erpNextClient.getResource("Supplier", "Sanshray Foods"))
                 .thenReturn(Map.of("data", Map.of("name", "Sanshray Foods", "supplier_name", "Sanshray Foods")));

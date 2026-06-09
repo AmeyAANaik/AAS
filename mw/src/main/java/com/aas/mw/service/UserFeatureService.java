@@ -15,6 +15,8 @@ public class UserFeatureService {
 
     public static final String DASHBOARD_VIEW = "dashboard.view";
     public static final String ORDERS_VIEW = "orders.view";
+    public static final String ORDERS_CREATE = "orders.create";
+    public static final String ORDERS_DELETE = "orders.delete";
     public static final String STOCK_VIEW = "stock.view";
     public static final String BILLS_VIEW = "bills.view";
     public static final String REPORTS_VIEW = "reports.view";
@@ -31,6 +33,8 @@ public class UserFeatureService {
     private static final List<FeatureDefinition> FEATURE_CATALOG = List.of(
             new FeatureDefinition(DASHBOARD_VIEW, "Dashboard", "Workspace", "Open the dashboard landing view."),
             new FeatureDefinition(ORDERS_VIEW, "Orders", "Workspace", "Open order workflow screens."),
+            new FeatureDefinition(ORDERS_CREATE, "Create Orders", "Workspace", "Create new orders from images or item selection."),
+            new FeatureDefinition(ORDERS_DELETE, "Delete Orders", "Workspace", "Delete or archive existing orders."),
             new FeatureDefinition(STOCK_VIEW, "Stock", "Workspace", "Open inventory and stock screens."),
             new FeatureDefinition(BILLS_VIEW, "Bills & Invoices", "Workspace", "Open billing and invoice screens."),
             new FeatureDefinition(REPORTS_VIEW, "Reports", "Workspace", "Open reporting and export pages."),
@@ -53,6 +57,8 @@ public class UserFeatureService {
         switch (appRole) {
             case ADMIN -> {
                 features.add(ORDERS_VIEW);
+                features.add(ORDERS_CREATE);
+                features.add(ORDERS_DELETE);
                 features.add(STOCK_VIEW);
                 features.add(BILLS_VIEW);
                 features.add(REPORTS_VIEW);
@@ -82,6 +88,7 @@ public class UserFeatureService {
                 features.add(BILLS_VIEW);
                 features.add(REPORTS_VIEW);
                 features.add(BRANCH_OPS_VIEW);
+                features.add(ORDERS_CREATE);
             }
         }
 

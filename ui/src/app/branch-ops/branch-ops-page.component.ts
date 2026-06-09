@@ -13,7 +13,7 @@ import { BranchOpsService } from './branch-ops.service';
 export class BranchOpsPageComponent implements OnInit {
   private readonly hiddenCategoryLabels = new Set(['all item groups']);
   private readonly settledThreshold = 0.01;
-  private readonly defaultLedgerDays = 30;
+  private readonly defaultLedgerDays = 7;
   readonly searchControl = new FormControl('', { nonNullable: true });
   readonly ledgerDateRangeForm = new FormGroup({
     from: new FormControl<Date | null>(null),
@@ -151,14 +151,10 @@ export class BranchOpsPageComponent implements OnInit {
         next: response => {
           this.categoryLedger = response.entries ?? [];
           this.categoryLedgerBalance = Number(response.balance ?? 0) || 0;
-          this.ledgerOpeningBalance = Number(response.openingBalance ?? 0) || 0;
-          this.ledgerClosingBalance = Number(response.closingBalance ?? response.balance ?? 0) || 0;
         },
         error: () => {
           this.categoryLedger = [];
           this.categoryLedgerBalance = 0;
-          this.ledgerOpeningBalance = 0;
-          this.ledgerClosingBalance = 0;
           this.errorMessage = 'Unable to load category ledger.';
         }
       });
@@ -168,8 +164,6 @@ export class BranchOpsPageComponent implements OnInit {
     this.selectedCategoryId = '';
     this.categoryLedger = [];
     this.categoryLedgerBalance = 0;
-    this.ledgerOpeningBalance = 0;
-    this.ledgerClosingBalance = 0;
   }
 
   applyLedgerDateRange(): void {
@@ -208,6 +202,8 @@ export class BranchOpsPageComponent implements OnInit {
     this.branchOpsService.getBranchLedger(branchId, this.appliedLedgerRange).subscribe({
       next: response => {
         this.ledger = response.entries ?? [];
+        this.ledgerOpeningBalance = Number(response.openingBalance ?? 0) || 0;
+        this.ledgerClosingBalance = Number(response.closingBalance ?? response.balance ?? 0) || 0;
         this.ledgerCategorySummary = (response.categorySummary ?? []).filter(row => {
           const category = String(row?.category ?? '').trim();
           if (!category) {
@@ -216,8 +212,7 @@ export class BranchOpsPageComponent implements OnInit {
           if (this.hiddenCategoryLabels.has(category.toLowerCase())) {
             return false;
           }
-          const amount = Number(row?.amount ?? 0) || 0;
-          return amount > 0;
+          return true;
         });
 
         if (!this.ledgerCategorySummary.length) {
@@ -286,6 +281,13 @@ export class BranchOpsPageComponent implements OnInit {
     return this.toSettlementLabel(this.selectedBranchSettlementState);
   }
 
+  get ledgerScopeNote(): string {
+    if (this.selectedCategoryId) {
+      return `Overall branch balances for the selected date range. Category drill-down: ${this.selectedCategoryId}.`;
+    }
+    return 'Overall branch balances for the selected date range.';
+  }
+
   branchSummaryState(branch: BranchOpsSummaryRow): 'settled' | 'open' | 'overdue' {
     const balance = Math.abs(branch.ledgerBalance ?? 0);
     const receivable = Math.abs(branch.openReceivableAmount ?? 0);
@@ -308,6 +310,14 @@ export class BranchOpsPageComponent implements OnInit {
       return 'overdue';
     }
     return Math.abs(balance ?? 0) <= this.settledThreshold ? 'settled' : state;
+  }
+
+  displayAmount(value: unknown): number {
+    const amount = Number(value ?? 0);
+    if (!Number.isFinite(amount) || Math.abs(amount) <= this.settledThreshold) {
+      return 0;
+    }
+    return amount;
   }
 
   private loadBranch(branchId: string): void {

@@ -18,6 +18,7 @@ import { ItemService } from '../../items/item.service';
 import { VendorService } from '../../vendors/vendor.service';
 import { OrderService } from '../order.service';
 import { OrderPageComponent } from './order-page.component';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 describe('OrderPageComponent', () => {
   let component: OrderPageComponent;
@@ -25,6 +26,7 @@ describe('OrderPageComponent', () => {
   let orderService: jasmine.SpyObj<OrderService>;
   let vendorService: jasmine.SpyObj<VendorService>;
   let itemService: jasmine.SpyObj<ItemService>;
+  let tokenStore: jasmine.SpyObj<AuthTokenService>;
 
   beforeEach(async () => {
     orderService = jasmine.createSpyObj('OrderService', [
@@ -36,7 +38,8 @@ describe('OrderPageComponent', () => {
       'updateOrderItems',
       'captureVendorBill',
       'getSellPreview',
-      'createSellOrder'
+      'createSellOrder',
+      'deleteOrder'
     ]);
     orderService.listOrders.and.returnValue(
       of([
@@ -71,6 +74,7 @@ describe('OrderPageComponent', () => {
       of({ orderId: 'ORD-1', vendorBillTotal: 100, marginPercent: 7, sellAmount: 107, marginAmount: 7 })
     );
     orderService.createSellOrder.and.returnValue(of({}));
+    orderService.deleteOrder.and.returnValue(of({}));
 
     vendorService = jasmine.createSpyObj('VendorService', ['listVendors']);
     vendorService.listVendors.and.returnValue(of([
@@ -81,6 +85,8 @@ describe('OrderPageComponent', () => {
     itemService.listItems.and.returnValue(of([
       { name: 'ITEM-28', item_code: 'ITEM-28', item_name: 'NIRMA YELLOW POWDER 1KG', item_group: 'Bakery Inputs', stock_uom: 'Nos', aas_margin_percent: 7 }
     ]));
+    tokenStore = jasmine.createSpyObj('AuthTokenService', ['getFeatures']);
+    tokenStore.getFeatures.and.returnValue(['orders.view', 'orders.create', 'orders.delete']);
 
     await TestBed.configureTestingModule({
       declarations: [OrderPageComponent],
@@ -102,6 +108,7 @@ describe('OrderPageComponent', () => {
         { provide: OrderService, useValue: orderService },
         { provide: VendorService, useValue: vendorService },
         { provide: ItemService, useValue: itemService },
+        { provide: AuthTokenService, useValue: tokenStore },
         { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({})) } },
         {
           provide: MatDialog,
@@ -164,6 +171,12 @@ describe('OrderPageComponent', () => {
     };
 
     expect(component.canDeleteOrder(order)).toBeTrue();
+  });
+
+  it('blocks delete when orders.delete feature is missing', () => {
+    tokenStore.getFeatures.and.returnValue(['orders.view', 'orders.create']);
+    expect(component.canDeleteOrders).toBeFalse();
+    expect(component.canDeleteOrder(component.orders[0])).toBeFalse();
   });
 
   it('captures vendor bill without header margin', () => {

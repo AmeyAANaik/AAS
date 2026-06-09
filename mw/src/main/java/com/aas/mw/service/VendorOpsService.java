@@ -9,6 +9,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -503,6 +504,7 @@ public class VendorOpsService {
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, CategoryWeights> orderCache = new HashMap<>();
         Map<String, Double> totals = new LinkedHashMap<>();
+        Set<String> categoriesWithHistory = new LinkedHashSet<>();
 
         for (Map<String, Object> invoice : purchaseInvoices) {
             if (asInt(invoice.get("docstatus")) == 2) {
@@ -517,11 +519,13 @@ public class VendorOpsService {
             }
             String directCategory = asText(invoice.get("aas_category"));
             if (hasText(directCategory)) {
+                categoriesWithHistory.add(directCategory);
                 totals.merge(directCategory, base, Double::sum);
                 continue;
             }
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
             if (!hasText(sourceOrderId)) {
+                categoriesWithHistory.add("Uncategorized");
                 totals.merge("Uncategorized", base, Double::sum);
                 continue;
             }
@@ -529,11 +533,13 @@ public class VendorOpsService {
                     sourceOrderId,
                     key -> computeSalesOrderCategoryWeights(key, resolver));
             if (weights.total() <= 0 || weights.weights().isEmpty()) {
+                categoriesWithHistory.add("Uncategorized");
                 totals.merge("Uncategorized", base, Double::sum);
                 continue;
             }
             for (Map.Entry<String, Double> entry : weights.weights().entrySet()) {
                 double share = base * (entry.getValue() / weights.total());
+                categoriesWithHistory.add(entry.getKey());
                 totals.merge(entry.getKey(), share, Double::sum);
             }
         }
@@ -548,6 +554,7 @@ public class VendorOpsService {
                 if (!hasText(category) || amount <= 0) {
                     continue;
                 }
+                categoriesWithHistory.add(category);
                 totals.merge(category, -amount, Double::sum);
             }
         }
@@ -561,14 +568,16 @@ public class VendorOpsService {
                 if (!hasText(category) || netChange == 0.0) {
                     continue;
                 }
+                categoriesWithHistory.add(category);
                 totals.merge(category, netChange, Double::sum);
             }
         }
 
         return totals.entrySet().stream()
-                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null && entry.getValue() > 0)
+                .filter(entry -> hasText(entry.getKey()) && entry.getValue() != null)
+                .filter(entry -> Math.abs(round(entry.getValue())) > 0.009 || categoriesWithHistory.contains(entry.getKey()))
                 .map(entry -> Map.<String, Object>of("category", entry.getKey(), "amount", round(entry.getValue())))
-                .sorted((left, right) -> Double.compare(asDouble(right.get("amount")), asDouble(left.get("amount"))))
+                .sorted((left, right) -> Double.compare(Math.abs(asDouble(right.get("amount"))), Math.abs(asDouble(left.get("amount")))))
                 .toList();
     }
 
