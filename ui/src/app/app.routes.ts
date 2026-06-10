@@ -61,7 +61,7 @@ export const routes: Routes = [
       { path: 'vendors', loadChildren: () => import('./vendors/vendors.module').then(m => m.VendorsModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
       { path: 'branches', loadChildren: () => import('./branches/branches.module').then(m => m.BranchesModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
       { path: 'categories', loadChildren: () => import('./categories/categories.module').then(m => m.CategoriesModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
-      { path: 'items', loadChildren: () => import('./items/items.module').then(m => m.ItemsModule), canMatch: [featureGuard], data: { feature: 'master_data.view' } },
+      { path: 'items', loadChildren: () => import('./items/items.module').then(m => m.ItemsModule), canMatch: [featureGuard], data: { feature: 'items.manage' } },
       {
         path: 'reports',
         loadComponent: () => import('./shell/reports-placeholder.component').then(m => m.ReportsPlaceholderComponent),

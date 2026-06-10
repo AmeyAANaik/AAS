@@ -61,6 +61,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/categories/*").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/items").hasAnyRole("ADMIN", "HELPER")
                 .requestMatchers(HttpMethod.PUT, "/api/items/*").hasAnyRole("ADMIN", "HELPER")
+                .requestMatchers(HttpMethod.DELETE, "/api/items/*").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/orders").hasAnyRole("ADMIN", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/orders/direct-item-flow").hasAnyRole("ADMIN", "SHOP", "HELPER")
                 .requestMatchers(HttpMethod.POST, "/api/orders/branch-image").hasAnyRole("ADMIN", "SHOP", "HELPER")

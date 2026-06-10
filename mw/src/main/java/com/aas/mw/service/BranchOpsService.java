@@ -216,13 +216,16 @@ public class BranchOpsService {
         List<Map<String, Object>> filteredInvoices = filterByPostingDate(invoices, range);
         List<Map<String, Object>> categoryPayments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(branchId), range);
         List<Map<String, Object>> categoryAdjustmentNotes = filterAdjustmentNotesByPostingDate(fetchApprovedCustomerAdjustmentNotes(branchId, null), range);
+        List<Map<String, Object>> categorySummary = buildCategoryBalanceSummary(filteredInvoices, categoryPayments, categoryAdjustmentNotes);
+        double openingBalance = normalizeCategoryBalance(window.openingBalance);
+        double closingBalance = normalizedBranchClosingBalance(openingBalance, window.closingBalance, categorySummary);
         return Map.of(
                 "branchId", branchId,
                 "branchName", preferredBranchName(branch),
-                "openingBalance", window.openingBalance,
-                "closingBalance", window.closingBalance,
-                "balance", window.closingBalance,
-                "categorySummary", buildCategoryBalanceSummary(filteredInvoices, categoryPayments, categoryAdjustmentNotes),
+                "openingBalance", openingBalance,
+                "closingBalance", closingBalance,
+                "balance", closingBalance,
+                "categorySummary", categorySummary,
                 "entries", window.entries);
     }
 
@@ -317,6 +320,20 @@ public class BranchOpsService {
             rebased.add(copy);
         }
         return new LedgerWindow(opening, running, rebased);
+    }
+
+    private double normalizedBranchClosingBalance(
+            double openingBalance,
+            double rawClosingBalance,
+            List<Map<String, Object>> categorySummary) {
+        if (categorySummary == null || categorySummary.isEmpty()) {
+            return normalizeCategoryBalance(rawClosingBalance);
+        }
+        double rangeBalance = 0.0;
+        for (Map<String, Object> row : categorySummary) {
+            rangeBalance += normalizeCategoryBalance(asDouble(row.get("balance")));
+        }
+        return normalizeCategoryBalance(openingBalance + rangeBalance);
     }
 
     private record LedgerWindow(double openingBalance, double closingBalance, List<Map<String, Object>> entries) {}

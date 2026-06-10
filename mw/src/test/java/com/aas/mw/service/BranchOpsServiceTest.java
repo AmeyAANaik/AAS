@@ -436,6 +436,119 @@ class BranchOpsServiceTest {
     }
 
     @Test
+    void getBranchLedgerNormalizesSettledCategoryResidueInOverallBalance() {
+        when(erpNextClient.getResource("Customer", "BRANCH-1"))
+                .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Sukarta Aundh")));
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-SINV-GROCERY",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-06-09",
+                                "grand_total", 150838.12,
+                                "rounded_total", 150838.0,
+                                "rounding_adjustment", -0.12,
+                                "outstanding_amount", 150838.0,
+                                "docstatus", 0),
+                        Map.of(
+                                "name", "ACC-SINV-AAMRAS",
+                                "customer", "BRANCH-1",
+                                "posting_date", "2026-06-09",
+                                "grand_total", 15700.0,
+                                "outstanding_amount", 15700.0,
+                                "docstatus", 0)));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-GROCERY"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-GROCERY",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 150838.12,
+                        "rounded_total", 150838.0,
+                        "rounding_adjustment", -0.12,
+                        "outstanding_amount", 150838.0,
+                        "docstatus", 0,
+                        "aas_category", "Grocery",
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-ITEM",
+                                "item_group", "Grocery",
+                                "amount", 150838.0)))));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-AAMRAS"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-AAMRAS",
+                        "customer", "BRANCH-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 15700.0,
+                        "outstanding_amount", 15700.0,
+                        "docstatus", 0,
+                        "aas_category", "Aamras",
+                        "items", List.of(Map.of(
+                                "item_code", "AAMRAS-ITEM",
+                                "item_group", "Aamras",
+                                "amount", 15700.0)))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PAY-GROCERY-1",
+                                "party", "BRANCH-1",
+                                "party_type", "Customer",
+                                "posting_date", "2026-06-09",
+                                "paid_amount", 100000.0,
+                                "docstatus", 1,
+                                "aas_category", "Grocery"),
+                        Map.of(
+                                "name", "PAY-GROCERY-2",
+                                "party", "BRANCH-1",
+                                "party_type", "Customer",
+                                "posting_date", "2026-06-09",
+                                "paid_amount", 40838.12,
+                                "docstatus", 1,
+                                "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-GROCERY-1"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-GROCERY-1",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "ACC-SINV-GROCERY")))));
+        when(erpNextClient.getResource("Payment Entry", "PAY-GROCERY-2"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-GROCERY-2",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Sales Invoice",
+                                "reference_name", "ACC-SINV-GROCERY")))));
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(Map.ofEntries(
+                        Map.entry("name", "ACC-JV-GROCERY"),
+                        Map.entry("posting_date", "2026-06-07"),
+                        Map.entry("docstatus", 1),
+                        Map.entry("modified", "2026-06-07 10:00:00"),
+                        Map.entry("aas_adjustment_party", "BRANCH-1"),
+                        Map.entry("aas_adjustment_party_type", "Customer"),
+                        Map.entry("aas_category", "Grocery"),
+                        Map.entry("aas_adjustment_direction", "GIVE"),
+                        Map.entry("aas_adjustment_amount", 10000.0),
+                        Map.entry("aas_adjustment_reason", "Credit note"),
+                        Map.entry("aas_reference_invoice", "ACC-SINV-GROCERY"))));
+
+        Map<String, Object> response = branchOpsService.getBranchLedger("BRANCH-1", "2026-05-01", "2026-06-10");
+
+        assertThat(response)
+                .containsEntry("openingBalance", 0.0)
+                .containsEntry("closingBalance", 15700.0)
+                .containsEntry("balance", 15700.0);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).anySatisfy(row -> assertThat(row)
+                .containsEntry("category", "Grocery")
+                .containsEntry("amount", 150838.0)
+                .containsEntry("balance", 0.0));
+        assertThat(categories).anySatisfy(row -> assertThat(row)
+                .containsEntry("category", "Aamras")
+                .containsEntry("amount", 15700.0)
+                .containsEntry("balance", 15700.0));
+    }
+
+    @Test
     void getBranchLedgerOnlyUsesPaymentsLinkedToBranchInvoices() {
         when(erpNextClient.getResource("Customer", "BRANCH-1"))
                 .thenReturn(Map.of("data", Map.of("name", "BRANCH-1", "customer_name", "Downtown Branch")));

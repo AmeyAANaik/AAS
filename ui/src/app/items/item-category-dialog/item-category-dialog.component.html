@@ -71,7 +71,7 @@
               <button mat-icon-button color="primary" class="item-icon-button" type="button" (click)="editItem(item)" aria-label="Edit item">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button color="warn" class="item-icon-button" type="button" (click)="deleteItem(item)" [disabled]="isDeleting" aria-label="Delete item">
+              <button *ngIf="canDeleteItems" mat-icon-button color="warn" class="item-icon-button" type="button" (click)="deleteItem(item)" [disabled]="isDeleting" aria-label="Delete item">
                 <mat-icon>delete</mat-icon>
               </button>
             </td>

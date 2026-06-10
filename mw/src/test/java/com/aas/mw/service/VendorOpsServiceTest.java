@@ -364,7 +364,7 @@ class VendorOpsServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
 
-        assertThat(categories).contains(Map.of("category", "Grocery", "amount", 0.0));
+        assertThat(categories).contains(Map.of("category", "Grocery", "amount", 100.0, "balance", 0.0));
     }
 
     @Test
@@ -407,7 +407,7 @@ class VendorOpsServiceTest {
 
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.get("categorySummary");
-        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1713824.84));
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1813824.84, "balance", 1713824.84));
         assertThat(categories).noneMatch(row -> "Uncategorized".equals(row.get("category")));
 
         Map<String, Object> categoryLedger = vendorOpsService.getVendorLedgerByCategory("Sanshray Foods", "Grocery");
@@ -476,7 +476,7 @@ class VendorOpsServiceTest {
         Map<String, Object> ledger = vendorOpsService.getVendorLedger("VENDOR-1");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.get("categorySummary");
-        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 800.0));
+        assertThat(categories).containsExactly(Map.of("category", "Grocery", "amount", 1000.0, "balance", 800.0));
 
         Map<String, Object> categoryLedger = vendorOpsService.getVendorLedgerByCategory("VENDOR-1", "Grocery");
         @SuppressWarnings("unchecked")
@@ -717,5 +717,100 @@ class VendorOpsServiceTest {
         Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
 
         assertThat(response.get("balance")).isEqualTo(500.0);
+    }
+
+    @Test
+    void getVendorLedgerNormalizesRoundedSettlementResiduals() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-GROCERY",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-06-09",
+                                "grand_total", 150838.12,
+                                "rounded_total", 150838.0,
+                                "outstanding_amount", 150838.12,
+                                "bill_no", "BILL-GROCERY",
+                                "docstatus", 1,
+                                "aas_category", "Grocery"),
+                        Map.of(
+                                "name", "PINV-AAMRAS",
+                                "supplier", "VENDOR-1",
+                                "posting_date", "2026-06-09",
+                                "grand_total", 15700.0,
+                                "outstanding_amount", 15700.0,
+                                "bill_no", "BILL-AAMRAS",
+                                "docstatus", 1,
+                                "aas_category", "Aamras")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "PAY-GROCERY",
+                        "party", "VENDOR-1",
+                        "party_type", "Supplier",
+                        "posting_date", "2026-06-09",
+                        "paid_amount", 150838.12,
+                        "payment_type", "Pay",
+                        "reference_no", "",
+                        "docstatus", 1,
+                        "aas_category", "Grocery")));
+
+        Map<String, Object> response = vendorOpsService.getVendorLedger("VENDOR-1");
+
+        assertThat(response.get("balance")).isEqualTo(15700.0);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) response.get("categorySummary");
+        assertThat(categories).contains(
+                Map.of("category", "Grocery", "amount", 150838.0, "balance", 0.0),
+                Map.of("category", "Aamras", "amount", 15700.0, "balance", 15700.0));
+    }
+
+    @Test
+    void getVendorLedgerByCategoryIncludesPaymentsLinkedToPurchaseInvoices() {
+        when(erpNextClient.getResource("Supplier", "VENDOR-1"))
+                .thenReturn(Map.of("data", Map.of("name", "VENDOR-1", "supplier_name", "FreshHarvest Agro Foods")));
+        when(erpNextClient.getResource("Payment Entry", "PAY-LINKED"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PAY-LINKED",
+                        "references", List.of(Map.of(
+                                "reference_doctype", "Purchase Invoice",
+                                "reference_name", "PINV-GROCERY",
+                                "allocated_amount", 500.0)))));
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "PINV-GROCERY",
+                        "supplier", "VENDOR-1",
+                        "posting_date", "2026-06-09",
+                        "grand_total", 500.0,
+                        "outstanding_amount", 500.0,
+                        "bill_no", "BILL-GROCERY",
+                        "docstatus", 1,
+                        "aas_category", "Grocery")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> params = invocation.getArgument(1);
+                    if (String.valueOf(params.get("filters")).contains("aas_category")) {
+                        return List.of();
+                    }
+                    return List.of(Map.of(
+                            "name", "PAY-LINKED",
+                            "party", "VENDOR-1",
+                            "party_type", "Supplier",
+                            "posting_date", "2026-06-09",
+                            "paid_amount", 500.0,
+                            "payment_type", "Pay",
+                            "reference_no", "",
+                            "docstatus", 1));
+                });
+
+        Map<String, Object> response = vendorOpsService.getVendorLedgerByCategory("VENDOR-1", "Grocery");
+
+        assertThat(response.get("balance")).isEqualTo(0.0);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> entries = (List<Map<String, Object>>) response.get("entries");
+        assertThat(entries)
+                .extracting(entry -> entry.get("voucherType"))
+                .containsExactly("Purchase Invoice", "Payment Entry");
     }
 }

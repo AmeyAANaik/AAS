@@ -8,6 +8,7 @@ import { ItemMetadataService } from '../item-metadata.service';
 import { ItemFormValue, ItemView } from '../item.model';
 import { ItemService } from '../item.service';
 import { MasterDataToastService } from '../../shared/master-data-toast.service';
+import { AuthTokenService } from '../../shared/auth-token.service';
 
 export interface ItemCategoryDialogData {
   categories: Category[];
@@ -38,7 +39,8 @@ export class ItemCategoryDialogComponent implements OnInit {
     @Inject(MAT_DIALOG_DATA) public readonly data: ItemCategoryDialogData,
     private readonly itemService: ItemService,
     private readonly metadataService: ItemMetadataService,
-    private readonly toastService: MasterDataToastService
+    private readonly toastService: MasterDataToastService,
+    private readonly tokenStore: AuthTokenService
   ) {}
 
   ngOnInit(): void {
@@ -76,6 +78,11 @@ export class ItemCategoryDialogComponent implements OnInit {
     this.selectedItem = { ...item, raw: { ...item.raw } };
     this.statusMessage = '';
     this.bumpFormVersion();
+  }
+
+  get canDeleteItems(): boolean {
+    const role = String(this.tokenStore.getRole() ?? '').trim().toLowerCase();
+    return role === 'admin' || role === 'administrator';
   }
 
   saveItem(formValue: ItemFormValue): void {
@@ -128,6 +135,10 @@ export class ItemCategoryDialogComponent implements OnInit {
   }
 
   deleteItem(item: ItemView): void {
+    if (!this.canDeleteItems) {
+      this.statusMessage = 'Only admins can delete items.';
+      return;
+    }
     if (this.isDeleting) {
       return;
     }

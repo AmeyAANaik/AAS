@@ -23,6 +23,7 @@ public class UserFeatureService {
     public static final String VENDOR_OPS_VIEW = "vendor_ops.view";
     public static final String BRANCH_OPS_VIEW = "branch_ops.view";
     public static final String MASTER_DATA_VIEW = "master_data.view";
+    public static final String ITEMS_MANAGE = "items.manage";
     public static final String MASTER_DATA_REVIEW_VIEW = "master_data_review.view";
     public static final String BILL_REVIEW_VIEW = "bill_review.view";
     public static final String COMPANY_SETTINGS_VIEW = "company_settings.view";
@@ -41,6 +42,7 @@ public class UserFeatureService {
             new FeatureDefinition(VENDOR_OPS_VIEW, "Vendor Operations", "Operations", "Open vendor operations queues."),
             new FeatureDefinition(BRANCH_OPS_VIEW, "Branch Operations", "Operations", "Open branch operations queues."),
             new FeatureDefinition(MASTER_DATA_VIEW, "Master Data", "Administration", "Open vendors, branches, categories, and items."),
+            new FeatureDefinition(ITEMS_MANAGE, "Manage Items", "Administration", "Open items and update item pricing/details."),
             new FeatureDefinition(MASTER_DATA_REVIEW_VIEW, "Master Data Review", "Administration", "Open the master data review queue."),
             new FeatureDefinition(BILL_REVIEW_VIEW, "Bill Review", "Administration", "Review and approve recorded payments."),
             new FeatureDefinition(COMPANY_SETTINGS_VIEW, "Company Settings", "Administration", "Open company settings and admin controls."),
@@ -65,6 +67,7 @@ public class UserFeatureService {
                 features.add(VENDOR_OPS_VIEW);
                 features.add(BRANCH_OPS_VIEW);
                 features.add(MASTER_DATA_VIEW);
+                features.add(ITEMS_MANAGE);
                 features.add(MASTER_DATA_REVIEW_VIEW);
                 features.add(BILL_REVIEW_VIEW);
                 features.add(COMPANY_SETTINGS_VIEW);
@@ -76,6 +79,7 @@ public class UserFeatureService {
                 features.add(REPORTS_VIEW);
                 features.add(VENDOR_OPS_VIEW);
                 features.add(BRANCH_OPS_VIEW);
+                features.add(ITEMS_MANAGE);
             }
             case VENDOR -> {
                 features.add(ORDERS_VIEW);

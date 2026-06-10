@@ -64,7 +64,7 @@ export class AppShellComponent implements OnDestroy {
         { label: 'Vendors', icon: 'local_shipping', route: '/vendors', feature: 'master_data.view' },
         { label: 'Branches', icon: 'hub', route: '/branches', feature: 'master_data.view' },
         { label: 'Categories', icon: 'category', route: '/categories', feature: 'master_data.view' },
-        { label: 'Items', icon: 'inventory', route: '/items', feature: 'master_data.view' }
+        { label: 'Items', icon: 'inventory', route: '/items', feature: 'items.manage' }
       ]
     },
     {

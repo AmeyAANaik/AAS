@@ -12,7 +12,7 @@ class UserFeatureServiceTest {
     private final UserFeatureService service = new UserFeatureService();
 
     @Test
-    void helperHasAllOperationalFeaturesExceptMasterData() {
+    void helperHasOperationalFeaturesAndItemManagementOnly() {
         Set<String> features = service.featuresForRole("helper");
 
         assertTrue(features.contains(UserFeatureService.DASHBOARD_VIEW));
@@ -24,6 +24,7 @@ class UserFeatureServiceTest {
         assertTrue(features.contains(UserFeatureService.REPORTS_VIEW));
         assertTrue(features.contains(UserFeatureService.VENDOR_OPS_VIEW));
         assertTrue(features.contains(UserFeatureService.BRANCH_OPS_VIEW));
+        assertTrue(features.contains(UserFeatureService.ITEMS_MANAGE));
         assertFalse(features.contains(UserFeatureService.MASTER_DATA_VIEW));
         assertFalse(features.contains(UserFeatureService.COMPANY_SETTINGS_VIEW));
     }

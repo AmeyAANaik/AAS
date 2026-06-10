@@ -93,4 +93,14 @@ import { BillReviewService } from '../bill-review/bill-review.service';
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).not.toContain('Reviews');
   });
+
+  it('shows items nav when only item management feature is enabled', () => {
+    configureShell(['dashboard.view', 'items.manage']);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Items');
+    expect(text).not.toContain('Vendors');
+    expect(text).not.toContain('Branches');
+    expect(text).not.toContain('Categories');
+  });
 });
