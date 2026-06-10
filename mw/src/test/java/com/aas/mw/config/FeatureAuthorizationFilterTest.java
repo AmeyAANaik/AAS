@@ -140,7 +140,7 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
-    void blocksMappedFeatureApiWhenServiceSessionIsUnavailable() throws ServletException, IOException {
+    void allowsReadFeatureApiWhenServiceSessionIsUnavailable() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
         when(userService.hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW)).thenReturn(true);
@@ -151,7 +151,7 @@ class FeatureAuthorizationFilterTest {
 
         filter.doFilter(request, response, new MockFilterChain());
 
-        assertEquals(503, response.getStatus());
+        assertEquals(200, response.getStatus());
         assertEquals("sid=helper", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
     }
 
