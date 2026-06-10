@@ -120,7 +120,8 @@ export class InvoiceCreateComponent {
       apply_gst: this.gstControl.value ?? true,
       rounding_adjustment: this.roundingAdjustmentValue || undefined,
       aas_source_sales_order: String(this.orderSnapshot.name ?? '').trim() || undefined,
-      aas_category: String(this.orderSnapshot.aas_category ?? '').trim() || undefined
+      aas_category: String(this.orderSnapshot.aas_category ?? '').trim() || undefined,
+      posting_date: String(this.orderSnapshot.transaction_date ?? '').trim() || undefined
     };
     this.createInvoice(payload, customer);
   }

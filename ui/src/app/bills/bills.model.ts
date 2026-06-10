@@ -76,6 +76,7 @@ export interface InvoiceCreatePayload {
   rounding_adjustment?: number;
   aas_source_sales_order?: string;
   aas_category?: string;
+  posting_date?: string;
 }
 
 export interface InvoiceCreateResult {
@@ -88,6 +89,7 @@ export interface OrderSnapshot {
   customer?: string;
   company?: string;
   aas_category?: string;
+  transaction_date?: string;
   items?: Array<{ item_code?: string; qty?: number; rate?: number }>;
   grand_total?: number;
   aas_rounding_adjustment?: number;
