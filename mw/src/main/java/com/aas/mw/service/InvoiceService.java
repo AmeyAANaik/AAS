@@ -70,6 +70,9 @@ public class InvoiceService {
             payload.remove("tax_category");
         }
 
+        if (payload.containsKey("posting_date")) {
+            payload.putIfAbsent("set_posting_time", 1);
+        }
         String customer = asText(payload.get("customer"));
         int creditDays = resolveCreditDays(customer);
         if (creditDays > 0 && !payload.containsKey("due_date")) {
@@ -557,7 +560,8 @@ public class InvoiceService {
             if (orderDate.isBlank() || orderDate.equals(currentPostingDate)) {
                 return;
             }
-            erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of("posting_date", orderDate));
+            erpNextClient.updateResource(DOCTYPE, invoiceId,
+                    Map.of("posting_date", orderDate, "set_posting_time", 1));
         } catch (Exception ignore) {
             // Best-effort correction; never block PDF generation.
         }
@@ -586,7 +590,8 @@ public class InvoiceService {
                     skipped++;
                     continue;
                 }
-                erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of("posting_date", orderDate));
+                erpNextClient.updateResource(DOCTYPE, invoiceId,
+                        Map.of("posting_date", orderDate, "set_posting_time", 1));
                 fixed++;
             } catch (Exception ignore) {
                 skipped++;

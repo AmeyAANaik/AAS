@@ -2,6 +2,8 @@ services:
   mw:
     build:
       context: ./mw
+    # .env.mw must define ERP_SETUP_FULL_NAME and ERP_SETUP_PASSWORD
+    # so feature-authorized write workflows can use a service ERP session.
     env_file:
       - .env.mw
     ports:

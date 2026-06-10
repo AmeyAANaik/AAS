@@ -340,6 +340,7 @@ public class OrderBillingService {
         payload.put("customer", customer);
         payload.put("company", company);
         payload.put("posting_date", resolveDate(sourceOrder.get("transaction_date")));
+        payload.put("set_posting_time", 1);
         payload.put("currency", companyCurrency);
         payload.put("conversion_rate", 1.0);
         payload.put("price_list_currency", companyCurrency);
