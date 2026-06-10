@@ -2,6 +2,8 @@ package com.aas.mw.config;
 
 import com.aas.mw.service.UserFeatureService;
 import com.aas.mw.service.UserService;
+import com.aas.mw.service.AuthenticationService;
+import com.aas.mw.service.ErpSessionStore;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import org.junit.jupiter.api.AfterEach;
@@ -21,7 +23,8 @@ import static org.mockito.Mockito.when;
 class FeatureAuthorizationFilterTest {
 
     private final UserService userService = mock(UserService.class);
-    private final FeatureAuthorizationFilter filter = new FeatureAuthorizationFilter(userService);
+    private final AuthenticationService authenticationService = mock(AuthenticationService.class);
+    private final FeatureAuthorizationFilter filter = new FeatureAuthorizationFilter(userService, authenticationService);
 
     @AfterEach
     void tearDown() {
@@ -33,12 +36,14 @@ class FeatureAuthorizationFilterTest {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
         when(userService.hasFeature("helper@example.com", UserFeatureService.MASTER_DATA_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/vendors");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, new MockFilterChain());
 
         assertEquals(200, response.getStatus());
+        assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
         verify(userService).hasFeature("helper@example.com", UserFeatureService.MASTER_DATA_VIEW);
     }
 
@@ -47,13 +52,31 @@ class FeatureAuthorizationFilterTest {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
         when(userService.hasFeature("helper@example.com", UserFeatureService.ITEMS_MANAGE)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/items");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, new MockFilterChain());
 
         assertEquals(200, response.getStatus());
+        assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
         verify(userService).hasFeature("helper@example.com", UserFeatureService.ITEMS_MANAGE);
+    }
+
+    @Test
+    void allowsCompanyContextWhenUserHasDashboardFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/company-context");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
+        assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+        verify(userService).hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW);
     }
 
     @Test
@@ -68,6 +91,7 @@ class FeatureAuthorizationFilterTest {
 
         assertEquals(403, response.getStatus());
         verify(userService).hasFeature("helper@example.com", UserFeatureService.BILL_REVIEW_VIEW);
+        verify(authenticationService, never()).getSetupSessionCookie();
     }
 
     @Test
@@ -79,5 +103,6 @@ class FeatureAuthorizationFilterTest {
 
         assertEquals(200, response.getStatus());
         verify(userService, never()).hasFeature(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        verify(authenticationService, never()).getSetupSessionCookie();
     }
 }

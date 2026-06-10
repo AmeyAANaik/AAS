@@ -1,5 +1,7 @@
 package com.aas.mw.config;
 
+import com.aas.mw.service.AuthenticationService;
+import com.aas.mw.service.ErpSessionStore;
 import com.aas.mw.service.UserFeatureService;
 import com.aas.mw.service.UserService;
 import jakarta.servlet.FilterChain;
@@ -8,7 +10,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.AntPathMatcher;
@@ -17,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class FeatureAuthorizationFilter extends OncePerRequestFilter {
 
     private final UserService userService;
+    private final AuthenticationService authenticationService;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final List<FeatureRoute> routes = List.of(
             new FeatureRoute("GET", "/api/admin/access/**", UserFeatureService.ADMIN_ACCESS_VIEW),
@@ -66,6 +68,7 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             new FeatureRoute(null, "/api/payments/**", UserFeatureService.BILLS_VIEW),
             new FeatureRoute(null, "/api/adjustment-notes/**", UserFeatureService.BILLS_VIEW),
 
+            new FeatureRoute("GET", "/api/company-context", UserFeatureService.DASHBOARD_VIEW),
             new FeatureRoute(null, "/api/companies/*/opening-balances/**", UserFeatureService.COMPANY_SETTINGS_VIEW),
             new FeatureRoute("GET", "/api/companies", UserFeatureService.COMPANY_SETTINGS_VIEW),
             new FeatureRoute("GET", "/api/companies/**", UserFeatureService.COMPANY_SETTINGS_VIEW),
@@ -74,8 +77,9 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             new FeatureRoute("GET", "/api/users/**", UserFeatureService.USER_SETTINGS_VIEW),
             new FeatureRoute("PUT", "/api/users/**", UserFeatureService.USER_SETTINGS_VIEW));
 
-    public FeatureAuthorizationFilter(UserService userService) {
+    public FeatureAuthorizationFilter(UserService userService, AuthenticationService authenticationService) {
         this.userService = userService;
+        this.authenticationService = authenticationService;
     }
 
     @Override
@@ -94,6 +98,7 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
             return;
         }
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
         filterChain.doFilter(request, response);
     }
 

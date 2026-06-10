@@ -26,9 +26,10 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtService jwtService,
             ErpSessionStore erpSessionStore,
-            com.aas.mw.service.UserService userService) throws Exception {
+            com.aas.mw.service.UserService userService,
+            com.aas.mw.service.AuthenticationService authenticationService) throws Exception {
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, erpSessionStore);
-        FeatureAuthorizationFilter featureFilter = new FeatureAuthorizationFilter(userService);
+        FeatureAuthorizationFilter featureFilter = new FeatureAuthorizationFilter(userService, authenticationService);
         http
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf.disable())
