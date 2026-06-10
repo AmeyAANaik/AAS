@@ -58,8 +58,11 @@ public class OrderBillingService {
         double expectedBillTotal = round(itemsTotal + transportCharge);
         double diff = round(vendorBillTotal - expectedBillTotal);
         double roundingAdjustment = Math.abs(diff) < 1.0 ? diff : 0.0;
+        // Tolerance scales with invoice size to accommodate aggregate-GST rounding differences
+        // (per-item ERPNext amounts vs invoice's slab-level GST computation) common on large invoices.
+        double validationTolerance = Math.max(1.0, round(vendorBillTotal * 0.002));
         // Hard validation: bill total must match scanned items total including GST plus optional transport (within rounding tolerance).
-        if (itemsTotal > 0 && Math.abs(diff) >= 1.0) {
+        if (itemsTotal > 0 && Math.abs(diff) >= validationTolerance) {
             if (transportCharge <= 0 && allowMismatch) {
                 // Explicit mismatch override: no transport/additional spend is being applied, but the user chose to proceed.
             } else {
