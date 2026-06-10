@@ -80,6 +80,22 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
+    void keepsUserSessionWhenPrivilegedSessionIsUnavailable() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenThrow(new IllegalStateException("setup unavailable"));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/company-context");
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, "sid=helper");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
+        assertEquals("sid=helper", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+    }
+
+    @Test
     void blocksMappedApiWhenUserLacksFeature() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));

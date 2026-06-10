@@ -279,6 +279,10 @@ public class MasterDataController {
         if (request == null) {
             return;
         }
-        request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
+        try {
+            request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
+        } catch (RuntimeException ignored) {
+            // Keep the authenticated user's ERP session if setup credentials are unavailable.
+        }
     }
 }

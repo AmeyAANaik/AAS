@@ -44,4 +44,19 @@ class MasterDataControllerTest {
         assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
         verify(masterDataService).updateItem("ITEM-1", fieldsRequest);
     }
+
+    @Test
+    void itemUpdateKeepsUserSessionWhenPrivilegedSessionIsUnavailable() {
+        FieldsRequest fieldsRequest = new FieldsRequest();
+        fieldsRequest.setFields(Map.of("aas_vendor_rate", 42));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, "sid=helper");
+        when(authenticationService.getSetupSessionCookie()).thenThrow(new IllegalStateException("setup unavailable"));
+        when(masterDataService.updateItem("ITEM-1", fieldsRequest)).thenReturn(Map.of("name", "ITEM-1"));
+
+        controller.updateItem("ITEM-1", fieldsRequest, request);
+
+        assertEquals("sid=helper", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+        verify(masterDataService).updateItem("ITEM-1", fieldsRequest);
+    }
 }

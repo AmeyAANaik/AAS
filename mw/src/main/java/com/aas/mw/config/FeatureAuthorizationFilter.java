@@ -98,8 +98,18 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
             return;
         }
-        request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
+        usePrivilegedErpSessionIfAvailable(request);
         filterChain.doFilter(request, response);
+    }
+
+    private void usePrivilegedErpSessionIfAvailable(HttpServletRequest request) {
+        try {
+            request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
+        } catch (RuntimeException ignored) {
+            // Feature authorization is the AAS permission boundary. If the setup ERP
+            // session is not configured/available, keep the authenticated user's ERP
+            // session so basic login/dashboard flows do not fail with a 500.
+        }
     }
 
     private String requiredFeature(HttpServletRequest request) {
