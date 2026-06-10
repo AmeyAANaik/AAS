@@ -845,18 +845,32 @@ public class OrderBillingService {
             return 0.0;
         }
         boolean gstIncludedInLineAmounts = inferGstIncludedInLineAmounts(list, referenceBillTotal, transportCharge);
-        double total = 0.0;
-        for (Object rowObj : list) {
-            if (rowObj instanceof Map<?, ?> row) {
-                double amount = asDouble(((Map<?, ?>) row).get("amount"));
-                if (amount > 0) {
-                    double gstPercent = asDouble(((Map<?, ?>) row).get("aas_gst_percent"));
-                    if (!gstIncludedInLineAmounts && gstPercent > 0) {
-                        amount += amount * (gstPercent / 100.0);
-                    }
-                    total += amount;
+        if (gstIncludedInLineAmounts) {
+            double total = 0.0;
+            for (Object rowObj : list) {
+                if (rowObj instanceof Map<?, ?> row) {
+                    double amount = asDouble(row.get("amount"));
+                    if (amount > 0) total += amount;
                 }
             }
+            return round(total);
+        }
+        // GST-exclusive amounts: group by GST rate and compute GST on each group's aggregate.
+        // This matches how Indian GST invoices work (slab-level GST computation, not per-item),
+        // avoiding accumulated rounding errors across many line items.
+        Map<Double, Double> subtotalByGstRate = new HashMap<>();
+        for (Object rowObj : list) {
+            if (!(rowObj instanceof Map<?, ?> row)) continue;
+            double amount = asDouble(row.get("amount"));
+            if (amount <= 0) continue;
+            double gstPercent = asDouble(row.get("aas_gst_percent"));
+            subtotalByGstRate.merge(gstPercent, amount, Double::sum);
+        }
+        double total = 0.0;
+        for (Map.Entry<Double, Double> entry : subtotalByGstRate.entrySet()) {
+            double gstRate = entry.getKey();
+            double groupSubtotal = entry.getValue();
+            total += groupSubtotal + (gstRate > 0 ? round(groupSubtotal * (gstRate / 100.0)) : 0.0);
         }
         return round(total);
     }
