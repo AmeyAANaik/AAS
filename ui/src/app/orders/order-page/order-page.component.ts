@@ -61,6 +61,10 @@ interface UiSellPreview {
   raw: SellPreview;
 }
 
+interface LoadOrdersOptions {
+  suppressRefreshError?: boolean;
+}
+
 interface PdfParseResult {
   fileName?: string;
   fileUrl?: string;
@@ -324,7 +328,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.subscriptions.add(sub);
   }
 
-  loadOrders(): void {
+  loadOrders(options: LoadOrdersOptions = {}): void {
     this.ordersErrorMessage = '';
     this.isLoading = true;
     this.orderService.listOrders({})
@@ -339,7 +343,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         this.selectRequestedOrder();
       },
       error: err => {
-        this.ordersErrorMessage = this.formatError(err, 'Unable to load orders');
+        if (!options.suppressRefreshError || !this.orders.length) {
+          this.ordersErrorMessage = this.formatError(err, 'Unable to load orders');
+        }
         if (!this.orders.length) {
           this.dataSource.data = [];
         }
@@ -786,7 +792,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .subscribe({
         next: () => {
           this.selectedOrder = { ...this.selectedOrder!, vendor: vendorId, status: 'VENDOR_ASSIGNED' };
-          this.loadOrders();
+          this.loadOrders({ suppressRefreshError: true });
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to assign vendor'))
       });
@@ -921,7 +927,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
           this.selectedFile = null;
           this.updateBillMismatchError();
-          this.loadOrders();
+          this.loadOrders({ suppressRefreshError: true });
           if (previousStatus === 'VENDOR_BILL_CAPTURED' || previousStatus === 'SELL_ORDER_CREATED') {
             this.snackBar.open('PDF re-uploaded. Steps 3 & 4 reset—please re-capture bill and re-create sell order.', 'Dismiss', { duration: 4500 });
           }
@@ -1429,7 +1435,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .subscribe({
         next: res => {
           this.applySavedOrderLines(res, true);
-          this.loadOrders();
+          this.loadOrders({ suppressRefreshError: true });
         },
         error: err => {
           this.errorMessage = this.formatError(err, 'Unable to update order items');
@@ -1478,7 +1484,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         transport_charge: this.transportCharge,
         allow_mismatch: this.canProceedAsMismatchBill && this.mismatchOverrideControl.value
       })
-      .pipe(finalize(() => this.loadOrders()))
+      .pipe(finalize(() => this.loadOrders({ suppressRefreshError: true })))
       .subscribe({
         next: () => {
           this.selectedOrder = {
@@ -1556,7 +1562,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         ),
         finalize(() => {
           this.isItemsSaving = false;
-          this.loadOrders();
+          this.loadOrders({ suppressRefreshError: true });
         })
       )
       .subscribe({
@@ -1581,7 +1587,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       .subscribe({
         next: () => {
           this.selectedOrder = { ...this.selectedOrder!, status: 'SELL_ORDER_CREATED' };
-          this.loadOrders();
+          this.loadOrders({ suppressRefreshError: true });
         },
         error: err => (this.errorMessage = this.formatError(err, 'Unable to update sell order'))
       });

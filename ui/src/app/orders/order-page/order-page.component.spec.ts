@@ -591,6 +591,30 @@ describe('OrderPageComponent', () => {
     });
   });
 
+  it('keeps sell-order success clean when the follow-up refresh lacks report permission', () => {
+    const order = {
+      ...component.orders[0],
+      status: 'VENDOR_BILL_CAPTURED' as const,
+      raw: { ...component.orders[0].raw, aas_status: 'VENDOR_BILL_CAPTURED' }
+    };
+    component.selectOrder(order);
+    component.sellPreview = {
+      estimatedPrice: 107,
+      itemsCount: 2,
+      raw: { orderId: order.name, vendorBillTotal: 100, marginPercent: 7, sellAmount: 107, marginAmount: 7 }
+    };
+    orderService.listOrders.and.returnValue(throwError(() => new Error('You don’t have permission to run this report.')));
+
+    component.createSellOrder();
+    fixture.detectChanges();
+
+    expect(component.selectedOrder?.status).toBe('SELL_ORDER_CREATED');
+    expect(component.errorMessage).toBe('');
+    expect(component.ordersErrorMessage).toBe('');
+    expect(fixture.nativeElement.textContent).toContain('Sell Order Created Successfully!');
+    expect(fixture.nativeElement.textContent).not.toContain('permission to run this report');
+  });
+
   it('prefills a manual recovery row with the missing invoice serial label', () => {
     component.pdfData = {
       completeness: {
