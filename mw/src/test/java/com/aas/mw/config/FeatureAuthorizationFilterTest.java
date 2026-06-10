@@ -64,6 +64,35 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
+    void allowsVendorPdfUploadWhenUserHasCreateOrdersFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.ORDERS_CREATE)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/orders/SAL-ORD-2026-00027/vendor-pdf");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
+        verify(userService).hasFeature("helper@example.com", UserFeatureService.ORDERS_CREATE);
+    }
+
+    @Test
+    void blocksVendorPdfUploadWhenUserLacksCreateOrdersFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.ORDERS_CREATE)).thenReturn(false);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/orders/SAL-ORD-2026-00027/vendor-pdf");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(403, response.getStatus());
+        verify(userService).hasFeature("helper@example.com", UserFeatureService.ORDERS_CREATE);
+    }
+
+    @Test
     void allowsCompanyContextWhenUserHasDashboardFeature() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
@@ -76,6 +105,21 @@ class FeatureAuthorizationFilterTest {
 
         assertEquals(200, response.getStatus());
         assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+        verify(userService).hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW);
+    }
+
+    @Test
+    void allowsCompanyProfileReadWithDashboardFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/companies/Shree%20Siddhivinayak%20Suppliers");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
         verify(userService).hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW);
     }
 
