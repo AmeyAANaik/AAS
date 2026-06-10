@@ -43,6 +43,20 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
+    void allowsExactItemsApiWhenUserHasItemsFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.ITEMS_MANAGE)).thenReturn(true);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/items");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
+        verify(userService).hasFeature("helper@example.com", UserFeatureService.ITEMS_MANAGE);
+    }
+
+    @Test
     void blocksMappedApiWhenUserLacksFeature() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));

@@ -54,7 +54,8 @@ public class MasterDataController {
     }
 
     @GetMapping("/items")
-    public ResponseEntity<List<Map<String, Object>>> listItems() {
+    public ResponseEntity<List<Map<String, Object>>> listItems(HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.listItems());
     }
 
@@ -64,62 +65,81 @@ public class MasterDataController {
             @RequestParam(value = "size", required = false, defaultValue = "25") int size,
             @RequestParam(value = "search", required = false) String search,
             @RequestParam(value = "sort", required = false) String sort,
-            @RequestParam(value = "dir", required = false) String dir) {
+            @RequestParam(value = "dir", required = false) String dir,
+            HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.listItemsPaged(page, size, search, sort, dir));
     }
 
     @GetMapping("/vendors")
-    public ResponseEntity<List<Map<String, Object>>> listVendors() {
+    public ResponseEntity<List<Map<String, Object>>> listVendors(HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.listVendors());
     }
 
     @PostMapping("/vendors")
-    public ResponseEntity<Map<String, Object>> createVendor(@Valid @RequestBody FieldsRequest request) {
+    public ResponseEntity<Map<String, Object>> createVendor(
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.createVendor(request));
     }
 
     @PutMapping("/vendors/{id}")
     public ResponseEntity<Map<String, Object>> updateVendor(
             @PathVariable String id,
-            @Valid @RequestBody FieldsRequest request) {
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.updateVendor(id, request));
     }
 
     @DeleteMapping("/vendors/{id}")
-    public ResponseEntity<Map<String, Object>> deleteVendor(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> deleteVendor(@PathVariable String id, HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.deleteVendor(id));
     }
 
     @GetMapping("/categories")
-    public ResponseEntity<List<Map<String, Object>>> listCategories() {
+    public ResponseEntity<List<Map<String, Object>>> listCategories(HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.listCategories());
     }
 
     @PostMapping("/categories")
-    public ResponseEntity<Map<String, Object>> createCategory(@Valid @RequestBody FieldsRequest request) {
+    public ResponseEntity<Map<String, Object>> createCategory(
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.createCategory(request));
     }
 
     @PutMapping("/categories/{id}")
     public ResponseEntity<Map<String, Object>> updateCategory(
             @PathVariable String id,
-            @Valid @RequestBody FieldsRequest request) {
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.updateCategory(id, request));
     }
 
     @DeleteMapping("/categories/{id}")
-    public ResponseEntity<Map<String, Object>> deleteCategory(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> deleteCategory(@PathVariable String id, HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.deleteCategory(id));
     }
 
     @GetMapping("/shops")
-    public ResponseEntity<List<Map<String, Object>>> listShops() {
+    public ResponseEntity<List<Map<String, Object>>> listShops(HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.listShops());
     }
 
     @GetMapping("/uoms")
     public ResponseEntity<List<Map<String, Object>>> listUoms(
-            @RequestParam(value = "refresh", required = false, defaultValue = "0") int refresh) {
+            @RequestParam(value = "refresh", required = false, defaultValue = "0") int refresh,
+            HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(uomService.listUoms(refresh == 1));
     }
 
@@ -201,43 +221,64 @@ public class MasterDataController {
     }
 
     @PostMapping("/shops")
-    public ResponseEntity<Map<String, Object>> createShop(@Valid @RequestBody FieldsRequest request) {
+    public ResponseEntity<Map<String, Object>> createShop(
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.createShop(request));
     }
 
     @PutMapping("/shops/{id}")
     public ResponseEntity<Map<String, Object>> updateShop(
             @PathVariable String id,
-            @Valid @RequestBody FieldsRequest request) {
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.updateShop(id, request));
     }
 
     @DeleteMapping("/shops/{id}")
-    public ResponseEntity<Map<String, Object>> deleteShop(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> deleteShop(@PathVariable String id, HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.deleteShop(id));
     }
 
     @PostMapping("/items")
-    public ResponseEntity<Map<String, Object>> createItem(@Valid @RequestBody FieldsRequest request) {
+    public ResponseEntity<Map<String, Object>> createItem(
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.createItem(request));
     }
 
     @PostMapping(value = "/items/import-margins", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> importItemMargins(
             @RequestPart("file") MultipartFile file,
-            @RequestPart("categoryId") String categoryId) {
+            @RequestPart("categoryId") String categoryId,
+            HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(itemMarginImportService.importMargins(file, categoryId));
     }
 
     @PutMapping("/items/{id}")
     public ResponseEntity<Map<String, Object>> updateItem(
             @PathVariable String id,
-            @Valid @RequestBody FieldsRequest request) {
+            @Valid @RequestBody FieldsRequest request,
+            HttpServletRequest httpRequest) {
+        usePrivilegedErpSession(httpRequest);
         return ResponseEntity.ok(masterDataService.updateItem(id, request));
     }
 
     @DeleteMapping("/items/{id}")
-    public ResponseEntity<Map<String, Object>> deleteItem(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> deleteItem(@PathVariable String id, HttpServletRequest request) {
+        usePrivilegedErpSession(request);
         return ResponseEntity.ok(masterDataService.deleteItem(id));
+    }
+
+    private void usePrivilegedErpSession(HttpServletRequest request) {
+        if (request == null) {
+            return;
+        }
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
     }
 }

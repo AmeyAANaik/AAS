@@ -37,9 +37,12 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             new FeatureRoute("POST", "/api/vendors", UserFeatureService.MASTER_DATA_VIEW),
             new FeatureRoute("PUT", "/api/vendors/*", UserFeatureService.MASTER_DATA_VIEW),
             new FeatureRoute("DELETE", "/api/vendors/*", UserFeatureService.MASTER_DATA_VIEW),
+            new FeatureRoute(null, "/api/shops", UserFeatureService.MASTER_DATA_VIEW),
             new FeatureRoute(null, "/api/shops/**", UserFeatureService.MASTER_DATA_VIEW),
+            new FeatureRoute(null, "/api/categories", UserFeatureService.MASTER_DATA_VIEW),
             new FeatureRoute(null, "/api/categories/**", UserFeatureService.MASTER_DATA_VIEW),
             new FeatureRoute(null, "/api/uoms", UserFeatureService.ITEMS_MANAGE),
+            new FeatureRoute(null, "/api/items", UserFeatureService.ITEMS_MANAGE),
             new FeatureRoute(null, "/api/items/**", UserFeatureService.ITEMS_MANAGE),
 
             new FeatureRoute("POST", "/api/orders", UserFeatureService.ORDERS_CREATE),
