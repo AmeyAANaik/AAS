@@ -494,6 +494,7 @@ public class InvoiceService {
     public byte[] downloadPdf(String invoiceId) {
         Map<String, Object> invoiceDoc = unwrap(erpNextClient.getResource(DOCTYPE, invoiceId));
         backfillCategoryDueSnapshot(invoiceId, invoiceDoc);
+        correctPostingDateFromSourceOrder(invoiceId, invoiceDoc);
         String printFormat = resolveInvoicePrintFormat(invoiceId);
         String privilegedSession = operationalReadSession();
         byte[] pdf = printFormat.isBlank()
@@ -534,6 +535,31 @@ public class InvoiceService {
                     "aas_current_pending", currentPending));
         } catch (Exception ignore) {
             // Best-effort backfill for older invoices; never block PDF generation.
+        }
+    }
+
+    private void correctPostingDateFromSourceOrder(String invoiceId, Map<String, Object> invoiceDoc) {
+        if (invoiceDoc == null || invoiceDoc.isEmpty()) {
+            return;
+        }
+        // Only correct Draft invoices (docstatus=0); submitted/cancelled docs cannot be amended here.
+        if (asDouble(invoiceDoc.get("docstatus")) != 0) {
+            return;
+        }
+        String sourceOrderId = asText(invoiceDoc.get("aas_source_sales_order")).trim();
+        if (sourceOrderId.isBlank()) {
+            return;
+        }
+        String currentPostingDate = asText(invoiceDoc.get("posting_date")).trim();
+        try {
+            Map<String, Object> order = unwrap(erpNextClient.getResource("Sales Order", sourceOrderId));
+            String orderDate = asText(order.get("transaction_date")).trim();
+            if (orderDate.isBlank() || orderDate.equals(currentPostingDate)) {
+                return;
+            }
+            erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of("posting_date", orderDate));
+        } catch (Exception ignore) {
+            // Best-effort correction; never block PDF generation.
         }
     }
 
