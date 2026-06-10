@@ -8,6 +8,7 @@ import {
   AccessFeatureDefinition,
   AccessManagedUser
 } from './access-control.service';
+import { AuthTokenService } from '../shared/auth-token.service';
 
 @Component({
   selector: 'app-company-settings-page',
@@ -72,12 +73,19 @@ export class CompanySettingsPageComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private companyContextService: CompanyContextService,
-    private accessControlService: AccessControlService
+    private accessControlService: AccessControlService,
+    private tokenStore: AuthTokenService
   ) {}
 
   ngOnInit(): void {
     this.loadContext();
-    this.loadAccessOverview();
+    if (this.canManageAccess) {
+      this.loadAccessOverview();
+    }
+  }
+
+  get canManageAccess(): boolean {
+    return this.tokenStore.getFeatures().includes('admin_access.view');
   }
 
   save(): void {

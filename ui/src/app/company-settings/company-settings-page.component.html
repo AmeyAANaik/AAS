@@ -444,7 +444,7 @@
     </form>
   </mat-card>
 
-  <mat-card class="settings-card access-card">
+  <mat-card class="settings-card access-card" *ngIf="canManageAccess">
     <div class="access-header">
       <div>
         <div class="section-title">UI Access Control</div>

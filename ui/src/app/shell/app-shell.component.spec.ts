@@ -103,4 +103,27 @@ import { BillReviewService } from '../bill-review/bill-review.service';
     expect(text).not.toContain('Branches');
     expect(text).not.toContain('Categories');
   });
+
+  it('shows helper checklist features except approval queues', () => {
+    configureShell([
+      'dashboard.view',
+      'orders.view',
+      'stock.view',
+      'bills.view',
+      'reports.view',
+      'vendor_ops.view',
+      'branch_ops.view',
+      'master_data.view',
+      'items.manage',
+      'company_settings.view'
+    ]);
+
+    const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(text).toContain('Orders');
+    expect(text).toContain('Vendors');
+    expect(text).toContain('Branches');
+    expect(text).toContain('Categories');
+    expect(text).toContain('Items');
+    expect(text).not.toContain('Reviews');
+  });
 });

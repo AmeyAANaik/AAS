@@ -27,6 +27,7 @@ public class UserFeatureService {
     public static final String MASTER_DATA_REVIEW_VIEW = "master_data_review.view";
     public static final String BILL_REVIEW_VIEW = "bill_review.view";
     public static final String COMPANY_SETTINGS_VIEW = "company_settings.view";
+    public static final String ADMIN_ACCESS_VIEW = "admin_access.view";
     public static final String USER_SETTINGS_VIEW = "user_settings.view";
     public static final String FEATURE_ALLOW_FIELD = "aas_feature_allow_json";
     public static final String FEATURE_DENY_FIELD = "aas_feature_deny_json";
@@ -46,6 +47,7 @@ public class UserFeatureService {
             new FeatureDefinition(MASTER_DATA_REVIEW_VIEW, "Master Data Review", "Administration", "Open the master data review queue."),
             new FeatureDefinition(BILL_REVIEW_VIEW, "Bill Review", "Administration", "Review and approve recorded payments."),
             new FeatureDefinition(COMPANY_SETTINGS_VIEW, "Company Settings", "Administration", "Open company settings and admin controls."),
+            new FeatureDefinition(ADMIN_ACCESS_VIEW, "Admin Access", "Administration", "Manage user feature access."),
             new FeatureDefinition(USER_SETTINGS_VIEW, "User Settings", "Profile", "Open the personal user details screen."));
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -71,15 +73,20 @@ public class UserFeatureService {
                 features.add(MASTER_DATA_REVIEW_VIEW);
                 features.add(BILL_REVIEW_VIEW);
                 features.add(COMPANY_SETTINGS_VIEW);
+                features.add(ADMIN_ACCESS_VIEW);
             }
             case HELPER -> {
                 features.add(ORDERS_VIEW);
+                features.add(ORDERS_CREATE);
+                features.add(ORDERS_DELETE);
                 features.add(STOCK_VIEW);
                 features.add(BILLS_VIEW);
                 features.add(REPORTS_VIEW);
                 features.add(VENDOR_OPS_VIEW);
                 features.add(BRANCH_OPS_VIEW);
+                features.add(MASTER_DATA_VIEW);
                 features.add(ITEMS_MANAGE);
+                features.add(COMPANY_SETTINGS_VIEW);
             }
             case VENDOR -> {
                 features.add(ORDERS_VIEW);
