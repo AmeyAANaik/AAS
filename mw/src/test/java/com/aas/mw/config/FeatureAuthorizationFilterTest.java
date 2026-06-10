@@ -93,6 +93,22 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
+    void blocksVendorPdfUploadWhenServiceSessionIsUnavailable() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.ORDERS_CREATE)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenThrow(new IllegalStateException("setup unavailable"));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/orders/SAL-ORD-2026-00027/vendor-pdf");
+        request.setAttribute(ErpSessionStore.REQUEST_ATTR, "sid=helper");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(503, response.getStatus());
+        assertEquals("sid=helper", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+    }
+
+    @Test
     void allowsCompanyContextWhenUserHasDashboardFeature() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
@@ -124,7 +140,7 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
-    void keepsUserSessionWhenPrivilegedSessionIsUnavailable() throws ServletException, IOException {
+    void blocksMappedFeatureApiWhenServiceSessionIsUnavailable() throws ServletException, IOException {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("helper@example.com", null));
         when(userService.hasFeature("helper@example.com", UserFeatureService.DASHBOARD_VIEW)).thenReturn(true);
@@ -135,7 +151,7 @@ class FeatureAuthorizationFilterTest {
 
         filter.doFilter(request, response, new MockFilterChain());
 
-        assertEquals(200, response.getStatus());
+        assertEquals(503, response.getStatus());
         assertEquals("sid=helper", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
     }
 

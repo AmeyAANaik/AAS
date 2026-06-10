@@ -89,32 +89,40 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String feature = requiredFeature(request);
-        if (feature == null || feature.isBlank()) {
+        FeatureRoute route = requiredRoute(request);
+        if (route == null || route.feature() == null || route.feature().isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
+        String feature = route.feature();
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String username = authentication == null ? "" : authentication.getName();
         if (username == null || username.isBlank() || !userService.hasFeature(username, feature)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Forbidden");
             return;
         }
-        usePrivilegedErpSessionIfAvailable(request);
+        if (!usePrivilegedErpSession(request) && route.requiresServiceErpSession()) {
+            response.sendError(
+                    HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                    "Service ERP session is not available. Check ERP setup credentials.");
+            return;
+        }
         filterChain.doFilter(request, response);
     }
 
-    private void usePrivilegedErpSessionIfAvailable(HttpServletRequest request) {
+    private boolean usePrivilegedErpSession(HttpServletRequest request) {
         try {
             request.setAttribute(ErpSessionStore.REQUEST_ATTR, authenticationService.getSetupSessionCookie());
+            return true;
         } catch (RuntimeException ignored) {
-            // Feature authorization is the AAS permission boundary. If the setup ERP
-            // session is not configured/available, keep the authenticated user's ERP
-            // session so basic login/dashboard flows do not fail with a 500.
+            // Feature authorization is the AAS permission boundary. ERPNext still
+            // checks doctype permissions for the session cookie, so feature-backed
+            // routes use the setup/service ERP session after AAS allows the feature.
+            return false;
         }
     }
 
-    private String requiredFeature(HttpServletRequest request) {
+    private FeatureRoute requiredRoute(HttpServletRequest request) {
         String method = request.getMethod();
         String path = request.getRequestURI();
         String contextPath = request.getContextPath();
@@ -123,13 +131,17 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
         }
         for (FeatureRoute route : routes) {
             if (route.matches(method, path, pathMatcher)) {
-                return route.feature();
+                return route;
             }
         }
         return null;
     }
 
-    private record FeatureRoute(String method, String pattern, String feature) {
+    private record FeatureRoute(String method, String pattern, String feature, boolean requiresServiceErpSession) {
+        FeatureRoute(String method, String pattern, String feature) {
+            this(method, pattern, feature, true);
+        }
+
         boolean matches(String requestMethod, String path, AntPathMatcher pathMatcher) {
             return (method == null || method.equalsIgnoreCase(requestMethod))
                     && pathMatcher.match(pattern, path);
