@@ -563,6 +563,38 @@ public class InvoiceService {
         }
     }
 
+    public Map<String, Object> bulkFixPostingDates() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"posting_date\",\"docstatus\",\"aas_source_sales_order\"]");
+        params.put("filters", "[[\"docstatus\",\"=\",\"0\"],[\"aas_source_sales_order\",\"!=\",\"\"]]");
+        params.put("limit_page_length", 500);
+        List<Map<String, Object>> invoices = listInvoicesResource(params);
+        int fixed = 0;
+        int skipped = 0;
+        for (Map<String, Object> invoice : invoices) {
+            String invoiceId = asText(invoice.get("name")).trim();
+            String currentDate = asText(invoice.get("posting_date")).trim();
+            String sourceOrderId = asText(invoice.get("aas_source_sales_order")).trim();
+            if (invoiceId.isBlank() || sourceOrderId.isBlank()) {
+                skipped++;
+                continue;
+            }
+            try {
+                Map<String, Object> order = unwrap(erpNextClient.getResource("Sales Order", sourceOrderId));
+                String orderDate = asText(order.get("transaction_date")).trim();
+                if (orderDate.isBlank() || orderDate.equals(currentDate)) {
+                    skipped++;
+                    continue;
+                }
+                erpNextClient.updateResource(DOCTYPE, invoiceId, Map.of("posting_date", orderDate));
+                fixed++;
+            } catch (Exception ignore) {
+                skipped++;
+            }
+        }
+        return Map.of("fixed", fixed, "skipped", skipped, "total", invoices.size());
+    }
+
     private List<Map<String, Object>> listInvoicesResource(Map<String, Object> params) {
         String privilegedSession = operationalReadSession();
         return privilegedSession == null

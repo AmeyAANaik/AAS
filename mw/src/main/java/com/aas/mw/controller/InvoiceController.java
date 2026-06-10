@@ -80,6 +80,11 @@ public class InvoiceController {
                 .body(pdf);
     }
 
+    @PostMapping("/fix-posting-dates")
+    public ResponseEntity<Map<String, Object>> fixPostingDates() {
+        return ResponseEntity.ok(invoiceService.bulkFixPostingDates());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Object>> deleteInvoice(@PathVariable String id) {
         return ResponseEntity.ok(invoiceService.deleteInvoice(id));
