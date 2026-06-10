@@ -148,7 +148,7 @@
 	          <table class="category-summary-table">
             <tr *ngFor="let row of ledgerCategorySummary" class="category-row" [class.active-category]="row.category === selectedCategoryId" (click)="viewCategoryLedger(row.category)">
               <td>{{ row.category }}</td>
-              <td class="amount-cell">₹{{ displayAmount(row.amount) | number:'1.0-2' }}</td>
+              <td class="amount-cell">₹{{ displayAmount(row.balance ?? row.amount) | number:'1.0-2' }}</td>
             </tr>
           </table>
         </div>

@@ -213,10 +213,15 @@ public class BranchOpsService {
         List<Map<String, Object>> fullEntries = buildLedgerEntries(invoices, payments, adjustmentNotes);
         LedgerRange range = LedgerRange.parse(fromDate, toDate);
         LedgerWindow window = sliceLedger(fullEntries, range);
-        List<Map<String, Object>> filteredInvoices = filterByPostingDate(invoices, range);
-        List<Map<String, Object>> categoryPayments = filterPaymentsByPostingDate(fetchCustomerCategoryPayments(branchId), range);
-        List<Map<String, Object>> categoryAdjustmentNotes = filterAdjustmentNotesByPostingDate(fetchApprovedCustomerAdjustmentNotes(branchId, null), range);
-        List<Map<String, Object>> categorySummary = buildCategoryBalanceSummary(filteredInvoices, categoryPayments, categoryAdjustmentNotes);
+        // Category summary uses all data up to the closing date so each category's
+        // balance reflects its actual outstanding (not just net-change within the window).
+        LedgerRange upToClose = LedgerRange.parse(null, range.toInclusive());
+        List<Map<String, Object>> allCategoryPayments = fetchCustomerCategoryPayments(branchId);
+        List<Map<String, Object>> allAdjustmentNotes = fetchApprovedCustomerAdjustmentNotes(branchId, null);
+        List<Map<String, Object>> invoicesUpToClose = filterByPostingDate(invoices, upToClose);
+        List<Map<String, Object>> categoryPaymentsUpToClose = filterPaymentsByPostingDate(allCategoryPayments, upToClose);
+        List<Map<String, Object>> categoryAdjustmentNotesUpToClose = filterAdjustmentNotesByPostingDate(allAdjustmentNotes, upToClose);
+        List<Map<String, Object>> categorySummary = buildCategoryBalanceSummary(invoicesUpToClose, categoryPaymentsUpToClose, categoryAdjustmentNotesUpToClose);
         double openingBalance = normalizeCategoryBalance(window.openingBalance);
         double closingBalance = normalizedBranchClosingBalance(openingBalance, window.closingBalance, categorySummary);
         return Map.of(
@@ -329,11 +334,13 @@ public class BranchOpsService {
         if (categorySummary == null || categorySummary.isEmpty()) {
             return normalizeCategoryBalance(rawClosingBalance);
         }
-        double rangeBalance = 0.0;
+        // Category balances now represent per-category closing balances (all history up to
+        // the closing date). Their sum equals the overall branch closing balance.
+        double total = 0.0;
         for (Map<String, Object> row : categorySummary) {
-            rangeBalance += normalizeCategoryBalance(asDouble(row.get("balance")));
+            total += normalizeCategoryBalance(asDouble(row.get("balance")));
         }
-        return normalizeCategoryBalance(openingBalance + rangeBalance);
+        return normalizeCategoryBalance(total);
     }
 
     private record LedgerWindow(double openingBalance, double closingBalance, List<Map<String, Object>> entries) {}
@@ -569,7 +576,7 @@ public class BranchOpsService {
                 .filter(row -> Math.abs(asDouble(row.get("amount"))) > 0.009
                         || Math.abs(asDouble(row.get("balance"))) > 0.009
                         || categoriesWithHistory.contains(asText(row.get("category"))))
-                .sorted((left, right) -> Double.compare(Math.abs(asDouble(right.get("amount"))), Math.abs(asDouble(left.get("amount")))))
+                .sorted((left, right) -> Double.compare(Math.abs(asDouble(right.get("balance"))), Math.abs(asDouble(left.get("balance")))))
                 .toList();
     }
 
