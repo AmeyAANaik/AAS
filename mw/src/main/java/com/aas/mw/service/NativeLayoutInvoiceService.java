@@ -255,6 +255,8 @@ public class NativeLayoutInvoiceService {
             splitCombinedQtyAndTax(aligned, qtyIndex, headers.size());
         }
 
+        mergeSeparatedQuantityUom(headers, aligned);
+
         int rateIndex = indexOfHeader(headers, "rate");
         int perIndex = indexOfHeader(headers, "per");
         if (rateIndex >= 0 && perIndex == rateIndex + 1) {
@@ -266,6 +268,24 @@ public class NativeLayoutInvoiceService {
 
         padTrailingAmountColumns(headers, aligned);
         return aligned;
+    }
+
+    private void mergeSeparatedQuantityUom(List<String> headers, List<String> cells) {
+        if (headers == null || headers.isEmpty() || cells == null || cells.isEmpty()) {
+            return;
+        }
+        int quantityIndex = indexOfHeader(headers, "quantity");
+        if (quantityIndex < 0 || quantityIndex + 1 >= cells.size() || quantityIndex + 1 >= headers.size()) {
+            return;
+        }
+        String quantity = blankSafe(cells.get(quantityIndex)).trim();
+        String possibleUom = blankSafe(cells.get(quantityIndex + 1)).trim();
+        String nextHeader = normalizeHeader(headers.get(quantityIndex + 1));
+        if (!looksLikeNumber(quantity) || !possibleUom.matches("^[A-Za-z]+$") || !nextHeader.equals("mrp")) {
+            return;
+        }
+        cells.set(quantityIndex, quantity + " " + possibleUom);
+        cells.remove(quantityIndex + 1);
     }
 
     private void padTrailingAmountColumns(List<String> headers, List<String> cells) {
@@ -1163,12 +1183,18 @@ public class NativeLayoutInvoiceService {
         String explicitBeforeLabel = parsingHints == null ? "" : blankSafe(parsingHints.get("rateBeforeTaxLabel"));
         String explicitAfterLabel = parsingHints == null ? "" : blankSafe(parsingHints.get("rateAfterTaxLabel"));
         String preferredRateLabel = parsingHints == null ? "" : blankSafe(parsingHints.get("preferredRateColumn"));
-        Double qty = parseValueByRule(findValueByLooseHeader(headers, cells, "qty"), ruleFor(fieldParsingRules, "qty"));
-        Double total = parseValueByRule(findValueByLooseHeader(headers, cells, "total"), ruleFor(fieldParsingRules, "total"));
+        Double qty = parseQtyUom(
+                firstNonBlank(findValueByLooseHeader(headers, cells, "qty"), findValueByLooseHeader(headers, cells, "quantity")),
+                findValueByLooseHeader(headers, cells, "per")).qty();
+        Double total = parseValueByRule(
+                firstNonBlank(findValueByLooseHeader(headers, cells, "total"), findValueByLooseHeader(headers, cells, "amount")),
+                ruleFor(fieldParsingRules, "total"));
         List<String> rateHeaders = headers == null
                 ? List.of()
                 : headers.stream().filter(this::looksLikeRateHeader).toList();
         boolean hasMultipleRateHeaders = rateHeaders.size() > 1;
+
+        RatePair amountMatchedRatePair = inferRatePairFromAmount(headers, cells, gstPercent, qty, total);
 
         String beforeLabel = explicitBeforeLabel;
         String afterLabel = explicitAfterLabel;
@@ -1183,6 +1209,13 @@ public class NativeLayoutInvoiceService {
 
         Double rateBeforeTax = parseValueByRule(findValueByLooseHeader(headers, cells, beforeLabel), ruleFor(fieldParsingRules, "rate"));
         Double rateAfterTax = parseValueByRule(findValueByLooseHeader(headers, cells, afterLabel), ruleFor(fieldParsingRules, "rate"));
+
+        if (amountMatchedRatePair.beforeTax() != null) {
+            rateBeforeTax = amountMatchedRatePair.beforeTax();
+        }
+        if (amountMatchedRatePair.afterTax() != null) {
+            rateAfterTax = amountMatchedRatePair.afterTax();
+        }
 
         if (mappedRate != null && (!hasMultipleRateHeaders || (rateBeforeTax == null && rateAfterTax == null))) {
             RateClassification inferred = classifySingleRate(mappedRate, qty, gstPercent, total);
@@ -1205,6 +1238,73 @@ public class NativeLayoutInvoiceService {
         }
 
         return new RatePair(rateBeforeTax, rateAfterTax);
+    }
+
+    private RatePair inferRatePairFromAmount(
+            List<String> headers,
+            List<String> cells,
+            Double gstPercent,
+            Double qty,
+            Double total) {
+        if (headers == null || cells == null || qty == null || total == null || qty <= 0 || total <= 0) {
+            return new RatePair(null, null);
+        }
+        List<Double> rates = new ArrayList<>();
+        for (int index = 0; index < headers.size() && index < cells.size(); index++) {
+            if (!looksLikeRateHeader(headers.get(index))) {
+                continue;
+            }
+            Double rate = parseLeadingAmount(cells.get(index));
+            if (rate != null && rate > 0) {
+                rates.add(rate);
+            }
+        }
+        if (rates.isEmpty()) {
+            return new RatePair(null, null);
+        }
+
+        Double beforeTax = null;
+        Double afterTax = null;
+        double bestBeforeDiff = Double.MAX_VALUE;
+        double bestAfterDiff = Double.MAX_VALUE;
+        double taxFactor = 1 + (safePercent(gstPercent) / 100.0);
+        for (Double rate : rates) {
+            double beforeDiff = Math.abs(total - roundAmount(rate * qty));
+            if (beforeDiff < bestBeforeDiff) {
+                bestBeforeDiff = beforeDiff;
+                beforeTax = rate;
+            }
+            if (taxFactor > 1) {
+                double afterDiff = Math.abs(total - roundAmount((rate * qty) / taxFactor));
+                if (afterDiff < bestAfterDiff) {
+                    bestAfterDiff = afterDiff;
+                    afterTax = rate;
+                }
+            }
+        }
+        if (bestBeforeDiff > 0.75) {
+            beforeTax = null;
+        }
+        if (bestAfterDiff > 0.75) {
+            afterTax = null;
+        }
+        if (beforeTax != null && afterTax != null && Math.abs(beforeTax - afterTax) < 0.01) {
+            afterTax = deriveInclusiveRate(beforeTax, gstPercent);
+        }
+        return new RatePair(beforeTax, afterTax);
+    }
+
+    private Double parseLeadingAmount(String raw) {
+        String text = blankSafe(raw)
+                .replace(",", "")
+                .replace("₹", "")
+                .replace("ī", "")
+                .trim();
+        Matcher matcher = Pattern.compile("^([0-9]+(?:\\.[0-9]+)?)\\b").matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        return parseAmount(matcher.group(1));
     }
 
     private String inferRateLabel(List<String> headers, boolean inclusive) {

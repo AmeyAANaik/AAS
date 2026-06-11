@@ -1,5 +1,8 @@
 package com.aas.mw.service;
 
+import com.aas.mw.dto.NativeLayoutTable;
+import com.aas.mw.dto.NativeLayoutTableRow;
+import com.aas.mw.dto.NativeMappedInvoiceRow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,6 +66,41 @@ class NativeLayoutDeterministicFlowIntegrationTest {
         assertEquals("SFK KIRTI GOLD SUNFLOWER OIL 13kg", result.items().get(30).name());
         assertEquals("EVEREST KASHMIRI CHILLY POWDER 500GM", result.items().get(38).name());
         assertEquals("CHINGS GREEN CHILLY SAUCE 680GMS", result.items().get(68).name());
+    }
+
+    @Test
+    void duplicateRateColumnsUseTaxableRateForVendorRate() {
+        NativeLayoutTable table = new NativeLayoutTable(
+                "table-1",
+                List.of("Sl", "Description of Goods", "HSN/SAC", "GST", "Quantity", "MRP", "Rate", "Rate", "per", "Amount"),
+                List.of(
+                        row(1, List.of("7 CHITALE GULAB JAMUN MIX", "21069099", "5%", "2.00 KG", "0", "405.00", "385.71", "KG", "771.42")),
+                        row(2, List.of("9 TALOD DHOKLA MIX", "21069099", "5 % 15.00 KG", "0", "190.00", "180.95", "KG", "2,714.25")),
+                        row(3, List.of("22 CITRIC ACID", "29181400", "18 %", "0.50", "KG", "0", "119.99", "101.69 KG", "50.85")),
+                        row(4, List.of("26 KASHMIRI CHILLY WHOLE", "09042110", "5%", "2.00", "KG", "0", "420.00", "400.00 KG", "800.00")),
+                        row(5, List.of("29 KHAJUR SEEDLESS", "08041090", "5%", "2.00 KG", "0", "160.00", "152.38 KG", "304.76")),
+                        row(6, List.of("33 KALINGAD MAGAJ (1KG)", "12077090", "5%", "6.00 KG", "0", "620.00", "590.48 KG", "3,542.88"))),
+                List.of());
+
+        List<NativeMappedInvoiceRow> rows = service.mapRows(
+                table,
+                profileForSales3391Pdf().itemMappings(),
+                new InvoiceFieldMappingService.RowRules(List.of(), List.of("No.", "Rate", "(Incl. of Tax)")),
+                profileForSales3391Pdf().fieldParsingRules(),
+                profileForSales3391Pdf().parsingHints());
+
+        assertEquals(385.71, rows.get(0).rateBeforeTax());
+        assertEquals(405.00, rows.get(0).rateAfterTax());
+        assertEquals(180.95, rows.get(1).rateBeforeTax());
+        assertEquals(190.00, rows.get(1).rateAfterTax());
+        assertEquals(101.69, rows.get(2).rateBeforeTax());
+        assertEquals(119.99, rows.get(2).rateAfterTax());
+        assertEquals(400.00, rows.get(3).rateBeforeTax());
+        assertEquals(420.00, rows.get(3).rateAfterTax());
+        assertEquals(152.38, rows.get(4).rateBeforeTax());
+        assertEquals(160.00, rows.get(4).rateAfterTax());
+        assertEquals(590.48, rows.get(5).rateBeforeTax());
+        assertEquals(620.00, rows.get(5).rateAfterTax());
     }
 
     private static NativeLayoutInvoiceService.StoredProfile profileForDeccanLikePdf() {
@@ -163,6 +201,10 @@ class NativeLayoutDeterministicFlowIntegrationTest {
 
     private static InvoiceFieldMappingService.FieldMapping mapping(String targetField, String sourceLabel) {
         return new InvoiceFieldMappingService.FieldMapping(targetField, sourceLabel, true, true, "high");
+    }
+
+    private static NativeLayoutTableRow row(int rowNumber, List<String> cells) {
+        return new NativeLayoutTableRow(rowNumber, cells, String.join(" ", cells));
     }
 
     private static void assumePdftotextAvailable() {
