@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { formatUiError } from '../shared/error-message.util';
-import { BillReviewDetail, BillReviewItemType, BillReviewListItem } from './bill-review.model';
+import { BillReviewAttachment, BillReviewDetail, BillReviewItemType, BillReviewListItem } from './bill-review.model';
 import { BillReviewService } from './bill-review.service';
 
 type BillReviewPartyGroup = {
@@ -274,6 +274,31 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
     });
   }
 
+  openAttachment(attachment: BillReviewAttachment, event?: Event): void {
+    event?.preventDefault();
+    if (!attachment?.url) {
+      this.errorMessage = 'Attachment URL is missing.';
+      return;
+    }
+    this.statusMessage = '';
+    this.errorMessage = '';
+    this.billReviewService.downloadAttachment(attachment).subscribe({
+      next: blob => {
+        const fileName = attachment.name || attachment.id || 'attachment';
+        const viewBlob = this.ensureViewableBlob(blob, fileName);
+        const url = window.URL.createObjectURL(viewBlob);
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          this.downloadBlob(viewBlob, fileName);
+        }
+        window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+      },
+      error: err => {
+        this.errorMessage = formatUiError(err, 'Unable to open attachment.');
+      }
+    });
+  }
+
   private loadQueue(resetSelection: boolean): void {
     this.isLoading = true;
     this.errorMessage = '';
@@ -301,6 +326,29 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
           this.errorMessage = formatUiError(err, 'Unable to load bill review queue.');
         }
       });
+  }
+
+  private ensureViewableBlob(blob: Blob, fileName: string): Blob {
+    const lowerName = String(fileName ?? '').toLowerCase();
+    if (lowerName.endsWith('.pdf') && blob.type !== 'application/pdf') {
+      return new Blob([blob], { type: 'application/pdf' });
+    }
+    if ((lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) && blob.type !== 'image/jpeg') {
+      return new Blob([blob], { type: 'image/jpeg' });
+    }
+    if (lowerName.endsWith('.png') && blob.type !== 'image/png') {
+      return new Blob([blob], { type: 'image/png' });
+    }
+    return blob;
+  }
+
+  private downloadBlob(blob: Blob, fileName: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'attachment';
+    link.click();
+    window.URL.revokeObjectURL(url);
   }
 
   private loadCount(): void {

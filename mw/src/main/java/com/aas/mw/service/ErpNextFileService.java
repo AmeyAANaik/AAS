@@ -69,7 +69,8 @@ public class ErpNextFileService {
         String contentType = response.getHeaders().getContentType() == null
                 ? MediaType.APPLICATION_OCTET_STREAM_VALUE
                 : response.getHeaders().getContentType().toString();
-        return new DownloadedFile(resolveFilename(fileUrl), contentType, bytes);
+        String filename = resolveFilename(fileUrl);
+        return new DownloadedFile(filename, resolveContentType(filename, contentType, bytes), bytes);
     }
 
     public UploadedFileInfo uploadFile(
@@ -195,6 +196,34 @@ public class ErpNextFileService {
             return path.substring(slash + 1);
         }
         return "download.bin";
+    }
+
+    private String resolveContentType(String filename, String contentType, byte[] bytes) {
+        String normalizedType = contentType == null ? "" : contentType.trim();
+        String normalizedName = filename == null ? "" : filename.trim().toLowerCase();
+        if (normalizedName.endsWith(".pdf") || startsWith(bytes, "%PDF")) {
+            return MediaType.APPLICATION_PDF_VALUE;
+        }
+        if (normalizedName.endsWith(".jpg") || normalizedName.endsWith(".jpeg")) {
+            return MediaType.IMAGE_JPEG_VALUE;
+        }
+        if (normalizedName.endsWith(".png")) {
+            return MediaType.IMAGE_PNG_VALUE;
+        }
+        return normalizedType.isBlank() ? MediaType.APPLICATION_OCTET_STREAM_VALUE : contentType;
+    }
+
+    private boolean startsWith(byte[] bytes, String prefix) {
+        if (bytes == null || prefix == null || bytes.length < prefix.length()) {
+            return false;
+        }
+        byte[] prefixBytes = prefix.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        for (int i = 0; i < prefixBytes.length; i++) {
+            if (bytes[i] != prefixBytes[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String resolveFileUrl(String filePath) {

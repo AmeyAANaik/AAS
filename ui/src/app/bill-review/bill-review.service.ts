@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { BillReviewDetail, BillReviewItemType, BillReviewListItem, ReviewDecisionRequest } from './bill-review.model';
+import { BillReviewAttachment, BillReviewDetail, BillReviewItemType, BillReviewListItem, ReviewDecisionRequest } from './bill-review.model';
 
 @Injectable({ providedIn: 'root' })
 export class BillReviewService {
@@ -57,6 +57,17 @@ export class BillReviewService {
 
   downloadAdjustmentNotePdf(documentId: string) {
     return this.http.get(`/api/adjustment-notes/${encodeURIComponent(documentId)}/pdf`, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  downloadAttachment(attachment: BillReviewAttachment) {
+    const url = String(attachment?.url ?? '').trim();
+    if (!url) {
+      throw new Error('Attachment URL is missing.');
+    }
+    return this.http.get(encodeURI(url), {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

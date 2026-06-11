@@ -173,7 +173,12 @@
       <div class="attachments-block">
         <div class="detail-label">Attachments</div>
         <div *ngIf="selectedItem.attachments?.length; else noAttachments" class="attachments-list">
-          <a *ngFor="let attachment of selectedItem.attachments" [href]="attachment.url" target="_blank" rel="noopener noreferrer">
+          <a
+            *ngFor="let attachment of selectedItem.attachments"
+            [href]="attachment.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            (click)="openAttachment(attachment, $event)">
             <span class="material-icons" aria-hidden="true">attach_file</span>
             {{ attachment.name || attachment.id }}
           </a>
