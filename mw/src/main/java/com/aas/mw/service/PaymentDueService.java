@@ -175,7 +175,7 @@ public class PaymentDueService {
 
     private List<Map<String, Object>> fetchOpenInvoices(String doctype, String partyField, String partyId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_invoice_version_status\",\"aas_replaced_by\"]");
+        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_invoice_version_status\",\"aas_replaced_by\",\"is_opening\",\"po_no\",\"remarks\"]");
         params.put("limit_page_length", 500);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of(partyField, "=", partyId));

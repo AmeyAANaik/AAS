@@ -143,6 +143,51 @@ class PaymentDueServiceTest {
     }
 
     @Test
+    void customerDueIncludesOpeningInvoicesInRunningCategoryBalance() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ACC-SINV-2026-00048",
+                                "docstatus", 1,
+                                "outstanding_amount", BigDecimal.ZERO,
+                                "grand_total", new BigDecimal("195106.24"),
+                                "is_opening", "No"),
+                        Map.of(
+                                "name", "OPEN-SINV-1",
+                                "docstatus", 1,
+                                "outstanding_amount", new BigDecimal("274508.00"),
+                                "grand_total", new BigDecimal("274508.00"),
+                                "is_opening", "Yes")));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00048"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00048",
+                        "docstatus", 1,
+                        "outstanding_amount", BigDecimal.ZERO,
+                        "grand_total", new BigDecimal("195106.24"),
+                        "items", List.of(Map.of(
+                                "item_code", "GROCERY-PAID",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("195106.24"))))));
+        when(erpNextClient.getResource("Sales Invoice", "OPEN-SINV-1"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "OPEN-SINV-1",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("274508.00"),
+                        "grand_total", new BigDecimal("274508.00"),
+                        "is_opening", "Yes",
+                        "items", List.of(Map.of(
+                                "item_code", "OPENING-GROCERY",
+                                "item_group", "Grocery",
+                                "amount", new BigDecimal("274508.00"))))));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "Grocery");
+
+        assertEquals(new BigDecimal("274508.000000"), response.get("dueAmount"));
+    }
+
+    @Test
     void customerDueExcludesOldReplacedInvoicesAndSubtractsSubmittedCategoryPayments() {
         when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
                 .thenReturn(List.of(

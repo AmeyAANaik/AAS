@@ -107,6 +107,8 @@ public class SetupService {
             {% set category_doc = frappe.get_doc("Item Group", doc.aas_category) if doc.aas_category else None %}
             {% set previous_due = frappe.utils.flt(doc.aas_previous_due if doc.aas_previous_due else 0, 2) %}
             {% set current_pending = frappe.utils.flt(doc.aas_current_pending if doc.aas_current_pending else 0, 2) %}
+            {% set category_pending = frappe.utils.flt(current_pending if doc.aas_current_pending else (previous_due + grand_total), 2) %}
+            {% set balance_status = "Pending" if category_pending > 0 else "Cleared" %}
             {% set bank_lines = [] %}
             {% if company_doc and company_doc.aas_bank_beneficiary_name %}{% set _ = bank_lines.append("A/C Name: " ~ company_doc.aas_bank_beneficiary_name) %}{% endif %}
             {% if company_doc and company_doc.aas_bank_name %}{% set _ = bank_lines.append("Bank: " ~ company_doc.aas_bank_name) %}{% endif %}
@@ -266,15 +268,17 @@ public class SetupService {
               <thead>
                 <tr>
                   <th style="width: 34%;">Category</th>
-                  <th style="width: 28%;">Previous Due</th>
-                  <th style="width: 38%;">Pending After Current Invoice</th>
+                  <th style="width: 22%;">Previous Due</th>
+                  <th style="width: 28%;">Pending After Current Invoice</th>
+                  <th style="width: 16%;">Balance Status</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or "-") }}</td>
                   <td class="aas-category-due-amount">{{ frappe.utils.fmt_money(previous_due, currency=doc.currency) }}</td>
-                  <td class="aas-category-due-amount aas-category-due-pending">{{ frappe.utils.fmt_money(current_pending if doc.aas_current_pending else (previous_due + grand_total), currency=doc.currency) }}</td>
+                  <td class="aas-category-due-amount aas-category-due-pending">{{ frappe.utils.fmt_money(category_pending, currency=doc.currency) }}</td>
+                  <td class="aas-category-due-amount">{{ balance_status }}</td>
                 </tr>
               </tbody>
             </table>

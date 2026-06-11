@@ -412,7 +412,7 @@ public class PaymentService {
         if (replacedBy != null && !replacedBy.isBlank()) {
             return false;
         }
-        return !"Yes".equalsIgnoreCase(asString(invoice.get("is_opening")));
+        return true;
     }
 
     private BigDecimal effectiveOutstanding(Map<String, Object> invoiceDoc) {

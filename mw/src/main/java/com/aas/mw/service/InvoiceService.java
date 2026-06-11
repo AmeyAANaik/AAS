@@ -529,7 +529,7 @@ public class InvoiceService {
             double dueAmount = asDouble(due.get("dueAmount"));
             double currentInvoiceContribution = currentInvoiceDueBase(invoiceDoc);
             double previousDue = Math.max(0.0, round(dueAmount - currentInvoiceContribution));
-            double currentPending = round(previousDue + currentInvoiceGrandTotal(invoiceDoc));
+            double currentPending = round(dueAmount);
             if (closeEnough(storedPreviousDue, previousDue) && closeEnough(storedCurrentPending, currentPending)) {
                 return;
             }

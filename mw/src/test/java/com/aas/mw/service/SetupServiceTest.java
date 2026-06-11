@@ -305,6 +305,8 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
                     assertTrue(html.contains("class=\"aas-category-due-table\""));
                     assertTrue(html.contains("Pending After Current Invoice"));
+                    assertTrue(html.contains("Balance Status"));
+                    assertTrue(html.contains("{% set balance_status = \"Pending\" if category_pending > 0 else \"Cleared\" %}"));
                     assertTrue(html.contains("{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or \"-\") }}"));
                     assertTrue(html.contains("<tbody>"));
                     assertTrue(html.contains("GSTIN: "));

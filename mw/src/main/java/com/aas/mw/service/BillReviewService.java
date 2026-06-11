@@ -184,6 +184,7 @@ public class BillReviewService {
         Map<String, Object> warningPayload = computePaymentDueWarning(payment, id);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> warnings = (List<Map<String, Object>>) warningPayload.getOrDefault("warnings", List.of());
+        payment = refreshPaymentAllocation(id, payment);
 
         String now = now();
         String actor = safeActor(reviewedBy);
@@ -245,6 +246,127 @@ public class BillReviewService {
         detail.put("payment", payment);
         detail.put("attachments", listPaymentAttachments(id));
         return detail;
+    }
+
+    private Map<String, Object> refreshPaymentAllocation(String paymentId, Map<String, Object> payment) {
+        String categoryId = asText(payment.get(FIELD_CATEGORY));
+        String partyType = normalizePartyType(asText(payment.get("party_type")));
+        String party = asText(payment.get("party"));
+        BigDecimal amount = paymentAmount(payment);
+        if (categoryId.isBlank() || partyType.isBlank() || party.isBlank() || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return payment;
+        }
+
+        AllocationResult allocation = allocateAgainstCategoryInvoices(partyType, party, categoryId, amount);
+        Map<String, Object> update = new HashMap<>();
+        update.put("references", allocation.references());
+        update.put("unallocated_amount", allocation.unallocatedAmount());
+        erpNextClient.updateResource(PAYMENT_ENTRY, paymentId, update);
+        return unwrapDoc(erpNextClient.getResource(PAYMENT_ENTRY, paymentId));
+    }
+
+    private AllocationResult allocateAgainstCategoryInvoices(
+            String partyType,
+            String party,
+            String categoryId,
+            BigDecimal amount) {
+        String invoiceDoctype = invoiceDoctypeForPartyType(partyType);
+        String partyField = invoicePartyFieldForPartyType(partyType);
+        if (invoiceDoctype.isBlank() || partyField.isBlank()) {
+            return AllocationResult.empty(amount);
+        }
+        BigDecimal remaining = amount;
+        List<Map<String, Object>> references = new ArrayList<>();
+        for (Map<String, Object> invoiceRow : fetchCategoryInvoices(invoiceDoctype, partyField, party, categoryId)) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            String invoiceId = asText(invoiceRow.get("name"));
+            if (invoiceId.isBlank()) {
+                continue;
+            }
+            Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource(invoiceDoctype, invoiceId));
+            if (!categoryId.equalsIgnoreCase(asText(invoice.get(FIELD_CATEGORY)))) {
+                continue;
+            }
+            BigDecimal outstanding = effectiveOutstanding(invoice);
+            if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            BigDecimal allocated = remaining.min(outstanding);
+            references.add(buildReference(invoiceDoctype, invoiceId, allocated));
+            remaining = remaining.subtract(allocated);
+        }
+        return new AllocationResult(references, remaining);
+    }
+
+    private List<Map<String, Object>> fetchCategoryInvoices(
+            String invoiceDoctype,
+            String partyField,
+            String party,
+            String categoryId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put(
+                "fields",
+                "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_category\","
+                        + "\"aas_invoice_version_status\",\"aas_replaced_by\",\"is_opening\"]");
+        params.put("limit_page_length", 500);
+        params.put("order_by", "posting_date asc, creation asc");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of(partyField, "=", party));
+        filters.add(List.of("docstatus", "in", "[0,1]"));
+        filters.add(List.of(FIELD_CATEGORY, "=", categoryId));
+        params.put("filters", toJson(filters));
+        List<Map<String, Object>> rows = erpNextClient.listResources(invoiceDoctype, params);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .filter(this::isAllocatableInvoiceRow)
+                .toList();
+    }
+
+    private boolean isAllocatableInvoiceRow(Map<String, Object> invoice) {
+        if (invoice == null || invoice.isEmpty()) {
+            return false;
+        }
+        if (asInt(invoice.get("docstatus")) == 2) {
+            return false;
+        }
+        if ("OLD".equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status")))) {
+            return false;
+        }
+        if (!asText(invoice.get("aas_replaced_by")).isBlank()) {
+            return false;
+        }
+        return true;
+    }
+
+    private BigDecimal effectiveOutstanding(Map<String, Object> invoice) {
+        BigDecimal outstanding = asDecimal(invoice.get("outstanding_amount"));
+        if (outstanding.compareTo(BigDecimal.ZERO) > 0) {
+            return outstanding;
+        }
+        if (asInt(invoice.get("docstatus")) == 0) {
+            return asDecimal(invoice.get("grand_total"));
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private Map<String, Object> buildReference(String invoiceDoctype, String invoiceId, BigDecimal amount) {
+        Map<String, Object> reference = new HashMap<>();
+        reference.put("reference_doctype", invoiceDoctype);
+        reference.put("reference_name", invoiceId);
+        reference.put("allocated_amount", amount);
+        return reference;
+    }
+
+    private String invoiceDoctypeForPartyType(String partyType) {
+        return "Supplier".equalsIgnoreCase(partyType) ? "Purchase Invoice" : "Sales Invoice";
+    }
+
+    private String invoicePartyFieldForPartyType(String partyType) {
+        return "Supplier".equalsIgnoreCase(partyType) ? "supplier" : "customer";
     }
 
     private Map<String, Object> approveAdjustmentNote(String noteId, String notes, String reviewedBy) {
@@ -734,5 +856,11 @@ public class BillReviewService {
             return "/api" + path;
         }
         return value;
+    }
+
+    private record AllocationResult(List<Map<String, Object>> references, BigDecimal unallocatedAmount) {
+        private static AllocationResult empty(BigDecimal amount) {
+            return new AllocationResult(List.of(), amount);
+        }
     }
 }

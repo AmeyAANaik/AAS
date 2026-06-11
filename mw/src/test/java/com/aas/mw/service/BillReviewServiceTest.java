@@ -1,8 +1,11 @@
 package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -77,6 +80,173 @@ class BillReviewServiceTest {
         assertEquals("PAY-1", payment.get("name"));
         assertEquals(1, ((Number) payment.get("docstatus")).intValue());
         verify(erpNextClient).submitDoc(org.mockito.Mockito.anyMap());
+    }
+
+    @Test
+    void approvalRefreshesStaleInvoiceReferenceToCurrentUnpaidCategoryInvoice() {
+        Map<String, Object> draftPayment = Map.ofEntries(
+                Map.entry("doctype", "Payment Entry"),
+                Map.entry("name", "ACC-PAY-2026-00023"),
+                Map.entry("docstatus", 0),
+                Map.entry("party_type", "Customer"),
+                Map.entry("party", "BRANCH-1"),
+                Map.entry("paid_amount", new BigDecimal("131000.00")),
+                Map.entry("received_amount", new BigDecimal("131000.00")),
+                Map.entry("aas_payment_review_status", "UNDER_REVIEW"),
+                Map.entry("aas_category", "Grocery"),
+                Map.entry("aas_due_amount", new BigDecimal("274508.00")),
+                Map.entry("references", List.of(Map.of(
+                        "reference_doctype", "Sales Invoice",
+                        "reference_name", "ACC-SINV-2026-00048",
+                        "allocated_amount", new BigDecimal("131000.00")))));
+        Map<String, Object> reallocatedPayment = new java.util.HashMap<>(draftPayment);
+        reallocatedPayment.put("references", List.of(Map.of(
+                "reference_doctype", "Sales Invoice",
+                "reference_name", "ACC-SINV-2026-00049",
+                "allocated_amount", new BigDecimal("131000.00"))));
+        reallocatedPayment.put("unallocated_amount", BigDecimal.ZERO);
+
+        when(erpNextClient.getResource("Payment Entry", "ACC-PAY-2026-00023"))
+                .thenReturn(
+                        Map.of("data", draftPayment),
+                        Map.of("data", reallocatedPayment),
+                        Map.of("data", reallocatedPayment),
+                        Map.of("data", Map.of(
+                                "doctype", "Payment Entry",
+                                "name", "ACC-PAY-2026-00023",
+                                "docstatus", 1,
+                                "aas_payment_review_status", "APPROVED")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("File"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(Map.of("name", "FILE-1", "file_name", "voucher.png", "file_url", "/files/voucher.png", "is_private", 0, "creation", "2026-06-11 10:00:00")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(
+                        Map.of("name", "ACC-SINV-2026-00048", "docstatus", 1, "outstanding_amount", BigDecimal.ZERO, "aas_category", "Grocery"),
+                        Map.of("name", "ACC-SINV-2026-00049", "docstatus", 1, "outstanding_amount", new BigDecimal("143508.00"), "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00048"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00048",
+                        "docstatus", 1,
+                        "outstanding_amount", BigDecimal.ZERO,
+                        "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00049"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00049",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("143508.00"),
+                        "aas_category", "Grocery")));
+        when(paymentDueService.dueByCategory("Customer", "BRANCH-1", "Grocery"))
+                .thenReturn(Map.of(
+                        "dueAmount", new BigDecimal("274508.00"),
+                        "underReviewAmount", new BigDecimal("131000.00"),
+                        "availableDueAmount", new BigDecimal("143508.00")));
+        when(erpNextClient.updateResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.eq("ACC-PAY-2026-00023"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", reallocatedPayment));
+        when(erpNextClient.submitDoc(org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "ACC-PAY-2026-00023", "docstatus", 1)));
+
+        billReviewService.approve(BillReviewService.ITEM_TYPE_PAYMENT, "ACC-PAY-2026-00023", "ok", "admin");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient, org.mockito.Mockito.atLeastOnce())
+                .updateResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.eq("ACC-PAY-2026-00023"), updateCaptor.capture());
+        List<Map<String, Object>> updates = new ArrayList<>(updateCaptor.getAllValues());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> refreshedReferences = (List<Map<String, Object>>) updates.stream()
+                .filter(update -> update.containsKey("references"))
+                .findFirst()
+                .orElseThrow()
+                .get("references");
+
+        assertEquals("ACC-SINV-2026-00049", refreshedReferences.get(0).get("reference_name"));
+        assertEquals(new BigDecimal("131000.00"), refreshedReferences.get(0).get("allocated_amount"));
+        verify(erpNextClient).submitDoc(org.mockito.Mockito.argThat(doc ->
+                String.valueOf(doc.get("references")).contains("ACC-SINV-2026-00049")
+                        && !String.valueOf(doc.get("references")).contains("ACC-SINV-2026-00048")));
+    }
+
+    @Test
+    void approvalRefreshesStaleInvoiceReferenceToOpeningCategoryBalance() {
+        Map<String, Object> draftPayment = Map.ofEntries(
+                Map.entry("doctype", "Payment Entry"),
+                Map.entry("name", "ACC-PAY-2026-00024"),
+                Map.entry("docstatus", 0),
+                Map.entry("party_type", "Customer"),
+                Map.entry("party", "BRANCH-1"),
+                Map.entry("paid_amount", new BigDecimal("131000.00")),
+                Map.entry("received_amount", new BigDecimal("131000.00")),
+                Map.entry("aas_payment_review_status", "UNDER_REVIEW"),
+                Map.entry("aas_category", "Grocery"),
+                Map.entry("aas_due_amount", new BigDecimal("274508.00")),
+                Map.entry("references", List.of(Map.of(
+                        "reference_doctype", "Sales Invoice",
+                        "reference_name", "ACC-SINV-2026-00048",
+                        "allocated_amount", new BigDecimal("131000.00")))));
+        Map<String, Object> reallocatedPayment = new java.util.HashMap<>(draftPayment);
+        reallocatedPayment.put("references", List.of(Map.of(
+                "reference_doctype", "Sales Invoice",
+                "reference_name", "OPEN-SINV-GROCERY",
+                "allocated_amount", new BigDecimal("131000.00"))));
+        reallocatedPayment.put("unallocated_amount", BigDecimal.ZERO);
+
+        when(erpNextClient.getResource("Payment Entry", "ACC-PAY-2026-00024"))
+                .thenReturn(
+                        Map.of("data", draftPayment),
+                        Map.of("data", reallocatedPayment),
+                        Map.of("data", reallocatedPayment),
+                        Map.of("data", Map.of(
+                                "doctype", "Payment Entry",
+                                "name", "ACC-PAY-2026-00024",
+                                "docstatus", 1,
+                                "aas_payment_review_status", "APPROVED")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("File"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(Map.of("name", "FILE-1", "file_name", "voucher.png", "file_url", "/files/voucher.png", "is_private", 0, "creation", "2026-06-11 10:00:00")));
+        when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
+                .thenReturn(List.of(
+                        Map.of("name", "ACC-SINV-2026-00048", "docstatus", 1, "outstanding_amount", BigDecimal.ZERO, "aas_category", "Grocery", "is_opening", "No"),
+                        Map.of("name", "OPEN-SINV-GROCERY", "docstatus", 1, "outstanding_amount", new BigDecimal("274508.00"), "aas_category", "Grocery", "is_opening", "Yes")));
+        when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00048"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "ACC-SINV-2026-00048",
+                        "docstatus", 1,
+                        "outstanding_amount", BigDecimal.ZERO,
+                        "aas_category", "Grocery",
+                        "is_opening", "No")));
+        when(erpNextClient.getResource("Sales Invoice", "OPEN-SINV-GROCERY"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "OPEN-SINV-GROCERY",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("274508.00"),
+                        "aas_category", "Grocery",
+                        "is_opening", "Yes")));
+        when(paymentDueService.dueByCategory("Customer", "BRANCH-1", "Grocery"))
+                .thenReturn(Map.of(
+                        "dueAmount", new BigDecimal("274508.00"),
+                        "underReviewAmount", new BigDecimal("131000.00"),
+                        "availableDueAmount", new BigDecimal("143508.00")));
+        when(erpNextClient.updateResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.eq("ACC-PAY-2026-00024"), org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", reallocatedPayment));
+        when(erpNextClient.submitDoc(org.mockito.Mockito.anyMap()))
+                .thenReturn(Map.of("data", Map.of("doctype", "Payment Entry", "name", "ACC-PAY-2026-00024", "docstatus", 1)));
+
+        billReviewService.approve(BillReviewService.ITEM_TYPE_PAYMENT, "ACC-PAY-2026-00024", "ok", "admin");
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> updateCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(erpNextClient, org.mockito.Mockito.atLeastOnce())
+                .updateResource(org.mockito.Mockito.eq("Payment Entry"), org.mockito.Mockito.eq("ACC-PAY-2026-00024"), updateCaptor.capture());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> refreshedReferences = (List<Map<String, Object>>) updateCaptor.getAllValues().stream()
+                .filter(update -> update.containsKey("references"))
+                .findFirst()
+                .orElseThrow()
+                .get("references");
+
+        assertEquals("OPEN-SINV-GROCERY", refreshedReferences.get(0).get("reference_name"));
+        assertEquals(new BigDecimal("131000.00"), refreshedReferences.get(0).get("allocated_amount"));
+        verify(erpNextClient).submitDoc(org.mockito.Mockito.argThat(doc ->
+                String.valueOf(doc.get("references")).contains("OPEN-SINV-GROCERY")
+                        && !String.valueOf(doc.get("references")).contains("ACC-SINV-2026-00048")));
     }
 
     @Test
