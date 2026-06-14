@@ -67,7 +67,7 @@ export class BillReviewService {
     if (!url) {
       throw new Error('Attachment URL is missing.');
     }
-    return this.http.get(encodeURI(url), {
+    return this.http.get(this.normalizeAttachmentUrl(url), {
       headers: this.authHeaders(),
       responseType: 'blob'
     });
@@ -80,5 +80,33 @@ export class BillReviewService {
   private authHeaders(): HttpHeaders {
     const token = this.tokenStore.getToken();
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
+  }
+
+  private normalizeAttachmentUrl(url: string): string {
+    if (url.startsWith('/api/files/') || url.startsWith('/api/private/files/')) {
+      return encodeURI(url);
+    }
+    if (url.startsWith('//')) {
+      const pathStart = url.indexOf('/', 2);
+      const path = pathStart >= 0 ? url.slice(pathStart) : url;
+      if (path.startsWith('/api/files/') || path.startsWith('/api/private/files/')) {
+        return encodeURI(path);
+      }
+      if (path.startsWith('/files/') || path.startsWith('/private/files/')) {
+        return encodeURI(`/api${path}`);
+      }
+    }
+    try {
+      const parsed = new URL(url, window.location.origin);
+      if (parsed.pathname.startsWith('/api/files/') || parsed.pathname.startsWith('/api/private/files/')) {
+        return encodeURI(`${parsed.pathname}${parsed.search}`);
+      }
+      if (parsed.pathname.startsWith('/files/') || parsed.pathname.startsWith('/private/files/')) {
+        return encodeURI(`/api${parsed.pathname}${parsed.search}`);
+      }
+    } catch {
+      return encodeURI(url);
+    }
+    return encodeURI(url);
   }
 }
