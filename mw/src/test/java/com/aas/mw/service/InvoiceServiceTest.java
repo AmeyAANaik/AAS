@@ -29,7 +29,7 @@ class InvoiceServiceTest {
         erpSetupProperties = new ErpSetupProperties();
         erpSetupProperties.setFullName("Administrator");
         erpSetupProperties.setPassword("admin");
-        invoiceService = new InvoiceService(erpNextClient, mock(PaymentDueService.class), "", erpSetupProperties);
+        invoiceService = new InvoiceService(erpNextClient, mock(PaymentDueService.class), mock(BranchOpsService.class), "", erpSetupProperties);
     }
 
     @Test
@@ -137,7 +137,7 @@ class InvoiceServiceTest {
     @Test
     void downloadPdfBackfillsMissingCategoryDueSnapshot() {
         PaymentDueService paymentDueService = mock(PaymentDueService.class);
-        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", erpSetupProperties);
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, mock(BranchOpsService.class), "", erpSetupProperties);
 
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00020"))
                 .thenReturn(Map.of("data", Map.of(
@@ -175,7 +175,7 @@ class InvoiceServiceTest {
     @Test
     void downloadPdfRepairsStaleCategoryDueSnapshot() {
         PaymentDueService paymentDueService = mock(PaymentDueService.class);
-        invoiceService = new InvoiceService(erpNextClient, paymentDueService, "", erpSetupProperties);
+        invoiceService = new InvoiceService(erpNextClient, paymentDueService, mock(BranchOpsService.class), "", erpSetupProperties);
 
         when(erpNextClient.getResource("Sales Invoice", "ACC-SINV-2026-00023"))
                 .thenReturn(Map.of("data", Map.of(
