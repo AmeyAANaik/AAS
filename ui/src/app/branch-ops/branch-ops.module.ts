@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatNativeDateModule } from '@angular/material/core';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
@@ -28,6 +29,7 @@ import { BranchOpsRoutingModule } from './branch-ops-routing.module';
     MatIconModule,
     MatInputModule,
     MatTableModule,
+    MatMenuModule,
     MatTabsModule,
     MatNativeDateModule,
     EmptyStateComponent,

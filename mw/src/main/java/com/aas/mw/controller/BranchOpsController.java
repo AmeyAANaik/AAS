@@ -2,6 +2,10 @@ package com.aas.mw.controller;
 
 import com.aas.mw.service.BranchOpsService;
 import com.aas.mw.util.CsvUtil;
+import com.aas.mw.util.LedgerPdfUtil;
+import com.aas.mw.util.XlsUtil;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
@@ -29,12 +33,10 @@ public class BranchOpsController {
     }
 
     @GetMapping("/ledger/export")
-    public ResponseEntity<String> exportAllBranchLedgers() {
-        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchLedgerEntries());
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-all.csv\"")
-                .contentType(MediaType.valueOf("text/csv"))
-                .body(csv);
+    public ResponseEntity<byte[]> exportAllBranchLedgers(
+            @RequestParam(required = false, defaultValue = "csv") String format) {
+        List<Map<String, Object>> rows = branchOpsService.getAllBranchLedgerEntries();
+        return buildExportResponse(rows, "branch-ledger-all", format);
     }
 
     @GetMapping("/{branchId}")
@@ -66,18 +68,15 @@ public class BranchOpsController {
     }
 
     @GetMapping("/{branchId}/ledger/export")
-    public ResponseEntity<String> exportBranchLedger(
+    public ResponseEntity<byte[]> exportBranchLedger(
             @PathVariable String branchId,
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
         Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        String csv = CsvUtil.toCsv(entries);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-" + sanitizeFileName(branchId) + ".csv\"")
-                .contentType(MediaType.valueOf("text/csv"))
-                .body(csv);
+        return buildExportResponse(entries, "branch-ledger-" + sanitizeFileName(branchId), format);
     }
 
     @GetMapping("/{branchId}/ledger/category")
@@ -90,45 +89,59 @@ public class BranchOpsController {
     }
 
     @GetMapping("/{branchId}/ledger/category/export")
-    public ResponseEntity<String> exportBranchLedgerByCategory(
+    public ResponseEntity<byte[]> exportBranchLedgerByCategory(
             @PathVariable String branchId,
             @RequestParam String categoryId,
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
         Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(branchId, categoryId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        String csv = CsvUtil.toCsv(entries);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-" + sanitizeFileName(branchId) + "-" + sanitizeFileName(categoryId) + ".csv\"")
-                .contentType(MediaType.valueOf("text/csv"))
-                .body(csv);
+        return buildExportResponse(entries, "branch-ledger-" + sanitizeFileName(branchId) + "-" + sanitizeFileName(categoryId), format);
     }
 
     @GetMapping("/{branchId}/ledger/categories/export")
-    public ResponseEntity<String> exportBranchCategoryLedgerSummary(
+    public ResponseEntity<byte[]> exportBranchCategoryLedgerSummary(
             @PathVariable String branchId,
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
         Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
-        String csv = CsvUtil.toCsv(categories);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-categories-" + sanitizeFileName(branchId) + ".csv\"")
-                .contentType(MediaType.valueOf("text/csv"))
-                .body(csv);
+        return buildExportResponse(categories, "branch-ledger-categories-" + sanitizeFileName(branchId), format);
     }
 
     @GetMapping("/ledger/categories/export")
-    public ResponseEntity<String> exportAllBranchesCategoryLedgers(
+    public ResponseEntity<byte[]> exportAllBranchesCategoryLedgers(
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
-        String csv = CsvUtil.toCsv(branchOpsService.getAllBranchCategorySummaries(fromDate, toDate));
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"branch-ledger-categories-all.csv\"")
-                .contentType(MediaType.valueOf("text/csv"))
-                .body(csv);
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
+        List<Map<String, Object>> rows = branchOpsService.getAllBranchCategorySummaries(fromDate, toDate);
+        return buildExportResponse(rows, "branch-ledger-categories-all", format);
+    }
+
+    private ResponseEntity<byte[]> buildExportResponse(List<Map<String, Object>> rows, String baseName, String format) {
+        String fmt = format == null || format.isBlank() ? "csv" : format.toLowerCase();
+        try {
+            return switch (fmt) {
+                case "xlsx" -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".xlsx\"")
+                        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .body(XlsUtil.toXls(rows));
+                case "pdf" -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".pdf\"")
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .body(LedgerPdfUtil.toPdf(rows, baseName.replace('-', ' ')));
+                default -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".csv\"")
+                        .contentType(MediaType.valueOf("text/csv;charset=UTF-8"))
+                        .body(CsvUtil.toCsv(rows).getBytes(StandardCharsets.UTF_8));
+            };
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     private String sanitizeFileName(String value) {

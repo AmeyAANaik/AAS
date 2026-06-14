@@ -17,12 +17,22 @@
         <div class="card-subtitle">Start with branches carrying the largest open backlog or receivable exposure.</div>
       </div>
       <div class="card-actions">
-        <button mat-icon-button type="button" color="primary" class="download-all-action" (click)="downloadAllLedgers()" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers">
+        <button mat-icon-button type="button" color="primary" class="download-all-action" [matMenuTriggerFor]="allLedgersMenu" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers">
           <mat-icon>download</mat-icon>
         </button>
-        <button mat-icon-button type="button" color="primary" class="download-all-action" (click)="downloadAllCategoryLedgers()" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers by category">
+        <mat-menu #allLedgersMenu="matMenu">
+          <button mat-menu-item (click)="downloadAllLedgers('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+          <button mat-menu-item (click)="downloadAllLedgers('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+          <button mat-menu-item (click)="downloadAllLedgers('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+        </mat-menu>
+        <button mat-icon-button type="button" color="primary" class="download-all-action" [matMenuTriggerFor]="allCategoryMenu" [disabled]="isLoadingSummary || !branches.length" aria-label="Download all branch ledgers by category">
           <mat-icon>category</mat-icon>
         </button>
+        <mat-menu #allCategoryMenu="matMenu">
+          <button mat-menu-item (click)="downloadAllCategoryLedgers('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+          <button mat-menu-item (click)="downloadAllCategoryLedgers('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+          <button mat-menu-item (click)="downloadAllCategoryLedgers('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+        </mat-menu>
         <mat-form-field appearance="outline">
           <mat-label>Search branch</mat-label>
           <input matInput [formControl]="searchControl" placeholder="Search by branch name" />
@@ -116,12 +126,22 @@
 	          </form>
 
 	          <div class="ledger-actions">
-	            <button mat-icon-button type="button" color="primary" (click)="downloadCategorySummary()" [disabled]="!ledgerCategorySummary.length" aria-label="Download branch ledger category summary">
+	            <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="categorySummaryMenu" [disabled]="!ledgerCategorySummary.length" aria-label="Download branch ledger category summary">
 	              <mat-icon>category</mat-icon>
 	            </button>
-	            <button mat-icon-button type="button" color="primary" (click)="downloadCategoryLedger()" [disabled]="!selectedCategoryId" aria-label="Download selected category ledger">
+	            <mat-menu #categorySummaryMenu="matMenu">
+	              <button mat-menu-item (click)="downloadCategorySummary('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+	              <button mat-menu-item (click)="downloadCategorySummary('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+	              <button mat-menu-item (click)="downloadCategorySummary('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+	            </mat-menu>
+	            <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="categoryLedgerMenu" [disabled]="!selectedCategoryId" aria-label="Download selected category ledger">
 	              <mat-icon>file_download</mat-icon>
 	            </button>
+	            <mat-menu #categoryLedgerMenu="matMenu">
+	              <button mat-menu-item (click)="downloadCategoryLedger('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+	              <button mat-menu-item (click)="downloadCategoryLedger('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+	              <button mat-menu-item (click)="downloadCategoryLedger('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+	            </mat-menu>
 	          </div>
 	        </div>
 
@@ -161,9 +181,14 @@
 	            <div class="subsection-title">Category ledger · {{ selectedCategoryId }}</div>
 	            <div class="subsection-actions">
 	              <button mat-stroked-button type="button" color="primary" (click)="clearCategoryLedger()">Clear category</button>
-	              <button mat-icon-button type="button" color="primary" class="subsection-action" (click)="downloadCategoryLedger()" [disabled]="!selectedCategoryId" aria-label="Download selected category ledger">
+	              <button mat-icon-button type="button" color="primary" class="subsection-action" [matMenuTriggerFor]="categoryDetailMenu" [disabled]="!selectedCategoryId" aria-label="Download selected category ledger">
 	                <mat-icon>download</mat-icon>
 	              </button>
+	              <mat-menu #categoryDetailMenu="matMenu">
+	                <button mat-menu-item (click)="downloadCategoryLedger('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+	                <button mat-menu-item (click)="downloadCategoryLedger('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+	                <button mat-menu-item (click)="downloadCategoryLedger('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+	              </mat-menu>
 	            </div>
 	          </div>
 	          <div class="state" *ngIf="isLoadingCategoryLedger">Loading category ledger...</div>

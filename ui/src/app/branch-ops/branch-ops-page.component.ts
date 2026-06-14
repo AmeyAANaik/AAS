@@ -3,7 +3,7 @@ import { FormControl, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
-import { BranchOpsService } from './branch-ops.service';
+import { BranchOpsService, ExportFormat } from './branch-ops.service';
 
 @Component({
   selector: 'app-branch-ops-page',
@@ -92,45 +92,45 @@ export class BranchOpsPageComponent implements OnInit {
     this.router.navigate(['/orders'], { queryParams: { orderId } });
   }
 
-  downloadAllLedgers(): void {
-    this.branchOpsService.downloadAllBranchLedgers().subscribe({
-      next: blob => this.saveBlob(blob, 'branch-ledger-all.csv'),
+  downloadAllLedgers(format: ExportFormat = 'csv'): void {
+    this.branchOpsService.downloadAllBranchLedgers(format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-all.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download all branch ledgers.';
       }
     });
   }
 
-  downloadAllCategoryLedgers(): void {
-    this.branchOpsService.downloadAllBranchesLedgerCategoriesSummary(this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, 'branch-ledger-categories-all.csv'),
+  downloadAllCategoryLedgers(format: ExportFormat = 'csv'): void {
+    this.branchOpsService.downloadAllBranchesLedgerCategoriesSummary(this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-categories-all.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download branch ledgers by category.';
       }
     });
   }
 
-  downloadCategorySummary(): void {
+  downloadCategorySummary(format: ExportFormat = 'csv'): void {
     const branchId = this.selectedBranch?.branch?.branchId;
     if (!branchId) {
       return;
     }
-    this.branchOpsService.downloadBranchLedgerCategoriesSummary(branchId, this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, `branch-ledger-categories-${this.toFileSegment(branchId)}.csv`),
+    this.branchOpsService.downloadBranchLedgerCategoriesSummary(branchId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-categories-${this.toFileSegment(branchId)}.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger summary.';
       }
     });
   }
 
-  downloadCategoryLedger(): void {
+  downloadCategoryLedger(format: ExportFormat = 'csv'): void {
     const branchId = this.selectedBranch?.branch?.branchId;
     const categoryId = this.selectedCategoryId;
     if (!branchId || !categoryId) {
       return;
     }
-    this.branchOpsService.downloadBranchLedgerByCategory(branchId, categoryId, this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}-${this.toFileSegment(categoryId)}.csv`),
+    this.branchOpsService.downloadBranchLedgerByCategory(branchId, categoryId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}-${this.toFileSegment(categoryId)}.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger.';
       }

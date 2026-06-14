@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { BranchOpsAnalytics, BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
 
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
+
 @Injectable({ providedIn: 'root' })
 export class BranchOpsService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
@@ -68,15 +70,17 @@ export class BranchOpsService {
     );
   }
 
-  downloadAllBranchLedgers(): Observable<Blob> {
+  downloadAllBranchLedgers(format: ExportFormat = 'csv'): Observable<Blob> {
     return this.http.get('/api/branch-ops/ledger/export', {
       headers: this.authHeaders(),
+      params: new HttpParams().set('format', format),
       responseType: 'blob'
     });
   }
 
-  downloadBranchLedger(branchId: string, range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadBranchLedger(branchId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/export`, {
       headers: this.authHeaders(),
       params,
@@ -97,9 +101,10 @@ export class BranchOpsService {
     );
   }
 
-  downloadBranchLedgerByCategory(branchId: string, categoryId: string, range?: { from?: string; to?: string }): Observable<Blob> {
+  downloadBranchLedgerByCategory(branchId: string, categoryId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
     let params = new HttpParams().set('categoryId', categoryId);
     params = this.withDateRange(params, range);
+    params = params.set('format', format);
     return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/category/export`, {
       headers: this.authHeaders(),
       params,
@@ -107,8 +112,9 @@ export class BranchOpsService {
     });
   }
 
-  downloadBranchLedgerCategoriesSummary(branchId: string, range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadBranchLedgerCategoriesSummary(branchId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/ledger/categories/export`, {
       headers: this.authHeaders(),
       params,
@@ -116,8 +122,9 @@ export class BranchOpsService {
     });
   }
 
-  downloadAllBranchesLedgerCategoriesSummary(range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadAllBranchesLedgerCategoriesSummary(range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get('/api/branch-ops/ledger/categories/export', {
       headers: this.authHeaders(),
       params,

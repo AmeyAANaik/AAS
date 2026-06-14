@@ -168,7 +168,7 @@ public class ReportService {
 
     private List<Map<String, Object>> itemPriceTrend(DateRange range) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
+        params.put("fields", "[\"item_code\",\"item_name\",\"price_list_rate\",\"valid_from\",\"currency\"]");
         params.put("order_by", "valid_from asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("price_list", "=", "Standard Selling"));
@@ -187,6 +187,9 @@ public class ReportService {
             lastPrice.put(code, entry);
         }
 
+        // Resolve item_group from Item master (not on Item Price doctype)
+        Map<String, String> itemGroupMap = fetchItemGroups(lastPrice.keySet());
+
         List<Map<String, Object>> result = new ArrayList<>();
         for (String code : lastPrice.keySet()) {
             Map<String, Object> first = firstPrice.get(code);
@@ -198,7 +201,7 @@ public class ReportService {
             Map<String, Object> row = new java.util.LinkedHashMap<>();
             row.put("item_code", code);
             row.put("item_name", asString(last.get("item_name")));
-            row.put("category", asString(last.get("item_group")));
+            row.put("category", itemGroupMap.getOrDefault(code, ""));
             row.put("prev_price", prevPrice);
             row.put("curr_price", currPrice);
             row.put("price_change", change);
@@ -229,7 +232,7 @@ public class ReportService {
 
     private List<Map<String, Object>> itemPriceFunnel(DateRange range) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"item_code\",\"item_name\",\"item_group\",\"price_list_rate\",\"valid_from\",\"currency\"]");
+        params.put("fields", "[\"item_code\",\"item_name\",\"price_list_rate\",\"valid_from\",\"currency\"]");
         params.put("order_by", "valid_from asc");
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("price_list", "=", "Standard Selling"));
