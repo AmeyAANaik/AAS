@@ -31,6 +31,7 @@ public class InvoiceService {
 
     private final ErpNextClient erpNextClient;
     private final PaymentDueService paymentDueService;
+    private final BranchOpsService branchOpsService;
     private final String gstTemplate;
     private final String erpSetupUsername;
     private final String erpSetupPassword;
@@ -38,10 +39,12 @@ public class InvoiceService {
     public InvoiceService(
             ErpNextClient erpNextClient,
             PaymentDueService paymentDueService,
+            BranchOpsService branchOpsService,
             @Value("${app.billing.gst-template:}") String gstTemplate,
             ErpSetupProperties erpSetupProperties) {
         this.erpNextClient = erpNextClient;
         this.paymentDueService = paymentDueService;
+        this.branchOpsService = branchOpsService;
         this.gstTemplate = gstTemplate == null ? "" : gstTemplate.trim();
         this.erpSetupUsername = erpSetupProperties.getFullName();
         this.erpSetupPassword = erpSetupProperties.getPassword();
@@ -525,8 +528,8 @@ public class InvoiceService {
         double storedPreviousDue = asDouble(invoiceDoc.get("aas_previous_due"));
         double storedCurrentPending = asDouble(invoiceDoc.get("aas_current_pending"));
         try {
-            Map<String, Object> due = paymentDueService.dueByCategory("Customer", customer, categoryId);
-            double dueAmount = asDouble(due.get("dueAmount"));
+            Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(customer, categoryId);
+            double dueAmount = asDouble(ledger.get("balance"));
             double currentInvoiceContribution = currentInvoiceDueBase(invoiceDoc);
             double previousDue = Math.max(0.0, round(dueAmount - currentInvoiceContribution));
             double currentPending = round(dueAmount);
