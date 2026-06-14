@@ -68,7 +68,8 @@ test('analytics explorer matches backend totals and reports route redirects', as
   expect(ordersKpi).toBeTruthy();
 
   await loginUi(page, username, password, '/reports', '/analytics');
-  await expect(page.getByText('Analytics Operational workspace')).toBeVisible();
+  await expect(page).toHaveURL(/\/analytics$/);
+  await expect(page.getByRole('button', { name: 'Analytics Explorer', pressed: true })).toBeVisible();
   await expect(page.getByText('Reports', { exact: true })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Run' }).click();
@@ -87,7 +88,7 @@ test('analytics explorer matches backend totals and reports route redirects', as
   const revenueText = await revenueCard.locator('.kpi-value').innerText();
   const ordersText = await ordersCard.locator('.kpi-value').innerText();
 
-  expect(parseDisplayNumber(revenueText)).toBe(Math.round(Number(revenueKpi?.value ?? 0)));
+  expect(parseDisplayNumber(revenueText)).toBeCloseTo(Number(revenueKpi?.value ?? 0), 2);
   expect(parseDisplayNumber(ordersText)).toBe(Math.round(Number(ordersKpi?.value ?? 0)));
 });
 
@@ -141,8 +142,8 @@ test('item price history mode requires an item and loads day-wise rows', async (
   await page.getByRole('button', { name: 'Item Price History' }).click();
   await expect(page.getByRole('button', { name: 'Run' })).toBeDisabled();
 
-  await page.getByLabel('From').fill(from);
-  await page.getByLabel('To').fill(to);
+  await page.getByRole('textbox', { name: 'From' }).fill(from);
+  await page.getByRole('textbox', { name: 'To' }).fill(to);
   await page.getByLabel('Item').fill(chosenItem);
   await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled();
   await page.getByRole('button', { name: 'Run' }).click();
