@@ -189,11 +189,16 @@ public class ErpNextFileService {
         if (filePath == null || filePath.isBlank()) {
             throw new IllegalArgumentException("File URL is required.");
         }
-        if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
-            return filePath.replace(publicBaseUrl, baseUrl);
+        // Strip /api proxy prefix so the path resolves correctly against ERPNext
+        String normalized = filePath;
+        if (normalized.startsWith("/api/files/") || normalized.startsWith("/api/private/files/")) {
+            normalized = normalized.substring("/api".length());
+        }
+        if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+            return normalized.replace(publicBaseUrl, baseUrl);
         }
         String base = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        String path = filePath.startsWith("/") ? filePath : "/" + filePath;
+        String path = normalized.startsWith("/") ? normalized : "/" + normalized;
         return base + path;
     }
 

@@ -368,7 +368,11 @@ public class MasterDataService {
         if (value == null || value.isBlank()) {
             return "";
         }
-        return value.trim();
+        String trimmed = value.trim();
+        if (trimmed.startsWith("/files/") || trimmed.startsWith("/private/files/")) {
+            return "/api" + trimmed;
+        }
+        return trimmed;
     }
 
     public Map<String, Object> createShop(FieldsRequest request) {
