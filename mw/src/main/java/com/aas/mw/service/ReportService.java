@@ -754,6 +754,29 @@ public class ReportService {
         return totals;
     }
 
+    private Map<String, String> fetchItemGroups(Set<String> itemCodes) {
+        Map<String, String> groups = new HashMap<>();
+        if (itemCodes == null || itemCodes.isEmpty()) {
+            return groups;
+        }
+        for (String itemCode : itemCodes) {
+            String key = asString(itemCode).trim();
+            if (key.isBlank()) {
+                continue;
+            }
+            String group = "";
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> doc = (Map<String, Object>) erpNextClient.getResource("Item", key).getOrDefault("data", Map.of());
+                group = doc == null ? "" : asString(doc.get("item_group")).trim();
+            } catch (Exception ignored) {
+                group = "";
+            }
+            groups.put(key, group);
+        }
+        return groups;
+    }
+
     private LocalDate parseDate(Object value) {
         String text = asString(value).trim();
         if (text.isBlank()) {
