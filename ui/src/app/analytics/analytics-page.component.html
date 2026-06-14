@@ -71,7 +71,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="item-field">
+        <mat-form-field appearance="outline" class="item-field" *ngIf="viewMode === 'priceHistory'">
           <mat-label>Item</mat-label>
           <input matInput formControlName="item" [matAutocomplete]="itemAuto" placeholder="Search item code or name" />
           <mat-autocomplete #itemAuto="matAutocomplete" autoActiveFirstOption>

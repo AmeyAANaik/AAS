@@ -38,8 +38,7 @@ const ALL_DIMENSIONS: DimensionOption[] = [
   { id: 'date',       label: 'Date',     icon: 'calendar_today' },
   { id: 'vendor',     label: 'Vendor',   icon: 'local_shipping' },
   { id: 'branch',     label: 'Branch',   icon: 'store' },
-  { id: 'item_group', label: 'Category', icon: 'category' },
-  { id: 'item',       label: 'Item',     icon: 'inventory_2' }
+  { id: 'item_group', label: 'Category', icon: 'category' }
 ];
 
 const ALL_METRICS: MetricOption[] = [
@@ -148,6 +147,10 @@ export class AnalyticsPageComponent implements OnInit {
 
   setViewMode(mode: ViewMode): void {
     this.viewMode = mode;
+    if (mode === 'explorer') {
+      this.filterForm.controls.item.setValue('');
+      this.activeDimensions.delete('item');
+    }
     this.result = null;
     this.chartData = null;
     this.status = '';
@@ -363,7 +366,7 @@ export class AnalyticsPageComponent implements OnInit {
     if (v.vendor) filters['vendor'] = v.vendor;
     if (v.branch) filters['branch'] = v.branch;
     if (v.itemGroup) filters['itemGroup'] = v.itemGroup;
-    if (v.item) filters['item'] = v.item;
+    if (this.viewMode === 'priceHistory' && v.item) filters['item'] = v.item;
     return {
       dateFrom: this.fmtDate(v.dateFrom ?? null),
       dateTo: this.fmtDate(v.dateTo ?? null),

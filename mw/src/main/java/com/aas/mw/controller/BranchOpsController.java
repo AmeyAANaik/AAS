@@ -51,7 +51,11 @@ public class BranchOpsController {
     public ResponseEntity<byte[]> exportAllBranchLedgers(
             @RequestParam(required = false, defaultValue = "csv") String format) {
         List<Map<String, Object>> rows = branchOpsService.getAllBranchLedgerEntries();
-        return buildExportResponse(rows, "branch-ledger-all", format);
+        return buildExportResponse(
+                rows,
+                "branch-ledger-all",
+                format,
+                new LedgerPdfUtil.ReportContext("Branch Ledger Report", "", "", "", ""));
     }
 
     @GetMapping("/{branchId}")
@@ -91,7 +95,16 @@ public class BranchOpsController {
         Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        return buildExportResponse(entries, "branch-ledger-" + sanitizeFileName(branchId), format);
+        return buildExportResponse(
+                entries,
+                "branch-ledger-" + sanitizeFileName(branchId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Branch Ledger",
+                        asText(ledger.get("branchName")),
+                        "",
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/{branchId}/ledger/category")
@@ -113,7 +126,16 @@ public class BranchOpsController {
         Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(branchId, categoryId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        return buildExportResponse(entries, "branch-ledger-" + sanitizeFileName(branchId) + "-" + sanitizeFileName(categoryId), format);
+        return buildExportResponse(
+                entries,
+                "branch-ledger-" + sanitizeFileName(branchId) + "-" + sanitizeFileName(categoryId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Branch Ledger",
+                        asText(ledger.get("branchName")),
+                        firstNonBlank(asText(ledger.get("categoryLabel")), categoryId),
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/{branchId}/ledger/categories/export")
@@ -125,7 +147,16 @@ public class BranchOpsController {
         Map<String, Object> ledger = branchOpsService.getBranchLedger(branchId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
-        return buildExportResponse(categories, "branch-ledger-categories-" + sanitizeFileName(branchId), format);
+        return buildExportResponse(
+                categories,
+                "branch-ledger-categories-" + sanitizeFileName(branchId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Branch Ledger Category Summary",
+                        asText(ledger.get("branchName")),
+                        "",
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/ledger/categories/export")
@@ -134,10 +165,18 @@ public class BranchOpsController {
             @RequestParam(required = false, name = "to") String toDate,
             @RequestParam(required = false, defaultValue = "csv") String format) {
         List<Map<String, Object>> rows = branchOpsService.getAllBranchCategorySummaries(fromDate, toDate);
-        return buildExportResponse(rows, "branch-ledger-categories-all", format);
+        return buildExportResponse(
+                rows,
+                "branch-ledger-categories-all",
+                format,
+                new LedgerPdfUtil.ReportContext("Branch Ledger Category Summary", "", "", asText(fromDate), asText(toDate)));
     }
 
-    private ResponseEntity<byte[]> buildExportResponse(List<Map<String, Object>> rows, String baseName, String format) {
+    private ResponseEntity<byte[]> buildExportResponse(
+            List<Map<String, Object>> rows,
+            String baseName,
+            String format,
+            LedgerPdfUtil.ReportContext reportContext) {
         String fmt = format == null || format.isBlank() ? "csv" : format.toLowerCase();
         try {
             return switch (fmt) {
@@ -148,7 +187,11 @@ public class BranchOpsController {
                 case "pdf" -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".pdf\"")
                         .contentType(MediaType.APPLICATION_PDF)
-                        .body(LedgerPdfUtil.toPdf(rows, humanizeTitle(baseName), resolveBranding()));
+                        .body(LedgerPdfUtil.toPdf(
+                                rows,
+                                reportContext == null ? humanizeTitle(baseName) : reportContext.title(),
+                                resolveBranding(),
+                                reportContext));
                 default -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".csv\"")
                         .contentType(MediaType.valueOf("text/csv;charset=UTF-8"))
@@ -221,5 +264,14 @@ public class BranchOpsController {
 
     private String asText(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 }

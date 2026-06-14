@@ -40,10 +40,18 @@ public final class LedgerPdfUtil {
     private LedgerPdfUtil() {}
 
     public static byte[] toPdf(List<Map<String, Object>> rows, String title) throws IOException {
-        return toPdf(rows, title, null);
+        return toPdf(rows, title, null, null);
     }
 
     public static byte[] toPdf(List<Map<String, Object>> rows, String title, Branding branding) throws IOException {
+        return toPdf(rows, title, branding, null);
+    }
+
+    public static byte[] toPdf(
+            List<Map<String, Object>> rows,
+            String title,
+            Branding branding,
+            ReportContext reportContext) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
@@ -61,7 +69,7 @@ public final class LedgerPdfUtil {
             PDPage page = new PDPage(pageSize);
             document.addPage(page);
             PDPageContentStream content = new PDPageContentStream(document, page);
-            float y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding);
+            float y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding, reportContext);
             y = drawSummaryBand(content, bold, regular, MARGIN, y, usableWidth, rows, headers);
             y = drawHeaderRow(content, bold, MARGIN, y, columns);
 
@@ -75,7 +83,7 @@ public final class LedgerPdfUtil {
                         page = new PDPage(pageSize);
                         document.addPage(page);
                         content = new PDPageContentStream(document, page);
-                        y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding);
+                        y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding, reportContext);
                         y = drawSummaryBand(content, bold, regular, MARGIN, y, usableWidth, rows, headers);
                         y = drawHeaderRow(content, bold, MARGIN, y, columns);
                     }
@@ -229,9 +237,11 @@ public final class LedgerPdfUtil {
             PDType1Font bold,
             PDType1Font regular,
             String title,
-            Branding branding) throws IOException {
+            Branding branding,
+            ReportContext reportContext) throws IOException {
         float y = pageHeight - MARGIN;
         float textStartX = MARGIN;
+        float reservedLogoWidth = 0f;
         if (branding != null && branding.logoBytes() != null && branding.logoBytes().length > 0) {
             try {
                 PDImageXObject logo = PDImageXObject.createFromByteArray(document, branding.logoBytes(), "company-logo");
@@ -241,6 +251,7 @@ public final class LedgerPdfUtil {
                 float imageY = y - drawHeight + 8f;
                 content.drawImage(logo, MARGIN, imageY, drawWidth, drawHeight);
                 textStartX = MARGIN + drawWidth + 14f;
+                reservedLogoWidth = drawWidth + 14f;
             } catch (Exception ignored) {
                 textStartX = MARGIN;
             }
@@ -257,10 +268,31 @@ public final class LedgerPdfUtil {
             y -= BRAND_META_FONT_SIZE + 6f;
         }
 
+        float titleStartX = reservedLogoWidth > 0f ? textStartX : MARGIN;
         float titleY = y - 4f;
-        writeText(content, bold, TITLE_FONT_SIZE, MARGIN, titleY, title);
-        writeText(content, regular, SUBTITLE_FONT_SIZE, MARGIN, titleY - 14f, "Generated on " + LocalDate.now());
-        float dividerY = titleY - 24f;
+        writeText(content, bold, TITLE_FONT_SIZE, titleStartX, titleY, title);
+        float detailY = titleY - 16f;
+
+        String branchName = reportContext == null ? "" : safeText(reportContext.branchName());
+        if (!branchName.isBlank()) {
+            writeText(content, regular, SUBTITLE_FONT_SIZE, titleStartX, detailY, "Branch: " + branchName);
+            detailY -= 12f;
+        }
+
+        String categoryName = reportContext == null ? "" : safeText(reportContext.categoryName());
+        if (!categoryName.isBlank()) {
+            writeText(content, regular, SUBTITLE_FONT_SIZE, titleStartX, detailY, "Category: " + categoryName);
+            detailY -= 12f;
+        }
+
+        String periodLine = formatPeriodLine(reportContext);
+        if (!periodLine.isBlank()) {
+            writeText(content, regular, SUBTITLE_FONT_SIZE, titleStartX, detailY, periodLine);
+            detailY -= 12f;
+        }
+
+        writeText(content, regular, SUBTITLE_FONT_SIZE, titleStartX, detailY, "Generated on " + LocalDate.now());
+        float dividerY = detailY - 10f;
         content.setLineWidth(0.8f);
         content.moveTo(MARGIN, dividerY);
         content.lineTo(pageWidth - MARGIN, dividerY);
@@ -460,6 +492,24 @@ public final class LedgerPdfUtil {
         return MONEY.format(value);
     }
 
+    private static String formatPeriodLine(ReportContext reportContext) {
+        if (reportContext == null) {
+            return "";
+        }
+        String fromDate = safeText(reportContext.fromDate());
+        String toDate = safeText(reportContext.toDate());
+        if (!fromDate.isBlank() && !toDate.isBlank()) {
+            return "Start Date: " + fromDate + "    End Date: " + toDate;
+        }
+        if (!fromDate.isBlank()) {
+            return "Start Date: " + fromDate;
+        }
+        if (!toDate.isBlank()) {
+            return "End Date: " + toDate;
+        }
+        return "";
+    }
+
     private static double resolveLastNumeric(List<Map<String, Object>> rows, String key) {
         if (rows == null || rows.isEmpty() || key == null || key.isBlank()) {
             return 0.0;
@@ -506,6 +556,8 @@ public final class LedgerPdfUtil {
     private record ColumnSpec(String key, String displayName, float width, boolean numeric) {}
 
     private record Cell(List<String> lines) {}
+
+    public record ReportContext(String title, String branchName, String categoryName, String fromDate, String toDate) {}
 
     public record Branding(String companyName, String taxId, byte[] logoBytes) {}
 }
