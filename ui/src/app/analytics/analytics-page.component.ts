@@ -176,6 +176,7 @@ export class AnalyticsPageComponent implements OnInit {
     this.lastRunOk = false;
     this.backendWarnings = [];
     this.rowCountWarning = '';
+    this.run();
   }
 
   toggleDimension(id: string): void {
@@ -246,11 +247,6 @@ export class AnalyticsPageComponent implements OnInit {
   }
 
   run(): void {
-    if (this.viewMode === 'priceHistory' && !this.hasText(this.filterForm.controls.item.value)) {
-      this.status = 'Select an item to view day-wise price history.';
-      this.lastRunOk = false;
-      return;
-    }
 
     this.isLoading = true;
     this.status = '';
@@ -384,7 +380,7 @@ export class AnalyticsPageComponent implements OnInit {
   }
 
   canRun(): boolean {
-    return !this.isLoading && (this.viewMode !== 'priceHistory' || this.hasText(this.filterForm.controls.item.value));
+    return !this.isLoading;
   }
 
   canExport(): boolean {

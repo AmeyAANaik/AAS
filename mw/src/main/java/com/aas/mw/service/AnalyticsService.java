@@ -136,7 +136,8 @@ public class AnalyticsService {
             List<String> warnings) {
         boolean needCost = mets.stream().anyMatch(metric -> Set.of("cost", "profit", "margin_pct").contains(metric));
         boolean needQuantity = mets.contains("quantity");
-        boolean needItemFacts = needQuantity
+        boolean needItemFacts = needCost  // invoice items carry aas_vendor_rate as fallback when order items don't
+                || needQuantity
                 || dims.contains("item_group")
                 || dims.contains("item")
                 || hasText(filters.get("itemGroup"))
@@ -318,6 +319,11 @@ public class AnalyticsService {
 
             double totalAmount = preparedLines.stream().mapToDouble(PreparedLine::amount).sum();
             double totalDirectCost = preparedLines.stream().mapToDouble(PreparedLine::directCost).sum();
+            // When source order items have no vendor rate, fall back to the sum of
+            // per-line direct costs derived from Sales Invoice Item aas_vendor_rate.
+            if (invoiceCost == 0.0 && totalDirectCost > 0.0) {
+                invoiceCost = totalDirectCost;
+            }
             double remainingRevenue = invoiceRevenue;
             double remainingCost = invoiceCost;
             for (int index = 0; index < preparedLines.size(); index++) {

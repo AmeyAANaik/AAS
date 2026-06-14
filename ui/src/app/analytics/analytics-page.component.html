@@ -15,7 +15,7 @@
         Revenue and order totals use invoice data so the KPIs stay aligned with Dashboard.
       </div>
       <div class="mode-note" *ngIf="viewMode === 'priceHistory'">
-        Price history is independent from the dimension and metric builder. Select an item to see day-wise selling prices.
+        Shows day-wise selling prices for all items. Use Vendor, Category, or Item filters above to narrow results.
       </div>
     </mat-card-content>
   </mat-card>
@@ -158,7 +158,7 @@
       </div>
 
       <div class="history-actions" *ngIf="viewMode === 'priceHistory'">
-        <div class="history-hint">Use the item filter above to inspect day-wise price movement for a specific item.</div>
+        <div class="history-hint">All items shown by default. Filter by Vendor, Category, or Item above to inspect specific trends.</div>
         <div class="actions-col inline-actions">
           <button mat-flat-button color="primary" (click)="run()" [disabled]="!canRun()" class="run-btn">
             <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
