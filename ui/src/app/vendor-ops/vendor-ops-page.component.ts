@@ -192,8 +192,8 @@ export class VendorOpsPageComponent implements OnInit {
     return (Number(this.ledgerClosingBalance) || 0) - (Number(this.ledgerOpeningBalance) || 0);
   }
 
-  private reloadLedgers(): void {
-    const vendorId = this.selectedVendor?.vendor?.vendorId;
+  private reloadLedgers(overrideVendorId?: string): void {
+    const vendorId = overrideVendorId ?? this.selectedVendor?.vendor?.vendorId;
     if (!vendorId) {
       return;
     }
@@ -349,7 +349,7 @@ export class VendorOpsPageComponent implements OnInit {
       });
     this.clearCategoryLedger();
     this.forceSelectTopCategory = true;
-    this.reloadLedgers();
+    this.reloadLedgers(vendorId);
   }
 
   private ensureDefaultLedgerRange(): void {
