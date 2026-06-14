@@ -102,11 +102,17 @@ public class PaymentDueService {
             if (docstatus == 2) {
                 continue;
             }
+            if (isOldOrReplacedInvoice(row, row)) {
+                continue;
+            }
             BigDecimal dueBase = effectiveDueBase(docstatus, row, row);
             if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
             Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource("Purchase Invoice", invoiceId));
+            if (isOldOrReplacedInvoice(invoice, row)) {
+                continue;
+            }
             String sourceOrderId = asText(invoice.get("aas_source_sales_order"));
             if (sourceOrderId.isBlank()) {
                 List<Map<String, Object>> items = childItems(invoice.get("items"));
@@ -125,13 +131,17 @@ public class PaymentDueService {
                 dueByCategory.merge(entry.getKey(), share, BigDecimal::add);
             }
         }
+        BigDecimal submittedPayments = submittedCategoryPayments("Supplier", supplierId, categoryId);
         BigDecimal approvedAdjustments = approvedAdjustmentImpact("Supplier", supplierId, categoryId);
-        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO).add(approvedAdjustments).max(BigDecimal.ZERO);
+        return dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO)
+                .subtract(submittedPayments)
+                .add(approvedAdjustments)
+                .max(BigDecimal.ZERO);
     }
 
     private List<Map<String, Object>> fetchOpenPurchaseInvoices(String supplierId) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\"]");
+        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_invoice_version_status\",\"aas_replaced_by\",\"aas_category\"]");
         params.put("limit_page_length", 500);
         List<List<String>> filters = new ArrayList<>();
         filters.add(List.of("supplier", "=", supplierId));

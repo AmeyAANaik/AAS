@@ -3,7 +3,7 @@ import { FormControl, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 import { VendorOpsCategorySummaryRow, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
-import { VendorOpsService } from './vendor-ops.service';
+import { ExportFormat, VendorOpsService } from './vendor-ops.service';
 
 @Component({
   selector: 'app-vendor-ops-page',
@@ -90,45 +90,45 @@ export class VendorOpsPageComponent implements OnInit {
     this.router.navigate(['/orders'], { queryParams: { orderId } });
   }
 
-  downloadAllLedgers(): void {
-    this.vendorOpsService.downloadAllVendorLedgers().subscribe({
-      next: blob => this.saveBlob(blob, 'vendor-ledger-all.csv'),
+  downloadAllLedgers(format: ExportFormat = 'csv'): void {
+    this.vendorOpsService.downloadAllVendorLedgers(format).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-all.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download all vendor ledgers.';
       }
     });
   }
 
-  downloadAllCategoryLedgers(): void {
-    this.vendorOpsService.downloadAllVendorsLedgerCategoriesSummary(this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, 'vendor-ledger-categories-all.csv'),
+  downloadAllCategoryLedgers(format: ExportFormat = 'csv'): void {
+    this.vendorOpsService.downloadAllVendorsLedgerCategoriesSummary(this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-categories-all.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download vendor ledgers by category.';
       }
     });
   }
 
-  downloadCategorySummary(): void {
+  downloadCategorySummary(format: ExportFormat = 'csv'): void {
     const vendorId = this.selectedVendor?.vendor?.vendorId;
     if (!vendorId) {
       return;
     }
-    this.vendorOpsService.downloadVendorLedgerCategoriesSummary(vendorId, this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, `vendor-ledger-categories-${this.toFileSegment(vendorId)}.csv`),
+    this.vendorOpsService.downloadVendorLedgerCategoriesSummary(vendorId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-categories-${this.toFileSegment(vendorId)}.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger summary.';
       }
     });
   }
 
-  downloadCategoryLedger(): void {
+  downloadCategoryLedger(format: ExportFormat = 'csv'): void {
     const vendorId = this.selectedVendor?.vendor?.vendorId;
     const categoryId = this.selectedCategoryId;
     if (!vendorId || !categoryId) {
       return;
     }
-    this.vendorOpsService.downloadVendorLedgerByCategory(vendorId, categoryId, this.appliedLedgerRange).subscribe({
-      next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}-${this.toFileSegment(categoryId)}.csv`),
+    this.vendorOpsService.downloadVendorLedgerByCategory(vendorId, categoryId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}-${this.toFileSegment(categoryId)}.${format}`),
       error: () => {
         this.errorMessage = 'Unable to download category ledger.';
       }
@@ -221,7 +221,7 @@ export class VendorOpsPageComponent implements OnInit {
 
         const categoryIds = new Set(this.ledgerCategorySummary.map(row => row.category));
         const topCategory = [...this.ledgerCategorySummary]
-          .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))[0]?.category;
+          .sort((a, b) => this.categorySummaryBalance(b) - this.categorySummaryBalance(a))[0]?.category;
 
         const shouldSelectTop = this.forceSelectTopCategory || !this.selectedCategoryId || !categoryIds.has(this.selectedCategoryId);
         this.forceSelectTopCategory = false;
@@ -247,6 +247,11 @@ export class VendorOpsPageComponent implements OnInit {
       return 'zero';
     }
     return num > 0 ? 'pos' : 'neg';
+  }
+
+  categorySummaryBalance(row: VendorOpsCategorySummaryRow): number {
+    const balance = Number(row?.balance ?? row?.amount ?? 0);
+    return Number.isFinite(balance) ? balance : 0;
   }
 
   get filteredVendors(): VendorOpsSummaryRow[] {

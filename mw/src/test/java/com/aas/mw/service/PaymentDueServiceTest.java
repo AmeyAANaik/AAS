@@ -396,4 +396,81 @@ class PaymentDueServiceTest {
         assertEquals(new BigDecimal("30.000000"), responseA.get("dueAmount"));
         assertEquals(new BigDecimal("20.000000"), responseB.get("dueAmount"));
     }
+
+    @Test
+    void supplierDueSubtractsSubmittedCategoryPayments() {
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "PINV-GROCERY",
+                        "docstatus", 1,
+                        "outstanding_amount", new BigDecimal("1000.00"),
+                        "grand_total", new BigDecimal("1000.00"),
+                        "aas_invoice_version_status", "CURRENT",
+                        "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Purchase Invoice", "PINV-GROCERY"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PINV-GROCERY",
+                        "aas_source_sales_order", "",
+                        "aas_category", "Grocery",
+                        "items", List.of())));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<String, Object> params = invocation.getArgument(1);
+                    String filters = String.valueOf(params.get("filters"));
+                    if (filters.contains("UNDER_REVIEW")) {
+                        return List.of();
+                    }
+                    return List.of(Map.of(
+                            "name", "PAY-GROCERY",
+                            "paid_amount", new BigDecimal("400.00"),
+                            "docstatus", 1,
+                            "party_type", "Supplier",
+                            "party", "SUP-1",
+                            "aas_category", "Grocery"));
+                });
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Supplier", "SUP-1", "Grocery");
+
+        assertEquals(new BigDecimal("600.00"), response.get("dueAmount"));
+        assertEquals(new BigDecimal("600.00"), response.get("availableDueAmount"));
+    }
+
+    @Test
+    void supplierDueExcludesOldAndReplacedPurchaseInvoices() {
+        when(erpNextClient.listResources(eq("Purchase Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "PINV-CURRENT",
+                                "docstatus", 1,
+                                "outstanding_amount", new BigDecimal("500.00"),
+                                "grand_total", new BigDecimal("500.00"),
+                                "aas_invoice_version_status", "CURRENT",
+                                "aas_category", "Grocery"),
+                        Map.of(
+                                "name", "PINV-OLD",
+                                "docstatus", 1,
+                                "outstanding_amount", new BigDecimal("1000.00"),
+                                "grand_total", new BigDecimal("1000.00"),
+                                "aas_invoice_version_status", "OLD",
+                                "aas_category", "Grocery"),
+                        Map.of(
+                                "name", "PINV-REPLACED",
+                                "docstatus", 0,
+                                "outstanding_amount", new BigDecimal("700.00"),
+                                "grand_total", new BigDecimal("700.00"),
+                                "aas_replaced_by", "PINV-CURRENT",
+                                "aas_category", "Grocery")));
+        when(erpNextClient.getResource("Purchase Invoice", "PINV-CURRENT"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "PINV-CURRENT",
+                        "aas_source_sales_order", "",
+                        "aas_category", "Grocery",
+                        "items", List.of())));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Supplier", "SUP-1", "Grocery");
+
+        assertEquals(new BigDecimal("500.00"), response.get("dueAmount"));
+    }
 }

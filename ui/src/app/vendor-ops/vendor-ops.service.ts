@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
 import { VendorOpsAnalytics, VendorOpsCategorySummaryRow, VendorOpsDetail, VendorOpsLedgerEntry, VendorOpsOrderRow, VendorOpsSummaryRow, VendorOpsSummaryTotals } from './vendor-ops.model';
 
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
+
 @Injectable({ providedIn: 'root' })
 export class VendorOpsService {
   constructor(private http: HttpClient, private tokenStore: AuthTokenService) {}
@@ -68,15 +70,17 @@ export class VendorOpsService {
     );
   }
 
-  downloadAllVendorLedgers(): Observable<Blob> {
+  downloadAllVendorLedgers(format: ExportFormat = 'csv'): Observable<Blob> {
     return this.http.get('/api/vendor-ops/ledger/export', {
       headers: this.authHeaders(),
+      params: new HttpParams().set('format', format),
       responseType: 'blob'
     });
   }
 
-  downloadVendorLedger(vendorId: string, range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadVendorLedger(vendorId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/export`, {
       headers: this.authHeaders(),
       params,
@@ -97,9 +101,10 @@ export class VendorOpsService {
     );
   }
 
-  downloadVendorLedgerByCategory(vendorId: string, categoryId: string, range?: { from?: string; to?: string }): Observable<Blob> {
+  downloadVendorLedgerByCategory(vendorId: string, categoryId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
     let params = new HttpParams().set('categoryId', categoryId);
     params = this.withDateRange(params, range);
+    params = params.set('format', format);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/category/export`, {
       headers: this.authHeaders(),
       params,
@@ -107,8 +112,9 @@ export class VendorOpsService {
     });
   }
 
-  downloadVendorLedgerCategoriesSummary(vendorId: string, range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadVendorLedgerCategoriesSummary(vendorId: string, range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get(`/api/vendor-ops/${encodeURIComponent(vendorId)}/ledger/categories/export`, {
       headers: this.authHeaders(),
       params,
@@ -116,8 +122,9 @@ export class VendorOpsService {
     });
   }
 
-  downloadAllVendorsLedgerCategoriesSummary(range?: { from?: string; to?: string }): Observable<Blob> {
-    const params = this.withDateRange(new HttpParams(), range);
+  downloadAllVendorsLedgerCategoriesSummary(range?: { from?: string; to?: string }, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withDateRange(new HttpParams(), range);
+    params = params.set('format', format);
     return this.http.get('/api/vendor-ops/ledger/categories/export', {
       headers: this.authHeaders(),
       params,

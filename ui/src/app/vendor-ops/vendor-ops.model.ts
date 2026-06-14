@@ -92,6 +92,7 @@ export interface VendorOpsLedgerEntry {
 export interface VendorOpsCategorySummaryRow {
   category: string;
   amount: number;
+  balance?: number;
 }
 
 export interface VendorOpsAnalytics {

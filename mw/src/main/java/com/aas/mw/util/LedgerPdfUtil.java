@@ -120,10 +120,10 @@ public final class LedgerPdfUtil {
             String label,
             String value) throws IOException {
         float bottomY = y - height;
-        content.setNonStrokingColor(248, 250, 252);
+        setNonStrokingRgb(content, 248, 250, 252);
         content.addRect(x, bottomY, width, height);
         content.fill();
-        content.setStrokingColor(203, 213, 225);
+        setStrokingRgb(content, 203, 213, 225);
         content.addRect(x, bottomY, width, height);
         content.stroke();
         writeText(content, regular, 8f, x + 8f, y - 10f, safeText(label).toUpperCase());
@@ -139,10 +139,10 @@ public final class LedgerPdfUtil {
         float rowHeight = 24f;
         float x = startX;
         float bottomY = y - rowHeight;
-        content.setNonStrokingColor(30, 41, 59);
+        setNonStrokingRgb(content, 30, 41, 59);
         content.addRect(startX, bottomY, totalWidth(columns), rowHeight);
         content.fill();
-        content.setStrokingColor(203, 213, 225);
+        setStrokingRgb(content, 203, 213, 225);
         for (ColumnSpec column : columns) {
             content.addRect(x, bottomY, column.width(), rowHeight);
             content.stroke();
@@ -164,11 +164,11 @@ public final class LedgerPdfUtil {
         float bottomY = y - rowHeight;
         float x = startX;
         if (shaded) {
-            content.setNonStrokingColor(248, 250, 252);
+            setNonStrokingRgb(content, 248, 250, 252);
             content.addRect(startX, bottomY, totalWidth(columns), rowHeight);
             content.fill();
         }
-        content.setStrokingColor(226, 232, 240);
+        setStrokingRgb(content, 226, 232, 240);
         for (int index = 0; index < columns.size(); index++) {
             ColumnSpec column = columns.get(index);
             Cell cell = cells.get(index);
@@ -288,11 +288,23 @@ public final class LedgerPdfUtil {
             return;
         }
         content.beginText();
-        content.setNonStrokingColor(red, green, blue);
+        setNonStrokingRgb(content, red, green, blue);
         content.setFont(font, size);
         content.newLineAtOffset(x, y);
         content.showText(safe);
         content.endText();
+    }
+
+    private static void setNonStrokingRgb(PDPageContentStream content, int red, int green, int blue) throws IOException {
+        content.setNonStrokingColor(rgb(red), rgb(green), rgb(blue));
+    }
+
+    private static void setStrokingRgb(PDPageContentStream content, int red, int green, int blue) throws IOException {
+        content.setStrokingColor(rgb(red), rgb(green), rgb(blue));
+    }
+
+    private static float rgb(int value) {
+        return Math.max(0, Math.min(255, value)) / 255f;
     }
 
     private static String safeText(String value) {

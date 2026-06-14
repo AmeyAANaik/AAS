@@ -91,6 +91,31 @@ describe('VendorOpsPageComponent', () => {
     expect(component.ledgerScopeNote).toContain('Category drill-down: Grocery');
   });
 
+  it('uses category closing balance instead of activity amount for category selection', () => {
+    component.selectedVendor = {
+      vendor: { vendorId: 'VENDOR-1', vendorName: 'FreshHarvest', templateStatus: 'ready', lastActivity: '' },
+      kpis: {} as any,
+      template: {} as any,
+      billing: { ledgerBalance: 0 } as any,
+      exceptions: {} as any
+    };
+    vendorOpsService.getVendorLedger.and.returnValue(of({
+      openingBalance: 0,
+      closingBalance: 316930,
+      balance: 316930,
+      entries: [],
+      categorySummary: [
+        { category: 'Aamras', amount: 931165, balance: 316930 },
+        { category: 'Grocery', amount: 500000, balance: 450000 }
+      ]
+    }));
+
+    (component as any).reloadLedgers();
+
+    expect(component.categorySummaryBalance(component.ledgerCategorySummary[0])).toBe(316930);
+    expect(component.selectedCategoryId).toBe('Grocery');
+  });
+
   it('defaults the vendor ledger range to seven days', () => {
     (component as any).applyDefaultLedgerRange();
 
