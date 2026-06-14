@@ -27,7 +27,8 @@ import org.springframework.stereotype.Service;
 public class AnalyticsService {
 
     private static final List<String> VALID_DIMS = List.of("date", "vendor", "branch", "item_group", "item");
-    private static final List<String> VALID_METRICS = List.of("revenue", "cost", "profit", "margin_pct", "orders", "avg_order_value");
+    private static final List<String> VALID_METRICS = List.of("revenue", "cost", "profit", "margin_pct", "orders", "avg_order_value", "quantity");
+    private static final int BATCH_CHUNK_SIZE = 50;
 
     private final ErpNextClient erpNextClient;
     private final InvoiceService invoiceService;
@@ -44,7 +45,8 @@ public class AnalyticsService {
         String granularity = req.getGranularity() != null ? req.getGranularity().trim().toLowerCase(Locale.ROOT) : "day";
         Map<String, String> filters = normalizeFilters(req.getFilters());
 
-        List<FactRow> facts = loadInvoiceFacts(range, dims, mets, filters);
+        List<String> warnings = new ArrayList<>();
+        List<FactRow> facts = loadInvoiceFacts(range, dims, mets, filters, warnings);
         Map<String, AggRow> agg = aggregateFacts(facts, dims, granularity);
 
         List<Map<String, Object>> rows = buildRows(agg, dims, mets, granularity);
@@ -54,7 +56,7 @@ public class AnalyticsService {
         Map<String, Object> totalsRow = buildTotals(rows, dims, mets);
         List<AnalyticsKpi> kpis = buildKpis(totalsRow, mets);
 
-        return new AnalyticsQueryResponse(columns, rows, totalsRow, kpis);
+        return new AnalyticsQueryResponse(columns, rows, totalsRow, kpis, warnings);
     }
 
     public AnalyticsQueryResponse itemPriceHistory(AnalyticsQueryRequest req) {
@@ -74,7 +76,7 @@ public class AnalyticsService {
                 .map(row -> asString(row.get("item_code")).trim())
                 .filter(code -> !code.isBlank())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<String, ItemMeta> itemMeta = fetchItemMeta(itemCodes);
+        Map<String, ItemMeta> itemMeta = batchFetchItemMeta(itemCodes);
 
         List<Map<String, Object>> rows = new ArrayList<>();
         Set<String> uniqueItems = new HashSet<>();
@@ -130,19 +132,50 @@ public class AnalyticsService {
             DateRange range,
             List<String> dims,
             List<String> mets,
-            Map<String, String> filters) {
+            Map<String, String> filters,
+            List<String> warnings) {
         boolean needCost = mets.stream().anyMatch(metric -> Set.of("cost", "profit", "margin_pct").contains(metric));
-        boolean needItemFacts = dims.contains("item_group")
+        boolean needQuantity = mets.contains("quantity");
+        boolean needItemFacts = needQuantity
+                || dims.contains("item_group")
                 || dims.contains("item")
                 || hasText(filters.get("itemGroup"))
                 || hasText(filters.get("item"));
         boolean needSourceOrders = needCost || dims.contains("vendor") || hasText(filters.get("vendor")) || needItemFacts;
 
         List<Map<String, Object>> invoices = fetchInvoices(range, filters);
-        Map<String, Map<String, Object>> sourceOrders = needSourceOrders ? fetchSourceOrderMap(invoices) : Map.of();
+
+        // Collect source order IDs upfront (batch fetch instead of N individual calls)
+        Set<String> sourceOrderIds = new LinkedHashSet<>();
+        for (Map<String, Object> invoice : invoices) {
+            String id = asString(invoice.get("aas_source_sales_order")).trim();
+            if (!id.isBlank()) sourceOrderIds.add(id);
+        }
+
+        Map<String, Map<String, Object>> sourceOrders = needSourceOrders
+                ? batchFetchOrders(sourceOrderIds)
+                : Map.of();
+
+        // Check cost completeness
+        if (needCost && !sourceOrders.isEmpty()) {
+            long ordersWithoutCost = sourceOrders.values().stream()
+                    .filter(order -> extractCostFromItems(order) == 0.0 && !((List<?>) order.getOrDefault("items", List.of())).isEmpty())
+                    .count();
+            if (ordersWithoutCost > 0) {
+                warnings.add("Cost data may be incomplete: " + ordersWithoutCost + " order(s) have no vendor rate set. Margin and profit figures may be understated.");
+            }
+        }
 
         if (needItemFacts) {
-            return buildItemFacts(invoices, sourceOrders, filters);
+            // Batch-fetch invoice line items and item metadata
+            Map<String, List<Map<String, Object>>> invoiceItemMap = batchFetchInvoiceItems(invoices);
+            Set<String> allItemCodes = invoiceItemMap.values().stream()
+                    .flatMap(List::stream)
+                    .map(item -> asString(item.get("item_code")).trim())
+                    .filter(code -> !code.isBlank())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            Map<String, ItemMeta> itemMeta = batchFetchItemMeta(allItemCodes);
+            return buildItemFacts(invoices, sourceOrders, filters, invoiceItemMap, itemMeta);
         }
         return buildInvoiceFacts(invoices, sourceOrders, filters, needCost);
     }
@@ -152,20 +185,74 @@ public class AnalyticsService {
         return invoiceService.listInvoices("Customer", branch.isBlank() ? null : branch, range.start(), range.end());
     }
 
-    private Map<String, Map<String, Object>> fetchSourceOrderMap(List<Map<String, Object>> invoices) {
-        Map<String, Map<String, Object>> sourceOrders = new HashMap<>();
-        for (Map<String, Object> invoice : invoices) {
-            String sourceOrderId = asString(invoice.get("aas_source_sales_order")).trim();
-            if (sourceOrderId.isBlank() || sourceOrders.containsKey(sourceOrderId)) {
-                continue;
-            }
+    // Batch-fetch Sales Order headers and their line items in ~2 list calls per chunk
+    private Map<String, Map<String, Object>> batchFetchOrders(Set<String> orderIds) {
+        if (orderIds.isEmpty()) return Map.of();
+        Map<String, Map<String, Object>> result = new HashMap<>();
+
+        List<List<String>> chunks = partition(new ArrayList<>(orderIds), BATCH_CHUNK_SIZE);
+        for (List<String> chunk : chunks) {
+            // Fetch order headers (name, aas_vendor, aas_category)
             try {
-                sourceOrders.put(sourceOrderId, unwrapResource(erpNextClient.getResource("Sales Order", sourceOrderId)));
-            } catch (Exception ignored) {
-                sourceOrders.put(sourceOrderId, Map.of());
-            }
+                Map<String, Object> params = new HashMap<>();
+                params.put("fields", "[\"name\",\"aas_vendor\",\"aas_category\"]");
+                params.put("filters", buildInFilter("name", chunk));
+                params.put("limit_page_length", String.valueOf(chunk.size() + 1));
+                for (Map<String, Object> row : erpNextClient.listResources("Sales Order", params)) {
+                    String name = asString(row.get("name")).trim();
+                    if (!name.isBlank()) {
+                        Map<String, Object> doc = new HashMap<>(row);
+                        doc.put("items", new ArrayList<>());
+                        result.put(name, doc);
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // Fetch order line items (parent, item_code, item_name, item_group, qty, aas_vendor_rate)
+            try {
+                Map<String, Object> params = new HashMap<>();
+                params.put("fields", "[\"parent\",\"item_code\",\"item_name\",\"item_group\",\"qty\",\"aas_vendor_rate\"]");
+                params.put("filters", buildInFilter("parent", chunk));
+                params.put("limit_page_length", "500");
+                for (Map<String, Object> item : erpNextClient.listResources("Sales Order Item", params)) {
+                    String parent = asString(item.get("parent")).trim();
+                    result.computeIfAbsent(parent, k -> {
+                        Map<String, Object> stub = new HashMap<>();
+                        stub.put("items", new ArrayList<>());
+                        return stub;
+                    });
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> items = (List<Map<String, Object>>) result.get(parent).get("items");
+                    items.add(item);
+                }
+            } catch (Exception ignored) {}
         }
-        return sourceOrders;
+        return result;
+    }
+
+    // Batch-fetch Sales Invoice line items in ~1 list call per chunk
+    private Map<String, List<Map<String, Object>>> batchFetchInvoiceItems(List<Map<String, Object>> invoices) {
+        if (invoices.isEmpty()) return Map.of();
+        List<String> invoiceIds = invoices.stream()
+                .map(inv -> asString(inv.get("name")).trim())
+                .filter(id -> !id.isBlank())
+                .collect(Collectors.toList());
+
+        Map<String, List<Map<String, Object>>> result = new HashMap<>();
+
+        for (List<String> chunk : partition(invoiceIds, BATCH_CHUNK_SIZE)) {
+            try {
+                Map<String, Object> params = new HashMap<>();
+                params.put("fields", "[\"parent\",\"item_code\",\"item_name\",\"item_group\",\"qty\",\"rate\",\"amount\",\"aas_vendor_rate\"]");
+                params.put("filters", buildInFilter("parent", chunk));
+                params.put("limit_page_length", "500");
+                for (Map<String, Object> item : erpNextClient.listResources("Sales Invoice Item", params)) {
+                    String parent = asString(item.get("parent")).trim();
+                    result.computeIfAbsent(parent, k -> new ArrayList<>()).add(item);
+                }
+            } catch (Exception ignored) {}
+        }
+        return result;
     }
 
     private List<FactRow> buildInvoiceFacts(
@@ -191,7 +278,8 @@ public class AnalyticsService {
                     "",
                     "",
                     round(asDouble(invoice.get("grand_total"))),
-                    needCost ? round(extractCostFromItems(sourceOrder)) : 0.0);
+                    needCost ? round(extractCostFromItems(sourceOrder)) : 0.0,
+                    0.0);
             if (matchesCommonFilters(filters, fact)) {
                 facts.add(fact);
             }
@@ -202,30 +290,17 @@ public class AnalyticsService {
     private List<FactRow> buildItemFacts(
             List<Map<String, Object>> invoices,
             Map<String, Map<String, Object>> sourceOrders,
-            Map<String, String> filters) {
-        Map<String, Map<String, Object>> invoiceDocs = fetchInvoiceDocs(invoices);
-        Set<String> itemCodes = new LinkedHashSet<>();
-        for (Map<String, Object> doc : invoiceDocs.values()) {
-            Object items = doc.get("items");
-            if (!(items instanceof List<?> list)) {
-                continue;
-            }
-            for (Object itemObj : list) {
-                if (itemObj instanceof Map<?, ?> item) {
-                    itemCodes.add(asString(item.get("item_code")).trim());
-                }
-            }
-        }
-        Map<String, ItemMeta> itemMeta = fetchItemMeta(itemCodes);
-
+            Map<String, String> filters,
+            Map<String, List<Map<String, Object>>> invoiceItemMap,
+            Map<String, ItemMeta> itemMeta) {
         List<FactRow> facts = new ArrayList<>();
         for (Map<String, Object> invoice : invoices) {
             String invoiceId = asString(invoice.get("name")).trim();
             String sourceOrderId = asString(invoice.get("aas_source_sales_order")).trim();
             Map<String, Object> sourceOrder = sourceOrders.getOrDefault(sourceOrderId, Map.of());
-            Map<String, Object> invoiceDoc = invoiceDocs.getOrDefault(invoiceId, Map.of());
-            Object invoiceItems = invoiceDoc.get("items");
-            if (!(invoiceItems instanceof List<?> list) || list.isEmpty()) {
+            List<Map<String, Object>> invoiceItems = invoiceItemMap.getOrDefault(invoiceId, List.of());
+
+            if (invoiceItems.isEmpty()) {
                 facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, filters, true));
                 continue;
             }
@@ -235,7 +310,7 @@ public class AnalyticsService {
             double invoiceRevenue = round(asDouble(invoice.get("grand_total")));
             double invoiceCost = round(extractCostFromItems(sourceOrder));
             List<SourceOrderLine> sourceLines = buildSourceOrderLines(sourceOrder);
-            List<PreparedLine> preparedLines = prepareLines(list, sourceLines, itemMeta, asString(invoice.get("aas_category")).trim());
+            List<PreparedLine> preparedLines = prepareLines(invoiceItems, sourceLines, itemMeta, asString(invoice.get("aas_category")).trim());
             if (preparedLines.isEmpty()) {
                 facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, filters, true));
                 continue;
@@ -264,7 +339,8 @@ public class AnalyticsService {
                         line.itemCode(),
                         line.itemName(),
                         revenue,
-                        cost);
+                        cost,
+                        line.qty());
                 if (matchesCommonFilters(filters, fact)) {
                     facts.add(fact);
                 }
@@ -273,33 +349,14 @@ public class AnalyticsService {
         return facts;
     }
 
-    private Map<String, Map<String, Object>> fetchInvoiceDocs(List<Map<String, Object>> invoices) {
-        Map<String, Map<String, Object>> docs = new HashMap<>();
-        for (Map<String, Object> invoice : invoices) {
-            String invoiceId = asString(invoice.get("name")).trim();
-            if (invoiceId.isBlank()) {
-                continue;
-            }
-            try {
-                docs.put(invoiceId, unwrapResource(erpNextClient.getResource("Sales Invoice", invoiceId)));
-            } catch (Exception ignored) {
-                docs.put(invoiceId, Map.of());
-            }
-        }
-        return docs;
-    }
-
     private List<PreparedLine> prepareLines(
-            List<?> invoiceItems,
+            List<Map<String, Object>> invoiceItems,
             List<SourceOrderLine> sourceLines,
             Map<String, ItemMeta> itemMeta,
             String fallbackCategory) {
         List<PreparedLine> prepared = new ArrayList<>();
         int sourceIndex = 0;
-        for (Object itemObj : invoiceItems) {
-            if (!(itemObj instanceof Map<?, ?> item)) {
-                continue;
-            }
+        for (Map<String, Object> item : invoiceItems) {
             String itemCode = asString(item.get("item_code")).trim();
             String itemName = asString(firstNonNull(item.get("item_name"), item.get("description"))).trim();
             double qty = asDouble(item.get("qty"));
@@ -323,7 +380,7 @@ public class AnalyticsService {
                 double vendorRate = asDouble(item.get("aas_vendor_rate"));
                 directCost = vendorRate > 0.0 && qty > 0.0 ? vendorRate * qty : 0.0;
             }
-            prepared.add(new PreparedLine(itemCode, itemName, itemGroup, round(amount), round(directCost)));
+            prepared.add(new PreparedLine(itemCode, itemName, itemGroup, round(amount), round(directCost), qty));
         }
         return prepared;
     }
@@ -393,21 +450,25 @@ public class AnalyticsService {
         return false;
     }
 
-    private Map<String, ItemMeta> fetchItemMeta(Set<String> itemCodes) {
+    private Map<String, ItemMeta> batchFetchItemMeta(Set<String> itemCodes) {
+        if (itemCodes.isEmpty()) return Map.of();
         Map<String, ItemMeta> itemMeta = new HashMap<>();
-        for (String rawItemCode : itemCodes) {
-            String itemCode = trimToEmpty(rawItemCode);
-            if (itemCode.isBlank()) {
-                continue;
-            }
+
+        for (List<String> chunk : partition(new ArrayList<>(itemCodes), BATCH_CHUNK_SIZE)) {
             try {
-                Map<String, Object> item = unwrapResource(erpNextClient.getResource("Item", itemCode));
-                itemMeta.put(itemCode, new ItemMeta(
-                        asString(item.get("item_group")).trim(),
-                        asString(item.get("aas_vendor")).trim()));
-            } catch (Exception ignored) {
-                itemMeta.put(itemCode, ItemMeta.empty());
-            }
+                Map<String, Object> params = new HashMap<>();
+                params.put("fields", "[\"name\",\"item_group\",\"aas_vendor\"]");
+                params.put("filters", buildInFilter("name", chunk));
+                params.put("limit_page_length", String.valueOf(chunk.size() + 1));
+                for (Map<String, Object> item : erpNextClient.listResources("Item", params)) {
+                    String name = asString(item.get("name")).trim();
+                    if (!name.isBlank()) {
+                        itemMeta.put(name, new ItemMeta(
+                                asString(item.get("item_group")).trim(),
+                                asString(item.get("aas_vendor")).trim()));
+                    }
+                }
+            } catch (Exception ignored) {}
         }
         return itemMeta;
     }
@@ -459,6 +520,7 @@ public class AnalyticsService {
             });
             row.revenue += fact.revenue();
             row.cost += fact.cost();
+            row.qty += fact.qty();
             row.orderIds.add(fact.invoiceId());
         }
         return agg;
@@ -522,6 +584,7 @@ public class AnalyticsService {
             double profit = round(revenue - cost);
             double marginPct = revenue > 0 ? round((profit / revenue) * 100.0) : 0.0;
             double avgOrderValue = orders > 0 ? round(revenue / orders) : 0.0;
+            double qty = round(aggRow.qty);
             for (String metric : mets) {
                 switch (metric) {
                     case "revenue" -> row.put("revenue", revenue);
@@ -530,6 +593,7 @@ public class AnalyticsService {
                     case "margin_pct" -> row.put("margin_pct", marginPct);
                     case "orders" -> row.put("orders", orders);
                     case "avg_order_value" -> row.put("avg_order_value", avgOrderValue);
+                    case "quantity" -> row.put("quantity", qty);
                 }
             }
             rows.add(row);
@@ -579,6 +643,7 @@ public class AnalyticsService {
                 case "margin_pct" -> columns.add(new AnalyticsColumn("margin_pct", "Margin %", "PERCENT"));
                 case "orders" -> columns.add(new AnalyticsColumn("orders", "Orders", "NUMBER"));
                 case "avg_order_value" -> columns.add(new AnalyticsColumn("avg_order_value", "Avg Order", "CURRENCY"));
+                case "quantity" -> columns.add(new AnalyticsColumn("quantity", "Qty", "NUMBER"));
             }
         }
         return columns;
@@ -606,10 +671,12 @@ public class AnalyticsService {
         double totalRevenue = 0.0;
         double totalCost = 0.0;
         int totalOrders = 0;
+        double totalQty = 0.0;
         for (Map<String, Object> row : rows) {
             totalRevenue += asDouble(row.getOrDefault("revenue", 0.0));
             totalCost += asDouble(row.getOrDefault("cost", 0.0));
             totalOrders += (int) asDouble(row.getOrDefault("orders", 0.0));
+            totalQty += asDouble(row.getOrDefault("quantity", 0.0));
         }
         double totalProfit = round(totalRevenue - totalCost);
         double totalMarginPct = totalRevenue > 0 ? round((totalProfit / totalRevenue) * 100.0) : 0.0;
@@ -622,6 +689,7 @@ public class AnalyticsService {
                 case "margin_pct" -> totals.put("margin_pct", totalMarginPct);
                 case "orders" -> totals.put("orders", totalOrders);
                 case "avg_order_value" -> totals.put("avg_order_value", totalAvgOrderValue);
+                case "quantity" -> totals.put("quantity", round(totalQty));
             }
         }
         return totals;
@@ -638,6 +706,7 @@ public class AnalyticsService {
                 case "margin_pct" -> "Avg Margin";
                 case "orders" -> "Total Orders";
                 case "avg_order_value" -> "Avg Order Value";
+                case "quantity" -> "Total Qty";
                 default -> metric;
             };
             String valueType = switch (metric) {
@@ -703,17 +772,21 @@ public class AnalyticsService {
         return new DateRange(start.toString(), end.toString());
     }
 
-    private Map<String, Object> unwrapResource(Map<String, Object> resource) {
-        if (resource == null) {
-            return Map.of();
+    // Build ERPNext "in" filter JSON: [["fieldname","in",["v1","v2"]]]
+    private String buildInFilter(String field, List<String> values) {
+        String safeField = field.replace("\\", "\\\\").replace("\"", "\\\"");
+        String valuesJson = values.stream()
+                .map(v -> "\"" + v.replace("\\", "\\\\").replace("\"", "\\\"") + "\"")
+                .collect(Collectors.joining(",", "[", "]"));
+        return "[[\"" + safeField + "\",\"in\"," + valuesJson + "]]";
+    }
+
+    private <T> List<List<T>> partition(List<T> source, int size) {
+        List<List<T>> result = new ArrayList<>();
+        for (int i = 0; i < source.size(); i += size) {
+            result.add(source.subList(i, Math.min(i + size, source.size())));
         }
-        Object data = resource.get("data");
-        if (data instanceof Map<?, ?> map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> unwrapped = (Map<String, Object>) map;
-            return unwrapped;
-        }
-        return resource;
+        return result;
     }
 
     private Object firstNonNull(Object... values) {
@@ -815,8 +888,7 @@ public class AnalyticsService {
         return builder.append("]").toString();
     }
 
-    private record DateRange(String start, String end) {
-    }
+    private record DateRange(String start, String end) {}
 
     private record FactRow(
             String invoiceId,
@@ -828,17 +900,16 @@ public class AnalyticsService {
             String itemCode,
             String itemName,
             double revenue,
-            double cost) {
+            double cost,
+            double qty) {
         String itemLabel() {
             return displayItem(itemCode, itemName);
         }
     }
 
-    private record PreparedLine(String itemCode, String itemName, String itemGroup, double amount, double directCost) {
-    }
+    private record PreparedLine(String itemCode, String itemName, String itemGroup, double amount, double directCost, double qty) {}
 
-    private record SourceOrderLine(int index, String itemCode, String itemName, String itemGroup, double directCost) {
-    }
+    private record SourceOrderLine(int index, String itemCode, String itemName, String itemGroup, double directCost) {}
 
     private record ItemMeta(String itemGroup, String vendor) {
         static ItemMeta empty() {
@@ -850,6 +921,7 @@ public class AnalyticsService {
         final Map<String, Object> dims = new LinkedHashMap<>();
         double revenue;
         double cost;
+        double qty;
         final Set<String> orderIds = new HashSet<>();
     }
 
@@ -896,6 +968,5 @@ public class AnalyticsService {
         }
     }
 
-    private record PeriodKey(String start, String end) {
-    }
+    private record PeriodKey(String start, String end) {}
 }

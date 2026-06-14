@@ -30,7 +30,10 @@ export interface AnalyticsQueryResponse {
   rows: Record<string, unknown>[];
   totalsRow: Record<string, unknown>;
   kpis: AnalyticsKpi[];
+  warnings: string[];
 }
+
+export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
 
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
@@ -48,15 +51,15 @@ export class AnalyticsService {
     });
   }
 
-  export(req: AnalyticsQueryRequest): Observable<Blob> {
-    return this.http.post('/api/analytics/query/export', req, {
+  export(req: AnalyticsQueryRequest, format: ExportFormat = 'csv'): Observable<Blob> {
+    return this.http.post(`/api/analytics/query/export?format=${format}`, req, {
       headers: this.authHeaders(),
       responseType: 'blob'
     });
   }
 
-  exportItemPriceHistory(req: AnalyticsQueryRequest): Observable<Blob> {
-    return this.http.post('/api/analytics/item-price-history/export', req, {
+  exportItemPriceHistory(req: AnalyticsQueryRequest, format: ExportFormat = 'csv'): Observable<Blob> {
+    return this.http.post(`/api/analytics/item-price-history/export?format=${format}`, req, {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

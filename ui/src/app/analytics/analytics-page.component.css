@@ -25,6 +25,30 @@
   color: var(--text-secondary, #4b5563);
 }
 
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 4px;
+}
+
+.preset-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  margin-right: 2px;
+}
+
+.preset-btn {
+  font-size: 12px;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  min-width: unset;
+}
+
 .filters-row {
   display: flex;
   flex-wrap: wrap;
@@ -176,6 +200,26 @@
   font-size: 13px;
   color: var(--text-secondary, #374151);
   padding: 0 4px;
+}
+
+.warning-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.warning-bar mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #d97706;
+  flex-shrink: 0;
 }
 
 .kpi-strip {

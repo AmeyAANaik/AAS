@@ -22,6 +22,19 @@
 
   <mat-card class="control-card">
     <mat-card-content>
+
+      <!-- Date preset chips -->
+      <div class="preset-row">
+        <span class="preset-label">Quick:</span>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('today')">Today</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('7d')">Last 7 days</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('30d')">Last 30 days</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('thisMonth')">This month</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('lastMonth')">Last month</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('thisQuarter')">This quarter</button>
+        <button mat-stroked-button class="preset-btn" (click)="setPreset('ytd')">YTD</button>
+      </div>
+
       <div class="filters-row" [formGroup]="filterForm">
         <mat-form-field appearance="outline" class="date-field">
           <mat-label>From</mat-label>
@@ -71,7 +84,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="item-field" *ngIf="viewMode === 'priceHistory'">
+        <mat-form-field appearance="outline" class="item-field">
           <mat-label>Item</mat-label>
           <input matInput formControlName="item" [matAutocomplete]="itemAuto" placeholder="Search item code or name" />
           <mat-autocomplete #itemAuto="matAutocomplete" autoActiveFirstOption>
@@ -132,12 +145,15 @@
             <mat-icon *ngIf="!isLoading">play_arrow</mat-icon>
             <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
           </button>
-          <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="!canExport()">
-            <mat-icon>download</mat-icon> Export CSV
+          <button mat-stroked-button color="primary" [matMenuTriggerFor]="exportMenu" [disabled]="!canExport()">
+            <mat-icon>download</mat-icon> Export
           </button>
-          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">
-            Clear
-          </button>
+          <mat-menu #exportMenu="matMenu">
+            <button mat-menu-item (click)="exportAs('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+            <button mat-menu-item (click)="exportAs('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+            <button mat-menu-item (click)="exportAs('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+          </mat-menu>
+          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">Clear</button>
         </div>
       </div>
 
@@ -149,12 +165,15 @@
             <mat-icon *ngIf="!isLoading">play_arrow</mat-icon>
             <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
           </button>
-          <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="!canExport()">
-            <mat-icon>download</mat-icon> Export CSV
+          <button mat-stroked-button color="primary" [matMenuTriggerFor]="historyExportMenu" [disabled]="!canExport()">
+            <mat-icon>download</mat-icon> Export
           </button>
-          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">
-            Clear
-          </button>
+          <mat-menu #historyExportMenu="matMenu">
+            <button mat-menu-item (click)="exportAs('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+            <button mat-menu-item (click)="exportAs('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+            <button mat-menu-item (click)="exportAs('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+          </mat-menu>
+          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">Clear</button>
         </div>
       </div>
     </mat-card-content>
@@ -163,6 +182,18 @@
   <div class="status-bar" *ngIf="status">
     <mat-icon>{{ lastRunOk ? 'check_circle' : 'error' }}</mat-icon>
     <span>{{ status }}</span>
+  </div>
+
+  <!-- Backend warnings (e.g. incomplete cost data) -->
+  <div class="warning-bar" *ngFor="let w of backendWarnings">
+    <mat-icon>warning</mat-icon>
+    <span>{{ w }}</span>
+  </div>
+
+  <!-- Large result set warning -->
+  <div class="warning-bar" *ngIf="rowCountWarning">
+    <mat-icon>info</mat-icon>
+    <span>{{ rowCountWarning }}</span>
   </div>
 
   <div class="kpi-strip" *ngIf="kpis.length">
