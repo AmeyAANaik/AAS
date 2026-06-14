@@ -126,6 +126,14 @@
 	          </form>
 
 	          <div class="ledger-actions">
+	            <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="fullLedgerMenu" [disabled]="!selectedBranch" aria-label="Download full branch ledger">
+	              <mat-icon>summarize</mat-icon>
+	            </button>
+	            <mat-menu #fullLedgerMenu="matMenu">
+	              <button mat-menu-item (click)="downloadLedger('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+	              <button mat-menu-item (click)="downloadLedger('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+	              <button mat-menu-item (click)="downloadLedger('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+	            </mat-menu>
 	            <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="categorySummaryMenu" [disabled]="!ledgerCategorySummary.length" aria-label="Download branch ledger category summary">
 	              <mat-icon>category</mat-icon>
 	            </button>

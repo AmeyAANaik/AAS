@@ -110,6 +110,15 @@ export class BranchOpsPageComponent implements OnInit {
     });
   }
 
+  downloadLedger(format: ExportFormat = 'csv'): void {
+    const branchId = this.selectedBranch?.branch?.branchId;
+    if (!branchId) { return; }
+    this.branchOpsService.downloadBranchLedger(branchId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-ledger-${this.toFileSegment(branchId)}.${format}`),
+      error: () => { this.errorMessage = 'Unable to download branch ledger.'; }
+    });
+  }
+
   downloadCategorySummary(format: ExportFormat = 'csv'): void {
     const branchId = this.selectedBranch?.branch?.branchId;
     if (!branchId) {

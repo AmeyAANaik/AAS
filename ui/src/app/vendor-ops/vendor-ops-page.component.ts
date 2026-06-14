@@ -108,6 +108,15 @@ export class VendorOpsPageComponent implements OnInit {
     });
   }
 
+  downloadLedger(format: ExportFormat = 'csv'): void {
+    const vendorId = this.selectedVendor?.vendor?.vendorId;
+    if (!vendorId) { return; }
+    this.vendorOpsService.downloadVendorLedger(vendorId, this.appliedLedgerRange, format).subscribe({
+      next: blob => this.saveBlob(blob, `vendor-ledger-${this.toFileSegment(vendorId)}.${format}`),
+      error: () => { this.errorMessage = 'Unable to download vendor ledger.'; }
+    });
+  }
+
   downloadCategorySummary(format: ExportFormat = 'csv'): void {
     const vendorId = this.selectedVendor?.vendor?.vendorId;
     if (!vendorId) {
