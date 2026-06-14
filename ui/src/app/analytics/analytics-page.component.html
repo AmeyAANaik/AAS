@@ -1,0 +1,197 @@
+<div class="analytics-page">
+  <app-page-header
+    title="Analytics Explorer"
+    subtitle="Slice revenue, cost & profit across any dimension and time range.">
+  </app-page-header>
+
+  <!-- ── CONTROL CARD ── -->
+  <mat-card class="control-card">
+    <mat-card-content>
+
+      <!-- Filters row -->
+      <div class="filters-row" [formGroup]="filterForm">
+        <mat-form-field appearance="outline" class="date-field">
+          <mat-label>From</mat-label>
+          <input matInput [matDatepicker]="fromPicker" formControlName="dateFrom" />
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="date-field">
+          <mat-label>To</mat-label>
+          <input matInput [matDatepicker]="toPicker" formControlName="dateTo" />
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="showGranularity()" class="granularity-field">
+          <mat-label>Granularity</mat-label>
+          <mat-select formControlName="granularity">
+            <mat-option value="day">Day</mat-option>
+            <mat-option value="week">Week</mat-option>
+            <mat-option value="month">Month</mat-option>
+            <mat-option value="quarter">Quarter</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Vendor</mat-label>
+          <input matInput formControlName="vendor" placeholder="All vendors" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Branch</mat-label>
+          <input matInput formControlName="branch" placeholder="All branches" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Category</mat-label>
+          <input matInput formControlName="itemGroup" placeholder="All categories" />
+        </mat-form-field>
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <!-- Dimensions & Metrics -->
+      <div class="builder-row">
+        <!-- Dimensions -->
+        <div class="builder-section">
+          <div class="builder-label">
+            <mat-icon>view_column</mat-icon>
+            <span>Dimensions</span>
+            <span class="builder-hint">group rows by</span>
+          </div>
+          <div class="toggle-chips">
+            <button
+              *ngFor="let dim of allDimensions"
+              type="button"
+              class="dim-chip"
+              [class.active]="activeDimensions.has(dim.id)"
+              (click)="toggleDimension(dim.id)"
+              [matTooltip]="activeDimensions.has(dim.id) && activeDimensions.size === 1 ? 'At least one dimension required' : ''">
+              <mat-icon class="chip-icon">{{ dim.icon }}</mat-icon>
+              <span>{{ dim.label }}</span>
+              <mat-icon class="chip-check" *ngIf="activeDimensions.has(dim.id)">check</mat-icon>
+            </button>
+          </div>
+        </div>
+
+        <div class="builder-divider"></div>
+
+        <!-- Metrics -->
+        <div class="builder-section">
+          <div class="builder-label">
+            <mat-icon>insights</mat-icon>
+            <span>Metrics</span>
+            <span class="builder-hint">KPIs to show</span>
+          </div>
+          <div class="toggle-chips">
+            <button
+              *ngFor="let met of allMetrics"
+              type="button"
+              class="met-chip"
+              [class.active]="activeMetrics.has(met.id)"
+              (click)="toggleMetric(met.id)"
+              [matTooltip]="activeMetrics.has(met.id) && activeMetrics.size === 1 ? 'At least one metric required' : ''">
+              <span>{{ met.label }}</span>
+              <mat-icon class="chip-check" *ngIf="activeMetrics.has(met.id)">check</mat-icon>
+            </button>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-col">
+          <button mat-flat-button color="primary" (click)="run()" [disabled]="!canRun()" class="run-btn">
+            <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!isLoading">play_arrow</mat-icon>
+            <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
+          </button>
+          <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="!canExport()">
+            <mat-icon>download</mat-icon> Export CSV
+          </button>
+          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">
+            Clear
+          </button>
+        </div>
+      </div>
+
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── STATUS ── -->
+  <div class="status-bar" *ngIf="status">
+    <mat-icon>{{ lastRunOk ? 'check_circle' : 'error' }}</mat-icon>
+    <span>{{ status }}</span>
+  </div>
+
+  <!-- ── KPI CARDS ── -->
+  <div class="kpi-strip" *ngIf="kpis.length">
+    <mat-card class="kpi-card" *ngFor="let kpi of kpis" [ngClass]="kpiClass(kpi)">
+      <div class="kpi-icon-wrap">
+        <mat-icon>{{ kpiIcon(kpi) }}</mat-icon>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">{{ kpi.label }}</div>
+        <div class="kpi-value">{{ formatKpi(kpi) }}</div>
+      </div>
+    </mat-card>
+  </div>
+
+  <!-- ── RESULTS CARD ── -->
+  <mat-card class="results-card" *ngIf="result; else emptyCard">
+    <mat-card-content>
+
+      <!-- Chart -->
+      <div class="chart-wrap" *ngIf="chartData">
+        <canvas baseChart [data]="chartData" [type]="chartType" [options]="chartOptions"></canvas>
+      </div>
+
+      <mat-divider *ngIf="chartData && tableRows.length"></mat-divider>
+
+      <!-- Table -->
+      <div class="table-wrap" *ngIf="tableRows.length">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th *ngFor="let col of tableColumns" [class.dim-col]="isDimension(col)">
+                {{ col.label }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of tableRows">
+              <td *ngFor="let col of tableColumns"
+                  [class.dim-col]="isDimension(col)"
+                  [class.num-col]="!isDimension(col)"
+                  [ngClass]="cellClass(col, row[col.id])">
+                {{ formatCell(col, row[col.id]) }}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot *ngIf="tableRows.length > 1">
+            <tr class="totals-row">
+              <td *ngFor="let col of tableColumns"
+                  [class.num-col]="!isDimension(col)">
+                {{ formatCell(col, totalRow[col.id]) }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+    </mat-card-content>
+  </mat-card>
+
+  <ng-template #emptyCard>
+    <mat-card class="results-card" *ngIf="!isLoading">
+      <mat-card-content>
+        <app-empty-state
+          icon="analytics"
+          title="No results yet"
+          message="Choose dimensions and metrics above, then click Run.">
+        </app-empty-state>
+      </mat-card-content>
+    </mat-card>
+  </ng-template>
+
+</div>

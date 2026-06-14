@@ -69,7 +69,10 @@ export class AppShellComponent implements OnDestroy {
     },
     {
       title: 'Reports',
-      links: [{ label: 'Reports', icon: 'query_stats', route: '/reports', feature: 'reports.view' }]
+      links: [
+        { label: 'Reports', icon: 'query_stats', route: '/reports', feature: 'reports.view' },
+        { label: 'Analytics', icon: 'analytics', route: '/analytics', feature: 'reports.view' }
+      ]
     },
     {
       title: 'Operations',
@@ -95,7 +98,8 @@ export class AppShellComponent implements OnDestroy {
     '/company-settings': { breadcrumbs: ['Home', 'Company Settings'] },
     '/categories': { breadcrumbs: ['Master Data', 'Categories'] },
     '/items': { breadcrumbs: ['Master Data', 'Items'] },
-    '/reports': { breadcrumbs: ['Reports'] }
+    '/reports': { breadcrumbs: ['Reports'] },
+    '/analytics': { breadcrumbs: ['Analytics'] }
   };
   private readonly subscription: Subscription;
   private readonly themeSubscription: Subscription;

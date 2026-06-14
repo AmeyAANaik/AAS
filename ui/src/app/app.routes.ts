@@ -68,6 +68,12 @@ export const routes: Routes = [
         canMatch: [featureGuard],
         data: { feature: 'reports.view' }
       },
+      {
+        path: 'analytics',
+        loadChildren: () => import('./analytics/analytics.module').then(m => m.AnalyticsModule),
+        canMatch: [featureGuard],
+        data: { feature: 'reports.view' }
+      },
       { path: '', redirectTo: 'admin/dashboard', pathMatch: 'full' }
     ]
   },
