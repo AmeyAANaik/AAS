@@ -64,9 +64,8 @@ export const routes: Routes = [
       { path: 'items', loadChildren: () => import('./items/items.module').then(m => m.ItemsModule), canMatch: [featureGuard], data: { feature: 'items.manage' } },
       {
         path: 'reports',
-        loadComponent: () => import('./shell/reports-placeholder.component').then(m => m.ReportsPlaceholderComponent),
-        canMatch: [featureGuard],
-        data: { feature: 'reports.view' }
+        redirectTo: 'analytics',
+        pathMatch: 'full'
       },
       {
         path: 'analytics',

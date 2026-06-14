@@ -11,6 +11,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 
@@ -21,11 +22,19 @@ public final class LedgerPdfUtil {
     private static final float HEADER_FONT_SIZE = 9f;
     private static final float DATA_FONT_SIZE = 8f;
     private static final float TITLE_FONT_SIZE = 12f;
+    private static final float BRAND_NAME_FONT_SIZE = 14f;
+    private static final float BRAND_META_FONT_SIZE = 9f;
+    private static final float LOGO_MAX_WIDTH = 60f;
+    private static final float LOGO_MAX_HEIGHT = 60f;
     private static final int MAX_CELL_CHARS = 20;
 
     private LedgerPdfUtil() {}
 
     public static byte[] toPdf(List<Map<String, Object>> rows, String title) throws IOException {
+        return toPdf(rows, title, null);
+    }
+
+    public static byte[] toPdf(List<Map<String, Object>> rows, String title, Branding branding) throws IOException {
         try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
             PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
@@ -43,11 +52,7 @@ public final class LedgerPdfUtil {
             PDPage page = new PDPage(pageSize);
             document.addPage(page);
             PDPageContentStream content = new PDPageContentStream(document, page);
-            float y = pageHeight - MARGIN;
-
-            // Title
-            writeText(content, bold, TITLE_FONT_SIZE, MARGIN, y, safeTitle(title));
-            y -= (TITLE_FONT_SIZE + 8f);
+            float y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding);
 
             // Draw header row
             y = drawRow(content, bold, HEADER_FONT_SIZE, MARGIN, y, colWidth, headers, true);
@@ -59,7 +64,7 @@ public final class LedgerPdfUtil {
                         page = new PDPage(pageSize);
                         document.addPage(page);
                         content = new PDPageContentStream(document, page);
-                        y = pageHeight - MARGIN;
+                        y = drawPageHeader(document, content, pageWidth, pageHeight, bold, regular, safeTitle(title), branding);
                         y = drawRow(content, bold, HEADER_FONT_SIZE, MARGIN, y, colWidth, headers, true);
                     }
                     List<String> cells = new ArrayList<>();
@@ -126,4 +131,56 @@ public final class LedgerPdfUtil {
     private static String safeTitle(String title) {
         return title == null ? "Ledger Export" : title.replaceAll("[^\\x20-\\x7E]", "");
     }
+
+    private static float drawPageHeader(
+            PDDocument document,
+            PDPageContentStream content,
+            float pageWidth,
+            float pageHeight,
+            PDType1Font bold,
+            PDType1Font regular,
+            String title,
+            Branding branding) throws IOException {
+        float y = pageHeight - MARGIN;
+        float textStartX = MARGIN;
+        if (branding != null && branding.logoBytes() != null && branding.logoBytes().length > 0) {
+            try {
+                PDImageXObject logo = PDImageXObject.createFromByteArray(document, branding.logoBytes(), "company-logo");
+                float scale = Math.min(LOGO_MAX_WIDTH / logo.getWidth(), LOGO_MAX_HEIGHT / logo.getHeight());
+                float drawWidth = Math.max(1f, logo.getWidth() * scale);
+                float drawHeight = Math.max(1f, logo.getHeight() * scale);
+                float imageY = y - drawHeight + 8f;
+                content.drawImage(logo, MARGIN, imageY, drawWidth, drawHeight);
+                textStartX = MARGIN + drawWidth + 14f;
+            } catch (Exception ignored) {
+                textStartX = MARGIN;
+            }
+        }
+
+        String companyName = branding == null ? "" : safeText(branding.companyName());
+        if (!companyName.isBlank()) {
+            writeText(content, bold, BRAND_NAME_FONT_SIZE, textStartX, y, companyName);
+            y -= BRAND_NAME_FONT_SIZE + 4f;
+        }
+        String companyTaxId = branding == null ? "" : safeText(branding.taxId());
+        if (!companyTaxId.isBlank()) {
+            writeText(content, regular, BRAND_META_FONT_SIZE, textStartX, y, "GSTIN: " + companyTaxId);
+            y -= BRAND_META_FONT_SIZE + 6f;
+        }
+
+        float titleY = y - 6f;
+        writeText(content, bold, TITLE_FONT_SIZE, MARGIN, titleY, title);
+        float dividerY = titleY - 8f;
+        content.setLineWidth(0.8f);
+        content.moveTo(MARGIN, dividerY);
+        content.lineTo(pageWidth - MARGIN, dividerY);
+        content.stroke();
+        return dividerY - 12f;
+    }
+
+    private static String safeText(String value) {
+        return value == null ? "" : value.replaceAll("[^\\x20-\\x7E]", "").trim();
+    }
+
+    public record Branding(String companyName, String taxId, byte[] logoBytes) {}
 }

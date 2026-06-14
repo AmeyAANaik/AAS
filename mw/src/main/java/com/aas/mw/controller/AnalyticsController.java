@@ -35,6 +35,21 @@ public class AnalyticsController {
     @PostMapping("/query/export")
     public ResponseEntity<String> export(@RequestBody AnalyticsQueryRequest req) {
         AnalyticsQueryResponse result = analyticsService.query(req);
+        return csvResponse(result, "analytics-export.csv");
+    }
+
+    @PostMapping("/item-price-history")
+    public ResponseEntity<AnalyticsQueryResponse> itemPriceHistory(@RequestBody AnalyticsQueryRequest req) {
+        return ResponseEntity.ok(analyticsService.itemPriceHistory(req));
+    }
+
+    @PostMapping("/item-price-history/export")
+    public ResponseEntity<String> exportItemPriceHistory(@RequestBody AnalyticsQueryRequest req) {
+        AnalyticsQueryResponse result = analyticsService.itemPriceHistory(req);
+        return csvResponse(result, "analytics-item-price-history.csv");
+    }
+
+    private ResponseEntity<String> csvResponse(AnalyticsQueryResponse result, String fileName) {
         List<AnalyticsColumn> columns = result.getColumns();
         List<Map<String, Object>> csvRows = new ArrayList<>();
         for (Map<String, Object> row : result.getRows()) {
@@ -50,7 +65,7 @@ public class AnalyticsController {
         String csv = CsvUtil.toCsv(csvRows);
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setContentType(MediaType.parseMediaType("text/csv"));
-        httpHeaders.setContentDispositionFormData("attachment", "analytics-export.csv");
+        httpHeaders.setContentDispositionFormData("attachment", fileName);
         return ResponseEntity.ok().headers(httpHeaders).body(csv);
     }
 }

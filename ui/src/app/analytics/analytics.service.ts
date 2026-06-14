@@ -42,8 +42,21 @@ export class AnalyticsService {
     });
   }
 
+  itemPriceHistory(req: AnalyticsQueryRequest): Observable<AnalyticsQueryResponse> {
+    return this.http.post<AnalyticsQueryResponse>('/api/analytics/item-price-history', req, {
+      headers: this.authHeaders()
+    });
+  }
+
   export(req: AnalyticsQueryRequest): Observable<Blob> {
     return this.http.post('/api/analytics/query/export', req, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  exportItemPriceHistory(req: AnalyticsQueryRequest): Observable<Blob> {
+    return this.http.post('/api/analytics/item-price-history/export', req, {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

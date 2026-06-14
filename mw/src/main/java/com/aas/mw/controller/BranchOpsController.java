@@ -1,6 +1,9 @@
 package com.aas.mw.controller;
 
 import com.aas.mw.service.BranchOpsService;
+import com.aas.mw.service.ErpNextFileService;
+import com.aas.mw.service.MasterDataService;
+import com.aas.mw.service.UserService;
 import com.aas.mw.util.CsvUtil;
 import com.aas.mw.util.LedgerPdfUtil;
 import com.aas.mw.util.XlsUtil;
@@ -11,6 +14,8 @@ import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,9 +27,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class BranchOpsController {
 
     private final BranchOpsService branchOpsService;
+    private final MasterDataService masterDataService;
+    private final UserService userService;
+    private final ErpNextFileService erpNextFileService;
 
-    public BranchOpsController(BranchOpsService branchOpsService) {
+    public BranchOpsController(
+            BranchOpsService branchOpsService,
+            MasterDataService masterDataService,
+            UserService userService,
+            ErpNextFileService erpNextFileService) {
         this.branchOpsService = branchOpsService;
+        this.masterDataService = masterDataService;
+        this.userService = userService;
+        this.erpNextFileService = erpNextFileService;
     }
 
     @GetMapping("/summary")
@@ -133,7 +148,7 @@ public class BranchOpsController {
                 case "pdf" -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".pdf\"")
                         .contentType(MediaType.APPLICATION_PDF)
-                        .body(LedgerPdfUtil.toPdf(rows, baseName.replace('-', ' ')));
+                        .body(LedgerPdfUtil.toPdf(rows, humanizeTitle(baseName), resolveBranding()));
                 default -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".csv\"")
                         .contentType(MediaType.valueOf("text/csv;charset=UTF-8"))
@@ -149,5 +164,62 @@ public class BranchOpsController {
             return "unknown";
         }
         return value.replaceAll("[^A-Za-z0-9._-]+", "_");
+    }
+
+    private String humanizeTitle(String baseName) {
+        if (baseName == null || baseName.isBlank()) {
+            return "Branch Ledger";
+        }
+        String normalized = baseName.replace('-', ' ').replace('_', ' ').trim().replaceAll("\\s+", " ");
+        if (normalized.isBlank()) {
+            return "Branch Ledger";
+        }
+        return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
+    }
+
+    private LedgerPdfUtil.Branding resolveBranding() {
+        Map<String, Object> company = resolvePreferredCompanyProfile();
+        if (company.isEmpty()) {
+            return null;
+        }
+        byte[] logoBytes = null;
+        String logoUrl = asText(company.get("logo_url"));
+        if (!logoUrl.isBlank()) {
+            try {
+                logoBytes = erpNextFileService.downloadFile(logoUrl).bytes();
+            } catch (Exception ignored) {
+                logoBytes = null;
+            }
+        }
+        return new LedgerPdfUtil.Branding(
+                asText(company.get("name")),
+                asText(company.get("tax_id")),
+                logoBytes);
+    }
+
+    private Map<String, Object> resolvePreferredCompanyProfile() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth == null ? "" : asText(auth.getName());
+        if (!username.isBlank()) {
+            Map<String, Object> profile = userService.getUserProfile(username);
+            String companyId = asText(profile.get("company"));
+            if (!companyId.isBlank()) {
+                try {
+                    return masterDataService.getCompanyProfile(companyId);
+                } catch (Exception ignored) {
+                    // Fall back to first available company below.
+                }
+            }
+        }
+        List<Map<String, Object>> companies = masterDataService.listCompanies();
+        if (companies == null || companies.isEmpty()) {
+            return Map.of();
+        }
+        String companyId = asText(companies.get(0).get("name"));
+        return companyId.isBlank() ? Map.of() : masterDataService.getCompanyProfile(companyId);
+    }
+
+    private String asText(Object value) {
+        return value == null ? "" : value.toString().trim();
     }
 }

@@ -1,14 +1,27 @@
 <div class="analytics-page">
   <app-page-header
-    title="Analytics Explorer"
-    subtitle="Slice revenue, cost & profit across any dimension and time range.">
+    title="Analytics"
+    subtitle="Run dashboard-aligned billing analytics or inspect day-wise item price history.">
   </app-page-header>
 
-  <!-- ── CONTROL CARD ── -->
+  <mat-card class="mode-card">
+    <mat-card-content>
+      <mat-button-toggle-group [value]="viewMode" (change)="setViewMode($event.value)" aria-label="Analytics view mode">
+        <mat-button-toggle *ngFor="let mode of viewModes" [value]="mode.id">
+          {{ mode.label }}
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+      <div class="mode-note" *ngIf="viewMode === 'explorer'">
+        Revenue and order totals use invoice data so the KPIs stay aligned with Dashboard.
+      </div>
+      <div class="mode-note" *ngIf="viewMode === 'priceHistory'">
+        Price history is independent from the dimension and metric builder. Select an item to see day-wise selling prices.
+      </div>
+    </mat-card-content>
+  </mat-card>
+
   <mat-card class="control-card">
     <mat-card-content>
-
-      <!-- Filters row -->
       <div class="filters-row" [formGroup]="filterForm">
         <mat-form-field appearance="outline" class="date-field">
           <mat-label>From</mat-label>
@@ -36,25 +49,40 @@
 
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Vendor</mat-label>
-          <input matInput formControlName="vendor" placeholder="All vendors" />
+          <input matInput formControlName="vendor" [matAutocomplete]="vendorAuto" placeholder="Search vendor" />
+          <mat-autocomplete #vendorAuto="matAutocomplete" autoActiveFirstOption>
+            <mat-option *ngFor="let option of (filteredVendors$ | async)" [value]="option.label">{{ option.label }}</mat-option>
+          </mat-autocomplete>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Branch</mat-label>
-          <input matInput formControlName="branch" placeholder="All branches" />
+          <input matInput formControlName="branch" [matAutocomplete]="branchAuto" placeholder="Search branch" />
+          <mat-autocomplete #branchAuto="matAutocomplete" autoActiveFirstOption>
+            <mat-option *ngFor="let option of (filteredBranches$ | async)" [value]="option.label">{{ option.label }}</mat-option>
+          </mat-autocomplete>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Category</mat-label>
-          <input matInput formControlName="itemGroup" placeholder="All categories" />
+          <input matInput formControlName="itemGroup" [matAutocomplete]="categoryAuto" placeholder="Search category" />
+          <mat-autocomplete #categoryAuto="matAutocomplete" autoActiveFirstOption>
+            <mat-option *ngFor="let option of (filteredCategories$ | async)" [value]="option.label">{{ option.label }}</mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="item-field">
+          <mat-label>Item</mat-label>
+          <input matInput formControlName="item" [matAutocomplete]="itemAuto" placeholder="Search item code or name" />
+          <mat-autocomplete #itemAuto="matAutocomplete" autoActiveFirstOption>
+            <mat-option *ngFor="let option of (filteredItems$ | async)" [value]="option.label">{{ option.label }}</mat-option>
+          </mat-autocomplete>
         </mat-form-field>
       </div>
 
       <mat-divider></mat-divider>
 
-      <!-- Dimensions & Metrics -->
-      <div class="builder-row">
-        <!-- Dimensions -->
+      <div class="builder-row" *ngIf="viewMode === 'explorer'">
         <div class="builder-section">
           <div class="builder-label">
             <mat-icon>view_column</mat-icon>
@@ -78,7 +106,6 @@
 
         <div class="builder-divider"></div>
 
-        <!-- Metrics -->
         <div class="builder-section">
           <div class="builder-label">
             <mat-icon>insights</mat-icon>
@@ -99,7 +126,6 @@
           </div>
         </div>
 
-        <!-- Actions -->
         <div class="actions-col">
           <button mat-flat-button color="primary" (click)="run()" [disabled]="!canRun()" class="run-btn">
             <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
@@ -115,16 +141,30 @@
         </div>
       </div>
 
+      <div class="history-actions" *ngIf="viewMode === 'priceHistory'">
+        <div class="history-hint">Use the item filter above to inspect day-wise price movement for a specific item.</div>
+        <div class="actions-col inline-actions">
+          <button mat-flat-button color="primary" (click)="run()" [disabled]="!canRun()" class="run-btn">
+            <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!isLoading">play_arrow</mat-icon>
+            <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
+          </button>
+          <button mat-stroked-button color="primary" (click)="exportCsv()" [disabled]="!canExport()">
+            <mat-icon>download</mat-icon> Export CSV
+          </button>
+          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">
+            Clear
+          </button>
+        </div>
+      </div>
     </mat-card-content>
   </mat-card>
 
-  <!-- ── STATUS ── -->
   <div class="status-bar" *ngIf="status">
     <mat-icon>{{ lastRunOk ? 'check_circle' : 'error' }}</mat-icon>
     <span>{{ status }}</span>
   </div>
 
-  <!-- ── KPI CARDS ── -->
   <div class="kpi-strip" *ngIf="kpis.length">
     <mat-card class="kpi-card" *ngFor="let kpi of kpis" [ngClass]="kpiClass(kpi)">
       <div class="kpi-icon-wrap">
@@ -137,18 +177,14 @@
     </mat-card>
   </div>
 
-  <!-- ── RESULTS CARD ── -->
   <mat-card class="results-card" *ngIf="result; else emptyCard">
     <mat-card-content>
-
-      <!-- Chart -->
       <div class="chart-wrap" *ngIf="chartData">
         <canvas baseChart [data]="chartData" [type]="chartType" [options]="chartOptions"></canvas>
       </div>
 
       <mat-divider *ngIf="chartData && tableRows.length"></mat-divider>
 
-      <!-- Table -->
       <div class="table-wrap" *ngIf="tableRows.length">
         <table class="data-table">
           <thead>
@@ -168,7 +204,7 @@
               </td>
             </tr>
           </tbody>
-          <tfoot *ngIf="tableRows.length > 1">
+          <tfoot *ngIf="viewMode === 'explorer' && tableRows.length > 1">
             <tr class="totals-row">
               <td *ngFor="let col of tableColumns"
                   [class.num-col]="!isDimension(col)">
@@ -178,7 +214,6 @@
           </tfoot>
         </table>
       </div>
-
     </mat-card-content>
   </mat-card>
 
@@ -188,10 +223,11 @@
         <app-empty-state
           icon="analytics"
           title="No results yet"
-          message="Choose dimensions and metrics above, then click Run.">
+          [message]="viewMode === 'priceHistory'
+            ? 'Select an item above, then click Run to see day-wise price changes.'
+            : 'Choose dimensions and metrics above, then click Run.'">
         </app-empty-state>
       </mat-card-content>
     </mat-card>
   </ng-template>
-
 </div>
