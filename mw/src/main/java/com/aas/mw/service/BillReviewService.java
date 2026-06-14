@@ -842,7 +842,9 @@ public class BillReviewService {
             return value;
         }
         String path = value;
-        if (value.startsWith("http://") || value.startsWith("https://")) {
+        if (value.startsWith("//")) {
+            path = pathFromProtocolRelativeUrl(value);
+        } else if (value.startsWith("http://") || value.startsWith("https://")) {
             try {
                 path = java.net.URI.create(value).getPath();
             } catch (Exception ignored) {
@@ -856,6 +858,11 @@ public class BillReviewService {
             return "/api" + path;
         }
         return value;
+    }
+
+    private String pathFromProtocolRelativeUrl(String value) {
+        int pathStart = value.indexOf('/', 2);
+        return pathStart >= 0 ? value.substring(pathStart) : value;
     }
 
     private record AllocationResult(List<Map<String, Object>> references, BigDecimal unallocatedAmount) {

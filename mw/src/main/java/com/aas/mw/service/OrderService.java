@@ -723,6 +723,11 @@ public class OrderService {
                 "transport_charge", transportCharge,
                 "rounding_adjustment", 0.0));
         String replacementPurchaseInvoiceId = extractDocName((Map<String, Object>) vendorBill.get("purchaseInvoice"));
+        if (replacementPurchaseInvoiceId.isBlank()) {
+            throw new IllegalStateException(
+                    "Replacement vendor invoice was created but its ID could not be read — old invoice "
+                            + previousPurchaseInvoiceId + " was not archived. Check ERPNext for duplicate invoices.");
+        }
         archiveReplacedInvoice(PURCHASE_INVOICE, previousPurchaseInvoiceId, replacementPurchaseInvoiceId);
 
         if ("SELL_ORDER_CREATED".equals(previousStatus)) {
@@ -730,6 +735,11 @@ public class OrderService {
             Map<String, Object> sellOrder = orderBillingService.createSellOrder(orderId, Map.of(
                     "apply_transport_to_invoice", applyTransportToInvoice));
             String replacementSalesInvoiceId = extractDocName((Map<String, Object>) sellOrder.get("salesInvoice"));
+            if (replacementSalesInvoiceId.isBlank()) {
+                throw new IllegalStateException(
+                        "Replacement branch invoice was created but its ID could not be read — old invoice "
+                                + previousSalesInvoiceId + " was not archived. Check ERPNext for duplicate invoices.");
+            }
             archiveReplacedInvoice(SALES_INVOICE, previousSalesInvoiceId, replacementSalesInvoiceId);
         }
 

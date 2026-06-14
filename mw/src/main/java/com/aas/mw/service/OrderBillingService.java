@@ -201,6 +201,11 @@ public class OrderBillingService {
         if ("SELL_ORDER_CREATED".equals(normalizedStatus)) {
             Map<String, Object> salesInvoice = result.get("salesInvoice") instanceof Map<?, ?> map ? castMap(map) : null;
             String replacementSalesInvoiceId = extractDocName(salesInvoice);
+            if (replacementSalesInvoiceId.isBlank()) {
+                throw new IllegalStateException(
+                        "Replacement branch invoice was created but its ID could not be read — old invoice "
+                                + existingSalesInvoiceId + " was not archived. Check ERPNext for duplicate invoices.");
+            }
             archiveReplacedInvoice(SALES_INVOICE, existingSalesInvoiceId, replacementSalesInvoiceId);
         }
         return result;
