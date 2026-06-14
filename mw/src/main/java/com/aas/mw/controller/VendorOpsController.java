@@ -51,7 +51,8 @@ public class VendorOpsController {
     public ResponseEntity<byte[]> exportAllVendorLedgers(
             @RequestParam(required = false, defaultValue = "csv") String format) {
         List<Map<String, Object>> rows = vendorOpsService.getAllVendorLedgerEntries();
-        return buildExportResponse(rows, "vendor-ledger-all", format);
+        return buildExportResponse(rows, "vendor-ledger-all", format,
+                new LedgerPdfUtil.ReportContext("Vendor Ledger Report", "", "", "", ""));
     }
 
     @GetMapping("/{vendorId}")
@@ -91,7 +92,13 @@ public class VendorOpsController {
         Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        return buildExportResponse(entries, "vendor-ledger-" + sanitizeFileName(vendorId), format);
+        return buildExportResponse(entries, "vendor-ledger-" + sanitizeFileName(vendorId), format,
+                new LedgerPdfUtil.ReportContext(
+                        "Vendor Ledger",
+                        asText(ledger.get("vendorName")),
+                        "",
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/{vendorId}/ledger/category")
@@ -113,7 +120,16 @@ public class VendorOpsController {
         Map<String, Object> ledger = vendorOpsService.getVendorLedgerByCategory(vendorId, categoryId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> entries = (List<Map<String, Object>>) ledger.getOrDefault("entries", List.of());
-        return buildExportResponse(entries, "vendor-ledger-" + sanitizeFileName(vendorId) + "-" + sanitizeFileName(categoryId), format);
+        return buildExportResponse(
+                entries,
+                "vendor-ledger-" + sanitizeFileName(vendorId) + "-" + sanitizeFileName(categoryId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Vendor Ledger",
+                        asText(ledger.get("vendorName")),
+                        firstNonBlank(asText(ledger.get("categoryLabel")), categoryId),
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/{vendorId}/ledger/categories/export")
@@ -125,7 +141,16 @@ public class VendorOpsController {
         Map<String, Object> ledger = vendorOpsService.getVendorLedger(vendorId, fromDate, toDate);
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> categories = (List<Map<String, Object>>) ledger.getOrDefault("categorySummary", List.of());
-        return buildExportResponse(categories, "vendor-ledger-categories-" + sanitizeFileName(vendorId), format);
+        return buildExportResponse(
+                categories,
+                "vendor-ledger-categories-" + sanitizeFileName(vendorId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Vendor Ledger Category Summary",
+                        asText(ledger.get("vendorName")),
+                        "",
+                        asText(fromDate),
+                        asText(toDate)));
     }
 
     @GetMapping("/ledger/categories/export")
@@ -134,10 +159,15 @@ public class VendorOpsController {
             @RequestParam(required = false, name = "to") String toDate,
             @RequestParam(required = false, defaultValue = "csv") String format) {
         List<Map<String, Object>> rows = vendorOpsService.getAllVendorCategorySummaries(fromDate, toDate);
-        return buildExportResponse(rows, "vendor-ledger-categories-all", format);
+        return buildExportResponse(rows, "vendor-ledger-categories-all", format,
+                new LedgerPdfUtil.ReportContext("Vendor Ledger Category Summary", "", "", asText(fromDate), asText(toDate)));
     }
 
-    private ResponseEntity<byte[]> buildExportResponse(List<Map<String, Object>> rows, String baseName, String format) {
+    private ResponseEntity<byte[]> buildExportResponse(
+            List<Map<String, Object>> rows,
+            String baseName,
+            String format,
+            LedgerPdfUtil.ReportContext reportContext) {
         String fmt = format == null || format.isBlank() ? "csv" : format.toLowerCase();
         try {
             return switch (fmt) {
@@ -148,7 +178,11 @@ public class VendorOpsController {
                 case "pdf" -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".pdf\"")
                         .contentType(MediaType.APPLICATION_PDF)
-                        .body(LedgerPdfUtil.toPdf(rows, humanizeTitle(baseName), resolveBranding()));
+                        .body(LedgerPdfUtil.toPdf(
+                                rows,
+                                reportContext == null ? humanizeTitle(baseName) : reportContext.title(),
+                                resolveBranding(),
+                                reportContext));
                 default -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + baseName + ".csv\"")
                         .contentType(MediaType.valueOf("text/csv;charset=UTF-8"))
@@ -221,5 +255,14 @@ public class VendorOpsController {
 
     private String asText(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 }

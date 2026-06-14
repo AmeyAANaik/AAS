@@ -25,14 +25,20 @@ public class ErpNextFileService {
     private final RestTemplate restTemplate;
     private final String baseUrl;
     private final String publicBaseUrl;
+    private final String apiAuthHeader;
 
     public ErpNextFileService(
             RestTemplateBuilder restTemplateBuilder,
             @Value("${erpnext.base-url}") String baseUrl,
-            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String publicBaseUrl) {
+            @Value("${erpnext.public-base-url:${erpnext.base-url}}") String publicBaseUrl,
+            @Value("${erpnext.api-key:}") String apiKey,
+            @Value("${erpnext.api-secret:}") String apiSecret) {
         this.restTemplate = restTemplateBuilder.build();
         this.baseUrl = baseUrl;
         this.publicBaseUrl = publicBaseUrl;
+        this.apiAuthHeader = (apiKey != null && !apiKey.isBlank() && apiSecret != null && !apiSecret.isBlank())
+                ? "token " + apiKey.trim() + ":" + apiSecret.trim()
+                : "";
     }
 
     public UploadedFileInfo uploadOrderImage(String orderId, MultipartFile file, String sessionCookie) {
@@ -57,10 +63,16 @@ public class ErpNextFileService {
 
     public DownloadedFile downloadFile(String fileUrl) {
         String resolvedUrl = resolveInternalFileUrl(fileUrl);
+        HttpEntity<?> request = HttpEntity.EMPTY;
+        if (!apiAuthHeader.isBlank()) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.AUTHORIZATION, apiAuthHeader);
+            request = new HttpEntity<>(headers);
+        }
         ResponseEntity<byte[]> response = restTemplate.exchange(
                 resolvedUrl,
                 HttpMethod.GET,
-                HttpEntity.EMPTY,
+                request,
                 byte[].class);
         byte[] bytes = response.getBody();
         if (bytes == null || bytes.length == 0) {
