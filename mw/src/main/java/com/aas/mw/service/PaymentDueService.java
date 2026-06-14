@@ -209,7 +209,12 @@ public class PaymentDueService {
             ItemGroupResolver itemGroupResolver,
             Map<String, BigDecimal> dueByCategory,
             Map<String, Object> invoice) {
+        String invoiceCategory = normalizeItemGroup(asText(invoice.get(FIELD_CATEGORY)));
         if (items.isEmpty()) {
+            if (!invoiceCategory.isBlank()) {
+                dueByCategory.merge(invoiceCategory, outstanding, BigDecimal::add);
+                return;
+            }
             throw new IllegalStateException("Invoice has no items; cannot allocate by category.");
         }
         BigDecimal total = BigDecimal.ZERO;
@@ -228,7 +233,10 @@ public class PaymentDueService {
                 group = normalizeItemGroup(itemGroupResolver.resolve(code));
             }
             if (group.isBlank() && TRANSPORT_ITEM_CODE.equals(asText(item.get("item_code")))) {
-                group = normalizeItemGroup(asText(invoice.get(FIELD_CATEGORY)));
+                group = invoiceCategory;
+            }
+            if (group.isBlank()) {
+                group = invoiceCategory;
             }
             if (group.isBlank()) {
                 String code = asText(item.get("item_code"));
@@ -238,6 +246,10 @@ public class PaymentDueService {
             total = total.add(amount);
         }
         if (lines.isEmpty() || total.compareTo(BigDecimal.ZERO) <= 0) {
+            if (!invoiceCategory.isBlank()) {
+                dueByCategory.merge(invoiceCategory, outstanding, BigDecimal::add);
+                return;
+            }
             throw new IllegalStateException("Invoice has no allocatable item amounts; cannot allocate by category.");
         }
         for (Line line : lines) {
