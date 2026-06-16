@@ -236,7 +236,6 @@ class BranchOpsServiceTest {
                                 "item_code", "ITEM-1",
                                 "item_group", "Grocery",
                                 "amount", 1000.0)))));
-
         List<Map<String, Object>> rows = branchOpsService.getAllBranchCategorySummaries();
         assertThat(rows).containsExactly(Map.of(
                 "branchId", "BRANCH-1",

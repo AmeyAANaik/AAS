@@ -400,7 +400,6 @@ public class BranchOpsService {
         List<Map<String, Object>> adjustmentNotes = filterAdjustmentNotesByPostingDate(fetchApprovedCustomerAdjustmentNotes(null, null), range);
         ItemGroupResolver resolver = new ItemGroupResolver(erpNextClient);
         Map<String, Map<String, Double>> totals = new LinkedHashMap<>();
-
         for (Map<String, Object> invoiceRow : invoices) {
             String invoiceId = asText(invoiceRow.get("name"));
             String customerId = asText(invoiceRow.get("customer"));
@@ -693,6 +692,7 @@ public class BranchOpsService {
         copy.put("received_amount", 0.0);
         return copy;
     }
+
 
     private List<Map<String, Object>> buildCategoryLedgerEntriesFromPayments(List<Map<String, Object>> payments, boolean debit) {
         if (payments == null || payments.isEmpty()) {

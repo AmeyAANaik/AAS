@@ -156,14 +156,18 @@ public class AnalyticsService {
         Map<String, Map<String, Object>> sourceOrders = needSourceOrders
                 ? batchFetchOrders(sourceOrderIds)
                 : Map.of();
+        Map<String, Double> purchaseCostBySourceOrder = needCost
+                ? batchFetchPurchaseInvoiceCosts(sourceOrderIds)
+                : Map.of();
 
         // Check cost completeness
-        if (needCost && !sourceOrders.isEmpty()) {
-            long ordersWithoutCost = sourceOrders.values().stream()
-                    .filter(order -> extractCostFromItems(order) == 0.0 && !((List<?>) order.getOrDefault("items", List.of())).isEmpty())
+        if (needCost && !sourceOrderIds.isEmpty()) {
+            long ordersWithoutCost = sourceOrderIds.stream()
+                    .filter(orderId -> extractCostFromItems(sourceOrders.getOrDefault(orderId, Map.of())) == 0.0)
+                    .filter(orderId -> purchaseCostBySourceOrder.getOrDefault(orderId, 0.0) == 0.0)
                     .count();
             if (ordersWithoutCost > 0) {
-                warnings.add("Cost data may be incomplete: " + ordersWithoutCost + " order(s) have no vendor rate set. Margin and profit figures may be understated.");
+                warnings.add("Cost data may be incomplete: " + ordersWithoutCost + " order(s) have neither vendor rate nor purchase invoice cost. Margin and profit figures may be overstated.");
             }
         }
 
@@ -176,9 +180,9 @@ public class AnalyticsService {
                     .filter(code -> !code.isBlank())
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             Map<String, ItemMeta> itemMeta = batchFetchItemMeta(allItemCodes);
-            return buildItemFacts(invoices, sourceOrders, filters, invoiceItemMap, itemMeta);
+            return buildItemFacts(invoices, sourceOrders, purchaseCostBySourceOrder, filters, invoiceItemMap, itemMeta);
         }
-        return buildInvoiceFacts(invoices, sourceOrders, filters, needCost);
+        return buildInvoiceFacts(invoices, sourceOrders, purchaseCostBySourceOrder, filters, needCost);
     }
 
     private List<Map<String, Object>> fetchInvoices(DateRange range, Map<String, String> filters) {
@@ -259,6 +263,7 @@ public class AnalyticsService {
     private List<FactRow> buildInvoiceFacts(
             List<Map<String, Object>> invoices,
             Map<String, Map<String, Object>> sourceOrders,
+            Map<String, Double> purchaseCostBySourceOrder,
             Map<String, String> filters,
             boolean needCost) {
         List<FactRow> facts = new ArrayList<>();
@@ -269,6 +274,7 @@ public class AnalyticsService {
             String vendor = asString(sourceOrder.get("aas_vendor")).trim();
             String branch = asString(invoice.get("customer")).trim();
             String category = firstNonBlank(asString(invoice.get("aas_category")).trim(), resolveFirstItemGroup(sourceOrder));
+            double cost = needCost ? resolveCost(sourceOrderId, sourceOrder, purchaseCostBySourceOrder) : 0.0;
             FactRow fact = new FactRow(
                     invoiceId,
                     sourceOrderId,
@@ -279,7 +285,7 @@ public class AnalyticsService {
                     "",
                     "",
                     round(asDouble(invoice.get("grand_total"))),
-                    needCost ? round(extractCostFromItems(sourceOrder)) : 0.0,
+                    cost,
                     0.0);
             if (matchesCommonFilters(filters, fact)) {
                 facts.add(fact);
@@ -291,6 +297,7 @@ public class AnalyticsService {
     private List<FactRow> buildItemFacts(
             List<Map<String, Object>> invoices,
             Map<String, Map<String, Object>> sourceOrders,
+            Map<String, Double> purchaseCostBySourceOrder,
             Map<String, String> filters,
             Map<String, List<Map<String, Object>>> invoiceItemMap,
             Map<String, ItemMeta> itemMeta) {
@@ -302,18 +309,18 @@ public class AnalyticsService {
             List<Map<String, Object>> invoiceItems = invoiceItemMap.getOrDefault(invoiceId, List.of());
 
             if (invoiceItems.isEmpty()) {
-                facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, filters, true));
+                facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, purchaseCostBySourceOrder, filters, true));
                 continue;
             }
 
             String vendor = asString(sourceOrder.get("aas_vendor")).trim();
             String branch = asString(invoice.get("customer")).trim();
             double invoiceRevenue = round(asDouble(invoice.get("grand_total")));
-            double invoiceCost = round(extractCostFromItems(sourceOrder));
+            double invoiceCost = resolveCost(sourceOrderId, sourceOrder, purchaseCostBySourceOrder);
             List<SourceOrderLine> sourceLines = buildSourceOrderLines(sourceOrder);
             List<PreparedLine> preparedLines = prepareLines(invoiceItems, sourceLines, itemMeta, asString(invoice.get("aas_category")).trim());
             if (preparedLines.isEmpty()) {
-                facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, filters, true));
+                facts.addAll(buildInvoiceFacts(List.of(invoice), sourceOrders, purchaseCostBySourceOrder, filters, true));
                 continue;
             }
 
@@ -353,6 +360,76 @@ public class AnalyticsService {
             }
         }
         return facts;
+    }
+
+    private Map<String, Double> batchFetchPurchaseInvoiceCosts(Set<String> sourceOrderIds) {
+        if (sourceOrderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, Object>> latestBySourceOrder = new HashMap<>();
+        for (List<String> chunk : partition(new ArrayList<>(sourceOrderIds), BATCH_CHUNK_SIZE)) {
+            try {
+                Map<String, Object> params = new HashMap<>();
+                params.put(
+                        "fields",
+                        "[\"name\",\"posting_date\",\"grand_total\",\"docstatus\",\"status\",\"modified\",\"creation\","
+                                + "\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\"]");
+                params.put("filters", buildInFilter("aas_source_sales_order", chunk));
+                params.put("limit_page_length", "500");
+                for (Map<String, Object> invoice : erpNextClient.listResources("Purchase Invoice", params)) {
+                    if ((int) asDouble(invoice.get("docstatus")) == 2) {
+                        continue;
+                    }
+                    if ("Cancelled".equalsIgnoreCase(asString(invoice.get("status")).trim())) {
+                        continue;
+                    }
+                    if ("OLD".equalsIgnoreCase(asString(invoice.get("aas_invoice_version_status")).trim())) {
+                        continue;
+                    }
+                    if (!asString(invoice.get("aas_replaced_by")).trim().isBlank()) {
+                        continue;
+                    }
+                    String sourceOrderId = asString(invoice.get("aas_source_sales_order")).trim();
+                    if (sourceOrderId.isBlank()) {
+                        continue;
+                    }
+                    Map<String, Object> best = latestBySourceOrder.get(sourceOrderId);
+                    if (best == null || compareInvoiceRecency(invoice, best) > 0) {
+                        latestBySourceOrder.put(sourceOrderId, invoice);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        Map<String, Double> costs = new HashMap<>();
+        for (Map.Entry<String, Map<String, Object>> entry : latestBySourceOrder.entrySet()) {
+            costs.put(entry.getKey(), round(asDouble(entry.getValue().get("grand_total"))));
+        }
+        return costs;
+    }
+
+    private double resolveCost(
+            String sourceOrderId,
+            Map<String, Object> sourceOrder,
+            Map<String, Double> purchaseCostBySourceOrder) {
+        double orderCost = round(extractCostFromItems(sourceOrder));
+        if (orderCost > 0.0) {
+            return orderCost;
+        }
+        return round(purchaseCostBySourceOrder.getOrDefault(trimToEmpty(sourceOrderId), 0.0));
+    }
+
+    private int compareInvoiceRecency(Map<String, Object> left, Map<String, Object> right) {
+        String leftModified = asString(left == null ? null : left.get("modified")).trim();
+        String rightModified = asString(right == null ? null : right.get("modified")).trim();
+        if (!leftModified.isBlank() || !rightModified.isBlank()) {
+            return leftModified.compareTo(rightModified);
+        }
+        String leftCreated = asString(left == null ? null : left.get("creation")).trim();
+        String rightCreated = asString(right == null ? null : right.get("creation")).trim();
+        if (!leftCreated.isBlank() || !rightCreated.isBlank()) {
+            return leftCreated.compareTo(rightCreated);
+        }
+        return asString(left == null ? null : left.get("name")).compareTo(asString(right == null ? null : right.get("name")));
     }
 
     private List<PreparedLine> prepareLines(
