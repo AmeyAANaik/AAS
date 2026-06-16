@@ -204,7 +204,23 @@ public class PaymentDueService {
 
     private BigDecimal effectiveDueBase(int docstatus, Map<String, Object> invoice, Map<String, Object> row) {
         if (docstatus == 0) {
-            return asDecimal(firstNonNull(invoice.get("grand_total"), row.get("grand_total")));
+            BigDecimal invoiceGrandTotal = asDecimal(invoice.get("grand_total"));
+            if (invoiceGrandTotal.compareTo(BigDecimal.ZERO) > 0) {
+                return invoiceGrandTotal;
+            }
+            BigDecimal rowGrandTotal = asDecimal(row.get("grand_total"));
+            if (rowGrandTotal.compareTo(BigDecimal.ZERO) > 0) {
+                return rowGrandTotal;
+            }
+            BigDecimal invoiceOutstanding = asDecimal(invoice.get("outstanding_amount"));
+            if (invoiceOutstanding.compareTo(BigDecimal.ZERO) > 0) {
+                return invoiceOutstanding;
+            }
+            BigDecimal rowOutstanding = asDecimal(row.get("outstanding_amount"));
+            if (rowOutstanding.compareTo(BigDecimal.ZERO) > 0) {
+                return rowOutstanding;
+            }
+            return BigDecimal.ZERO;
         }
         BigDecimal outstanding = asDecimal(firstNonNull(invoice.get("outstanding_amount"), row.get("outstanding_amount")));
         if (outstanding.compareTo(BigDecimal.ZERO) > 0) {

@@ -119,6 +119,32 @@ class PaymentDueServiceTest {
     }
 
     @Test
+    void draftInvoicesFallbackToListGrandTotalWhenFetchedGrandTotalIsZero() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-DRAFT-ZERO",
+                        "docstatus", 0,
+                        "outstanding_amount", BigDecimal.ZERO,
+                        "grand_total", new BigDecimal("15700.00"))));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-DRAFT-ZERO"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "SINV-DRAFT-ZERO",
+                        "docstatus", 0,
+                        "outstanding_amount", BigDecimal.ZERO,
+                        "grand_total", BigDecimal.ZERO,
+                        "items", List.of(
+                                Map.of("item_code", "ITEM-1", "amount", new BigDecimal("15700.00"))))));
+        when(erpNextClient.getResource("Item", "ITEM-1"))
+                .thenReturn(Map.of("data", Map.of("item_group", "CAT-A")));
+        when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
+                .thenReturn(List.of());
+
+        Map<String, Object> response = paymentDueService.dueByCategory("Customer", "SHOP-1", "CAT-A");
+
+        assertEquals(new BigDecimal("15700.000000"), response.get("dueAmount"));
+    }
+
+    @Test
     void skipsSubmittedInvoicesWithZeroOutstanding() {
         when(erpNextClient.listResources(org.mockito.Mockito.eq("Sales Invoice"), org.mockito.Mockito.anyMap()))
                 .thenReturn(List.of(Map.of(
