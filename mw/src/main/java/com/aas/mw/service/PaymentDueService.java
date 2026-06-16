@@ -13,6 +13,7 @@ public class PaymentDueService {
 
     private final ErpNextClient erpNextClient;
     private final AdjustmentNoteErpService adjustmentNoteErpService;
+    private final BranchOpsService branchOpsService;
     private static final String PAYMENT_ENTRY = "Payment Entry";
     private static final String FIELD_REVIEW_STATUS = "aas_payment_review_status";
     private static final String FIELD_CATEGORY = "aas_category";
@@ -20,9 +21,10 @@ public class PaymentDueService {
     private static final String INVOICE_VERSION_OLD = "OLD";
     private static final String TRANSPORT_ITEM_CODE = "AAS-TRANSPORT-CHARGE";
 
-    public PaymentDueService(ErpNextClient erpNextClient, AdjustmentNoteErpService adjustmentNoteErpService) {
+    public PaymentDueService(ErpNextClient erpNextClient, AdjustmentNoteErpService adjustmentNoteErpService, BranchOpsService branchOpsService) {
         this.erpNextClient = erpNextClient;
         this.adjustmentNoteErpService = adjustmentNoteErpService;
+        this.branchOpsService = branchOpsService;
     }
 
     public Map<String, Object> dueByCategory(String partyType, String partyId, String categoryId) {
@@ -56,35 +58,14 @@ public class PaymentDueService {
     }
 
     private BigDecimal dueByCategoryForCustomer(String customerId, String categoryId) {
-        InvoiceContext ctx = resolveInvoiceContext("Customer");
-        List<Map<String, Object>> openInvoices = fetchOpenInvoices(ctx.invoiceDoctype(), ctx.partyField(), customerId);
-        Map<String, BigDecimal> dueByCategory = new HashMap<>();
-        ItemGroupResolver itemGroupResolver = new ItemGroupResolver(erpNextClient);
-
-        for (Map<String, Object> row : openInvoices) {
-            String invoiceId = asText(row.get("name"));
-            if (invoiceId.isBlank()) {
-                continue;
-            }
-            Map<String, Object> invoice = unwrapDoc(erpNextClient.getResource(ctx.invoiceDoctype(), invoiceId));
-            int docstatus = asInt(firstNonNull(invoice.get("docstatus"), row.get("docstatus")));
-            if (docstatus == 2) {
-                continue;
-            }
-            if (isOldOrReplacedInvoice(invoice, row)) {
-                continue;
-            }
-            BigDecimal dueBase = effectiveDueBase(docstatus, invoice, row);
-            if (dueBase.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-            List<Map<String, Object>> items = childItems(invoice.get("items"));
-            distributeOutstandingByItemGroup(dueBase, items, itemGroupResolver, dueByCategory, invoice);
-        }
-        BigDecimal selectedDue = dueByCategory.getOrDefault(categoryId, BigDecimal.ZERO);
-        BigDecimal submittedPayments = submittedCategoryPayments("Customer", customerId, categoryId);
+        // Use the GL-based category ledger balance as the authoritative due amount.
+        // The invoice-distribution-minus-payments approach diverges from the ledger when
+        // a payment entry is tagged with aas_category AND also applied against a submitted
+        // invoice (reducing outstanding_amount), causing a double-deduction.
+        Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(customerId, categoryId);
+        BigDecimal ledgerBalance = asDecimal(ledger.get("balance"));
         BigDecimal approvedAdjustments = approvedAdjustmentImpact("Customer", customerId, categoryId);
-        return selectedDue.subtract(submittedPayments).add(approvedAdjustments).max(BigDecimal.ZERO);
+        return ledgerBalance.add(approvedAdjustments).max(BigDecimal.ZERO);
     }
 
     private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {
@@ -181,17 +162,6 @@ public class PaymentDueService {
             throw new IllegalStateException("Sales Order " + salesOrderId + " has no category information; cannot compute category weights.");
         }
         return new CategoryWeights(weights, total);
-    }
-
-    private List<Map<String, Object>> fetchOpenInvoices(String doctype, String partyField, String partyId) {
-        Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"grand_total\",\"outstanding_amount\",\"docstatus\",\"aas_invoice_version_status\",\"aas_replaced_by\",\"is_opening\",\"po_no\",\"remarks\"]");
-        params.put("limit_page_length", 500);
-        List<List<String>> filters = new ArrayList<>();
-        filters.add(List.of(partyField, "=", partyId));
-        filters.add(List.of("docstatus", "in", "[0,1]"));
-        params.put("filters", toJson(filters));
-        return erpNextClient.listResources(doctype, params);
     }
 
     private boolean isOldOrReplacedInvoice(Map<String, Object> invoice, Map<String, Object> row) {
@@ -331,13 +301,6 @@ public class PaymentDueService {
             return "";
         }
         return text;
-    }
-
-    private InvoiceContext resolveInvoiceContext(String partyType) {
-        if ("Supplier".equalsIgnoreCase(partyType)) {
-            return new InvoiceContext("Purchase Invoice", "supplier");
-        }
-        return new InvoiceContext("Sales Invoice", "customer");
     }
 
     private String normalizePartyType(String value) {
@@ -502,7 +465,6 @@ public class PaymentDueService {
         return response;
     }
 
-    private record InvoiceContext(String invoiceDoctype, String partyField) {}
 
     private record Line(String group, BigDecimal amount) {}
 
