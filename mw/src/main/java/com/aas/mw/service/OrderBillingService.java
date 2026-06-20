@@ -98,6 +98,7 @@ public class OrderBillingService {
         update.put("aas_pi_vendor", extractDocName(purchaseInvoice));
         update.put("aas_status", "VENDOR_BILL_CAPTURED");
         erpNextClient.updateResource(SALES_ORDER, orderId, update);
+        captureItemPricesForBuying(orderData, billDate);
 
         return Map.of(
                 "orderId", orderId,
@@ -149,6 +150,7 @@ public class OrderBillingService {
         update.put("aas_pi_vendor", extractDocName(purchaseInvoice));
         update.put("aas_status", "VENDOR_BILL_CAPTURED");
         erpNextClient.updateResource(SALES_ORDER, orderId, update);
+        captureItemPricesForBuying(orderData, billDate);
 
         return Map.of(
                 "orderId", orderId,
@@ -254,6 +256,7 @@ public class OrderBillingService {
         update.put("items", sellItems);
         update.put("aas_margin_percent", marginPercent);
         erpNextClient.updateResource(SALES_ORDER, orderId, update);
+        captureItemPricesForSelling(sellItems, orderData);
 
         return Map.of(
                 "orderId", orderId,
@@ -652,6 +655,100 @@ public class OrderBillingService {
     private String resolveDate(Object value) {
         String text = asText(value);
         return text.isBlank() ? LocalDate.now().toString() : text;
+    }
+
+    private void captureItemPricesForBuying(Map<String, Object> orderData, String validFrom) {
+        Object rawItems = orderData.get("items");
+        if (!(rawItems instanceof List<?> items)) {
+            return;
+        }
+        String currency = resolveCompanyCurrencySafe(asText(orderData.get("company")));
+        for (Object itemObj : items) {
+            if (!(itemObj instanceof Map<?, ?> row)) {
+                continue;
+            }
+            String itemCode = asText(row.get("item_code"));
+            if (itemCode.isBlank() || isInternalItem(itemCode)) {
+                continue;
+            }
+            double vendorRate = asDouble(row.get("aas_vendor_rate"));
+            if (vendorRate <= 0) {
+                vendorRate = asDouble(row.get("rate"));
+            }
+            if (vendorRate <= 0) {
+                continue;
+            }
+            final double rate = vendorRate;
+            final String code = itemCode;
+            try {
+                upsertItemPrice(code, "Standard Buying", rate, validFrom, currency);
+                erpNextClient.updateResource("Item", code, Map.of("aas_vendor_rate", rate));
+            } catch (Exception ignored) {
+                // best-effort: don't fail bill capture if price recording fails
+            }
+        }
+    }
+
+    private void captureItemPricesForSelling(List<Map<String, Object>> sellItems, Map<String, Object> orderData) {
+        if (sellItems == null || sellItems.isEmpty()) {
+            return;
+        }
+        String currency = resolveCompanyCurrencySafe(asText(orderData.get("company")));
+        String validFrom = asText(orderData.get("aas_vendor_bill_date"));
+        if (validFrom.isBlank()) {
+            validFrom = LocalDate.now().toString();
+        }
+        for (Map<String, Object> row : sellItems) {
+            String itemCode = asText(row.get("item_code"));
+            if (itemCode.isBlank() || isInternalItem(itemCode)) {
+                continue;
+            }
+            double sellRate = asDouble(row.get("rate"));
+            if (sellRate <= 0) {
+                continue;
+            }
+            try {
+                upsertItemPrice(itemCode, "Standard Selling", sellRate, validFrom, currency);
+            } catch (Exception ignored) {
+                // best-effort: don't fail sell order if price recording fails
+            }
+        }
+    }
+
+    private void upsertItemPrice(String itemCode, String priceList, double rate, String validFrom, String currency) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\"]");
+        params.put("filters", "[[\"item_code\",\"=\",\"" + itemCode
+                + "\"],[\"price_list\",\"=\",\"" + priceList
+                + "\"],[\"valid_from\",\"=\",\"" + validFrom + "\"]]");
+        params.put("limit_page_length", "1");
+        List<Map<String, Object>> existing = erpNextClient.listResources("Item Price", params);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("price_list_rate", rate);
+        if (existing != null && !existing.isEmpty()) {
+            String name = asText(existing.get(0).get("name"));
+            if (!name.isBlank()) {
+                erpNextClient.updateResource("Item Price", name, payload);
+                return;
+            }
+        }
+        payload.put("item_code", itemCode);
+        payload.put("price_list", priceList);
+        payload.put("valid_from", validFrom);
+        payload.put("currency", currency);
+        erpNextClient.createResource("Item Price", payload);
+    }
+
+    private boolean isInternalItem(String itemCode) {
+        return BILL_ITEM_CODE.equals(itemCode) || TRANSPORT_ITEM_CODE.equals(itemCode);
+    }
+
+    private String resolveCompanyCurrencySafe(String company) {
+        try {
+            return resolveCompanyCurrency(company);
+        } catch (Exception ex) {
+            return "INR";
+        }
     }
 
     private String resolveCompanyCurrency(String company) {
