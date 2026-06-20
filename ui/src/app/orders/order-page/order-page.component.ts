@@ -798,7 +798,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       next: () => {
         this.orders = this.orders.filter(o => o.name !== orderId);
         this.dataSource.data = this.orders;
-        this.updateTableFilter();
         this.snackBar.open(`Order ${orderId} archived.`, 'Dismiss', { duration: 3000 });
       },
       error: err => {

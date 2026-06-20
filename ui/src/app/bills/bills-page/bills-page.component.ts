@@ -127,16 +127,17 @@ export class BillsPageComponent implements OnInit {
     });
 
     this.orderService.listOrders({}).subscribe({
-      next: orders => {
+      next: result => {
+        const orders = result?.data ?? [];
         this.customerCompanies.clear();
-        (orders ?? []).forEach(order => {
+        orders.forEach(order => {
           const customerId = String(order.customer ?? '').trim();
           const company = String(order.company ?? '').trim();
           if (customerId && company && !this.customerCompanies.has(customerId)) {
             this.customerCompanies.set(customerId, company);
           }
         });
-        this.orders = (orders ?? []).map(order => {
+        this.orders = orders.map(order => {
           const name = String(order.name ?? '').trim();
           return { id: name, name, company: String(order.company ?? '').trim() || undefined };
         });
