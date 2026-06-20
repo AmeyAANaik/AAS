@@ -33,7 +33,7 @@ export class DashboardService {
     const invoiceParams = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
 
     return forkJoin({
-      orders: this.http.get<OrderSummary[]>(`/api/orders`, { headers, params: orderParams }),
+      orders: this.http.get<{ data: OrderSummary[] }>(`/api/orders`, { headers, params: orderParams }),
       vendorOps: this.http.get<{
         totals?: VendorOperationsSnapshot;
         vendors?: Array<{ vendorName?: string; vendorId?: string; pendingBillAmount?: number }>;
@@ -47,7 +47,7 @@ export class DashboardService {
     }).pipe(
       timeout({ first: 15000 }),
       map(result => ({
-        orderStatus: this.buildOrderStatus(result.orders ?? []),
+        orderStatus: this.buildOrderStatus(result.orders?.data ?? []),
         billsByVendor: this.buildVendorDueRows(result.vendorOps?.vendors ?? []),
         billsByBranch: this.buildBranchDueRows(result.branchOps?.branches ?? []),
         stockSnapshot: this.buildStockSnapshot(result.items ?? []),
