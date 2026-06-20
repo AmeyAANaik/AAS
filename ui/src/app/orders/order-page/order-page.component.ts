@@ -1640,6 +1640,9 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     }
     const match = this.orders.find(order => order.name === this.requestedOrderId);
     if (!match) {
+      if (this.searchControl.value !== this.requestedOrderId) {
+        this.searchControl.setValue(this.requestedOrderId);
+      }
       return;
     }
     this.selectOrder(match);
