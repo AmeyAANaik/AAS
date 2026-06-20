@@ -55,6 +55,13 @@ export class AppShellComponent implements OnDestroy {
       links: [{ label: 'Stock', icon: 'inventory_2', route: '/stock', feature: 'stock.view' }]
     },
     {
+      title: 'Operations',
+      links: [
+        { label: 'Vendor Operations', icon: 'local_shipping', route: '/vendor-ops', feature: 'vendor_ops.view' },
+        { label: 'Branch Operations', icon: 'storefront', route: '/branch-ops', feature: 'branch_ops.view' }
+      ]
+    },
+    {
       title: 'Finance',
       links: [{ label: 'Bills / Invoices', icon: 'account_balance_wallet', route: '/bills', feature: 'bills.view' }]
     },
@@ -71,13 +78,6 @@ export class AppShellComponent implements OnDestroy {
       title: 'Analytics',
       links: [
         { label: 'Analytics', icon: 'analytics', route: '/analytics', feature: 'reports.view' }
-      ]
-    },
-    {
-      title: 'Operations',
-      links: [
-        { label: 'Vendor Operations', icon: 'local_shipping', route: '/vendor-ops', feature: 'vendor_ops.view' },
-        { label: 'Branch Operations', icon: 'storefront', route: '/branch-ops', feature: 'branch_ops.view' }
       ]
     }
   ];

@@ -73,19 +73,21 @@
         </div>
 
         <div class="adjustment-section">
-          <div class="section-title">Reference invoice</div>
-          <div class="section-subtitle">Optional. Link an invoice only when you want this note tied to a specific bill.</div>
+          <div class="section-title">Item</div>
+          <div class="section-subtitle">Select the item this credit/debit note applies to.</div>
           <div class="form-grid">
             <mat-form-field appearance="outline" subscriptSizing="dynamic" class="full-width">
-              <mat-label>Invoice</mat-label>
+              <mat-label>Item</mat-label>
               <mat-select
-                formControlName="invoiceId"
-                (selectionChange)="onInvoiceChange()"
-                [disabled]="!form.get('partyId')?.value || isLoadingInvoices"
-                data-testid="adjustment-note-invoice-select">
-                <mat-option value="">Select invoice</mat-option>
-                <mat-option *ngFor="let invoice of invoiceOptions" [value]="invoice.id">{{ invoice.label }}</mat-option>
+                formControlName="itemCode"
+                [disabled]="isLoadingItems"
+                data-testid="adjustment-note-item-select">
+                <mat-option value="">{{ isLoadingItems ? 'Loading items…' : 'Select item' }}</mat-option>
+                <mat-option *ngFor="let item of itemOptions" [value]="item.code">
+                  {{ item.name || item.code }}<span *ngIf="item.name"> ({{ item.code }})</span>
+                </mat-option>
               </mat-select>
+              <mat-error *ngIf="form.get('itemCode')?.hasError('required')">Item is required.</mat-error>
             </mat-form-field>
           </div>
         </div>
@@ -155,9 +157,9 @@
             <span>Category</span>
             <strong data-testid="adjustment-note-preview-category">{{ selectedCategoryName }}</strong>
           </div>
-          <div class="preview-row" *ngIf="selectedInvoiceLabel">
-            <span>Related invoice</span>
-            <strong data-testid="adjustment-note-preview-invoice">{{ selectedInvoiceLabel }}</strong>
+          <div class="preview-row" *ngIf="selectedItemLabel">
+            <span>Item</span>
+            <strong data-testid="adjustment-note-preview-item">{{ selectedItemLabel }}</strong>
           </div>
           <div class="preview-divider"></div>
           <div class="preview-row">

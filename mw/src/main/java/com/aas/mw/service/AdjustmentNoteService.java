@@ -3,6 +3,8 @@ package com.aas.mw.service;
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.dto.AdjustmentNoteRequest;
 import com.aas.mw.dto.UploadedFileInfo;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -10,8 +12,15 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -36,6 +45,26 @@ public class AdjustmentNoteService {
         this.adjustmentNoteErpService = adjustmentNoteErpService;
     }
 
+    public List<Map<String, Object>> listItemOptions() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"item_code\",\"item_name\",\"item_group\"]");
+        params.put("filters", "[[\"Item\",\"disabled\",\"=\",0]]");
+        params.put("limit_page_length", 500);
+        params.put("order_by", "item_name asc");
+        List<Map<String, Object>> items = erpNextClient.listResources("Item", params);
+        if (items == null) {
+            return List.of();
+        }
+        return items.stream().map(item -> {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("id", adjustmentNoteErpService.asText(item.get("item_code")));
+            out.put("name", adjustmentNoteErpService.asText(item.get("item_name")));
+            out.put("code", adjustmentNoteErpService.asText(item.get("item_code")));
+            out.put("group", adjustmentNoteErpService.asText(item.get("item_group")));
+            return out;
+        }).filter(out -> !((String) out.get("id")).isBlank()).toList();
+    }
+
     public Map<String, Object> createDraftWithAttachments(
             AdjustmentNoteRequest request,
             MultipartFile[] files,
@@ -47,25 +76,11 @@ public class AdjustmentNoteService {
         String direction = adjustmentNoteErpService.normalizeDirection(request.getDirection());
         String partyId = adjustmentNoteErpService.asText(request.getPartyId());
         String categoryId = adjustmentNoteErpService.asText(request.getCategoryId());
-        String invoiceId = adjustmentNoteErpService.asText(request.getInvoiceId());
+        String itemCode = adjustmentNoteErpService.asText(request.getItemCode());
+        String itemName = adjustmentNoteErpService.asText(request.getItemName());
         BigDecimal amount = request.getAmount() == null ? BigDecimal.ZERO : request.getAmount();
 
         InvoiceContext invoiceContext = resolveInvoiceContext(partyType);
-        Map<String, Object> invoice = Map.of();
-        if (!invoiceId.isBlank()) {
-            invoice = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource(invoiceContext.doctype(), invoiceId));
-            if (invoice.isEmpty()) {
-                throw new IllegalArgumentException("Reference invoice not found.");
-            }
-            String invoiceParty = adjustmentNoteErpService.asText(invoice.get(invoiceContext.partyField()));
-            if (!invoiceParty.equals(partyId)) {
-                throw new IllegalArgumentException("Reference invoice does not belong to the selected party.");
-            }
-            String invoiceCategory = adjustmentNoteErpService.asText(invoice.get(AdjustmentNoteErpService.FIELD_CATEGORY));
-            if (!invoiceCategory.isBlank() && !invoiceCategory.equals(categoryId)) {
-                throw new IllegalArgumentException("Reference invoice category does not match the selected category.");
-            }
-        }
 
         BigDecimal dueSnapshot = BigDecimal.ZERO;
         try {
@@ -83,7 +98,7 @@ public class AdjustmentNoteService {
             dueSnapshot = BigDecimal.ZERO;
         }
 
-        String company = resolveDraftCompany(partyType, partyId, categoryId, invoiceContext, invoice);
+        String company = resolveDraftCompany(partyType, partyId, categoryId, invoiceContext, Map.of());
         Map<String, Object> companyDoc = adjustmentNoteErpService.unwrapDoc(erpNextClient.getResource("Company", company));
         String partyAccount = partyType.equals(AdjustmentNoteErpService.PARTY_SUPPLIER)
                 ? adjustmentNoteErpService.asText(companyDoc.get("default_payable_account"))
@@ -106,17 +121,16 @@ public class AdjustmentNoteService {
         payload.put("voucher_type", "Journal Entry");
         payload.put("posting_date", postingDate);
         payload.put("company", company);
-        payload.put("user_remark", buildRemark(partyType, partyId, direction, invoiceId, request.getReason()));
+        payload.put("user_remark", buildRemark(partyType, partyId, direction, itemCode, itemName, request.getReason()));
         payload.put(AdjustmentNoteErpService.FIELD_REVIEW_STATUS, AdjustmentNoteErpService.STATUS_UNDER_REVIEW);
         payload.put(AdjustmentNoteErpService.FIELD_DIRECTION, direction);
         payload.put(AdjustmentNoteErpService.FIELD_NOTE_TYPE, adjustmentNoteErpService.noteTypeForDirection(direction));
         payload.put(AdjustmentNoteErpService.FIELD_PARTY_TYPE, partyType);
         payload.put(AdjustmentNoteErpService.FIELD_PARTY, partyId);
         payload.put(AdjustmentNoteErpService.FIELD_CATEGORY, categoryId);
-        if (!invoiceId.isBlank()) {
-            payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE, invoiceId);
-            payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE_DOCTYPE, invoiceContext.doctype());
-        }
+        // Store item code in aas_reference_invoice for ledger display compatibility
+        payload.put(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE, itemCode);
+        payload.put(AdjustmentNoteErpService.FIELD_ITEM_NAME, itemName);
         payload.put(AdjustmentNoteErpService.FIELD_AMOUNT, amount);
         payload.put(AdjustmentNoteErpService.FIELD_DUE_AMOUNT, dueSnapshot);
         payload.put(AdjustmentNoteErpService.FIELD_REASON, adjustmentNoteErpService.asText(request.getReason()));
@@ -128,7 +142,22 @@ public class AdjustmentNoteService {
 
         Map<String, Object> created = adjustmentNoteErpService.unwrapDoc(erpNextClient.createResource(AdjustmentNoteErpService.JOURNAL_ENTRY, payload));
         String noteId = adjustmentNoteErpService.asText(created.get("name"));
+
         List<UploadedFileInfo> uploadedFiles = new ArrayList<>();
+
+        // Generate and attach the credit/debit note PDF inline at creation time
+        String kind = AdjustmentNoteErpService.DIRECTION_TAKE.equals(direction) ? "Debit Note" : "Credit Note";
+        try {
+            byte[] pdfBytes = buildNotePdf(noteId, kind, partyType, partyId, categoryId, itemCode, itemName,
+                    amount, postingDate, adjustmentNoteErpService.asText(request.getReason()), company);
+            String pdfFilename = noteId.toLowerCase().replace("/", "-") + "-" + kind.toLowerCase().replace(" ", "-") + ".pdf";
+            UploadedFileInfo pdfFile = fileService.uploadBytes(
+                    AdjustmentNoteErpService.JOURNAL_ENTRY, noteId, pdfFilename, pdfBytes, "application/pdf", sessionCookie);
+            uploadedFiles.add(pdfFile);
+        } catch (Exception ignored) {
+            // PDF generation is best-effort; don't fail note creation if PDF fails
+        }
+
         for (MultipartFile file : files) {
             if (file == null || file.isEmpty()) {
                 continue;
@@ -187,10 +216,11 @@ public class AdjustmentNoteService {
         if (adjustmentNoteErpService.asText(request.getPartyType()).isBlank()
                 || adjustmentNoteErpService.asText(request.getPartyId()).isBlank()
                 || adjustmentNoteErpService.asText(request.getCategoryId()).isBlank()
+                || adjustmentNoteErpService.asText(request.getItemCode()).isBlank()
                 || adjustmentNoteErpService.asText(request.getDirection()).isBlank()
                 || request.getAmount() == null
                 || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("partyType, partyId, categoryId, direction, and amount are required.");
+            throw new IllegalArgumentException("partyType, partyId, categoryId, itemCode, direction, and amount are required.");
         }
         if (files == null || files.length == 0) {
             throw new IllegalArgumentException("Evidence upload is required.");
@@ -233,14 +263,72 @@ public class AdjustmentNoteService {
         return accounts;
     }
 
-    private String buildRemark(String partyType, String partyId, String direction, String invoiceId, String reason) {
+    private String buildRemark(String partyType, String partyId, String direction, String itemCode, String itemName, String reason) {
         String kind = AdjustmentNoteErpService.DIRECTION_TAKE.equals(direction) ? "Debit Note" : "Credit Note";
         String text = adjustmentNoteErpService.asText(reason);
         String remark = kind + " · " + partyType + " " + partyId;
-        if (!adjustmentNoteErpService.asText(invoiceId).isBlank()) {
-            remark = remark + " · Ref " + invoiceId;
+        String displayItem = adjustmentNoteErpService.asText(itemName).isBlank() ? itemCode : itemName;
+        if (!adjustmentNoteErpService.asText(itemCode).isBlank()) {
+            remark = remark + " · Item " + displayItem;
         }
         return text.isBlank() ? remark : remark + " · " + text;
+    }
+
+    private byte[] buildNotePdf(
+            String noteId,
+            String kind,
+            String partyType,
+            String partyId,
+            String categoryId,
+            String itemCode,
+            String itemName,
+            BigDecimal amount,
+            String postingDate,
+            String reason,
+            String company) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            PDType1Font regular = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            PDType1Font bold = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                float margin = 44f;
+                float y = page.getMediaBox().getHeight() - margin;
+
+                y = writeLine(content, bold, 16f, margin, y, kind);
+                y = writeLine(content, regular, 9f, margin, y - 4f, "Computer generated adjustment note — pending admin approval.");
+                y -= 10f;
+                y = writeLine(content, regular, 10f, margin, y, "Note ID   : " + noteId);
+                y = writeLine(content, regular, 10f, margin, y - 2f, "Company   : " + company);
+                y = writeLine(content, regular, 10f, margin, y - 2f, "Party     : " + partyType + " — " + partyId);
+                y = writeLine(content, regular, 10f, margin, y - 2f, "Category  : " + categoryId);
+                y -= 10f;
+                y = writeLine(content, bold, 11f, margin, y, "Item");
+                y = writeLine(content, regular, 10f, margin, y - 2f, "Code : " + itemCode);
+                if (!itemName.isBlank()) {
+                    y = writeLine(content, regular, 10f, margin, y - 2f, "Name : " + itemName);
+                }
+                y -= 10f;
+                y = writeLine(content, bold, 12f, margin, y, "Amount    : " + amount.toPlainString());
+                y = writeLine(content, regular, 10f, margin, y - 2f, "Date      : " + postingDate);
+                if (!reason.isBlank()) {
+                    y = writeLine(content, regular, 10f, margin, y - 2f, "Reason    : " + reason);
+                }
+                y -= 14f;
+                writeLine(content, regular, 8f, margin, y, "This note is under admin review and has not been approved yet.");
+            }
+            document.save(out);
+            return out.toByteArray();
+        }
+    }
+
+    private float writeLine(PDPageContentStream content, PDType1Font font, float fontSize, float x, float y, String text) throws IOException {
+        content.beginText();
+        content.setFont(font, fontSize);
+        content.newLineAtOffset(x, y);
+        content.showText(text == null ? "" : text);
+        content.endText();
+        return y - fontSize - 2f;
     }
 
     private InvoiceContext resolveInvoiceContext(String partyType) {

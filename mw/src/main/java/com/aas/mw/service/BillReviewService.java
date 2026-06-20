@@ -594,6 +594,7 @@ public class BillReviewService {
         out.put("direction", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_DIRECTION)));
         out.put("referenceNo", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE)));
         out.put("referenceInvoice", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REFERENCE_INVOICE)));
+        out.put("referenceItemName", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_ITEM_NAME)));
         out.put("reason", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_REASON)));
         out.put("docstatus", adjustmentNoteErpService.asInt(row.get("docstatus")));
         out.put("createdAt", adjustmentNoteErpService.asText(row.get(AdjustmentNoteErpService.FIELD_CREATED_AT)));

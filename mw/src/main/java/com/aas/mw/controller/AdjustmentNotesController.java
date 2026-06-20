@@ -14,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import java.util.List;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -53,6 +54,11 @@ public class AdjustmentNotesController {
         AdjustmentNoteRequest payload = parseRequest(note);
         String actor = authentication == null ? "" : String.valueOf(authentication.getName());
         return ResponseEntity.ok(adjustmentNoteService.createDraftWithAttachments(payload, files, actor, sessionCookie));
+    }
+
+    @GetMapping("/items")
+    public ResponseEntity<List<Map<String, Object>>> listItems() {
+        return ResponseEntity.ok(adjustmentNoteService.listItemOptions());
     }
 
     @GetMapping("/{id}/pdf")

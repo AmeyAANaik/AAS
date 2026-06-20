@@ -118,6 +118,13 @@ export class BillsService {
     });
   }
 
+  listItemsForNote(): Observable<{ id: string; name: string; code: string; group: string }[]> {
+    return this.http.get<{ id: string; name: string; code: string; group: string }[]>(
+      '/api/adjustment-notes/items',
+      { headers: this.authHeaders() }
+    );
+  }
+
   createAdjustmentNoteWithAttachments(
     payload: AdjustmentNotePayload,
     files: File[]

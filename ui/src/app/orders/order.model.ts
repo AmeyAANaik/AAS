@@ -54,9 +54,21 @@ export interface OrderView {
 export interface OrderFilters {
   customer?: string;
   vendor?: string;
-  status?: string;
+  status?: string[];
+  branch?: string[];
+  vendorFilter?: string[];
   from?: string;
   to?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PagedOrdersResult {
+  data: OrderSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface OrderCreateLine {

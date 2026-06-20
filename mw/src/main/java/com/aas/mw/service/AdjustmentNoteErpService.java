@@ -37,6 +37,7 @@ public class AdjustmentNoteErpService {
     public static final String FIELD_REASON = "aas_adjustment_reason";
     public static final String FIELD_REFERENCE_INVOICE = "aas_reference_invoice";
     public static final String FIELD_REFERENCE_INVOICE_DOCTYPE = "aas_reference_invoice_doctype";
+    public static final String FIELD_ITEM_NAME = "aas_adjustment_item_name";
 
     private final ErpNextClient erpNextClient;
 
@@ -53,7 +54,8 @@ public class AdjustmentNoteErpService {
                         + "\"" + FIELD_REVIEWED_BY + "\",\"" + FIELD_REVIEWED_AT + "\",\"" + FIELD_CATEGORY + "\","
                         + "\"" + FIELD_DUE_AMOUNT + "\",\"" + FIELD_DIRECTION + "\",\"" + FIELD_NOTE_TYPE + "\","
                         + "\"" + FIELD_PARTY_TYPE + "\",\"" + FIELD_PARTY + "\",\"" + FIELD_AMOUNT + "\","
-                        + "\"" + FIELD_REASON + "\",\"" + FIELD_REFERENCE_INVOICE + "\",\"" + FIELD_REFERENCE_INVOICE_DOCTYPE + "\"]");
+                        + "\"" + FIELD_REASON + "\",\"" + FIELD_REFERENCE_INVOICE + "\",\"" + FIELD_REFERENCE_INVOICE_DOCTYPE + "\","
+                        + "\"" + FIELD_ITEM_NAME + "\"]");
         params.put("limit_page_length", 500);
         params.put("order_by", "modified desc");
         List<List<String>> filters = new ArrayList<>();

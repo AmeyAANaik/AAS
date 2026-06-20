@@ -103,37 +103,51 @@ public class OrdersController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> listOrders(
+    public ResponseEntity<Map<String, Object>> listOrders(
             @RequestParam(required = false) String customer,
             @RequestParam(required = false) String vendor,
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) List<String> branch,
+            @RequestParam(required = false) List<String> vendorFilter,
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
-        return ResponseEntity.ok(buildOrders(customer, vendor, status, fromDate, toDate));
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false, defaultValue = "1") int page,
+            @RequestParam(required = false, defaultValue = "20") int pageSize) {
+        return ResponseEntity.ok(buildPagedOrders(customer, vendor, status, branch, vendorFilter, fromDate, toDate, q, page, pageSize));
     }
 
     @GetMapping("/export")
     public ResponseEntity<String> exportOrders(
             @RequestParam(required = false) String customer,
             @RequestParam(required = false) String vendor,
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) List<String> branch,
+            @RequestParam(required = false) List<String> vendorFilter,
             @RequestParam(required = false, name = "from") String fromDate,
-            @RequestParam(required = false, name = "to") String toDate) {
-        List<Map<String, Object>> orders = buildOrders(customer, vendor, status, fromDate, toDate);
-        String csv = CsvUtil.toCsv(orders);
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false) String q) {
+        Map<String, Object> result = buildPagedOrders(customer, vendor, status, branch, vendorFilter, fromDate, toDate, q, 1, 1000);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) result.get("data");
+        String csv = CsvUtil.toCsv(orders != null ? orders : List.of());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"orders.csv\"")
                 .contentType(MediaType.valueOf("text/csv"))
                 .body(csv);
     }
 
-    private List<Map<String, Object>> buildOrders(
+    private Map<String, Object> buildPagedOrders(
             String customer,
             String vendor,
-            String status,
+            List<String> statusValues,
+            List<String> branchValues,
+            List<String> vendorValues,
             String fromDate,
-            String toDate) {
-        Map<String, String> filters = new HashMap<>();
+            String toDate,
+            String q,
+            int page,
+            int pageSize) {
         String role = resolveRole();
         if ("vendor".equals(role) && (vendor == null || vendor.isBlank())) {
             String supplier = resolveSupplier();
@@ -147,22 +161,14 @@ public class OrdersController {
                 customer = shop;
             }
         }
-        if (customer != null && !customer.isBlank()) {
-            filters.put("customer", customer);
-        }
-        if (vendor != null && !vendor.isBlank()) {
-            filters.put("aas_vendor", vendor);
-        }
-        if (status != null && !status.isBlank()) {
-            filters.put("aas_status", status);
-        }
-        if (fromDate != null && !fromDate.isBlank()) {
-            filters.put("from", fromDate);
-        }
-        if (toDate != null && !toDate.isBlank()) {
-            filters.put("to", toDate);
-        }
-        return orderService.listOrders(filters);
+        OrderService.PagedOrders result = orderService.listOrders(
+                customer, vendor, statusValues, branchValues, vendorValues, fromDate, toDate, q, page, pageSize);
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", result.data());
+        response.put("total", result.total());
+        response.put("page", result.page());
+        response.put("pageSize", result.pageSize());
+        return response;
     }
 
     private String resolveRole() {

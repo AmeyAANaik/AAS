@@ -146,7 +146,8 @@ export interface AdjustmentNotePayload {
   partyType: 'Customer' | 'Supplier' | string;
   partyId: string;
   categoryId: string;
-  invoiceId?: string;
+  itemCode: string;
+  itemName?: string;
   direction: 'GIVE' | 'TAKE' | string;
   amount: number;
   noteDate?: string;
@@ -164,7 +165,7 @@ export interface AdjustmentNoteDocument {
   aas_adjustment_amount?: number;
   aas_adjustment_reason?: string;
   aas_reference_invoice?: string;
-  aas_reference_invoice_doctype?: string;
+  aas_adjustment_item_name?: string;
   aas_adjustment_review_status?: string;
   aas_due_amount?: number;
   aas_category?: string;

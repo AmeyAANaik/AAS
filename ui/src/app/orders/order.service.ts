@@ -9,6 +9,7 @@ import {
   OrderFilters,
   OrderItemPayload,
   OrderSummary,
+  PagedOrdersResult,
   SellPreview,
   VendorBillPayload
 } from './order.model';
@@ -27,7 +28,7 @@ export class OrderService {
     return this.http.get<any[]>('/api/companies', { headers: this.authHeaders() });
   }
 
-  listOrders(filters: OrderFilters): Observable<OrderSummary[]> {
+  listOrders(filters: OrderFilters): Observable<PagedOrdersResult> {
     const headers = this.authHeaders();
     let params = new HttpParams();
     if (filters.customer) {
@@ -36,16 +37,25 @@ export class OrderService {
     if (filters.vendor) {
       params = params.set('vendor', filters.vendor);
     }
-    if (filters.status) {
-      params = params.set('status', filters.status);
-    }
+    (filters.status ?? []).forEach(s => { params = params.append('status', s); });
+    (filters.branch ?? []).forEach(b => { params = params.append('branch', b); });
+    (filters.vendorFilter ?? []).forEach(v => { params = params.append('vendorFilter', v); });
     if (filters.from) {
       params = params.set('from', filters.from);
     }
     if (filters.to) {
       params = params.set('to', filters.to);
     }
-    return this.http.get<OrderSummary[]>('/api/orders', { headers, params });
+    if (filters.q) {
+      params = params.set('q', filters.q);
+    }
+    if (filters.page != null) {
+      params = params.set('page', String(filters.page));
+    }
+    if (filters.pageSize != null) {
+      params = params.set('pageSize', String(filters.pageSize));
+    }
+    return this.http.get<PagedOrdersResult>('/api/orders', { headers, params });
   }
 
   createOrder(payload: OrderCreatePayload): Observable<Record<string, unknown>> {

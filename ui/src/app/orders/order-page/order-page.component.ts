@@ -5,14 +5,14 @@ import { ActivatedRoute } from '@angular/router';
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, of, Subscription } from 'rxjs';
-import { finalize, switchMap } from 'rxjs/operators';
+import { Observable, of, Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged, finalize, switchMap } from 'rxjs/operators';
 import { VendorService } from '../../vendors/vendor.service';
 import { ItemService } from '../../items/item.service';
 import { Item } from '../../items/item.model';
 import { OrderBranchImage, OrderItemPayload, ItemOption, OrderOption, OrderStatus, OrderSummary, SellPreview } from '../order.model';
 import { OrderService } from '../order.service';
-import { MatPaginator } from '@angular/material/paginator';
+import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
 import { MatTableDataSource } from '@angular/material/table';
 import { OrderAdvancedFiltersDialogComponent, OrderAdvancedFiltersDialogValue } from './order-advanced-filters-dialog.component';
@@ -160,6 +160,14 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   draftBranchFilters = new Set<string>();
   draftVendorFilters = new Set<string>();
 
+  currentPage = 1;
+  currentPageSize = 20;
+  totalOrders = 0;
+
+  branchOptions: string[] = [];
+
+  private searchSubject = new Subject<string>();
+
   billTotalControl = new FormControl<number | null>(null);
   transportChargeControl = new FormControl<number>(0, { nonNullable: true });
   mismatchOverrideControl = new FormControl<boolean>(false, { nonNullable: true });
@@ -235,39 +243,37 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.dataSource.filterPredicate = (order, filter) => this.matchesFilter(order, filter);
     this.dataSource.sortingDataAccessor = (order, property) => {
       if (property === 'date') {
         return this.toDayNumber(String(order.raw.transaction_date ?? '')) ?? 0;
       }
-      if (property === 'status') {
-        return String(order.status ?? '');
-      }
-      if (property === 'vendor') {
-        return String(order.vendor ?? '');
-      }
-      if (property === 'branch') {
-        return String(order.branch ?? '');
-      }
-      if (property === 'id') {
-        return String(order.displayId ?? order.name ?? '');
-      }
+      if (property === 'status') return String(order.status ?? '');
+      if (property === 'vendor') return String(order.vendor ?? '');
+      if (property === 'branch') return String(order.branch ?? '');
+      if (property === 'id') return String(order.displayId ?? order.name ?? '');
       return '';
     };
 
     this.loadVendors();
     this.loadItems();
+    this.loadBranches();
     this.loadOrders();
-    this.subscriptions.add(
-      this.searchControl.valueChanges.subscribe(() => this.applySearch())
-    );
-    this.subscriptions.add(
-      this.fromDateControl.valueChanges.subscribe(() => this.applyDateRange())
-    );
-    this.subscriptions.add(
-      this.toDateControl.valueChanges.subscribe(() => this.applyDateRange())
-    );
 
+    this.subscriptions.add(
+      this.searchSubject.pipe(debounceTime(400), distinctUntilChanged()).subscribe(() => {
+        this.currentPage = 1;
+        this.loadOrders();
+      })
+    );
+    this.subscriptions.add(
+      this.searchControl.valueChanges.subscribe(v => this.searchSubject.next(v))
+    );
+    this.subscriptions.add(
+      this.fromDateControl.valueChanges.subscribe(() => { this.currentPage = 1; this.loadOrders(); })
+    );
+    this.subscriptions.add(
+      this.toDateControl.valueChanges.subscribe(() => { this.currentPage = 1; this.loadOrders(); })
+    );
     this.subscriptions.add(
       this.billTotalControl.valueChanges.subscribe(() => this.updateBillMismatchError())
     );
@@ -295,6 +301,7 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
+    this.searchSubject.complete();
   }
 
   private loadVendors(): void {
@@ -331,45 +338,66 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   loadOrders(options: LoadOrdersOptions = {}): void {
     this.ordersErrorMessage = '';
     this.isLoading = true;
-    this.orderService.listOrders({})
+    const filters = this.buildCurrentFilters();
+    this.orderService.listOrders(filters)
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
-      next: orders => {
-        this.ordersErrorMessage = '';
-        this.orders = (orders ?? []).map(order => this.toUiOrder(order));
-        this.dataSource.data = this.orders;
-        this.updateTableFilter();
-        this.refreshSelection();
-        this.selectRequestedOrder();
-      },
-      error: err => {
-        if (!options.suppressRefreshError || !this.orders.length) {
-          this.ordersErrorMessage = this.formatError(err, 'Unable to load orders');
+        next: result => {
+          this.ordersErrorMessage = '';
+          this.orders = (result.data ?? []).map(order => this.toUiOrder(order));
+          this.totalOrders = result.total >= 0 ? result.total : this.orders.length;
+          this.dataSource.data = this.orders;
+          if (this.tablePaginator) {
+            this.tablePaginator.length = this.totalOrders;
+          }
+          this.refreshSelection();
+          this.selectRequestedOrder();
+        },
+        error: err => {
+          if (!options.suppressRefreshError || !this.orders.length) {
+            this.ordersErrorMessage = this.formatError(err, 'Unable to load orders');
+          }
+          if (!this.orders.length) {
+            this.dataSource.data = [];
+          }
         }
-        if (!this.orders.length) {
-          this.dataSource.data = [];
-        }
-      }
-    });
+      });
   }
 
-  private applySearch(): void {
-    this.updateTableFilter();
-    if (this.dataSource.paginator) {
-      this.dataSource.paginator.firstPage();
-    }
+  onPageChange(event: PageEvent): void {
+    this.currentPage = event.pageIndex + 1;
+    this.currentPageSize = event.pageSize;
+    this.loadOrders({ suppressRefreshError: true });
   }
 
-  private applyDateRange(): void {
-    this.updateTableFilter();
-    this.dataSource.paginator?.firstPage();
+  private buildCurrentFilters() {
+    return {
+      status: Array.from(this.appliedStatusFilters),
+      branch: Array.from(this.appliedBranchFilters),
+      vendorFilter: Array.from(this.appliedVendorFilters),
+      from: this.fromDateControl.value.trim() || undefined,
+      to: this.toDateControl.value.trim() || undefined,
+      q: this.searchControl.value.trim() || undefined,
+      page: this.currentPage,
+      pageSize: this.currentPageSize
+    };
   }
 
   clearDateRange(): void {
     this.fromDateControl.setValue('');
     this.toDateControl.setValue('');
-    this.updateTableFilter();
-    this.dataSource.paginator?.firstPage();
+  }
+
+  private loadBranches(): void {
+    this.orderService.listBranches().subscribe({
+      next: (branches: any[]) => {
+        this.branchOptions = (branches ?? [])
+          .map((b: any) => String(b?.customer_name ?? b?.name ?? '').trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+      },
+      error: () => { this.branchOptions = []; }
+    });
   }
 
   private isDisabled(value: unknown): boolean {
@@ -404,8 +432,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
         }
         this.fromDateControl.setValue(result.from ?? '');
         this.toDateControl.setValue(result.to ?? '');
-        this.updateTableFilter();
-        this.dataSource.paginator?.firstPage();
       })
     );
   }
@@ -420,8 +446,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.appliedStatusFilters = new Set(this.draftStatusFilters);
     this.appliedBranchFilters = new Set(this.draftBranchFilters);
     this.appliedVendorFilters = new Set(this.draftVendorFilters);
-    this.updateTableFilter();
-    this.dataSource.paginator?.firstPage();
+    this.currentPage = 1;
+    this.loadOrders();
   }
 
   clearAllDraftFilters(): void {
@@ -437,8 +463,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     this.searchControl.setValue('');
     this.fromDateControl.setValue('');
     this.toDateControl.setValue('');
-    this.updateTableFilter();
-    this.dataSource.paginator?.firstPage();
+    this.currentPage = 1;
+    this.loadOrders();
   }
 
   toggleDraftStatus(status: UiOrderStatus): void {
@@ -476,8 +502,8 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
       this.appliedVendorFilters.delete(value);
       this.draftVendorFilters.delete(value);
     }
-    this.updateTableFilter();
-    this.dataSource.paginator?.firstPage();
+    this.currentPage = 1;
+    this.loadOrders();
   }
 
   get availableStatuses(): UiOrderStatus[] {
@@ -508,13 +534,11 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   get availableBranches(): string[] {
-    const branches = Array.from(new Set(this.orders.map(order => order.branch).filter(Boolean)));
-    return branches.sort((a, b) => a.localeCompare(b));
+    return this.branchOptions;
   }
 
   get availableVendors(): string[] {
-    const vendors = Array.from(new Set(this.orders.map(order => order.vendor).filter(Boolean)));
-    return vendors.sort((a, b) => a.localeCompare(b));
+    return this.vendorOptions.map(v => v.name).sort((a, b) => a.localeCompare(b));
   }
 
   get filterSummary(): string {
@@ -566,76 +590,6 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
     return chips;
   }
 
-  private updateTableFilter(): void {
-    const payload = {
-      q: this.searchControl.value.trim().toLowerCase(),
-      statuses: Array.from(this.appliedStatusFilters),
-      branches: Array.from(this.appliedBranchFilters),
-      vendors: Array.from(this.appliedVendorFilters),
-      from: this.fromDateControl.value.trim(),
-      to: this.toDateControl.value.trim()
-    };
-    this.dataSource.filter = JSON.stringify(payload);
-  }
-
-  private matchesFilter(order: UiOrder, rawFilter: string): boolean {
-    let filter: {
-      q?: string;
-      statuses?: string[];
-      branches?: string[];
-      vendors?: string[];
-      from?: string;
-      to?: string;
-    } = {};
-    const trimmed = String(rawFilter ?? '').trim();
-    if (trimmed) {
-      try {
-        filter = JSON.parse(trimmed) as typeof filter;
-      } catch {
-        filter = { q: trimmed };
-      }
-    }
-
-    const statuses = (filter.statuses ?? []).map(String);
-    if (statuses.length && !statuses.includes(String(order.status))) {
-      return false;
-    }
-    const branches = (filter.branches ?? []).map(String);
-    if (branches.length && !branches.includes(String(order.branch))) {
-      return false;
-    }
-    const vendors = (filter.vendors ?? []).map(String);
-    if (vendors.length && !vendors.includes(String(order.vendor))) {
-      return false;
-    }
-
-    const orderDay = this.toDayNumber(String(order.raw.transaction_date ?? ''));
-    const fromDay = this.toDayNumber(String(filter.from ?? ''));
-    const toDay = this.toDayNumber(String(filter.to ?? ''));
-    if ((fromDay !== null || toDay !== null) && orderDay === null) {
-      return false;
-    }
-    if (fromDay !== null && orderDay !== null && orderDay < fromDay) {
-      return false;
-    }
-    if (toDay !== null && orderDay !== null && orderDay > toDay) {
-      return false;
-    }
-
-    const q = String(filter.q ?? '').trim().toLowerCase();
-    if (!q) {
-      return true;
-    }
-    const date = String(order.raw.transaction_date ?? '');
-    return (
-      String(order.displayId ?? '').toLowerCase().includes(q) ||
-      String(order.name ?? '').toLowerCase().includes(q) ||
-      String(order.branch ?? '').toLowerCase().includes(q) ||
-      String(order.vendor ?? '').toLowerCase().includes(q) ||
-      String(order.status ?? '').toLowerCase().includes(q) ||
-      date.toLowerCase().includes(q)
-    );
-  }
 
   private toDayNumber(value: string): number | null {
     const text = String(value ?? '').trim();

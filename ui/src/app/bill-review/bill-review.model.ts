@@ -18,6 +18,7 @@ export interface BillReviewListItem {
   direction?: string;
   referenceNo?: string;
   referenceInvoice?: string;
+  referenceItemName?: string;
   reason?: string;
   docstatus: number;
   createdAt: string;

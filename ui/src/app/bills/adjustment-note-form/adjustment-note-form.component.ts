@@ -1,9 +1,9 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 import { formatUiError } from '../../shared/error-message.util';
 import { AuthTokenService } from '../../shared/auth-token.service';
-import { AdjustmentNotePayload, InvoiceSummary, OptionItem, PaymentDueSummary } from '../bills.model';
+import { AdjustmentNotePayload, OptionItem, PaymentDueSummary } from '../bills.model';
 import { BillsService } from '../bills.service';
 
 function formatApiDate(value: unknown): string | undefined {
@@ -20,19 +20,14 @@ function formatApiDate(value: unknown): string | undefined {
   return text || undefined;
 }
 
-type InvoiceOption = {
-  id: string;
-  label: string;
-  categoryId: string;
-  raw: InvoiceSummary;
-};
+type ItemOption = { id: string; name: string; code: string; group: string };
 
 @Component({
   selector: 'app-adjustment-note-form',
   templateUrl: './adjustment-note-form.component.html',
   styleUrl: './adjustment-note-form.component.scss'
 })
-export class AdjustmentNoteFormComponent {
+export class AdjustmentNoteFormComponent implements OnInit {
   @Input() customers: OptionItem[] = [];
   @Input() vendors: OptionItem[] = [];
   @Input() categories: OptionItem[] = [];
@@ -42,7 +37,7 @@ export class AdjustmentNoteFormComponent {
     partyType: ['Customer', Validators.required],
     partyId: ['', Validators.required],
     categoryId: ['', Validators.required],
-    invoiceId: [''],
+    itemCode: ['', Validators.required],
     direction: ['GIVE', Validators.required],
     amount: [0, [Validators.required, Validators.min(0.01)]],
     noteDate: [new Date(), Validators.required],
@@ -50,10 +45,10 @@ export class AdjustmentNoteFormComponent {
     evidence: ['']
   });
 
-  invoiceOptions: InvoiceOption[] = [];
+  itemOptions: ItemOption[] = [];
   noteFiles: File[] = [];
   statusMessage = '';
-  isLoadingInvoices = false;
+  isLoadingItems = false;
   isLoadingDue = false;
   isSubmitting = false;
   selectedDue = 0;
@@ -67,6 +62,10 @@ export class AdjustmentNoteFormComponent {
     private readonly billsService: BillsService,
     private readonly tokenStore: AuthTokenService
   ) {}
+
+  ngOnInit(): void {
+    this.loadItems();
+  }
 
   get canCreateNotes(): boolean {
     const role = String(this.tokenStore.getRole() ?? '').trim().toLowerCase();
@@ -105,9 +104,11 @@ export class AdjustmentNoteFormComponent {
     return match?.name || '';
   }
 
-  get selectedInvoiceLabel(): string {
-    const invoiceId = String(this.form.get('invoiceId')?.value ?? '').trim();
-    return this.invoiceOptions.find(option => option.id === invoiceId)?.label || '';
+  get selectedItemLabel(): string {
+    const itemCode = String(this.form.get('itemCode')?.value ?? '').trim();
+    const match = this.itemOptions.find(o => o.code === itemCode);
+    if (!match) return '';
+    return match.name ? `${match.name} (${match.code})` : match.code;
   }
 
   get isGiveMode(): boolean {
@@ -143,28 +144,19 @@ export class AdjustmentNoteFormComponent {
 
   onPartyTypeChange(): void {
     const partyType = this.isSupplierMode ? 'Supplier' : 'Customer';
-    this.form.patchValue({ partyType, partyId: '', categoryId: '', invoiceId: '' }, { emitEvent: false });
-    this.invoiceOptions = [];
+    this.form.patchValue({ partyType, partyId: '', categoryId: '', itemCode: '' }, { emitEvent: false });
     this.resetDue();
   }
 
   onPartyChange(): void {
-    this.form.patchValue({ invoiceId: '' }, { emitEvent: false });
-    this.invoiceOptions = [];
+    this.form.patchValue({ itemCode: '' }, { emitEvent: false });
     this.resetDue();
-    this.loadInvoices();
   }
 
   onCategoryChange(): void {
-    this.form.patchValue({ invoiceId: '' }, { emitEvent: false });
-    this.invoiceOptions = [];
+    this.form.patchValue({ itemCode: '' }, { emitEvent: false });
     this.resetDue();
-    this.loadInvoices();
     this.loadDue();
-  }
-
-  onInvoiceChange(): void {
-    this.statusMessage = '';
   }
 
   onFilesSelected(event: Event): void {
@@ -186,28 +178,32 @@ export class AdjustmentNoteFormComponent {
       return;
     }
     const value = this.form.getRawValue();
+    const selectedItem = this.itemOptions.find(o => o.code === String(value.itemCode ?? '').trim());
     const payload: AdjustmentNotePayload = {
       partyType: String(value.partyType ?? '').trim(),
       partyId: String(value.partyId ?? '').trim(),
       categoryId: String(value.categoryId ?? '').trim(),
+      itemCode: String(value.itemCode ?? '').trim(),
+      itemName: selectedItem?.name || undefined,
       direction: String(value.direction ?? '').trim(),
       amount: Number(value.amount ?? 0),
       noteDate: formatApiDate(value.noteDate),
       reason: String(value.reason ?? '').trim() || undefined
     };
-    const invoiceId = String(value.invoiceId ?? '').trim();
-    if (invoiceId) {
-      payload.invoiceId = invoiceId;
-    }
     this.isSubmitting = true;
     this.statusMessage = `Submitting ${this.noteLabel.toLowerCase()} for admin review...`;
     this.billsService.createAdjustmentNoteWithAttachments(payload, this.noteFiles)
       .pipe(finalize(() => (this.isSubmitting = false)))
       .subscribe({
         next: result => {
-          const count = Array.isArray(result?.files) ? result.files.length : 0;
+          const files = Array.isArray(result?.files) ? result.files : [];
+          const pdfFile = files.find(f => (f.fileName ?? '').toLowerCase().endsWith('.pdf'));
+          if (pdfFile?.fileUrl) {
+            this.downloadPdfUrl(pdfFile.fileUrl);
+          }
+          const count = files.length;
           this.statusMessage = count > 0
-            ? `${this.noteLabel} submitted for admin review with ${count} attachment(s).`
+            ? `${this.noteLabel} submitted for admin review with ${count} attachment(s). PDF downloaded.`
             : `${this.noteLabel} submitted for admin review.`;
           this.created.emit();
           this.reset();
@@ -223,56 +219,40 @@ export class AdjustmentNoteFormComponent {
       partyType: 'Customer',
       partyId: '',
       categoryId: '',
-      invoiceId: '',
+      itemCode: '',
       direction: 'GIVE',
       amount: 0,
       noteDate: new Date(),
       reason: '',
       evidence: ''
     });
-    this.invoiceOptions = [];
     this.noteFiles = [];
     this.resetDue();
     this.statusMessage = '';
   }
 
-  private loadInvoices(): void {
-    const partyType = this.isSupplierMode ? 'Supplier' : 'Customer';
-    const partyId = String(this.form.get('partyId')?.value ?? '').trim();
-    const categoryId = String(this.form.get('categoryId')?.value ?? '').trim();
-    if (!partyId) {
-      return;
-    }
-    this.isLoadingInvoices = true;
-    this.statusMessage = 'Loading related invoices...';
-    this.billsService.listInvoiceOptions(partyType, partyId)
-      .pipe(finalize(() => (this.isLoadingInvoices = false)))
+  private loadItems(): void {
+    this.isLoadingItems = true;
+    this.billsService.listItemsForNote()
+      .pipe(finalize(() => (this.isLoadingItems = false)))
       .subscribe({
-        next: invoices => {
-          this.invoiceOptions = (invoices ?? []).map(invoice => {
-            const id = String(invoice.name ?? '').trim();
-            const date = String(invoice.posting_date ?? '').trim();
-            const outstanding = Number(invoice.outstanding_amount ?? invoice.grand_total ?? 0);
-            const invoiceCategoryId = String(invoice.aas_category ?? '').trim();
-            return {
-              id,
-              label: `${id} • ${date || 'No date'} • ${invoiceCategoryId || 'No category'} • Due ₹${outstanding.toFixed(2)}`,
-              categoryId: invoiceCategoryId,
-              raw: invoice
-            };
-          }).filter(option => !!option.id)
-            .filter(option => !categoryId || option.categoryId === categoryId);
-          this.statusMessage = this.invoiceOptions.length
-            ? ''
-            : (categoryId
-                ? 'No invoices found for the selected party and category.'
-                : 'No related invoices found for the selected party.');
-        },
-        error: err => {
-          this.invoiceOptions = [];
-          this.statusMessage = formatUiError(err, 'Unable to load related invoices.');
-        }
+        next: items => { this.itemOptions = items ?? []; },
+        error: () => { this.itemOptions = []; }
       });
+  }
+
+  private downloadPdfUrl(fileUrl: string): void {
+    try {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = '';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      // best-effort: PDF is still attached to the note in ERPNext
+    }
   }
 
   private loadDue(): void {

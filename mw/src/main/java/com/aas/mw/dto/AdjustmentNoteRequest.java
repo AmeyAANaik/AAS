@@ -16,7 +16,10 @@ public class AdjustmentNoteRequest {
     @NotBlank
     private String categoryId;
 
-    private String invoiceId;
+    @NotBlank
+    private String itemCode;
+
+    private String itemName;
 
     @NotBlank
     private String direction;
@@ -53,12 +56,20 @@ public class AdjustmentNoteRequest {
         this.categoryId = categoryId;
     }
 
-    public String getInvoiceId() {
-        return invoiceId;
+    public String getItemCode() {
+        return itemCode;
     }
 
-    public void setInvoiceId(String invoiceId) {
-        this.invoiceId = invoiceId;
+    public void setItemCode(String itemCode) {
+        this.itemCode = itemCode;
+    }
+
+    public String getItemName() {
+        return itemName;
+    }
+
+    public void setItemName(String itemName) {
+        this.itemName = itemName;
     }
 
     public String getDirection() {

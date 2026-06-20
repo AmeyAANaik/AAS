@@ -126,7 +126,7 @@
 
       <div class="table-toolbar">
         <div class="table-summary">
-          Showing {{ dataSource.filteredData.length }} of {{ dataSource.data.length }} orders
+          Showing {{ dataSource.data.length }} of {{ totalOrders >= 0 ? totalOrders : '?' }} orders
         </div>
         <div class="table-actions">
           <button
@@ -220,8 +220,11 @@
       </ng-template>
 
       <mat-paginator
-        [pageSize]="10"
-        [pageSizeOptions]="[10, 25, 50]"
+        [length]="totalOrders"
+        [pageSize]="currentPageSize"
+        [pageSizeOptions]="[10, 20, 50]"
+        [pageIndex]="currentPage - 1"
+        (page)="onPageChange($event)"
         showFirstLastButtons>
       </mat-paginator>
     </mat-card-content>

@@ -1049,13 +1049,20 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_reference_invoice");
+        boolean adjustmentItemNameField = ensureCustomField(
+                "Journal Entry",
+                "aas_adjustment_item_name",
+                "Adjustment Item Name",
+                "Data",
+                null,
+                "aas_reference_invoice_doctype");
         boolean adjustmentReviewNotesField = ensureCustomField(
                 "Journal Entry",
                 "aas_adjustment_review_notes",
                 "Adjustment Review Notes",
                 "Small Text",
                 null,
-                "aas_reference_invoice_doctype");
+                "aas_adjustment_item_name");
         boolean adjustmentCreatedByField = ensureCustomField(
                 "Journal Entry",
                 "aas_adjustment_created_by",

@@ -68,7 +68,7 @@
             </div>
             <div class="queue-item-meta">
               <span>{{ item.categoryId || '—' }}</span>
-              <span *ngIf="item.referenceInvoice">Invoice: {{ item.referenceInvoice }}</span>
+              <span *ngIf="item.referenceInvoice">Item: {{ item.referenceItemName || item.referenceInvoice }}</span>
               <span *ngIf="item.modeOfPayment">{{ item.modeOfPayment }}</span>
               <span *ngIf="item.direction">{{ item.direction }}</span>
             </div>

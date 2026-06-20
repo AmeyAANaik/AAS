@@ -962,33 +962,122 @@ public class OrderService {
         return java.time.LocalDate.now().toString();
     }
 
-    public List<Map<String, Object>> listOrders(Map<String, String> filters) {
+    public record PagedOrders(List<Map<String, Object>> data, long total, int page, int pageSize) {}
+
+    public PagedOrders listOrders(
+            String customer,
+            String vendor,
+            List<String> statusValues,
+            List<String> branchValues,
+            List<String> vendorValues,
+            String fromDate,
+            String toDate,
+            String q,
+            int page,
+            int pageSize) {
+        int safePageSize = pageSize > 0 ? Math.min(pageSize, 200) : 20;
+        int safePage = page > 0 ? page : 1;
+        int limitStart = (safePage - 1) * safePageSize;
+
+        List<List<Object>> filterList = new ArrayList<>();
+        filterList.add(List.of("aas_is_deleted", "!=", "1"));
+
+        if (hasText(customer)) {
+            filterList.add(List.of("customer", "=", customer));
+        } else if (branchValues != null && !branchValues.isEmpty()) {
+            filterList.add(buildInFilter("customer", branchValues));
+        }
+
+        if (hasText(vendor)) {
+            filterList.add(List.of("aas_vendor", "=", vendor));
+        } else if (vendorValues != null && !vendorValues.isEmpty()) {
+            filterList.add(buildInFilter("aas_vendor", vendorValues));
+        }
+
+        if (statusValues != null && !statusValues.isEmpty()) {
+            filterList.add(buildInFilter("aas_status", statusValues));
+        }
+
+        if (hasText(fromDate)) {
+            filterList.add(List.of("transaction_date", ">=", fromDate));
+        }
+        if (hasText(toDate)) {
+            filterList.add(List.of("transaction_date", "<=", toDate));
+        }
+
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
                 "[\"name\",\"title\",\"customer\",\"company\",\"transaction_date\",\"delivery_date\",\"aas_category\",\"aas_vendor\",\"aas_status\",\"status\",\"grand_total\","
                         + "\"currency\",\"price_list_currency\","
                         + "\"aas_vendor_bill_total\",\"aas_vendor_bill_ref\",\"aas_vendor_bill_date\",\"aas_transport_charge\",\"aas_rounding_adjustment\",\"aas_margin_percent\","
                         + "\"aas_vendor_pdf\",\"aas_po\",\"aas_so_branch\",\"aas_si_branch\",\"aas_is_deleted\",\"aas_deleted_at\"]");
-        // Sort by last modification so newly created orders show up reliably on the first page.
+        params.put("limit_start", limitStart);
+        params.put("limit_page_length", safePageSize);
         params.put("order_by", "modified desc");
-        if (!filters.isEmpty()) {
-            List<List<String>> filterList = new ArrayList<>();
-            filters.forEach((key, value) -> {
-                if ("from".equals(key)) {
-                    filterList.add(List.of("transaction_date", ">=", value));
-                } else if ("to".equals(key)) {
-                    filterList.add(List.of("transaction_date", "<=", value));
-                } else {
-                    filterList.add(List.of(key, "=", value));
-                }
-            });
-            params.put("filters", toJson(filterList));
+        params.put("filters", buildMultiFiltersJson(filterList));
+
+        if (hasText(q)) {
+            String escaped = escape(q.trim());
+            List<List<Object>> orFilters = List.of(
+                    List.of("title", "like", "%" + escaped + "%"),
+                    List.of("customer", "like", "%" + escaped + "%"),
+                    List.of("aas_vendor", "like", "%" + escaped + "%"));
+            params.put("or_filters", buildMultiFiltersJson(orFilters));
         }
+
+        Map<String, Object> countParams = new HashMap<>();
+        countParams.put("filters", params.get("filters"));
+        if (params.containsKey("or_filters")) {
+            countParams.put("or_filters", params.get("or_filters"));
+        }
+        long total = 0;
+        try {
+            total = erpNextClient.getCount(DOCTYPE, countParams);
+        } catch (Exception ignored) {
+            total = -1;
+        }
+
         List<Map<String, Object>> orders = erpNextClient.listResources(DOCTYPE, params);
         orders = orders.stream().filter(order -> !isSoftDeleted(order)).toList();
         addOrderCostMetrics(orders);
         orders.forEach(this::resolveOrderFileUrls);
-        return orders;
+        return new PagedOrders(orders, total, safePage, safePageSize);
+    }
+
+    private List<Object> buildInFilter(String field, List<String> values) {
+        return List.of(field, "in", values);
+    }
+
+    private String buildMultiFiltersJson(List<List<Object>> filters) {
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < filters.size(); i++) {
+            List<Object> entry = filters.get(i);
+            builder.append("[");
+            for (int j = 0; j < entry.size(); j++) {
+                Object val = entry.get(j);
+                if (val instanceof List<?> list) {
+                    builder.append("[");
+                    for (int k = 0; k < list.size(); k++) {
+                        builder.append("\"").append(escape(String.valueOf(list.get(k)))).append("\"");
+                        if (k < list.size() - 1) {
+                            builder.append(",");
+                        }
+                    }
+                    builder.append("]");
+                } else {
+                    builder.append("\"").append(escape(String.valueOf(val))).append("\"");
+                }
+                if (j < entry.size() - 1) {
+                    builder.append(",");
+                }
+            }
+            builder.append("]");
+            if (i < filters.size() - 1) {
+                builder.append(",");
+            }
+        }
+        builder.append("]");
+        return builder.toString();
     }
 
     private Map<String, Object> withResolvedFileUrls(Map<String, Object> order) {
