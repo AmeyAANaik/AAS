@@ -226,7 +226,7 @@ class OrderServiceTest {
                 .thenThrow(new RuntimeException("You don’t have permission to run this report."));
         when(erpNextClient.listResources(eq("File"), anyMap())).thenReturn(List.of());
 
-        List<Map<String, Object>> orders = orderService.listOrders(Map.of());
+        List<Map<String, Object>> orders = orderService.listOrders(null, null, null, null, null, null, null, null, 1, 20).data();
 
         assertEquals(1, orders.size());
         assertEquals("SO-1", orders.get(0).get("name"));
@@ -615,7 +615,7 @@ class OrderServiceTest {
                 new HashMap<>(Map.of("name", "SO-2", "aas_status", "DELETED", "aas_is_deleted", 1))));
         when(erpNextClient.getResource(eq("Sales Order"), eq("SO-1"))).thenReturn(Map.of("items", List.of()));
 
-        List<Map<String, Object>> orders = orderService.listOrders(Map.of());
+        List<Map<String, Object>> orders = orderService.listOrders(null, null, null, null, null, null, null, null, 1, 20).data();
 
         assertEquals(1, orders.size());
         assertEquals("SO-1", orders.get(0).get("name"));
