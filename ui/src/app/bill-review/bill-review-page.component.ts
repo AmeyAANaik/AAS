@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
 import { finalize, Subscription } from 'rxjs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
@@ -54,10 +55,14 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
   isSaving = false;
   statusMessage = '';
   errorMessage = '';
+  attachmentImageUrls = new Map<string, SafeUrl>();
 
   private readonly subscriptions = new Subscription();
 
-  constructor(public readonly billReviewService: BillReviewService) {}
+  constructor(
+    public readonly billReviewService: BillReviewService,
+    private readonly sanitizer: DomSanitizer
+  ) {}
 
   ngOnInit(): void {
     this.loadCount();
@@ -70,6 +75,7 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
+    this.revokeImageUrls();
   }
 
   applyStatus(status: string): void {
@@ -92,18 +98,29 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
     this.selectedItemType = item.itemType;
     this.isDetailLoading = true;
     this.errorMessage = '';
+    this.revokeImageUrls();
     this.billReviewService.getDetail(item.itemType, item.documentId)
       .pipe(finalize(() => (this.isDetailLoading = false)))
       .subscribe({
         next: detail => {
           this.selectedItem = detail;
           this.notes = this.existingNotes(detail);
+          this.loadAttachmentImages(detail.attachments ?? []);
         },
         error: err => {
           this.selectedItem = null;
           this.errorMessage = formatUiError(err, 'Unable to load review details.');
         }
       });
+  }
+
+  isImageAttachment(attachment: BillReviewAttachment): boolean {
+    const name = (attachment?.name || attachment?.id || '').toLowerCase();
+    return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.gif') || name.endsWith('.webp');
+  }
+
+  imageUrlFor(attachment: BillReviewAttachment): SafeUrl | null {
+    return this.attachmentImageUrls.get(attachment?.id) ?? null;
   }
 
   approve(): void {
@@ -363,10 +380,36 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
   }
 
   private clearSelection(): void {
+    this.revokeImageUrls();
     this.selectedItem = null;
     this.selectedDocumentId = '';
     this.selectedItemType = 'PAYMENT';
     this.notes = '';
+  }
+
+  private loadAttachmentImages(attachments: BillReviewAttachment[]): void {
+    for (const attachment of attachments) {
+      if (!this.isImageAttachment(attachment)) {
+        continue;
+      }
+      this.billReviewService.downloadAttachment(attachment).subscribe({
+        next: blob => {
+          const objectUrl = window.URL.createObjectURL(blob);
+          this.attachmentImageUrls.set(attachment.id, this.sanitizer.bypassSecurityTrustUrl(objectUrl));
+        },
+        error: () => {}
+      });
+    }
+  }
+
+  private revokeImageUrls(): void {
+    for (const safeUrl of this.attachmentImageUrls.values()) {
+      const raw = (safeUrl as any)?.changingThisBreaksApplicationSecurity as string;
+      if (raw) {
+        window.URL.revokeObjectURL(raw);
+      }
+    }
+    this.attachmentImageUrls.clear();
   }
 
   private approvalMessage(detail: BillReviewDetail | null): string {
