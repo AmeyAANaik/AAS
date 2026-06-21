@@ -133,8 +133,10 @@ public class ReportService {
                         String group = asString(item.get("item_group"));
                         double amount = asDouble(item.get("amount"));
                         double qty = asDouble(item.get("qty"));
+                        double rate = asDouble(item.get("rate"));
                         double vendorRate = asDouble(item.get("aas_vendor_rate"));
-                        double cost = (vendorRate > 0 && qty > 0) ? vendorRate * qty : 0.0;
+                        // Guard: skip aas_vendor_rate equal to sell rate (old buildSellItems bug).
+                        double cost = (vendorRate > 0 && qty > 0 && Math.abs(vendorRate - rate) >= 0.01) ? vendorRate * qty : 0.0;
                         categoryTotals.put(group, categoryTotals.getOrDefault(group, 0.0) + amount);
                         categoryCosts.put(group, categoryCosts.getOrDefault(group, 0.0) + cost);
                         categoryMargins.put(group, categoryMargins.getOrDefault(group, 0.0) + (amount - cost));
@@ -696,7 +698,9 @@ public class ReportService {
                         amount = rate * qty;
                     }
                     sellTotal += amount;
-                    if (vendorRate > 0 && qty > 0) {
+                    // Guard: skip aas_vendor_rate that equals the sell rate — this indicates
+                    // the old buildSellItems bug that stored sell rate as aas_vendor_rate.
+                    if (vendorRate > 0 && qty > 0 && Math.abs(vendorRate - rate) >= 0.01) {
                         costTotal += vendorRate * qty;
                     }
                 }
