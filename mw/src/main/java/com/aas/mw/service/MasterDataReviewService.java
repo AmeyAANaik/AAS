@@ -103,6 +103,7 @@ public class MasterDataReviewService {
         payload.put("aas_review_status", "APPROVED");
         payload.put("aas_review_notes", asText(request.getReviewNotes()));
         payload.put("aas_review_default_margin_used", 0);
+        payload.put("disabled", 0);
 
         Map<String, Object> updated = unwrap(erpNextClient.updateResource(ITEM, itemId, payload));
         boolean sourceOrderUpdated = false;
