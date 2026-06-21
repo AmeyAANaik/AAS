@@ -486,12 +486,13 @@ public class OrderBillingService {
                 qty = 1;
             }
             double vendorRate = asDouble(row.get("aas_vendor_rate"));
-            if (vendorRate <= 0) {
-                vendorRate = asDouble(row.get("rate"));
-            }
+            // Use the sell rate as the pricing basis only when vendor rate is missing,
+            // but do NOT store it as aas_vendor_rate — that would make analytics treat
+            // the sell price as cost, causing Revenue = Cost and Profit = 0.
+            double vendorRateForPricing = vendorRate > 0 ? vendorRate : asDouble(row.get("rate"));
             double marginPercent = resolveMarginPercent(row.get("aas_margin_percent"), fallbackMarginPercent);
             OrderPricingService.LinePricing pricing = orderPricingService.applyMrpCap(
-                    vendorRate,
+                    vendorRateForPricing,
                     marginPercent,
                     asNullableDouble(row.get("aas_mrp")),
                     asText(row.get("item_name")).isBlank() ? asText(row.get("item_code")) : asText(row.get("item_name")));
