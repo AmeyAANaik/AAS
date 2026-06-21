@@ -101,6 +101,30 @@ class ReportServiceCompanyReportsTest {
     }
 
     @Test
+    void corruptedVendorRateTreatedAsZeroCost() {
+        // Simulates the old buildSellItems bug: aas_vendor_rate == rate (sell rate stored as cost)
+        when(erpNextClient.listResources(eq("Sales Order"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "SO-CORRUPT",
+                        "customer", "Branch X",
+                        "grand_total", 1000.0,
+                        "aas_is_deleted", 0,
+                        "aas_status", "INVOICED")));
+        when(erpNextClient.getResource(eq("Sales Order"), eq("SO-CORRUPT")))
+                .thenReturn(Map.of("data", Map.of(
+                        "items",
+                        List.of(Map.of("qty", 10.0, "rate", 100.0, "aas_vendor_rate", 100.0, "amount", 1000.0)))));
+
+        List<Map<String, Object>> rows = reportService.companyBranchSalesProfit("2026-04-01", "2026-04-30");
+        assertEquals(1, rows.size());
+        Map<String, Object> row = rows.get(0);
+        assertEquals(1000.0, (Double) row.get("sales_total"));
+        // Cost must be 0, not 1000 (corruption guard)
+        assertEquals(0.0, (Double) row.get("cost_total"), 0.01);
+        assertEquals(1000.0, (Double) row.get("profit_total"), 0.01);
+    }
+
+    @Test
     void supplierExpensesGroupsPayments() {
         when(erpNextClient.listResources(eq("Payment Entry"), anyMap()))
                 .thenReturn(List.of(

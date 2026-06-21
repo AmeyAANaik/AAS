@@ -471,7 +471,8 @@ public class AnalyticsService {
             double directCost = sourceLine != null ? sourceLine.directCost() : 0.0;
             if (directCost == 0.0) {
                 double vendorRate = asDouble(item.get("aas_vendor_rate"));
-                directCost = vendorRate > 0.0 && qty > 0.0 ? vendorRate * qty : 0.0;
+                // Skip aas_vendor_rate equal to sell rate (same corruption guard as extractCostFromItems).
+                directCost = vendorRate > 0.0 && qty > 0.0 && Math.abs(vendorRate - rate) >= 0.01 ? vendorRate * qty : 0.0;
             }
             prepared.add(new PreparedLine(itemCode, itemName, itemGroup, round(amount), round(directCost), qty));
         }
@@ -490,13 +491,14 @@ public class AnalyticsService {
                 continue;
             }
             double qty = asDouble(item.get("qty"));
+            double rate = asDouble(item.get("rate"));
             double vendorRate = asDouble(item.get("aas_vendor_rate"));
             lines.add(new SourceOrderLine(
                     index,
                     asString(item.get("item_code")).trim(),
                     asString(firstNonNull(item.get("item_name"), item.get("description"))).trim(),
                     asString(item.get("item_group")).trim(),
-                    vendorRate > 0.0 && qty > 0.0 ? round(vendorRate * qty) : 0.0));
+                    vendorRate > 0.0 && qty > 0.0 && Math.abs(vendorRate - rate) >= 0.01 ? round(vendorRate * qty) : 0.0));
         }
         return lines;
     }
@@ -593,8 +595,11 @@ public class AnalyticsService {
                 continue;
             }
             double qty = asDouble(item.get("qty"));
+            double rate = asDouble(item.get("rate"));
             double vendorRate = asDouble(item.get("aas_vendor_rate"));
-            if (vendorRate > 0.0 && qty > 0.0) {
+            // Skip aas_vendor_rate that equals the sell rate — old buildSellItems bug
+            // stored sell rate as aas_vendor_rate; treating it as cost gives Revenue=Cost.
+            if (vendorRate > 0.0 && qty > 0.0 && Math.abs(vendorRate - rate) >= 0.01) {
                 cost += vendorRate * qty;
             }
         }
