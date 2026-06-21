@@ -2,14 +2,19 @@ package com.aas.mw.controller;
 
 import com.aas.mw.dto.DownloadedFile;
 import com.aas.mw.service.ErpNextFileService;
+import com.aas.mw.service.ErpSessionStore;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 
 @RestController
 public class FileProxyController {
@@ -31,7 +36,22 @@ public class FileProxyController {
         String query = request.getQueryString();
         String fileUrl = (query == null || query.isBlank()) ? path : path + "?" + query;
 
-        DownloadedFile downloaded = erpNextFileService.downloadFile(fileUrl);
+        // Forward the user's ERPNext session cookie so private files are accessible.
+        Object sessionAttr = request.getAttribute(ErpSessionStore.REQUEST_ATTR);
+        String sessionCookie = sessionAttr instanceof String s ? s.trim() : "";
+
+        DownloadedFile downloaded;
+        try {
+            downloaded = erpNextFileService.downloadFile(fileUrl, sessionCookie.isBlank() ? null : sessionCookie);
+        } catch (HttpClientErrorException e) {
+            HttpStatus status = e.getStatusCode().value() == 404 ? HttpStatus.NOT_FOUND : HttpStatus.BAD_GATEWAY;
+            return ResponseEntity.status(status).build();
+        } catch (HttpServerErrorException | ResourceAccessException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
         MediaType mediaType;
         try {
             mediaType = MediaType.parseMediaType(downloaded.contentType());

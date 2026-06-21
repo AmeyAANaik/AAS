@@ -62,13 +62,19 @@ public class ErpNextFileService {
     }
 
     public DownloadedFile downloadFile(String fileUrl) {
+        return downloadFile(fileUrl, null);
+    }
+
+    public DownloadedFile downloadFile(String fileUrl, String sessionCookie) {
         String resolvedUrl = resolveInternalFileUrl(fileUrl);
-        HttpEntity<?> request = HttpEntity.EMPTY;
+        HttpHeaders headers = new HttpHeaders();
         if (!apiAuthHeader.isBlank()) {
-            HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.AUTHORIZATION, apiAuthHeader);
-            request = new HttpEntity<>(headers);
         }
+        if (sessionCookie != null && !sessionCookie.isBlank()) {
+            headers.add(HttpHeaders.COOKIE, sessionCookie);
+        }
+        HttpEntity<?> request = headers.isEmpty() ? HttpEntity.EMPTY : new HttpEntity<>(headers);
         ResponseEntity<byte[]> response = restTemplate.exchange(
                 resolvedUrl,
                 HttpMethod.GET,
