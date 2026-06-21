@@ -326,9 +326,13 @@ public class AnalyticsService {
 
             double totalAmount = preparedLines.stream().mapToDouble(PreparedLine::amount).sum();
             double totalDirectCost = preparedLines.stream().mapToDouble(PreparedLine::directCost).sum();
-            // When source order items have no vendor rate, fall back to the sum of
-            // per-line direct costs derived from Sales Invoice Item aas_vendor_rate.
-            if (invoiceCost == 0.0 && totalDirectCost > 0.0) {
+            // Fall back to per-line vendor rates from Sales Invoice items only when:
+            // 1. No cost from source order or Purchase Invoice
+            // 2. The derived cost is strictly less than revenue — if they are equal it means
+            //    aas_vendor_rate was incorrectly stored as the sell rate (a known data issue
+            //    fixed in OrderBillingService), so we treat cost as unknown (0) instead of
+            //    silently reporting Revenue = Cost and Profit = 0.
+            if (invoiceCost == 0.0 && totalDirectCost > 0.0 && totalDirectCost < invoiceRevenue) {
                 invoiceCost = totalDirectCost;
             }
             double remainingRevenue = invoiceRevenue;
