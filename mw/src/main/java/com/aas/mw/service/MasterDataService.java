@@ -538,6 +538,18 @@ public class MasterDataService {
             payload.put("stock_uom", uom);
         }
         payload.putIfAbsent("is_stock_item", 1);
+        String itemCode = asText(payload.get("item_code"));
+        Map<String, Object> existingItem = unwrapResource(erpNextClient.getResource("Item", itemCode));
+        if (!existingItem.isEmpty()) {
+            if (!asFlag(existingItem.get("disabled"))) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "An active item with code \"" + itemCode + "\" already exists.");
+            }
+            // Item was soft-deleted — re-enable and update it instead of creating a duplicate.
+            payload.put("disabled", 0);
+            payload.remove("item_code");
+            return erpNextClient.updateResource("Item", itemCode, payload);
+        }
         return erpNextClient.createResource("Item", payload);
     }
 
