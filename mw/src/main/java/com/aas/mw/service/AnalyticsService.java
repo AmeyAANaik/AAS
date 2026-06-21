@@ -216,7 +216,7 @@ public class AnalyticsService {
             // Fetch order line items (parent, item_code, item_name, item_group, qty, aas_vendor_rate)
             try {
                 Map<String, Object> params = new HashMap<>();
-                params.put("fields", "[\"parent\",\"item_code\",\"item_name\",\"item_group\",\"qty\",\"aas_vendor_rate\"]");
+                params.put("fields", "[\"parent\",\"item_code\",\"item_name\",\"item_group\",\"qty\",\"rate\",\"aas_vendor_rate\"]");
                 params.put("filters", buildInFilter("parent", chunk));
                 params.put("limit_page_length", "500");
                 for (Map<String, Object> item : erpNextClient.listResources("Sales Order Item", params)) {
@@ -235,7 +235,10 @@ public class AnalyticsService {
         return result;
     }
 
-    // Batch-fetch Sales Invoice line items in ~1 list call per chunk
+    // Fetch Sales Invoice line items via individual document fetches.
+    // ERPNext's list API silently returns 0 rows for Sales Invoice Item when the
+    // parent is in Draft status (docstatus=0), so we must fetch the full document
+    // which returns items[] regardless of docstatus.
     private Map<String, List<Map<String, Object>>> batchFetchInvoiceItems(List<Map<String, Object>> invoices) {
         if (invoices.isEmpty()) return Map.of();
         List<String> invoiceIds = invoices.stream()
@@ -245,19 +248,25 @@ public class AnalyticsService {
 
         Map<String, List<Map<String, Object>>> result = new HashMap<>();
 
-        for (List<String> chunk : partition(invoiceIds, BATCH_CHUNK_SIZE)) {
+        for (String invoiceId : invoiceIds) {
             try {
-                Map<String, Object> params = new HashMap<>();
-                params.put("fields", "[\"parent\",\"item_code\",\"item_name\",\"item_group\",\"qty\",\"rate\",\"amount\",\"aas_vendor_rate\"]");
-                params.put("filters", buildInFilter("parent", chunk));
-                params.put("limit_page_length", "500");
-                for (Map<String, Object> item : erpNextClient.listResources("Sales Invoice Item", params)) {
-                    String parent = asString(item.get("parent")).trim();
-                    result.computeIfAbsent(parent, k -> new ArrayList<>()).add(item);
+                Map<String, Object> doc = unwrapDoc(erpNextClient.getResource("Sales Invoice", invoiceId));
+                Object items = doc.get("items");
+                if (items instanceof List<?> list && !list.isEmpty()) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> itemList = (List<Map<String, Object>>) list;
+                    result.put(invoiceId, itemList);
                 }
             } catch (Exception ignored) {}
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> unwrapDoc(Map<String, Object> response) {
+        if (response == null) return Map.of();
+        Object data = response.get("data");
+        return data instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
     }
 
     private List<FactRow> buildInvoiceFacts(
