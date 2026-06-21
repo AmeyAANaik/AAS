@@ -317,6 +317,12 @@ public class AnalyticsService {
             String branch = asString(invoice.get("customer")).trim();
             double invoiceRevenue = round(asDouble(invoice.get("grand_total")));
             double invoiceCost = resolveCost(sourceOrderId, sourceOrder, purchaseCostBySourceOrder);
+            // If cost from Sales Order items equals the invoice revenue, it indicates
+            // aas_vendor_rate was stored as the sell rate (corrupted data from the old
+            // buildSellItems bug). Treat as unknown rather than reporting Revenue = Cost.
+            if (invoiceCost > 0.0 && Math.abs(invoiceCost - invoiceRevenue) < 1.0) {
+                invoiceCost = 0.0;
+            }
             List<SourceOrderLine> sourceLines = buildSourceOrderLines(sourceOrder);
             List<PreparedLine> preparedLines = prepareLines(invoiceItems, sourceLines, itemMeta, asString(invoice.get("aas_category")).trim());
             if (preparedLines.isEmpty()) {

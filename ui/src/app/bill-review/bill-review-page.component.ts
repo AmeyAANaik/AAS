@@ -392,6 +392,14 @@ export class BillReviewPageComponent implements OnInit, OnDestroy {
       if (!this.isImageAttachment(attachment)) {
         continue;
       }
+      // Public files are served directly by ERPNext's nginx — no proxy needed.
+      // The /api/files/... proxy calls ERPNext internally at a URL that may differ
+      // from the externally-accessible /files/... path, causing 404.
+      if (!attachment.isPrivate && attachment.url) {
+        const directUrl = attachment.url.replace(/^\/api\/files\//, '/files/');
+        this.attachmentImageUrls.set(attachment.id, this.sanitizer.bypassSecurityTrustUrl(directUrl));
+        continue;
+      }
       this.billReviewService.downloadAttachment(attachment).subscribe({
         next: blob => {
           const objectUrl = window.URL.createObjectURL(blob);
