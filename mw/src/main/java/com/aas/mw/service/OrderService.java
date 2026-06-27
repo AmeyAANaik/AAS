@@ -979,31 +979,8 @@ public class OrderService {
         int safePage = page > 0 ? page : 1;
         int limitStart = (safePage - 1) * safePageSize;
 
-        List<List<Object>> filterList = new ArrayList<>();
-        filterList.add(List.of("aas_is_deleted", "!=", "1"));
-
-        if (hasText(customer)) {
-            filterList.add(List.of("customer", "=", customer));
-        } else if (branchValues != null && !branchValues.isEmpty()) {
-            filterList.add(buildInFilter("customer", branchValues));
-        }
-
-        if (hasText(vendor)) {
-            filterList.add(List.of("aas_vendor", "=", vendor));
-        } else if (vendorValues != null && !vendorValues.isEmpty()) {
-            filterList.add(buildInFilter("aas_vendor", vendorValues));
-        }
-
-        if (statusValues != null && !statusValues.isEmpty()) {
-            filterList.add(buildInFilter("aas_status", statusValues));
-        }
-
-        if (hasText(fromDate)) {
-            filterList.add(List.of("transaction_date", ">=", fromDate));
-        }
-        if (hasText(toDate)) {
-            filterList.add(List.of("transaction_date", "<=", toDate));
-        }
+        List<List<Object>> filterList = buildOrderFilterList(
+                customer, vendor, statusValues, branchValues, vendorValues, fromDate, toDate);
 
         Map<String, Object> params = new HashMap<>();
         params.put("fields",
@@ -1046,6 +1023,101 @@ public class OrderService {
 
     private List<Object> buildInFilter(String field, List<String> values) {
         return List.of(field, "in", values);
+    }
+
+    // Shared AND-filter construction for Sales Order listing and aggregate counts.
+    private List<List<Object>> buildOrderFilterList(
+            String customer,
+            String vendor,
+            List<String> statusValues,
+            List<String> branchValues,
+            List<String> vendorValues,
+            String fromDate,
+            String toDate) {
+        List<List<Object>> filterList = new ArrayList<>();
+        filterList.add(List.of("aas_is_deleted", "!=", "1"));
+
+        if (hasText(customer)) {
+            filterList.add(List.of("customer", "=", customer));
+        } else if (branchValues != null && !branchValues.isEmpty()) {
+            filterList.add(buildInFilter("customer", branchValues));
+        }
+
+        if (hasText(vendor)) {
+            filterList.add(List.of("aas_vendor", "=", vendor));
+        } else if (vendorValues != null && !vendorValues.isEmpty()) {
+            filterList.add(buildInFilter("aas_vendor", vendorValues));
+        }
+
+        if (statusValues != null && !statusValues.isEmpty()) {
+            filterList.add(buildInFilter("aas_status", statusValues));
+        }
+
+        if (hasText(fromDate)) {
+            filterList.add(List.of("transaction_date", ">=", fromDate));
+        }
+        if (hasText(toDate)) {
+            filterList.add(List.of("transaction_date", "<=", toDate));
+        }
+        return filterList;
+    }
+
+    /**
+     * Exact order counts grouped by status for the given filters. Unlike {@link #listOrders},
+     * this fetches every matching order (no page cap) so dashboard status tallies are correct
+     * regardless of order volume. Only status fields are fetched to keep the payload light.
+     */
+    public List<Map<String, Object>> orderStatusCounts(
+            String customer,
+            String vendor,
+            List<String> statusValues,
+            List<String> branchValues,
+            List<String> vendorValues,
+            String fromDate,
+            String toDate,
+            String q) {
+        List<List<Object>> filterList = buildOrderFilterList(
+                customer, vendor, statusValues, branchValues, vendorValues, fromDate, toDate);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"aas_status\",\"status\",\"aas_is_deleted\"]");
+        params.put("filters", buildMultiFiltersJson(filterList));
+        if (hasText(q)) {
+            String escaped = escape(q.trim());
+            List<List<Object>> orFilters = List.of(
+                    List.of("title", "like", "%" + escaped + "%"),
+                    List.of("customer", "like", "%" + escaped + "%"),
+                    List.of("aas_vendor", "like", "%" + escaped + "%"));
+            params.put("or_filters", buildMultiFiltersJson(orFilters));
+        }
+        // 0 = no page limit; count every matching order (avoids the 20/200 page cap).
+        params.put("limit_page_length", 0);
+        params.put("order_by", "modified desc");
+
+        Map<String, Long> counts = new HashMap<>();
+        for (Map<String, Object> order : erpNextClient.listResources(DOCTYPE, params)) {
+            if (isSoftDeleted(order)) {
+                continue;
+            }
+            String status = asText(order.get("aas_status"));
+            if (!hasText(status)) {
+                status = asText(order.get("status"));
+            }
+            if (!hasText(status)) {
+                status = "Unknown";
+            }
+            counts.merge(status, 1L, Long::sum);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<String, Long> entry : counts.entrySet()) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("status", entry.getKey());
+            row.put("count", entry.getValue());
+            result.add(row);
+        }
+        result.sort((a, b) -> Long.compare((Long) b.get("count"), (Long) a.get("count")));
+        return result;
     }
 
     private String buildMultiFiltersJson(List<List<Object>> filters) {

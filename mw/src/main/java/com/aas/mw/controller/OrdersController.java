@@ -117,6 +117,33 @@ public class OrdersController {
         return ResponseEntity.ok(buildPagedOrders(customer, vendor, status, branch, vendorFilter, fromDate, toDate, q, page, pageSize));
     }
 
+    @GetMapping("/status-counts")
+    public ResponseEntity<List<Map<String, Object>>> orderStatusCounts(
+            @RequestParam(required = false) String customer,
+            @RequestParam(required = false) String vendor,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) List<String> branch,
+            @RequestParam(required = false) List<String> vendorFilter,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false) String q) {
+        String role = resolveRole();
+        if ("vendor".equals(role) && (vendor == null || vendor.isBlank())) {
+            String supplier = resolveSupplier();
+            if (supplier != null && !supplier.isBlank()) {
+                vendor = supplier;
+            }
+        }
+        if ("shop".equals(role) && (customer == null || customer.isBlank())) {
+            String shop = resolveCustomer();
+            if (shop != null && !shop.isBlank()) {
+                customer = shop;
+            }
+        }
+        return ResponseEntity.ok(orderService.orderStatusCounts(
+                customer, vendor, status, branch, vendorFilter, fromDate, toDate, q));
+    }
+
     @GetMapping("/export")
     public ResponseEntity<String> exportOrders(
             @RequestParam(required = false) String customer,

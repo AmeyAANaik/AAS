@@ -306,7 +306,7 @@ public class InvoiceService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\","
+                "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"net_total\",\"outstanding_amount\",\"status\",\"docstatus\","
                         + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\","
                         + "\"is_opening\",\"po_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");

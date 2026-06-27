@@ -44,23 +44,27 @@ const ALL_DIMENSIONS: DimensionOption[] = [
 ];
 
 const ALL_METRICS: MetricOption[] = [
-  { id: 'revenue',         label: 'Revenue' },
-  { id: 'cost',            label: 'Cost' },
-  { id: 'profit',          label: 'Profit' },
-  { id: 'margin_pct',      label: 'Margin %' },
-  { id: 'orders',          label: 'Orders' },
-  { id: 'quantity',        label: 'Quantity' },
-  { id: 'avg_order_value', label: 'Avg Order' }
+  { id: 'revenue',            label: 'Revenue' },
+  { id: 'cost',               label: 'Cost' },
+  { id: 'profit',             label: 'Profit (incl GST)' },
+  { id: 'profit_ex_gst',      label: 'Profit (excl GST)' },
+  { id: 'margin_pct',         label: 'Margin % (incl GST)' },
+  { id: 'margin_pct_ex_gst',  label: 'Margin % (excl GST)' },
+  { id: 'orders',             label: 'Orders' },
+  { id: 'quantity',           label: 'Quantity' },
+  { id: 'avg_order_value',    label: 'Avg Order' }
 ];
 
 const METRIC_COLOR: Record<string, string> = {
-  revenue:         '#2563eb',
-  cost:            '#9ca3af',
-  profit:          '#16a34a',
-  margin_pct:      '#f59e0b',
-  orders:          '#8b5cf6',
-  quantity:        '#06b6d4',
-  avg_order_value: '#ec4899'
+  revenue:            '#2563eb',
+  cost:               '#9ca3af',
+  profit:             '#16a34a',
+  profit_ex_gst:      '#059669',
+  margin_pct:         '#f59e0b',
+  margin_pct_ex_gst:  '#d97706',
+  orders:             '#8b5cf6',
+  quantity:           '#06b6d4',
+  avg_order_value:    '#ec4899'
 };
 
 const ROW_WARN_THRESHOLD = 500;
@@ -103,7 +107,7 @@ export class AnalyticsPageComponent implements OnInit {
 
   viewMode: ViewMode = 'explorer';
   activeDimensions = new Set<string>(['date']);
-  activeMetrics = new Set<string>(['revenue', 'cost', 'profit', 'orders']);
+  activeMetrics = new Set<string>(['revenue', 'cost', 'profit', 'profit_ex_gst', 'orders']);
 
   vendorOptions: FilterOption[] = [];
   branchOptions: FilterOption[] = [];
@@ -331,8 +335,8 @@ export class AnalyticsPageComponent implements OnInit {
   kpiIcon(kpi: AnalyticsKpi): string {
     if (kpi.id === 'revenue') return 'trending_up';
     if (kpi.id === 'cost') return 'receipt_long';
-    if (kpi.id === 'profit') return 'savings';
-    if (kpi.id === 'margin_pct') return 'percent';
+    if (kpi.id === 'profit' || kpi.id === 'profit_ex_gst') return 'savings';
+    if (kpi.id === 'margin_pct' || kpi.id === 'margin_pct_ex_gst') return 'percent';
     if (kpi.id === 'orders') return 'shopping_cart';
     if (kpi.id === 'avg_order_value') return 'equalizer';
     if (kpi.id === 'price_points') return 'timeline';
@@ -343,7 +347,7 @@ export class AnalyticsPageComponent implements OnInit {
   }
 
   kpiClass(kpi: AnalyticsKpi): string {
-    if (kpi.id === 'profit' || kpi.id === 'margin_pct') {
+    if (kpi.id === 'profit' || kpi.id === 'profit_ex_gst' || kpi.id === 'margin_pct' || kpi.id === 'margin_pct_ex_gst') {
       return kpi.value > 0 ? 'kpi-positive' : kpi.value < 0 ? 'kpi-negative' : '';
     }
     return '';
@@ -363,7 +367,9 @@ export class AnalyticsPageComponent implements OnInit {
   isDimension(col: AnalyticsColumn): boolean { return col.colType === 'DIMENSION'; }
   isCurrency(col: AnalyticsColumn): boolean { return col.colType === 'CURRENCY'; }
   isPercent(col: AnalyticsColumn): boolean { return col.colType === 'PERCENT'; }
-  isProfitCol(col: AnalyticsColumn): boolean { return col.id === 'profit' || col.id === 'margin_pct'; }
+  isProfitCol(col: AnalyticsColumn): boolean {
+    return col.id === 'profit' || col.id === 'profit_ex_gst' || col.id === 'margin_pct' || col.id === 'margin_pct_ex_gst';
+  }
 
   formatCell(col: AnalyticsColumn, value: unknown): string {
     if (value === null || value === undefined || value === '') return '—';
@@ -477,7 +483,7 @@ export class AnalyticsPageComponent implements OnInit {
     const datasets: ChartConfiguration['data']['datasets'] = [];
 
     // Currency metrics go on the primary Y axis; count/percent on a secondary axis
-    const secondaryMetrics = new Set(['orders', 'quantity', 'margin_pct']);
+    const secondaryMetrics = new Set(['orders', 'quantity', 'margin_pct', 'margin_pct_ex_gst']);
 
     for (const met of this.activeMetrics) {
       const metCol = res.columns.find(c => c.id === met);
@@ -549,7 +555,7 @@ export class AnalyticsPageComponent implements OnInit {
     if (!dimCol) return;
 
     const labels = res.rows.map(r => String(r[dimCol.id] ?? ''));
-    const showableOrder = ['revenue', 'profit', 'cost', 'orders', 'quantity', 'avg_order_value', 'margin_pct'];
+    const showableOrder = ['revenue', 'profit', 'profit_ex_gst', 'cost', 'orders', 'quantity', 'avg_order_value', 'margin_pct', 'margin_pct_ex_gst'];
     const barPalette = ['#6366f1', '#16a34a', '#9ca3af', '#f59e0b', '#06b6d4', '#ec4899'];
 
     const datasets = Array.from(this.activeMetrics)

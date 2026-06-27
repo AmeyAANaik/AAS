@@ -1,20 +1,8 @@
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { forkJoin, map, Observable, timeout } from 'rxjs';
+import { Observable, timeout } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import {
-  BillingRow,
-  DashboardSnapshot,
-  InventoryItem,
-  InvoiceSummary,
-  OrderStatusRow,
-  OrderSummary,
-  RevenuePoint,
-  SalesSummary,
-  BranchOperationsSnapshot,
-  StockSnapshot,
-  VendorOperationsSnapshot
-} from './dashboard.model';
+import { DashboardSnapshot } from './dashboard.model';
 
 @Injectable({
   providedIn: 'root'
@@ -24,157 +12,16 @@ export class DashboardService {
 
   getDashboardSnapshot(): Observable<DashboardSnapshot> {
     const today = new Date();
-    const monthLabel = this.formatMonth(today);
     const rangeStart = this.formatDate(new Date(today.getFullYear(), today.getMonth(), 1));
     const rangeEnd = this.formatDate(today);
 
     const headers = this.authHeaders();
-    const orderParams = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
-    const invoiceParams = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
+    const params = new HttpParams().set('from', rangeStart).set('to', rangeEnd);
 
-    return forkJoin({
-      orders: this.http.get<{ data: OrderSummary[] }>(`/api/orders`, { headers, params: orderParams }),
-      vendorOps: this.http.get<{
-        totals?: VendorOperationsSnapshot;
-        vendors?: Array<{ vendorName?: string; vendorId?: string; pendingBillAmount?: number }>;
-      }>(`/api/vendor-ops/summary`, { headers }),
-      branchOps: this.http.get<{
-        totals?: BranchOperationsSnapshot;
-        branches?: Array<{ branchName?: string; branchId?: string; openReceivableAmount?: number }>;
-      }>(`/api/branch-ops/summary`, { headers }),
-      items: this.http.get<InventoryItem[]>(`/api/items`, { headers }),
-      invoices: this.http.get<InvoiceSummary[]>(`/api/invoices`, { headers, params: invoiceParams })
-    }).pipe(
-      timeout({ first: 15000 }),
-      map(result => ({
-        orderStatus: this.buildOrderStatus(result.orders?.data ?? []),
-        billsByVendor: this.buildVendorDueRows(result.vendorOps?.vendors ?? []),
-        billsByBranch: this.buildBranchDueRows(result.branchOps?.branches ?? []),
-        stockSnapshot: this.buildStockSnapshot(result.items ?? []),
-        salesSummary: this.buildSalesSummary(result.invoices ?? [], rangeStart, rangeEnd),
-        revenueSeries: this.buildRevenueSeries(result.invoices ?? [], rangeStart, rangeEnd),
-        branchesWithDues: (result.branchOps?.branches ?? []).filter(row => (Number(row?.openReceivableAmount) || 0) > 0).length,
-        vendorsWithDues: (result.vendorOps?.vendors ?? []).filter(row => (Number(row?.pendingBillAmount) || 0) > 0).length,
-        vendorOperations: this.buildVendorOperationsSummary(result.vendorOps?.totals),
-        branchOperations: this.buildBranchOperationsSummary(result.branchOps?.totals),
-        periodLabel: monthLabel
-      }))
-    );
-  }
-
-  private buildVendorOperationsSummary(totals?: VendorOperationsSnapshot): VendorOperationsSnapshot {
-    return {
-      totalVendors: Number(totals?.totalVendors) || 0,
-      vendorsWithPendingOrders: Number(totals?.vendorsWithPendingOrders) || 0,
-      totalPendingOrders: Number(totals?.totalPendingOrders) || 0,
-      awaitingPdf: Number(totals?.awaitingPdf) || 0,
-      awaitingBillCapture: Number(totals?.awaitingBillCapture) || 0,
-      totalPendingBillAmount: Number(totals?.totalPendingBillAmount) || 0
-    };
-  }
-
-  private buildBranchOperationsSummary(totals?: BranchOperationsSnapshot): BranchOperationsSnapshot {
-    return {
-      totalBranches: Number(totals?.totalBranches) || 0,
-      branchesWithPendingOrders: Number(totals?.branchesWithPendingOrders) || 0,
-      totalPendingOrders: Number(totals?.totalPendingOrders) || 0,
-      awaitingVendorAssignment: Number(totals?.awaitingVendorAssignment) || 0,
-      awaitingVendorResponse: Number(totals?.awaitingVendorResponse) || 0,
-      openReceivableAmount: Number(totals?.openReceivableAmount) || 0
-    };
-  }
-
-  private buildOrderStatus(orders: OrderSummary[]): OrderStatusRow[] {
-    const counts = new Map<string, number>();
-    for (const order of orders) {
-      const status = (order.aas_status || order.status || 'Unknown').trim();
-      counts.set(status, (counts.get(status) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .map(([status, count]) => ({ status, count }))
-      .sort((a, b) => b.count - a.count);
-  }
-
-  private buildVendorDueRows(rows: Array<{ vendorName?: string; vendorId?: string; pendingBillAmount?: number }>): BillingRow[] {
-    return rows
-      .map(row => ({
-        name: String(row.vendorName ?? row.vendorId ?? 'Unknown'),
-        total: Number(row.pendingBillAmount) || 0
-      }))
-      .filter(row => row.total > 0)
-      .sort((a, b) => b.total - a.total);
-  }
-
-  private buildBranchDueRows(rows: Array<{ branchName?: string; branchId?: string; openReceivableAmount?: number }>): BillingRow[] {
-    return rows
-      .map(row => ({
-        name: String(row.branchName ?? row.branchId ?? 'Unknown'),
-        total: Number(row.openReceivableAmount) || 0
-      }))
-      .filter(row => row.total > 0)
-      .sort((a, b) => b.total - a.total);
-  }
-
-  private buildStockSnapshot(items: InventoryItem[]): StockSnapshot {
-    let totalQuantity = 0;
-    for (const item of items) {
-      const quantity = Number(
-        item.stock_qty ?? item.actual_qty ?? item.quantity ?? item.qty ?? 0
-      );
-      if (Number.isFinite(quantity)) {
-        totalQuantity += quantity;
-      }
-    }
-    return {
-      totalItems: items.length,
-      totalQuantity
-    };
-  }
-
-  private buildSalesSummary(invoices: InvoiceSummary[], from: string, to: string): SalesSummary {
-    const revenueSeries = this.buildRevenueSeries(invoices, from, to);
-    const totalRevenue = revenueSeries.reduce((sum, point) => sum + point.value, 0);
-    const averageDailyRevenue = revenueSeries.length ? totalRevenue / revenueSeries.length : 0;
-    const peakPoint = revenueSeries.reduce<RevenuePoint | null>((best, point) => {
-      if (!best || point.value > best.value) {
-        return point;
-      }
-      return best;
-    }, null);
-    return {
-      invoiceCount: invoices.length,
-      totalRevenue,
-      dateRangeLabel: `${from} to ${to}`,
-      averageDailyRevenue,
-      peakRevenue: peakPoint?.value ?? 0,
-      peakRevenueLabel: peakPoint?.label ?? `${from} to ${to}`
-    };
-  }
-
-  private buildRevenueSeries(invoices: InvoiceSummary[], from: string, to: string): RevenuePoint[] {
-    const totalsByDay = new Map<string, number>();
-    for (const invoice of invoices) {
-      const rawDate = String(invoice.posting_date ?? '').trim();
-      if (!rawDate) {
-        continue;
-      }
-      const day = rawDate.slice(0, 10);
-      totalsByDay.set(day, (totalsByDay.get(day) ?? 0) + (Number(invoice.grand_total) || 0));
-    }
-
-    const points: RevenuePoint[] = [];
-    let cursor = new Date(`${from}T00:00:00`);
-    const end = new Date(`${to}T00:00:00`);
-    while (cursor <= end) {
-      const iso = this.formatDate(cursor);
-      points.push({
-        label: iso,
-        shortLabel: this.formatShortDay(cursor),
-        value: totalsByDay.get(iso) ?? 0
-      });
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
-    }
-    return points;
+    // Metrics are computed server-side; the UI just renders the snapshot.
+    return this.http
+      .get<DashboardSnapshot>(`/api/dashboard/summary`, { headers, params })
+      .pipe(timeout({ first: 15000 }));
   }
 
   private authHeaders(): HttpHeaders {
@@ -185,20 +32,10 @@ export class DashboardService {
     return new HttpHeaders({ Authorization: `Bearer ${token}` });
   }
 
-  private formatMonth(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${year}-${month}`;
-  }
-
   private formatDate(date: Date): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }
-
-  private formatShortDay(date: Date): string {
-    return `${String(date.getDate()).padStart(2, '0')} ${date.toLocaleString('en-US', { month: 'short' })}`;
   }
 }

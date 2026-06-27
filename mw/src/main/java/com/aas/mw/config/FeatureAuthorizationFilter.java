@@ -81,6 +81,7 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
             new FeatureRoute("POST", "/api/adjustment-notes/**", UserFeatureService.BILLS_VIEW, true),
 
             new FeatureRoute("GET", "/api/company-context", UserFeatureService.DASHBOARD_VIEW),
+            new FeatureRoute("GET", "/api/dashboard/**", UserFeatureService.DASHBOARD_VIEW),
             new FeatureRoute(null, "/api/companies/*/opening-balances/**", UserFeatureService.COMPANY_SETTINGS_VIEW),
             new FeatureRoute("GET", "/api/companies", UserFeatureService.COMPANY_SETTINGS_VIEW),
             new FeatureRoute("GET", "/api/companies/*", UserFeatureService.DASHBOARD_VIEW),

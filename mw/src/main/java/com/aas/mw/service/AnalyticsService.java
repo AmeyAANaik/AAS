@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 public class AnalyticsService {
 
     private static final List<String> VALID_DIMS = List.of("date", "vendor", "branch", "item_group", "item");
-    private static final List<String> VALID_METRICS = List.of("revenue", "cost", "profit", "margin_pct", "orders", "avg_order_value", "quantity");
+    private static final List<String> VALID_METRICS = List.of("revenue", "cost", "profit", "profit_ex_gst", "margin_pct", "margin_pct_ex_gst", "orders", "avg_order_value", "quantity");
     private static final int BATCH_CHUNK_SIZE = 50;
 
     private final ErpNextClient erpNextClient;
@@ -296,6 +296,7 @@ public class AnalyticsService {
                     "",
                     "",
                     round(asDouble(invoice.get("grand_total"))),
+                    round(asDouble(invoice.get("net_total"))),
                     cost,
                     0.0);
             if (matchesCommonFilters(filters, fact)) {
@@ -327,6 +328,7 @@ public class AnalyticsService {
             String vendor = asString(sourceOrder.get("aas_vendor")).trim();
             String branch = asString(invoice.get("customer")).trim();
             double invoiceRevenue = round(asDouble(invoice.get("grand_total")));
+            double invoiceRevenueNet = round(asDouble(invoice.get("net_total")));
             double invoiceCost = resolveCost(sourceOrderId, sourceOrder, purchaseCostBySourceOrder);
             // If cost from Sales Order items equals the invoice revenue, it indicates
             // aas_vendor_rate was stored as the sell rate (corrupted data from the old
@@ -353,14 +355,18 @@ public class AnalyticsService {
                 invoiceCost = totalDirectCost;
             }
             double remainingRevenue = invoiceRevenue;
+            double remainingRevenueNet = invoiceRevenueNet;
             double remainingCost = invoiceCost;
             for (int index = 0; index < preparedLines.size(); index++) {
                 PreparedLine line = preparedLines.get(index);
                 double amountShare = totalAmount > 0 ? line.amount() / totalAmount : 1.0 / preparedLines.size();
                 double costShareBase = totalDirectCost > 0 ? line.directCost() / totalDirectCost : amountShare;
-                double revenue = index == preparedLines.size() - 1 ? remainingRevenue : round(invoiceRevenue * amountShare);
-                double cost = index == preparedLines.size() - 1 ? remainingCost : round(invoiceCost * costShareBase);
+                boolean lastLine = index == preparedLines.size() - 1;
+                double revenue = lastLine ? remainingRevenue : round(invoiceRevenue * amountShare);
+                double revenueNet = lastLine ? remainingRevenueNet : round(invoiceRevenueNet * amountShare);
+                double cost = lastLine ? remainingCost : round(invoiceCost * costShareBase);
                 remainingRevenue = round(remainingRevenue - revenue);
+                remainingRevenueNet = round(remainingRevenueNet - revenueNet);
                 remainingCost = round(remainingCost - cost);
 
                 FactRow fact = new FactRow(
@@ -373,6 +379,7 @@ public class AnalyticsService {
                         line.itemCode(),
                         line.itemName(),
                         revenue,
+                        revenueNet,
                         cost,
                         line.qty());
                 if (matchesCommonFilters(filters, fact)) {
@@ -628,6 +635,7 @@ public class AnalyticsService {
                 return created;
             });
             row.revenue += fact.revenue();
+            row.revenueNet += fact.revenueNet();
             row.cost += fact.cost();
             row.qty += fact.qty();
             row.orderIds.add(fact.invoiceId());
@@ -689,17 +697,26 @@ public class AnalyticsService {
             }
             int orders = aggRow.orderIds.size();
             double revenue = round(aggRow.revenue);
+            double revenueNet = round(aggRow.revenueNet);
             double cost = round(aggRow.cost);
             double profit = round(revenue - cost);
+            double profitExGst = round(revenueNet - cost);
             double marginPct = revenue > 0 ? round((profit / revenue) * 100.0) : 0.0;
+            double marginPctExGst = revenueNet > 0 ? round((profitExGst / revenueNet) * 100.0) : 0.0;
             double avgOrderValue = orders > 0 ? round(revenue / orders) : 0.0;
             double qty = round(aggRow.qty);
+            // Hidden net-revenue base so buildTotals can divide excl-GST margin correctly.
+            if (mets.contains("profit_ex_gst") || mets.contains("margin_pct_ex_gst")) {
+                row.put("revenue_net", revenueNet);
+            }
             for (String metric : mets) {
                 switch (metric) {
                     case "revenue" -> row.put("revenue", revenue);
                     case "cost" -> row.put("cost", cost);
                     case "profit" -> row.put("profit", profit);
+                    case "profit_ex_gst" -> row.put("profit_ex_gst", profitExGst);
                     case "margin_pct" -> row.put("margin_pct", marginPct);
+                    case "margin_pct_ex_gst" -> row.put("margin_pct_ex_gst", marginPctExGst);
                     case "orders" -> row.put("orders", orders);
                     case "avg_order_value" -> row.put("avg_order_value", avgOrderValue);
                     case "quantity" -> row.put("quantity", qty);
@@ -748,8 +765,10 @@ public class AnalyticsService {
             switch (metric) {
                 case "revenue" -> columns.add(new AnalyticsColumn("revenue", "Revenue", "CURRENCY"));
                 case "cost" -> columns.add(new AnalyticsColumn("cost", "Cost", "CURRENCY"));
-                case "profit" -> columns.add(new AnalyticsColumn("profit", "Profit", "CURRENCY"));
-                case "margin_pct" -> columns.add(new AnalyticsColumn("margin_pct", "Margin %", "PERCENT"));
+                case "profit" -> columns.add(new AnalyticsColumn("profit", "Profit (incl GST)", "CURRENCY"));
+                case "profit_ex_gst" -> columns.add(new AnalyticsColumn("profit_ex_gst", "Profit (excl GST)", "CURRENCY"));
+                case "margin_pct" -> columns.add(new AnalyticsColumn("margin_pct", "Margin % (incl GST)", "PERCENT"));
+                case "margin_pct_ex_gst" -> columns.add(new AnalyticsColumn("margin_pct_ex_gst", "Margin % (excl GST)", "PERCENT"));
                 case "orders" -> columns.add(new AnalyticsColumn("orders", "Orders", "NUMBER"));
                 case "avg_order_value" -> columns.add(new AnalyticsColumn("avg_order_value", "Avg Order", "CURRENCY"));
                 case "quantity" -> columns.add(new AnalyticsColumn("quantity", "Qty", "NUMBER"));
@@ -778,24 +797,30 @@ public class AnalyticsService {
             labeled = true;
         }
         double totalRevenue = 0.0;
+        double totalRevenueNet = 0.0;
         double totalCost = 0.0;
         int totalOrders = 0;
         double totalQty = 0.0;
         for (Map<String, Object> row : rows) {
             totalRevenue += asDouble(row.getOrDefault("revenue", 0.0));
+            totalRevenueNet += asDouble(row.getOrDefault("revenue_net", 0.0));
             totalCost += asDouble(row.getOrDefault("cost", 0.0));
             totalOrders += (int) asDouble(row.getOrDefault("orders", 0.0));
             totalQty += asDouble(row.getOrDefault("quantity", 0.0));
         }
         double totalProfit = round(totalRevenue - totalCost);
+        double totalProfitExGst = round(totalRevenueNet - totalCost);
         double totalMarginPct = totalRevenue > 0 ? round((totalProfit / totalRevenue) * 100.0) : 0.0;
+        double totalMarginPctExGst = totalRevenueNet > 0 ? round((totalProfitExGst / totalRevenueNet) * 100.0) : 0.0;
         double totalAvgOrderValue = totalOrders > 0 ? round(totalRevenue / totalOrders) : 0.0;
         for (String metric : mets) {
             switch (metric) {
                 case "revenue" -> totals.put("revenue", round(totalRevenue));
                 case "cost" -> totals.put("cost", round(totalCost));
                 case "profit" -> totals.put("profit", totalProfit);
+                case "profit_ex_gst" -> totals.put("profit_ex_gst", totalProfitExGst);
                 case "margin_pct" -> totals.put("margin_pct", totalMarginPct);
+                case "margin_pct_ex_gst" -> totals.put("margin_pct_ex_gst", totalMarginPctExGst);
                 case "orders" -> totals.put("orders", totalOrders);
                 case "avg_order_value" -> totals.put("avg_order_value", totalAvgOrderValue);
                 case "quantity" -> totals.put("quantity", round(totalQty));
@@ -811,16 +836,18 @@ public class AnalyticsService {
             String label = switch (metric) {
                 case "revenue" -> "Total Revenue";
                 case "cost" -> "Total Cost";
-                case "profit" -> "Total Profit";
-                case "margin_pct" -> "Avg Margin";
+                case "profit" -> "Total Profit (incl GST)";
+                case "profit_ex_gst" -> "Total Profit (excl GST)";
+                case "margin_pct" -> "Avg Margin (incl GST)";
+                case "margin_pct_ex_gst" -> "Avg Margin (excl GST)";
                 case "orders" -> "Total Orders";
                 case "avg_order_value" -> "Avg Order Value";
                 case "quantity" -> "Total Qty";
                 default -> metric;
             };
             String valueType = switch (metric) {
-                case "revenue", "cost", "profit", "avg_order_value" -> "CURRENCY";
-                case "margin_pct" -> "PERCENT";
+                case "revenue", "cost", "profit", "profit_ex_gst", "avg_order_value" -> "CURRENCY";
+                case "margin_pct", "margin_pct_ex_gst" -> "PERCENT";
                 default -> "NUMBER";
             };
             kpis.add(new AnalyticsKpi(metric, label, value, valueType));
@@ -1009,6 +1036,7 @@ public class AnalyticsService {
             String itemCode,
             String itemName,
             double revenue,
+            double revenueNet,
             double cost,
             double qty) {
         String itemLabel() {
@@ -1029,6 +1057,7 @@ public class AnalyticsService {
     private static class AggRow {
         final Map<String, Object> dims = new LinkedHashMap<>();
         double revenue;
+        double revenueNet;
         double cost;
         double qty;
         final Set<String> orderIds = new HashSet<>();
