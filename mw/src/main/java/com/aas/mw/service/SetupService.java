@@ -89,6 +89,7 @@ public class SetupService {
             {% set company_signature = company_signature.replace(" ", "%20") %}
             {% endif %}
             {% set company_tax_id = (company_doc.tax_id or company_doc.gstin) if company_doc else "" %}
+            {% set company_food_license = company_doc.aas_food_license_no if company_doc else "" %}
             {% set customer_doc = frappe.get_doc("Customer", doc.customer) if doc.customer else None %}
             {% set company_address = [company_doc.address_line_1, company_doc.address_line_2, company_doc.city, company_doc.state, company_doc.pincode] if company_doc else [] %}
             {% set branch_lines = [] %}
@@ -133,6 +134,9 @@ public class SetupService {
                       {% endfor %}
                       {% if company_tax_id %}
                       <p class="aas-gst-line">GSTIN: {{ company_tax_id }}</p>
+                      {% endif %}
+                      {% if company_food_license %}
+                      <p class="aas-gst-line">FSSAI No: {{ company_food_license }}</p>
                       {% endif %}
                     </div>
                   </div>
@@ -741,6 +745,13 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_bank_branch");
+        boolean companyFoodLicenseField = ensureCustomField(
+                "Company",
+                "aas_food_license_no",
+                "Food License No (FSSAI)",
+                "Data",
+                null,
+                "aas_authorized_signature");
         boolean userFeatureAllowField = ensureCustomField(
                 "User",
                 UserFeatureService.FEATURE_ALLOW_FIELD,
@@ -1158,6 +1169,7 @@ public class SetupService {
         result.put("companyBankIfscFieldCreated", companyBankIfscField);
         result.put("companyBankBranchFieldCreated", companyBankBranchField);
         result.put("companyAuthorizedSignatureFieldCreated", companyAuthorizedSignatureField);
+        result.put("companyFoodLicenseFieldCreated", companyFoodLicenseField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());

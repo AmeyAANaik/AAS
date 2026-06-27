@@ -21,6 +21,7 @@ export type CompanyIdentity = {
   bank_branch?: string;
   invoice_email?: string;
   whatsapp_number?: string;
+  food_license_no?: string;
 };
 
 export type BranchIdentity = {

@@ -158,12 +158,23 @@
 
           <div class="form-row">
             <div class="row-label">
-              <div class="row-title">Tax ID</div>
-              <div class="row-subtitle">Compliance identifier printed on documents.</div>
+              <div class="row-title">GST Number</div>
+              <div class="row-subtitle">Company GSTIN printed on every invoice.</div>
             </div>
             <mat-form-field appearance="outline">
-              <mat-label>Tax ID</mat-label>
+              <mat-label>GST Number</mat-label>
               <input matInput formControlName="tax_id" />
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <div class="row-label">
+              <div class="row-title">Food License No (FSSAI)</div>
+              <div class="row-subtitle">FSSAI license printed in the invoice header.</div>
+            </div>
+            <mat-form-field appearance="outline">
+              <mat-label>Food License No (FSSAI)</mat-label>
+              <input matInput formControlName="food_license_no" />
             </mat-form-field>
           </div>
 

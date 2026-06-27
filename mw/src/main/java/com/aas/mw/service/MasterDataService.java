@@ -228,6 +228,7 @@ public class MasterDataService {
         profile.put("bank_branch", asText(company.get("aas_bank_branch")));
         profile.put("invoice_email", asText(company.get("aas_invoice_email")));
         profile.put("whatsapp_number", asText(company.get("aas_whatsapp_number")));
+        profile.put("food_license_no", asText(company.get("aas_food_license_no")));
         return profile;
     }
 
@@ -256,6 +257,7 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "aas_bank_branch", "bank_branch");
         copyIfPresent(fields, payload, "aas_invoice_email", "invoice_email");
         copyIfPresent(fields, payload, "aas_whatsapp_number", "whatsapp_number");
+        copyIfPresent(fields, payload, "aas_food_license_no", "food_license_no");
 
         // ERPNext often uses the document name as the effective company label across the system.
         // Attempt a rename when the requested display name differs from the current document id.
