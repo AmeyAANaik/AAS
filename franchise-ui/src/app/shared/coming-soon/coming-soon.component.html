@@ -1,0 +1,17 @@
+<div class="berry-page">
+  <app-page-header [kicker]="kicker" [title]="title" [subtitle]="description"></app-page-header>
+
+  <div class="berry-panel coming-soon-panel">
+    <div class="coming-soon-badge">
+      <mat-icon aria-hidden="true">construction</mat-icon>
+      Planned module
+    </div>
+    <p class="coming-soon-lead">Scoped from the franchise requirements. These capabilities will be built out in a later iteration:</p>
+    <ul class="coming-soon-list">
+      <li *ngFor="let feature of features">
+        <mat-icon aria-hidden="true">check_circle</mat-icon>
+        <span>{{ feature }}</span>
+      </li>
+    </ul>
+  </div>
+</div>

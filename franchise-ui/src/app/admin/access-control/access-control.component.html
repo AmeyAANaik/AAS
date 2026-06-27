@@ -1,0 +1,51 @@
+<div class="berry-page">
+  <app-page-header kicker="Administration" title="Access Control" subtitle="Override module access per user. Defaults come from the role; Allow/Deny override the role."></app-page-header>
+
+  <div class="access-layout">
+    <div class="berry-panel user-list">
+      <div class="berry-panel-title">Users</div>
+      <button
+        *ngFor="let u of users"
+        type="button"
+        class="user-row"
+        [class.active]="u.id === selected?.id"
+        (click)="select(u)">
+        <span class="user-avatar">{{ roleLabel(u.role).charAt(0) }}</span>
+        <span class="user-meta">
+          <strong>{{ u.name }}</strong>
+          <small>{{ roleLabel(u.role) }} · {{ u.franchise }}</small>
+        </span>
+      </button>
+    </div>
+
+    <div class="berry-panel feature-panel" *ngIf="selected">
+      <div class="berry-panel-header">
+        <div>
+          <div class="berry-panel-title">{{ selected.name }}</div>
+          <div class="berry-panel-subtitle">Role default: {{ roleLabel(selected.role) }}. Disabled modules stay hidden regardless of overrides.</div>
+        </div>
+        <button mat-flat-button color="primary" (click)="save()"><mat-icon>save</mat-icon> Save</button>
+      </div>
+
+      <div class="feature-group" *ngFor="let group of groups">
+        <div class="feature-group-title">{{ group }}</div>
+        <div class="feature-row" *ngFor="let row of rowsForGroup(group)">
+          <div class="feature-info">
+            <span class="feature-label">{{ row.label }}</span>
+            <span class="feature-key">{{ row.key }}</span>
+          </div>
+          <div class="feature-controls">
+            <span class="effective" [class.on]="effective(row)">
+              <mat-icon aria-hidden="true">{{ effective(row) ? 'check_circle' : 'remove_circle_outline' }}</mat-icon>
+            </span>
+            <mat-button-toggle-group [value]="row.state" (change)="setState(row, $event.value)" aria-label="Override">
+              <mat-button-toggle value="default">Default<span class="role-hint" *ngIf="row.inRole"> ✓</span></mat-button-toggle>
+              <mat-button-toggle value="allow">Allow</mat-button-toggle>
+              <mat-button-toggle value="deny">Deny</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

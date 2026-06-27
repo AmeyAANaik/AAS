@@ -1,0 +1,275 @@
+<div class="berry-page">
+  <app-page-header kicker="Inventory" title="Purchase Entry" subtitle="Record stock purchased from a vendor. Quantities automatically increase stock."></app-page-header>
+
+  <form [formGroup]="form" class="berry-panel create-form" (submit)="$event.preventDefault()">
+    <!-- Bill details -->
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Bill details</p>
+          <p class="muted">Choose a category to list its vendors. In upload mode these are auto-filled from the extracted invoice.</p>
+        </div>
+      </div>
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category" (selectionChange)="onCategoryChange()">
+            <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor</mat-label>
+          <input
+            matInput
+            [matAutocomplete]="vendorAuto"
+            [(ngModel)]="vendorQuery"
+            [ngModelOptions]="{ standalone: true }"
+            (ngModelChange)="onVendorInput($event)"
+            [disabled]="!selectedCategory"
+            placeholder="Search vendor by name or code" />
+          <mat-autocomplete #vendorAuto="matAutocomplete" (optionSelected)="onVendorSelected($event.option.value)">
+            <mat-option *ngFor="let v of filteredVendors" [value]="v.name">
+              {{ v.name }} · {{ v.code }}
+            </mat-option>
+          </mat-autocomplete>
+          <mat-icon matSuffix *ngIf="selectedVendorId" class="vendor-ok" aria-hidden="true">check_circle</mat-icon>
+          <mat-hint *ngIf="!selectedCategory">Select a category first.</mat-hint>
+          <mat-hint *ngIf="selectedCategory && !filteredVendors.length">No vendors for this category.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Bill number</mat-label>
+          <input matInput formControlName="billNo" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Bill date</mat-label>
+          <input matInput type="date" formControlName="billDate" />
+        </mat-form-field>
+      </div>
+    </section>
+
+    <!-- Mode toggle -->
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Purchase source</p>
+          <p class="muted">Upload a vendor invoice to auto-extract line items, or pick products manually from the catalog.</p>
+        </div>
+      </div>
+      <div class="mode-toggle" role="tablist" aria-label="Purchase mode">
+        <button mat-stroked-button type="button" [class.active]="mode === 'upload'" (click)="setMode('upload')">
+          <mat-icon>upload_file</mat-icon> Upload vendor invoice
+        </button>
+        <button mat-stroked-button type="button" [class.active]="mode === 'select'" (click)="setMode('select')">
+          <mat-icon>checklist</mat-icon> Select products
+        </button>
+      </div>
+    </section>
+
+    <!-- Upload mode -->
+    <section class="create-section" *ngIf="mode === 'upload'">
+      <div class="section-heading">
+        <div>
+          <p class="label">Vendor invoice</p>
+          <p class="muted">Attach the vendor's invoice (PDF or image). We'll extract the bill number and line items for review.</p>
+        </div>
+      </div>
+
+      <div class="image-controls">
+        <label class="file-label">
+          <input type="file" accept="image/*,application/pdf" (change)="onFileSelected($event)" />
+          <span class="file-button">Choose invoice</span>
+          <span class="file-name">{{ fileName || 'No file selected' }}</span>
+        </label>
+        <mat-progress-bar mode="indeterminate" *ngIf="isExtracting"></mat-progress-bar>
+        <p class="hint" *ngIf="isExtracting">Extracting bill number and line items…</p>
+        <div class="image-actions" *ngIf="extracted">
+          <button mat-button type="button" (click)="clearUpload()">Clear</button>
+        </div>
+      </div>
+
+      <div class="items-layout" *ngIf="extracted && uploadLines.length">
+        <div class="catalog-panel">
+          <div class="catalog-toolbar">
+            <div>
+              <p class="label">Extracted lines</p>
+              <p class="muted">Review quantities, rates and GST. Map any unmatched item to a product.</p>
+            </div>
+            <div class="catalog-stats">
+              <span>{{ uploadLines.length }} lines</span>
+              <span [class.warn]="unmatchedCount">{{ unmatchedCount }} unmatched</span>
+            </div>
+          </div>
+
+          <div class="item-selection-list">
+            <div class="item-selection-row upload-row" *ngFor="let line of uploadLines">
+              <div class="item-copy">
+                <p class="item-name">{{ line.productName }}</p>
+                <p class="item-meta" *ngIf="line.matched">Matched to catalog</p>
+                <mat-form-field appearance="outline" class="map-field" *ngIf="!line.matched">
+                  <mat-label>Map to product</mat-label>
+                  <mat-select [value]="line.productId" (selectionChange)="onUploadProduct(line, $event.value)">
+                    <mat-option *ngFor="let p of products" [value]="p.id">{{ p.name }} ({{ p.unit }})</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <div class="item-tags">
+                  <span>Line {{ lineTotal(line.qty, line.rate, line.gstPercent) | number:'1.0-2' }}</span>
+                </div>
+              </div>
+              <div class="item-edit-grid">
+                <div class="item-edit-box">
+                  <label>Rate</label>
+                  <input type="number" min="0" [value]="line.rate" (change)="onUploadField(line, 'rate', $any($event.target).value)" />
+                </div>
+                <div class="item-edit-box">
+                  <label>GST %</label>
+                  <input type="number" min="0" [value]="line.gstPercent" (change)="onUploadField(line, 'gstPercent', $any($event.target).value)" />
+                </div>
+              </div>
+              <div class="item-qty-box">
+                <label>Qty</label>
+                <input type="number" min="0" [value]="line.qty" (change)="onUploadField(line, 'qty', $any($event.target).value)" />
+              </div>
+              <span class="selection-state" [class.active]="!!line.productId">{{ line.productId ? 'Mapped' : 'Map' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <ng-container *ngTemplateOutlet="checkout"></ng-container>
+      </div>
+    </section>
+
+    <!-- Select mode -->
+    <section class="create-section" *ngIf="mode === 'select'">
+      <div class="section-heading">
+        <div>
+          <p class="label">Select products</p>
+          <p class="muted">Pick products in the chosen category, set quantity, rate and GST. Optionally attach a photo of the paper bill.</p>
+        </div>
+      </div>
+
+      <div class="bill-photo-row">
+        <label class="file-label compact">
+          <input type="file" accept="image/*" (change)="onSelectBillImage($event)" />
+          <span class="file-button"><mat-icon aria-hidden="true">photo_camera</mat-icon> Attach bill photo</span>
+          <span class="file-name">{{ selectBillFileName || 'Optional' }}</span>
+        </label>
+        <button mat-button type="button" *ngIf="selectBillFileName" (click)="clearSelectBillImage()">Remove</button>
+      </div>
+
+      <p class="hint" *ngIf="!selectedCategory">Choose a category above to see its products.</p>
+
+      <div class="items-layout" *ngIf="selectedCategory">
+        <div class="catalog-panel">
+          <div class="catalog-toolbar">
+            <mat-form-field appearance="outline" class="search-field">
+              <mat-label>Search products</mat-label>
+              <input matInput [value]="itemSearchTerm" (input)="updateItemSearch($any($event.target).value)" placeholder="Search by name or unit" />
+              <button *ngIf="itemSearchTerm" mat-icon-button matSuffix type="button" aria-label="Clear" (click)="clearItemSearch()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </mat-form-field>
+            <div class="catalog-stats">
+              <span>{{ filteredOptions.length }} visible</span>
+              <span>{{ selectedCount }} selected</span>
+            </div>
+          </div>
+
+          <div class="item-selection-list" *ngIf="filteredOptions.length; else noMatches">
+            <div class="item-selection-row" *ngFor="let o of filteredOptions">
+              <mat-checkbox [checked]="o.selected" (change)="toggleSelection(o.id, $event.checked)"></mat-checkbox>
+              <div class="item-copy">
+                <p class="item-name">{{ o.name }}</p>
+                <p class="item-meta">{{ o.unit }}<span *ngIf="o.category"> · {{ o.category }}</span></p>
+                <div class="item-tags">
+                  <span>Line {{ lineTotal(o.qty, o.rate, o.gstPercent) | number:'1.0-2' }}</span>
+                </div>
+              </div>
+              <div class="item-edit-grid">
+                <div class="item-edit-box">
+                  <label>Rate</label>
+                  <input type="number" min="0" [value]="displayRate(o)" (change)="onRateInput(o.id, $any($event.target).value)" (blur)="commitRateDraft(o.id)" />
+                </div>
+                <div class="item-edit-box">
+                  <label>GST %</label>
+                  <input type="number" min="0" [value]="displayGst(o)" (change)="onGstInput(o.id, $any($event.target).value)" (blur)="commitGstDraft(o.id)" />
+                </div>
+              </div>
+              <div class="item-qty-box">
+                <label>Qty</label>
+                <input type="number" min="0" [value]="displayQty(o)" (change)="onQtyInput(o.id, $any($event.target).value)" (blur)="commitQtyDraft(o.id)" />
+              </div>
+              <span class="selection-state" [class.active]="o.selected">{{ o.selected ? 'Selected' : 'Add' }}</span>
+            </div>
+          </div>
+          <ng-template #noMatches><p class="hint">No products match your search in this category.</p></ng-template>
+        </div>
+
+        <ng-container *ngTemplateOutlet="checkout"></ng-container>
+      </div>
+    </section>
+
+    <!-- Review & submit -->
+    <section class="create-section">
+      <div class="step-actions">
+        <button mat-flat-button color="primary" type="button" (click)="submit()">
+          <mat-icon>save</mat-icon> Record purchase
+        </button>
+      </div>
+      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+    </section>
+  </form>
+
+  <!-- Recent purchases -->
+  <div class="berry-panel" *ngIf="recent.length">
+    <div class="recent-header">
+      <div class="berry-panel-title">Recent purchases</div>
+      <mat-form-field appearance="outline" class="recent-filter">
+        <mat-label>Category</mat-label>
+        <mat-select [value]="recentCategory" (selectionChange)="setRecentCategory($event.value)">
+          <mat-option value="">All categories</mat-option>
+          <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <div class="table-wrapper">
+      <table mat-table [dataSource]="filteredRecent" class="pro-table">
+        <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let t">{{ t.date }}</td></ng-container>
+        <ng-container matColumnDef="product"><th mat-header-cell *matHeaderCellDef>Product</th><td mat-cell *matCellDef="let t">{{ store.productName(t.productId) }}</td></ng-container>
+        <ng-container matColumnDef="category"><th mat-header-cell *matHeaderCellDef>Category</th><td mat-cell *matCellDef="let t">{{ store.productCategory(t.productId) }}</td></ng-container>
+        <ng-container matColumnDef="qty"><th mat-header-cell *matHeaderCellDef>Qty</th><td mat-cell *matCellDef="let t">+{{ t.qty }}</td></ng-container>
+        <ng-container matColumnDef="rate"><th mat-header-cell *matHeaderCellDef>Rate</th><td mat-cell *matCellDef="let t">₹ {{ t.rate | number:'1.0-2' }}</td></ng-container>
+        <ng-container matColumnDef="gst"><th mat-header-cell *matHeaderCellDef>GST %</th><td mat-cell *matCellDef="let t">{{ t.gstPercent || 0 }}%</td></ng-container>
+        <ng-container matColumnDef="amount"><th mat-header-cell *matHeaderCellDef>Amount</th><td mat-cell *matCellDef="let t">₹ {{ t.amount | number:'1.0-2' }}</td></ng-container>
+        <ng-container matColumnDef="ref"><th mat-header-cell *matHeaderCellDef>Reference</th><td mat-cell *matCellDef="let t">{{ t.ref }}</td></ng-container>
+        <tr mat-header-row *matHeaderRowDef="recentColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: recentColumns"></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Shared checkout aside -->
+<ng-template #checkout>
+  <aside class="checkout-panel">
+    <p class="checkout-title">Bill summary</p>
+    <p class="checkout-copy">Final bill = subtotal + GST + transport. Quantities increase stock on confirm.</p>
+    <div class="checkout-metrics">
+      <div>
+        <p class="label">Line items</p>
+        <p class="checkout-value">{{ activeLineCount }}</p>
+      </div>
+    </div>
+    <div class="summary-stack">
+      <div class="summary-row"><span>Subtotal</span><strong>₹ {{ subtotal | number:'1.0-2' }}</strong></div>
+      <div class="summary-row"><span>GST total</span><strong>₹ {{ gstTotal | number:'1.0-2' }}</strong></div>
+      <label class="transport-charge-field">
+        <span>Transport / Additional spend</span>
+        <input type="number" min="0" [value]="transportCharge" (change)="onTransportInput($any($event.target).value)" />
+      </label>
+      <div class="summary-row total"><span>Final bill</span><strong>₹ {{ finalBill | number:'1.0-2' }}</strong></div>
+    </div>
+  </aside>
+</ng-template>

@@ -1,0 +1,90 @@
+<div class="shell">
+  <header class="shell-header">
+    <div class="header-left">
+      <button class="nav-toggle" type="button" (click)="toggleNav()" aria-label="Toggle navigation menu">
+        <span class="material-icons" aria-hidden="true">{{ isNavOpen ? 'close' : 'menu' }}</span>
+      </button>
+      <div class="header-brand">
+        <div class="header-logo" aria-hidden="true">{{ companyAvatarText }}</div>
+        <div class="header-brand-copy">
+          <div class="header-company">{{ companyName }}</div>
+          <div class="header-company-sub">{{ companySubline }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      <label *ngIf="isSuperAdmin" class="header-chip franchise-chip" title="Active franchise">
+        <span class="material-icons" aria-hidden="true">store</span>
+        <select [(ngModel)]="selectedFranchise" aria-label="Switch franchise">
+          <option *ngFor="let f of franchises" [value]="f">{{ f }}</option>
+        </select>
+      </label>
+      <button class="header-chip theme-chip" type="button" (click)="toggleTheme()" [title]="currentTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <span class="material-icons" aria-hidden="true">{{ currentTheme === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+        <span>{{ currentTheme === 'dark' ? 'Light mode' : 'Dark mode' }}</span>
+      </button>
+      <div class="user-menu-shell">
+        <button class="header-chip user-chip" type="button" (click)="toggleUserMenu()" title="User menu">
+          <span class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</span>
+          <span class="user-copy">
+            <strong>{{ userName }}</strong>
+            <small>{{ userRole || 'Signed in' }}</small>
+          </span>
+          <span class="material-icons" aria-hidden="true">expand_more</span>
+        </button>
+        <div class="user-menu-panel" *ngIf="isUserMenuOpen">
+          <div class="user-panel-head">
+            <div class="chip-avatar" aria-hidden="true">{{ userAvatarText }}</div>
+            <div class="user-panel-copy">
+              <strong>{{ userName }}</strong>
+              <span *ngIf="userEmail">{{ userEmail }}</span>
+              <span>{{ userRole || 'Signed in' }}</span>
+            </div>
+          </div>
+          <button class="user-menu-link danger" type="button" (click)="closeUserMenu(); logout()">
+            <span class="material-icons" aria-hidden="true">logout</span>
+            Logout
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="shell-body">
+    <div class="shell-sidebar-backdrop" *ngIf="isNavOpen" (click)="closeNav()"></div>
+    <aside class="shell-sidebar" [class.shell-sidebar-open]="isNavOpen">
+      <div class="sidebar-head">
+        <div class="sidebar-head-copy">
+          <div class="sidebar-kicker">Workspace</div>
+          <div class="sidebar-current">{{ breadcrumbs }}</div>
+          <div class="sidebar-meta">{{ selectedFranchise || companyName }} · {{ userRole || 'User' }}</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-group" *ngFor="let section of navSections">
+        <div class="sidebar-title">{{ section.title }}</div>
+        <a
+          *ngFor="let link of section.links"
+          [routerLink]="link.route"
+          routerLinkActive="active"
+          (click)="closeNav()">
+          <span class="material-icons nav-icon" aria-hidden="true">{{ link.icon }}</span>
+          {{ link.label }}
+        </a>
+      </nav>
+    </aside>
+
+    <main class="shell-content">
+      <div class="breadcrumbs-shell">
+        <div>
+          <div class="breadcrumbs">{{ breadcrumbs }}</div>
+          <div class="breadcrumbs-note">Franchise operations workspace</div>
+        </div>
+        <div class="workspace-pill">{{ selectedFranchise || companySubline }}</div>
+      </div>
+      <div class="page-body">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
+</div>

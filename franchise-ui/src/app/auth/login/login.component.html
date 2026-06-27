@@ -1,0 +1,35 @@
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-mark">FC</div>
+      <div>
+        <div class="brand-name">Franchise Console</div>
+        <div class="brand-sub">Restaurant Franchise Management</div>
+      </div>
+    </div>
+
+    <h1 class="login-title">Sign in</h1>
+    <p class="login-hint">This is a prototype. Pick a role to explore the role-based experience — the admin can enable/disable modules and override access from inside the app.</p>
+
+    <div class="role-list">
+      <button
+        *ngFor="let user of users"
+        type="button"
+        class="role-option"
+        [class.selected]="user.id === selectedId"
+        (click)="select(user.id)">
+        <span class="role-avatar">{{ roleLabel(user.role).charAt(0) }}</span>
+        <span class="role-copy">
+          <strong>{{ roleLabel(user.role) }}</strong>
+          <small>{{ user.name }} · {{ user.franchise }}</small>
+        </span>
+        <mat-icon *ngIf="user.id === selectedId" aria-hidden="true">check_circle</mat-icon>
+      </button>
+    </div>
+
+    <button type="button" class="login-submit" (click)="signIn()">
+      <mat-icon aria-hidden="true">login</mat-icon>
+      Enter console
+    </button>
+  </div>
+</div>

@@ -1,0 +1,101 @@
+<div class="berry-page">
+  <app-page-header kicker="Vendors" title="Vendor Management" subtitle="Vendors, purchase totals, payments and outstanding balance.">
+    <button *ngIf="canManage" mat-flat-button color="primary" (click)="openCreate()">
+      <mat-icon>add</mat-icon> New vendor
+    </button>
+  </app-page-header>
+
+  <div class="berry-panel" *ngIf="formOpen">
+    <div class="berry-panel-header">
+      <div class="berry-panel-title">{{ mode === 'create' ? 'New vendor' : 'Edit vendor' }}</div>
+      <button mat-icon-button (click)="closeForm()" aria-label="Close"><mat-icon>close</mat-icon></button>
+    </div>
+    <form [formGroup]="form" (ngSubmit)="save()" class="berry-grid-3">
+      <mat-form-field appearance="outline">
+        <mat-label>Vendor name</mat-label>
+        <input matInput formControlName="name" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Vendor code</mat-label>
+        <input matInput formControlName="code" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Category</mat-label>
+        <input matInput formControlName="category" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Phone</mat-label>
+        <input matInput formControlName="phone" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Status</mat-label>
+        <mat-select formControlName="status">
+          <mat-option value="Active">Active</mat-option>
+          <mat-option value="Inactive">Inactive</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Total purchased (₹)</mat-label>
+        <input matInput type="number" formControlName="totalPurchased" min="0" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Total paid (₹)</mat-label>
+        <input matInput type="number" formControlName="totalPaid" min="0" />
+      </mat-form-field>
+      <div class="form-actions">
+        <button mat-flat-button color="primary" type="submit">{{ mode === 'create' ? 'Add vendor' : 'Save changes' }}</button>
+        <button mat-stroked-button type="button" (click)="closeForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="feedback loading" *ngIf="loading">Loading vendors…</div>
+
+  <div class="table-wrapper" *ngIf="!loading && vendors.length">
+    <table mat-table [dataSource]="vendors" class="pro-table">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Vendor</th>
+        <td mat-cell *matCellDef="let v"><div class="cell-name">{{ v.name }}</div><div class="cell-sub">{{ v.code }}</div></td>
+      </ng-container>
+      <ng-container matColumnDef="category">
+        <th mat-header-cell *matHeaderCellDef>Category</th>
+        <td mat-cell *matCellDef="let v">{{ v.category }}</td>
+      </ng-container>
+      <ng-container matColumnDef="phone">
+        <th mat-header-cell *matHeaderCellDef>Phone</th>
+        <td mat-cell *matCellDef="let v">{{ v.phone }}</td>
+      </ng-container>
+      <ng-container matColumnDef="purchased">
+        <th mat-header-cell *matHeaderCellDef>Purchased</th>
+        <td mat-cell *matCellDef="let v">₹ {{ v.totalPurchased | number:'1.0-0' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="paid">
+        <th mat-header-cell *matHeaderCellDef>Paid</th>
+        <td mat-cell *matCellDef="let v">₹ {{ v.totalPaid | number:'1.0-0' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="outstanding">
+        <th mat-header-cell *matHeaderCellDef>Outstanding</th>
+        <td mat-cell *matCellDef="let v"><strong [class.due]="v.outstanding > 0">₹ {{ v.outstanding | number:'1.0-0' }}</strong></td>
+      </ng-container>
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let v"><app-status-pill [label]="v.status"></app-status-pill></td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let v">
+          <button mat-icon-button color="primary" (click)="openEdit(v)" aria-label="Edit"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button color="warn" (click)="remove(v)" aria-label="Delete"><mat-icon>delete</mat-icon></button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+
+  <app-empty-state
+    *ngIf="!loading && !vendors.length"
+    icon="local_shipping"
+    title="No vendors yet"
+    message="Add your first vendor to track purchases and payments."></app-empty-state>
+</div>

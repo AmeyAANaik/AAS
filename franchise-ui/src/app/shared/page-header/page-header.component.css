@@ -1,0 +1,84 @@
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 252, 0.94));
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow-soft);
+}
+
+.copy {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(91, 107, 255, 0.08);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.title {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.subtitle {
+  max-width: 760px;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.actions ::ng-deep .mat-mdc-outlined-button:not([disabled]),
+.actions ::ng-deep .mat-stroked-button:not([disabled]) {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(91, 107, 255, 0.22);
+  color: var(--accent) !important;
+}
+
+.actions ::ng-deep .mat-mdc-unelevated-button:not([disabled]),
+.actions ::ng-deep .mat-mdc-raised-button:not([disabled]),
+.actions ::ng-deep .mat-flat-button:not([disabled]) {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
+  color: #fff !important;
+}
+
+@media (max-width: 720px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px 18px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .actions {
+    width: 100%;
+  }
+}

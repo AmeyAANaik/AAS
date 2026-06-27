@@ -1,0 +1,17 @@
+.cell-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cell-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.form-grid {
+  align-items: start;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+}

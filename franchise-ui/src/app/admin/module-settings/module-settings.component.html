@@ -1,0 +1,22 @@
+<div class="berry-page">
+  <app-page-header kicker="Administration" title="Module Settings" subtitle="Enable or disable modules for the whole console. Disabled modules disappear from navigation and become inaccessible for every role."></app-page-header>
+
+  <div class="module-grid">
+    <div class="berry-panel module-card" *ngFor="let m of modules">
+      <div class="module-head">
+        <div class="module-title">{{ m.label }}</div>
+        <mat-slide-toggle
+          color="primary"
+          [checked]="isEnabled(m.key)"
+          (change)="toggle(m, $event.checked)"
+          [attr.aria-label]="'Toggle ' + m.label">
+        </mat-slide-toggle>
+      </div>
+      <p class="module-desc">{{ m.description }}</p>
+      <div class="module-status" [class.on]="isEnabled(m.key)">
+        <mat-icon aria-hidden="true">{{ isEnabled(m.key) ? 'check_circle' : 'cancel' }}</mat-icon>
+        {{ isEnabled(m.key) ? 'Enabled' : 'Disabled' }}
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,51 @@
+.coming-soon-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-warning);
+  background: rgba(250, 173, 20, 0.12);
+}
+
+.coming-soon-badge .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.coming-soon-lead {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.coming-soon-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.coming-soon-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.coming-soon-list .mat-icon {
+  color: var(--color-success);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}

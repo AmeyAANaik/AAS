@@ -1,0 +1,53 @@
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.module-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.module-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.module-desc {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.module-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-muted);
+}
+
+.module-status.on {
+  color: var(--color-success);
+  background: rgba(44, 168, 127, 0.1);
+}
+
+.module-status .mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}

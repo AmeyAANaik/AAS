@@ -1,0 +1,46 @@
+.berry-grid-4 {
+  margin-bottom: 4px;
+}
+
+.report-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+}
+
+.filter-field {
+  width: 200px;
+  margin-bottom: -1.25em; /* trim mat-form-field subscript gap */
+}
+
+.toolbar-count {
+  margin-left: auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.table-wrapper {
+  margin-top: 16px;
+}
+
+/* Low-stock color coding (shared convention across reports) */
+.low-value {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.low-row td {
+  background: rgba(240, 81, 109, 0.05);
+}
+
+.empty-hint {
+  margin: 16px 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
