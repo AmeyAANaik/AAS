@@ -237,8 +237,12 @@ export class OrderPageComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(MatPaginator)
   set matPaginator(paginator: MatPaginator | undefined) {
     this.tablePaginator = paginator;
+    // NOTE: do not attach the paginator to the MatTableDataSource. This list is
+    // paginated server-side (loadOrders fetches one page + the real total). Binding
+    // dataSource.paginator makes MatTableDataSource override paginator.length with the
+    // current page's row count, breaking the next/prev arrows ("1–20 of 20").
     if (paginator) {
-      this.dataSource.paginator = paginator;
+      paginator.length = this.totalOrders;
     }
   }
 
