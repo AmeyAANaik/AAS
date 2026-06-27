@@ -310,6 +310,9 @@ public class InvoiceService {
                         + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\","
                         + "\"is_opening\",\"po_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
+        // Without an explicit page length ERPNext defaults to 20 rows, which silently caps the
+        // invoice list (and breaks version dedupe). 0 = no limit, so we fetch all matching invoices.
+        params.put("limit_page_length", 0);
         List<List<String>> filters = new ArrayList<>();
         if (partyId != null && !partyId.isBlank()) {
             filters.add(List.of("customer", "=", partyId));
@@ -347,6 +350,8 @@ public class InvoiceService {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
+        // 0 = no limit; otherwise ERPNext defaults to 20 rows and silently caps the list.
+        params.put("limit_page_length", 0);
         List<List<String>> filters = new ArrayList<>();
         if (supplier != null && !supplier.isBlank()) {
             filters.add(List.of("supplier", "=", supplier));

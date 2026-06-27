@@ -66,6 +66,8 @@ public class AnalyticsService {
         Map<String, Object> params = new HashMap<>();
         params.put("fields", "[\"item_code\",\"item_name\",\"price_list_rate\",\"valid_from\",\"currency\"]");
         params.put("order_by", "valid_from asc");
+        // 0 = no limit; otherwise ERPNext caps the price history at its default 20 rows.
+        params.put("limit_page_length", "0");
         params.put("filters", toJson(List.of(
                 List.of("price_list", "=", "Standard Selling"),
                 List.of("valid_from", ">=", range.start()),
