@@ -229,6 +229,11 @@ public class MasterDataService {
         profile.put("invoice_email", asText(company.get("aas_invoice_email")));
         profile.put("whatsapp_number", asText(company.get("aas_whatsapp_number")));
         profile.put("food_license_no", asText(company.get("aas_food_license_no")));
+        profile.put("address_line_1", asText(company.get("aas_address_line_1")));
+        profile.put("address_line_2", asText(company.get("aas_address_line_2")));
+        profile.put("city", asText(company.get("aas_city")));
+        profile.put("state", asText(company.get("aas_state")));
+        profile.put("pincode", asText(company.get("aas_pincode")));
         return profile;
     }
 
@@ -258,6 +263,11 @@ public class MasterDataService {
         copyIfPresent(fields, payload, "aas_invoice_email", "invoice_email");
         copyIfPresent(fields, payload, "aas_whatsapp_number", "whatsapp_number");
         copyIfPresent(fields, payload, "aas_food_license_no", "food_license_no");
+        copyIfPresent(fields, payload, "aas_address_line_1", "address_line_1");
+        copyIfPresent(fields, payload, "aas_address_line_2", "address_line_2");
+        copyIfPresent(fields, payload, "aas_city", "city");
+        copyIfPresent(fields, payload, "aas_state", "state");
+        copyIfPresent(fields, payload, "aas_pincode", "pincode");
 
         // ERPNext often uses the document name as the effective company label across the system.
         // Attempt a rename when the requested display name differs from the current document id.

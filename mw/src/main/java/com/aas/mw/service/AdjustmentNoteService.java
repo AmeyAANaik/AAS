@@ -145,11 +145,17 @@ public class AdjustmentNoteService {
 
         List<UploadedFileInfo> uploadedFiles = new ArrayList<>();
 
-        // Generate and attach the credit/debit note PDF inline at creation time
+        // Generate and attach the credit/debit note PDF inline at creation time.
+        // Prefer the branded "AAS Adjustment Note Print" format so the draft matches the
+        // application's standard document layout; fall back to a plain PDF if ERPNext
+        // rendering is unavailable so note creation never fails for lack of a PDF.
         String kind = AdjustmentNoteErpService.DIRECTION_TAKE.equals(direction) ? "Debit Note" : "Credit Note";
         try {
-            byte[] pdfBytes = buildNotePdf(noteId, kind, partyType, partyId, categoryId, itemCode, itemName,
-                    amount, postingDate, adjustmentNoteErpService.asText(request.getReason()), company);
+            byte[] pdfBytes = renderBrandedNotePdf(noteId, sessionCookie);
+            if (!isPdf(pdfBytes)) {
+                pdfBytes = buildNotePdf(noteId, kind, partyType, partyId, categoryId, itemCode, itemName,
+                        amount, postingDate, adjustmentNoteErpService.asText(request.getReason()), company);
+            }
             String pdfFilename = noteId.toLowerCase().replace("/", "-") + "-" + kind.toLowerCase().replace(" ", "-") + ".pdf";
             UploadedFileInfo pdfFile = fileService.uploadBytes(
                     AdjustmentNoteErpService.JOURNAL_ENTRY, noteId, pdfFilename, pdfBytes, "application/pdf", sessionCookie);
@@ -274,6 +280,25 @@ public class AdjustmentNoteService {
         return text.isBlank() ? remark : remark + " · " + text;
     }
 
+    // Render the credit/debit note using the shared branded ERPNext print format so it matches
+    // the application's standard document layout. Returns null if rendering is unavailable.
+    private byte[] renderBrandedNotePdf(String noteId, String sessionCookie) {
+        try {
+            return erpNextClient.downloadPdfWithSession(
+                    AdjustmentNoteErpService.JOURNAL_ENTRY,
+                    noteId,
+                    Map.of("format", AdjustmentNotePdfService.PRINT_FORMAT_NAME),
+                    sessionCookie);
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private boolean isPdf(byte[] bytes) {
+        return bytes != null && bytes.length > 4
+                && bytes[0] == '%' && bytes[1] == 'P' && bytes[2] == 'D' && bytes[3] == 'F';
+    }
+
     private byte[] buildNotePdf(
             String noteId,
             String kind,
@@ -303,12 +328,11 @@ public class AdjustmentNoteService {
                 y = writeLine(content, regular, 10f, margin, y - 2f, "Party     : " + partyType + " — " + partyId);
                 y = writeLine(content, regular, 10f, margin, y - 2f, "Category  : " + categoryId);
                 y -= 10f;
-                y = writeLine(content, bold, 11f, margin, y, "Item");
-                y = writeLine(content, regular, 10f, margin, y - 2f, "Code : " + itemCode);
                 if (!itemName.isBlank()) {
+                    y = writeLine(content, bold, 11f, margin, y, "Item");
                     y = writeLine(content, regular, 10f, margin, y - 2f, "Name : " + itemName);
+                    y -= 10f;
                 }
-                y -= 10f;
                 y = writeLine(content, bold, 12f, margin, y, "Amount    : " + amount.toPlainString());
                 y = writeLine(content, regular, 10f, margin, y - 2f, "Date      : " + postingDate);
                 if (!reason.isBlank()) {

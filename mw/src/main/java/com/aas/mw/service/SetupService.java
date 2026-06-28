@@ -91,7 +91,11 @@ public class SetupService {
             {% set company_tax_id = (company_doc.tax_id or company_doc.gstin) if company_doc else "" %}
             {% set company_food_license = company_doc.aas_food_license_no if company_doc else "" %}
             {% set customer_doc = frappe.get_doc("Customer", doc.customer) if doc.customer else None %}
-            {% set company_address = [company_doc.address_line_1, company_doc.address_line_2, company_doc.city, company_doc.state, company_doc.pincode] if company_doc else [] %}
+            {% set company_city_line = "" %}
+            {% if company_doc %}
+              {% set company_city_line = (company_doc.aas_city or "") ~ (", " if company_doc.aas_city and company_doc.aas_state else "") ~ (company_doc.aas_state or "") ~ (" " if (company_doc.aas_city or company_doc.aas_state) and company_doc.aas_pincode else "") ~ (company_doc.aas_pincode or "") %}
+            {% endif %}
+            {% set company_address = [company_doc.aas_address_line_1, company_doc.aas_address_line_2, company_city_line] if company_doc else [] %}
             {% set branch_lines = [] %}
             {% if customer_doc and customer_doc.aas_branch_location %}{% set _ = branch_lines.append(customer_doc.aas_branch_location) %}{% endif %}
             {% if doc.customer_address %}{% set _ = branch_lines.append(doc.customer_address) %}{% endif %}
@@ -354,13 +358,17 @@ public class SetupService {
                   <p class="aas-note-kicker">Accounting adjustment</p>
                   <h1 class="aas-note-title">{{ company_doc.company_name if company_doc and company_doc.company_name else doc.company }}</h1>
                   {% if company_doc %}
-                    {% if company_doc.address_line_1 %}<p class="aas-note-company-line">{{ company_doc.address_line_1 }}</p>{% endif %}
-                    {% if company_doc.address_line_2 %}<p class="aas-note-company-line">{{ company_doc.address_line_2 }}</p>{% endif %}
+                    {% if company_doc.aas_address_line_1 %}<p class="aas-note-company-line">{{ company_doc.aas_address_line_1 }}</p>{% endif %}
+                    {% if company_doc.aas_address_line_2 %}<p class="aas-note-company-line">{{ company_doc.aas_address_line_2 }}</p>{% endif %}
+                    {% if company_doc.aas_city or company_doc.aas_state or company_doc.aas_pincode %}
                     <p class="aas-note-company-line">
-                      {{ company_doc.city or "" }}{% if company_doc.city and company_doc.state %}, {% endif %}{{ company_doc.state or "" }} {{ company_doc.pincode or "" }}
+                      {{ company_doc.aas_city or "" }}{% if company_doc.aas_city and company_doc.aas_state %}, {% endif %}{{ company_doc.aas_state or "" }} {{ company_doc.aas_pincode or "" }}
                     </p>
+                    {% endif %}
                   {% endif %}
                   {% if company_tax_id %}<p class="aas-note-company-line"><strong>GSTIN:</strong> {{ company_tax_id }}</p>{% endif %}
+                  {% set company_food_license = company_doc.aas_food_license_no if company_doc else "" %}
+                  {% if company_food_license %}<p class="aas-note-company-line"><strong>FSSAI No:</strong> {{ company_food_license }}</p>{% endif %}
                 </td>
                 <td class="aas-note-card">
                   <div class="aas-note-box">
@@ -385,10 +393,12 @@ public class SetupService {
                 <td class="aas-note-label">Category</td>
                 <td>{{ doc.aas_category or "—" }}</td>
               </tr>
+              {% if doc.aas_adjustment_item_name %}
               <tr>
-                <td class="aas-note-label">Reference invoice</td>
-                <td>{{ doc.aas_reference_invoice or "—" }}</td>
+                <td class="aas-note-label">Item</td>
+                <td>{{ doc.aas_adjustment_item_name }}</td>
               </tr>
+              {% endif %}
             </table>
 
             <table class="aas-note-summary">
@@ -752,6 +762,41 @@ public class SetupService {
                 "Data",
                 null,
                 "aas_authorized_signature");
+        boolean companyAddressLine1Field = ensureCustomField(
+                "Company",
+                "aas_address_line_1",
+                "Address Line 1",
+                "Data",
+                null,
+                "aas_food_license_no");
+        boolean companyAddressLine2Field = ensureCustomField(
+                "Company",
+                "aas_address_line_2",
+                "Address Line 2",
+                "Data",
+                null,
+                "aas_address_line_1");
+        boolean companyCityField = ensureCustomField(
+                "Company",
+                "aas_city",
+                "City",
+                "Data",
+                null,
+                "aas_address_line_2");
+        boolean companyStateField = ensureCustomField(
+                "Company",
+                "aas_state",
+                "State",
+                "Data",
+                null,
+                "aas_city");
+        boolean companyPincodeField = ensureCustomField(
+                "Company",
+                "aas_pincode",
+                "Pincode",
+                "Data",
+                null,
+                "aas_state");
         boolean userFeatureAllowField = ensureCustomField(
                 "User",
                 UserFeatureService.FEATURE_ALLOW_FIELD,
@@ -1170,6 +1215,11 @@ public class SetupService {
         result.put("companyBankBranchFieldCreated", companyBankBranchField);
         result.put("companyAuthorizedSignatureFieldCreated", companyAuthorizedSignatureField);
         result.put("companyFoodLicenseFieldCreated", companyFoodLicenseField);
+        result.put("companyAddressLine1FieldCreated", companyAddressLine1Field);
+        result.put("companyAddressLine2FieldCreated", companyAddressLine2Field);
+        result.put("companyCityFieldCreated", companyCityField);
+        result.put("companyStateFieldCreated", companyStateField);
+        result.put("companyPincodeFieldCreated", companyPincodeField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());

@@ -22,6 +22,11 @@ export type CompanyIdentity = {
   invoice_email?: string;
   whatsapp_number?: string;
   food_license_no?: string;
+  address_line_1?: string;
+  address_line_2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 };
 
 export type BranchIdentity = {
