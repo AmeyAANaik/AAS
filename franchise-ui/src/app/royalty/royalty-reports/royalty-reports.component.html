@@ -1,0 +1,77 @@
+<div class="berry-grid-4 kpi-grid">
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total due</div>
+    <div class="summary-value">₹ {{ dueTotal | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total paid</div>
+    <div class="summary-value">₹ {{ paidTotal | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Pending / outstanding</div>
+    <div class="summary-value" [class.due]="pendingTotal > 0">₹ {{ pendingTotal | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Pending months</div>
+    <div class="summary-value">{{ pendingCount }}</div>
+  </div>
+</div>
+
+<div class="berry-panel controls-panel">
+  <div class="controls-row">
+    <mat-form-field appearance="outline" class="year-field">
+      <mat-label>Year</mat-label>
+      <input matInput type="month" [value]="selectedYear + '-01'" (change)="onYearChange($any($event.target).value)" />
+    </mat-form-field>
+
+    <mat-button-toggle-group [value]="filter" (change)="setFilter($event.value)" aria-label="Status filter">
+      <mat-button-toggle value="All">All</mat-button-toggle>
+      <mat-button-toggle value="Pending">Pending</mat-button-toggle>
+      <mat-button-toggle value="Partial">Partial</mat-button-toggle>
+      <mat-button-toggle value="Paid">Paid</mat-button-toggle>
+    </mat-button-toggle-group>
+  </div>
+  <p class="scope-note">{{ filter }} · {{ selectedYear }}</p>
+</div>
+
+<div class="berry-panel">
+  <div class="berry-panel-title">Monthly royalty</div>
+  <div class="table-wrapper" *ngIf="rows.length; else noData">
+    <table mat-table [dataSource]="rows" class="pro-table">
+      <ng-container matColumnDef="month">
+        <th mat-header-cell *matHeaderCellDef>Month</th>
+        <td mat-cell *matCellDef="let e">{{ e.month }}</td>
+      </ng-container>
+      <ng-container matColumnDef="base">
+        <th mat-header-cell *matHeaderCellDef>Net sales base</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.netSalesBase | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="rate">
+        <th mat-header-cell *matHeaderCellDef>Rate %</th>
+        <td mat-cell *matCellDef="let e">{{ e.ratePercent | number:'1.0-2' }}%</td>
+      </ng-container>
+      <ng-container matColumnDef="due">
+        <th mat-header-cell *matHeaderCellDef>Due</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.dueAmount | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="paid">
+        <th mat-header-cell *matHeaderCellDef>Paid</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.paidAmount | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="outstanding">
+        <th mat-header-cell *matHeaderCellDef>Outstanding</th>
+        <td mat-cell *matCellDef="let e"><strong [class.due]="outstandingFor(e) > 0">₹ {{ outstandingFor(e) | number:'1.0-2' }}</strong></td>
+      </ng-container>
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let e"><app-status-pill [label]="e.status"></app-status-pill></td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+  <ng-template #noData>
+    <app-empty-state icon="insights" title="No royalty for this view"
+      message="Try another year or status filter, or generate royalty in the Royalty tab."></app-empty-state>
+  </ng-template>
+</div>

@@ -13,5 +13,78 @@
 }
 
 .form-actions {
-  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 16px 0 8px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+.activation-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #2c7a4b;
+  margin: 4px 0 8px;
+}
+
+.activation-hint.blocked {
+  color: #9c6a2c;
+}
+
+.activation-hint mat-icon {
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+}
+
+.invoice-setup-wrap {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-strong);
+}
+
+.mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+}
+
+.inv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(215, 162, 89, 0.18);
+  color: #9c6a2c;
+}
+
+.inv-chip.ready {
+  background: rgba(41, 130, 74, 0.12);
+  color: #2c7a4b;
+}
+
+.inv-chip.miss {
+  background: #f4f4f5;
+  color: var(--muted);
+}
+
+.inv-chip mat-icon {
+  font-size: 16px;
+  height: 16px;
+  width: 16px;
 }

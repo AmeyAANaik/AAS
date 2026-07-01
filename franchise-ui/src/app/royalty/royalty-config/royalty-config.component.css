@@ -1,0 +1,21 @@
+.config-panel {
+  max-width: 720px;
+}
+
+.rate-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(29, 111, 122, 0.08);
+  color: var(--accent-strong);
+  font-size: 13px;
+}
+
+.rate-note mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}

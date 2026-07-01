@@ -1,0 +1,94 @@
+<div class="emp-header">
+  <div>
+    <div class="section-title">Employees</div>
+    <div class="section-subtitle">Employee master — staff, roles and monthly salary.</div>
+  </div>
+  <button mat-flat-button color="primary" (click)="openCreate()">
+    <mat-icon>add</mat-icon> New employee
+  </button>
+</div>
+
+<div class="berry-panel" *ngIf="formOpen">
+  <div class="berry-panel-header">
+    <div class="berry-panel-title">{{ mode === 'create' ? 'New employee' : 'Edit employee' }}</div>
+    <button mat-icon-button (click)="closeForm()" aria-label="Close"><mat-icon>close</mat-icon></button>
+  </div>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="berry-grid-3">
+      <mat-form-field appearance="outline" class="span-2">
+        <mat-label>Name</mat-label>
+        <input matInput formControlName="name" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Role</mat-label>
+        <input matInput formControlName="role" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Monthly salary (₹)</mat-label>
+        <input matInput type="number" formControlName="monthlySalary" min="0" />
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Status</mat-label>
+        <mat-select formControlName="status">
+          <mat-option value="Active">Active</mat-option>
+          <mat-option value="Inactive">Inactive</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Joined date</mat-label>
+        <input matInput type="date" formControlName="joinedDate" />
+      </mat-form-field>
+    </div>
+
+    <div class="form-actions">
+      <button mat-flat-button color="primary" type="submit">{{ mode === 'create' ? 'Add employee' : 'Save changes' }}</button>
+      <button mat-stroked-button type="button" (click)="closeForm()">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<div class="feedback loading" *ngIf="loading">Loading employees…</div>
+
+<div class="table-wrapper" *ngIf="!loading && employees.length">
+  <table mat-table [dataSource]="employees" class="pro-table">
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef>Employee</th>
+      <td mat-cell *matCellDef="let e">
+        <div class="cell-name">{{ e.name }}</div>
+        <div class="cell-sub">Joined {{ e.joinedDate }}</div>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="role">
+      <th mat-header-cell *matHeaderCellDef>Role</th>
+      <td mat-cell *matCellDef="let e">{{ e.role || '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="salary">
+      <th mat-header-cell *matHeaderCellDef>Monthly salary</th>
+      <td mat-cell *matCellDef="let e">₹ {{ e.monthlySalary | number:'1.0-0' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let e"><app-status-pill [label]="e.status"></app-status-pill></td>
+    </ng-container>
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef>Actions</th>
+      <td mat-cell *matCellDef="let e">
+        <button mat-icon-button color="primary" (click)="openEdit(e)" aria-label="Edit"><mat-icon>edit</mat-icon></button>
+        <button mat-icon-button (click)="toggleStatus(e)"
+                [attr.aria-label]="e.status === 'Active' ? 'Deactivate' : 'Activate'"
+                [matTooltip]="e.status === 'Active' ? 'Set Inactive' : 'Set Active'">
+          <mat-icon>{{ e.status === 'Active' ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+        </button>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  </table>
+</div>
+
+<app-empty-state
+  *ngIf="!loading && !employees.length"
+  icon="badge"
+  title="No employees yet"
+  message="Add your first employee to start tracking salaries."></app-empty-state>

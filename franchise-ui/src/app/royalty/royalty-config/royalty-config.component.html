@@ -1,0 +1,29 @@
+<div class="berry-panel config-panel">
+  <div class="berry-panel-title">Royalty rate</div>
+  <p class="berry-panel-subtitle">
+    Royalty is charged as a percentage of monthly net sales.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div class="berry-grid-3">
+      <mat-form-field appearance="outline">
+        <mat-label>Rate (% of net sales)</mat-label>
+        <input matInput type="number" formControlName="ratePercent" min="0" max="100" step="0.5" />
+        <span matTextSuffix>%</span>
+        <mat-error *ngIf="form.get('ratePercent')?.hasError('required')">Rate is required.</mat-error>
+        <mat-error *ngIf="form.get('ratePercent')?.hasError('min') || form.get('ratePercent')?.hasError('max')">
+          Enter a value between 0 and 100.
+        </mat-error>
+      </mat-form-field>
+    </div>
+
+    <div class="rate-note">
+      <mat-icon>info</mat-icon>
+      Changing the rate affects future generations. Re-generating a month recomputes its royalty at the new rate.
+    </div>
+
+    <div class="form-actions">
+      <button mat-flat-button color="primary" type="submit">Save rate</button>
+    </div>
+  </form>
+</div>

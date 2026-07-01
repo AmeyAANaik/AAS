@@ -1,0 +1,156 @@
+.create-form {
+  display: block;
+}
+
+.berry-panel + .berry-panel {
+  margin-top: 24px;
+}
+
+.create-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.create-section:last-of-type {
+  border-bottom: none;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.label {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.muted {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.reconcile-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.reconcile-stat {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+
+.reconcile-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.reconcile-value.warn {
+  color: var(--color-warning);
+}
+
+.reconcile-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(250, 173, 20, 0.14);
+  color: var(--color-warning);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reconcile-warning .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.payment-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.payment-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+
+.payment-line .pl-mode { min-width: 150px; }
+.payment-line .pl-amount { width: 150px; }
+.payment-line .pl-remark { flex: 1; min-width: 180px; }
+
+.payment-line mat-form-field {
+  margin-bottom: -1.25em; /* trim Material's default hint gap inside the row */
+}
+
+.pl-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pl-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.no-modes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(91, 107, 255, 0.08);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.no-modes .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.berry-panel-title {
+  margin-bottom: 12px;
+}

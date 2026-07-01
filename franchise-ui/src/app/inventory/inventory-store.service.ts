@@ -325,6 +325,18 @@ export class InventoryStoreService {
     return [...set].sort((a, b) => a.localeCompare(b));
   }
 
+  /**
+   * Raw-material cost (COGS) consumed in a month, for the P&L module.
+   * Consumption txns carry no rate, so each consumed quantity is valued at the
+   * product's latest known rate. `ym` is a `yyyy-mm` period string.
+   */
+  consumptionValueForMonth(ym: string): number {
+    const total = this.txns
+      .filter(t => t.type === 'CONSUMPTION' && t.date.startsWith(ym))
+      .reduce((sum, t) => sum + Math.abs(t.qty) * this.lastRate(t.productId), 0);
+    return Math.round(total * 100) / 100;
+  }
+
   resetDemoData(): Observable<void> {
     this.seed();
     return of(undefined).pipe(delay(LATENCY));

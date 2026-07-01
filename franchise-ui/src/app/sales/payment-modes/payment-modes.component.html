@@ -1,0 +1,54 @@
+<form [formGroup]="form" class="berry-panel create-form" (submit)="$event.preventDefault()">
+  <div class="berry-panel-title">{{ editingId ? 'Edit payment mode' : 'Add payment mode' }}</div>
+  <p class="muted">Control which payment channels appear when recording a daily sale.</p>
+
+  <div class="mode-form-row">
+    <mat-form-field appearance="outline">
+      <mat-label>Mode name</mat-label>
+      <input matInput formControlName="name" placeholder="e.g. Paytm, Swiggy" maxlength="40" />
+      <mat-error *ngIf="form.get('name')?.hasError('required')">Name is required.</mat-error>
+    </mat-form-field>
+
+    <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+
+    <div class="mode-form-actions">
+      <button mat-flat-button color="primary" type="button" (click)="save()">
+        <mat-icon>{{ editingId ? 'save' : 'add' }}</mat-icon> {{ editingId ? 'Save' : 'Add' }}
+      </button>
+      <button mat-stroked-button type="button" *ngIf="editingId" (click)="startCreate()">Cancel</button>
+    </div>
+  </div>
+</form>
+
+<div class="berry-panel">
+  <div class="berry-panel-title">Payment modes</div>
+  <div class="table-wrapper" *ngIf="modes.length; else noModes">
+    <table mat-table [dataSource]="modes" class="pro-table">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Mode</th>
+        <td mat-cell *matCellDef="let m">{{ m.name }}</td>
+      </ng-container>
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let m">
+          <app-status-pill [label]="m.enabled ? 'Active' : 'Inactive'"></app-status-pill>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let m">
+          <button mat-icon-button color="primary" (click)="startEdit(m)" aria-label="Edit"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button (click)="toggle(m)" [attr.aria-label]="m.enabled ? 'Disable' : 'Enable'">
+            <mat-icon>{{ m.enabled ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="remove(m)" aria-label="Delete"><mat-icon>delete</mat-icon></button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+  <ng-template #noModes>
+    <app-empty-state icon="payments" title="No payment modes" message="Add a payment mode to start recording sales."></app-empty-state>
+  </ng-template>
+</div>

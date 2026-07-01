@@ -1,0 +1,63 @@
+<div class="entry-toolbar">
+  <mat-form-field appearance="outline" class="month-field">
+    <mat-label>Month</mat-label>
+    <input matInput type="month" [(ngModel)]="month" (ngModelChange)="reload()" />
+  </mat-form-field>
+  <button mat-flat-button color="primary" (click)="generate()" [disabled]="!month">
+    <mat-icon>playlist_add</mat-icon> Generate for month
+  </button>
+</div>
+
+<div class="berry-grid-3">
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total for month</div>
+    <div class="summary-value">₹ {{ total | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Paid</div>
+    <div class="summary-value">{{ paidCount }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Pending</div>
+    <div class="summary-value" [class.pending-value]="pendingCount > 0">{{ pendingCount }}</div>
+  </div>
+</div>
+
+<div class="feedback loading" *ngIf="loading">Loading salary entries…</div>
+
+<div class="table-wrapper" *ngIf="!loading && payments.length">
+  <table mat-table [dataSource]="payments" class="pro-table">
+    <ng-container matColumnDef="employee">
+      <th mat-header-cell *matHeaderCellDef>Employee</th>
+      <td mat-cell *matCellDef="let p"><strong>{{ p.employeeName }}</strong></td>
+    </ng-container>
+    <ng-container matColumnDef="amount">
+      <th mat-header-cell *matHeaderCellDef>Amount</th>
+      <td mat-cell *matCellDef="let p">₹ {{ p.amount | number:'1.0-0' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Status</th>
+      <td mat-cell *matCellDef="let p"><app-status-pill [label]="p.status"></app-status-pill></td>
+    </ng-container>
+    <ng-container matColumnDef="paidDate">
+      <th mat-header-cell *matHeaderCellDef>Paid date</th>
+      <td mat-cell *matCellDef="let p">{{ p.paidDate || '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="actions">
+      <th mat-header-cell *matHeaderCellDef>Actions</th>
+      <td mat-cell *matCellDef="let p">
+        <button mat-stroked-button color="primary" (click)="markPaid(p)" [disabled]="p.status === 'Paid'">
+          <mat-icon>check</mat-icon> Mark paid
+        </button>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  </table>
+</div>
+
+<app-empty-state
+  *ngIf="!loading && !payments.length"
+  icon="payments"
+  title="No salary entries for this month"
+  message="Pick a month and click Generate to create pending salary entries for all active employees."></app-empty-state>

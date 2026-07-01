@@ -1,0 +1,68 @@
+<div class="berry-panel controls-panel">
+  <div class="controls-row">
+    <mat-form-field appearance="outline" class="month-field" *ngIf="view !== 'yearly'">
+      <mat-label>{{ view === 'daily' ? 'Month' : 'Year (pick any month)' }}</mat-label>
+      <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
+    </mat-form-field>
+
+    <mat-button-toggle-group [value]="view" (change)="setView($event.value)" aria-label="Report view">
+      <mat-button-toggle value="daily">Daily</mat-button-toggle>
+      <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
+      <mat-button-toggle value="yearly">Yearly</mat-button-toggle>
+    </mat-button-toggle-group>
+  </div>
+  <p class="scope-note">{{ scopeLabel }}</p>
+</div>
+
+<div class="berry-grid-4 kpi-grid">
+  <div class="berry-kpi-card">
+    <div class="summary-label">Gross sales</div>
+    <div class="summary-value">₹ {{ totals.gross | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">GST</div>
+    <div class="summary-value">₹ {{ totals.gst | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Discount</div>
+    <div class="summary-value">₹ {{ totals.discount | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Net sales</div>
+    <div class="summary-value">₹ {{ totals.net | number:'1.0-2' }}</div>
+  </div>
+</div>
+
+<div class="berry-grid-3 kpi-grid payment-grid" *ngIf="modeNames.length">
+  <div class="berry-kpi-card" *ngFor="let mode of modeNames">
+    <div class="summary-label">{{ mode }}</div>
+    <div class="summary-value">₹ {{ totals.byMode[mode] || 0 | number:'1.0-2' }}</div>
+  </div>
+</div>
+
+<div class="berry-panel">
+  <div class="berry-panel-title">
+    {{ view === 'daily' ? 'Daily breakdown' : view === 'monthly' ? 'Monthly breakdown' : 'Yearly breakdown' }}
+  </div>
+  <div class="table-wrapper" *ngIf="rows.length; else noData">
+    <table mat-table [dataSource]="rows" class="pro-table">
+      <ng-container matColumnDef="label">
+        <th mat-header-cell *matHeaderCellDef>{{ view === 'daily' ? 'Date' : view === 'monthly' ? 'Month' : 'Year' }}</th>
+        <td mat-cell *matCellDef="let r">{{ r.label }}</td>
+      </ng-container>
+      <ng-container matColumnDef="gross"><th mat-header-cell *matHeaderCellDef>Gross</th><td mat-cell *matCellDef="let r">₹ {{ r.gross | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="gst"><th mat-header-cell *matHeaderCellDef>GST</th><td mat-cell *matCellDef="let r">₹ {{ r.gst | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="discount"><th mat-header-cell *matHeaderCellDef>Discount</th><td mat-cell *matCellDef="let r">₹ {{ r.discount | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="net"><th mat-header-cell *matHeaderCellDef>Net</th><td mat-cell *matCellDef="let r">₹ {{ r.net | number:'1.0-2' }}</td></ng-container>
+      <ng-container *ngFor="let mode of modeNames" [matColumnDef]="mode">
+        <th mat-header-cell *matHeaderCellDef>{{ mode }}</th>
+        <td mat-cell *matCellDef="let r">₹ {{ r.byMode[mode] || 0 | number:'1.0-2' }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+  <ng-template #noData>
+    <app-empty-state icon="insights" title="No data for this period" message="Try another month or view, or record sales in the Entry tab."></app-empty-state>
+  </ng-template>
+</div>

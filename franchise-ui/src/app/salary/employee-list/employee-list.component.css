@@ -1,0 +1,27 @@
+.emp-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cell-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.cell-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.span-2 {
+  grid-column: span 2;
+}

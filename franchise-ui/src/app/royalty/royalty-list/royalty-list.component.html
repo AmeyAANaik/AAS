@@ -1,0 +1,110 @@
+<div class="berry-grid-3 kpi-grid">
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total due</div>
+    <div class="summary-value">₹ {{ totalDue | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total paid</div>
+    <div class="summary-value">₹ {{ totalPaid | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Outstanding</div>
+    <div class="summary-value" [class.due]="outstanding > 0">₹ {{ outstanding | number:'1.0-2' }}</div>
+  </div>
+</div>
+
+<div class="berry-panel">
+  <div class="berry-panel-title">Generate royalty</div>
+  <div class="generate-row">
+    <mat-form-field appearance="outline" class="month-field">
+      <mat-label>Month</mat-label>
+      <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
+    </mat-form-field>
+
+    <div class="preview">
+      <div class="preview-item">
+        <span class="preview-label">Net sales base</span>
+        <span class="preview-value">₹ {{ previewBase | number:'1.0-2' }}</span>
+      </div>
+      <div class="preview-item">
+        <span class="preview-label">Rate</span>
+        <span class="preview-value">{{ ratePercent | number:'1.0-2' }}%</span>
+      </div>
+      <div class="preview-item">
+        <span class="preview-label">Royalty due</span>
+        <span class="preview-value strong">₹ {{ previewDue | number:'1.0-2' }}</span>
+      </div>
+    </div>
+
+    <button mat-flat-button color="primary" (click)="generate()">
+      <mat-icon>calculate</mat-icon> Generate royalty for month
+    </button>
+  </div>
+</div>
+
+<div class="feedback loading" *ngIf="loading">Loading royalty…</div>
+
+<div class="berry-panel" *ngIf="!loading && entries.length">
+  <div class="berry-panel-title">Royalty entries</div>
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="entries" class="pro-table">
+      <ng-container matColumnDef="month">
+        <th mat-header-cell *matHeaderCellDef>Month</th>
+        <td mat-cell *matCellDef="let e">{{ e.month }}</td>
+      </ng-container>
+      <ng-container matColumnDef="base">
+        <th mat-header-cell *matHeaderCellDef>Net sales base</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.netSalesBase | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="rate">
+        <th mat-header-cell *matHeaderCellDef>Rate %</th>
+        <td mat-cell *matCellDef="let e">{{ e.ratePercent | number:'1.0-2' }}%</td>
+      </ng-container>
+      <ng-container matColumnDef="due">
+        <th mat-header-cell *matHeaderCellDef>Due</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.dueAmount | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="paid">
+        <th mat-header-cell *matHeaderCellDef>Paid</th>
+        <td mat-cell *matCellDef="let e">₹ {{ e.paidAmount | number:'1.0-2' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="outstanding">
+        <th mat-header-cell *matHeaderCellDef>Outstanding</th>
+        <td mat-cell *matCellDef="let e"><strong [class.due]="outstandingFor(e) > 0">₹ {{ outstandingFor(e) | number:'1.0-2' }}</strong></td>
+      </ng-container>
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let e"><app-status-pill [label]="e.status"></app-status-pill></td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Action</th>
+        <td mat-cell *matCellDef="let e">
+          <ng-container *ngIf="payingId !== e.id; else payForm">
+            <button mat-stroked-button color="primary" (click)="startPayment(e)"
+                    [disabled]="outstandingFor(e) <= 0">
+              <mat-icon>payments</mat-icon> Record payment
+            </button>
+          </ng-container>
+          <ng-template #payForm>
+            <div class="pay-row">
+              <mat-form-field appearance="outline" class="pay-field">
+                <mat-label>Amount</mat-label>
+                <input matInput type="number" min="0" [(ngModel)]="payAmount" />
+              </mat-form-field>
+              <button mat-flat-button color="primary" (click)="confirmPayment(e)">Save</button>
+              <button mat-icon-button (click)="cancelPayment()" aria-label="Cancel"><mat-icon>close</mat-icon></button>
+            </div>
+          </ng-template>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+</div>
+
+<app-empty-state
+  *ngIf="!loading && !entries.length"
+  icon="receipt_long"
+  title="No royalty entries yet"
+  message="Pick a month above and generate royalty from that month's net sales."></app-empty-state>

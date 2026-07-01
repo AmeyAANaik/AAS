@@ -1,0 +1,148 @@
+<form [formGroup]="form" class="berry-panel create-form" (submit)="$event.preventDefault()">
+  <section class="create-section">
+    <div class="section-heading">
+      <div>
+        <p class="label">Sale details</p>
+        <p class="muted">Record the day's takings. Net sales = gross sales − discount.</p>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Date</mat-label>
+        <input matInput type="date" formControlName="date" />
+        <mat-error *ngIf="form.get('date')?.hasError('required')">Date is required.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Gross sales</mat-label>
+        <span matTextPrefix>₹&nbsp;</span>
+        <input matInput type="number" min="0" formControlName="grossSales" />
+        <mat-error *ngIf="form.get('grossSales')?.hasError('min')">Must be 0 or more.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>GST amount</mat-label>
+        <span matTextPrefix>₹&nbsp;</span>
+        <input matInput type="number" min="0" formControlName="gstAmount" />
+        <mat-error *ngIf="form.get('gstAmount')?.hasError('min')">Must be 0 or more.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Discount</mat-label>
+        <span matTextPrefix>₹&nbsp;</span>
+        <input matInput type="number" min="0" formControlName="discount" />
+        <mat-error *ngIf="form.get('discount')?.hasError('min')">Must be 0 or more.</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Remarks (overall)</mat-label>
+        <input matInput [(ngModel)]="remarks" [ngModelOptions]="{ standalone: true }" placeholder="Optional note for the day" />
+      </mat-form-field>
+    </div>
+  </section>
+
+  <section class="create-section">
+    <div class="section-heading">
+      <div>
+        <p class="label">Payment split</p>
+        <p class="muted">How the net sales were collected. Add a line per payment mode — each can carry a remark and an attachment.</p>
+      </div>
+      <button mat-stroked-button color="primary" type="button" (click)="addPaymentLine()">
+        <mat-icon>add</mat-icon> Add payment
+      </button>
+    </div>
+
+    <div *ngIf="!modes.length" class="no-modes">
+      <mat-icon aria-hidden="true">info</mat-icon>
+      No active payment modes. Add some in the <strong>Payment Modes</strong> tab first.
+    </div>
+
+    <div formArrayName="payments" class="payment-lines">
+      <div class="payment-line" *ngFor="let line of payments.controls; let i = index" [formGroupName]="i">
+        <mat-form-field appearance="outline" class="pl-mode">
+          <mat-label>Mode</mat-label>
+          <mat-select formControlName="modeId">
+            <mat-option *ngFor="let m of modes" [value]="m.id">{{ m.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pl-amount">
+          <mat-label>Amount</mat-label>
+          <span matTextPrefix>₹&nbsp;</span>
+          <input matInput type="number" min="0" formControlName="amount" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pl-remark">
+          <mat-label>Remark</mat-label>
+          <input matInput formControlName="remark" placeholder="Optional" />
+        </mat-form-field>
+
+        <div class="pl-upload">
+          <button mat-stroked-button type="button" (click)="fileInput.click()">
+            <mat-icon>attach_file</mat-icon>
+            {{ line.get('attachmentName')?.value ? 'Change' : 'Upload' }}
+          </button>
+          <input #fileInput type="file" hidden (change)="onAttachmentSelected($event, i)" />
+          <span class="pl-file" *ngIf="line.get('attachmentName')?.value">
+            {{ line.get('attachmentName')?.value }}
+            <button mat-icon-button type="button" (click)="clearAttachment(i)" aria-label="Remove attachment">
+              <mat-icon>close</mat-icon>
+            </button>
+          </span>
+        </div>
+
+        <button mat-icon-button color="warn" type="button" (click)="removePaymentLine(i)" aria-label="Remove line">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="create-section">
+    <div class="reconcile-row">
+      <div class="reconcile-stat">
+        <span class="label">Net sales</span>
+        <strong class="reconcile-value">₹ {{ netSales | number:'1.0-2' }}</strong>
+      </div>
+      <div class="reconcile-stat">
+        <span class="label">Payments total</span>
+        <strong class="reconcile-value">₹ {{ paymentTotal | number:'1.0-2' }}</strong>
+      </div>
+      <div class="reconcile-stat">
+        <span class="label">Difference</span>
+        <strong class="reconcile-value" [class.warn]="!isReconciled">₹ {{ reconcileDiff | number:'1.0-2' }}</strong>
+      </div>
+    </div>
+    <p class="reconcile-warning" *ngIf="!isReconciled">
+      <mat-icon aria-hidden="true">warning</mat-icon>
+      Payments don't match net sales. You can still save this entry.
+    </p>
+
+    <div class="step-actions">
+      <button mat-flat-button color="primary" type="button" (click)="submit()">
+        <mat-icon>save</mat-icon> Record sale
+      </button>
+    </div>
+  </section>
+</form>
+
+<div class="berry-panel">
+  <div class="berry-panel-title">Recent entries</div>
+  <div class="table-wrapper" *ngIf="recent.length; else noEntries">
+    <table mat-table [dataSource]="recent" class="pro-table">
+      <ng-container matColumnDef="date"><th mat-header-cell *matHeaderCellDef>Date</th><td mat-cell *matCellDef="let s">{{ s.date }}</td></ng-container>
+      <ng-container matColumnDef="gross"><th mat-header-cell *matHeaderCellDef>Gross</th><td mat-cell *matCellDef="let s">₹ {{ s.grossSales | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="gst"><th mat-header-cell *matHeaderCellDef>GST</th><td mat-cell *matCellDef="let s">₹ {{ s.gstAmount | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="discount"><th mat-header-cell *matHeaderCellDef>Discount</th><td mat-cell *matCellDef="let s">₹ {{ s.discount | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="net"><th mat-header-cell *matHeaderCellDef>Net</th><td mat-cell *matCellDef="let s">₹ {{ s.netSales | number:'1.0-2' }}</td></ng-container>
+      <ng-container matColumnDef="payments"><th mat-header-cell *matHeaderCellDef>Payment split</th><td mat-cell *matCellDef="let s">{{ paymentSummary(s) }}</td></ng-container>
+      <ng-container matColumnDef="remarks"><th mat-header-cell *matHeaderCellDef>Remarks</th><td mat-cell *matCellDef="let s">{{ s.remarks || '—' }}</td></ng-container>
+      <tr mat-header-row *matHeaderRowDef="recentColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: recentColumns"></tr>
+    </table>
+  </div>
+  <ng-template #noEntries>
+    <app-empty-state icon="point_of_sale" title="No sales yet" message="Record your first daily sale using the form above."></app-empty-state>
+  </ng-template>
+</div>

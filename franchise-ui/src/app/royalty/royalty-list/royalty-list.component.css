@@ -1,0 +1,76 @@
+.kpi-grid {
+  margin-bottom: 20px;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.summary-value {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.summary-value.due,
+strong.due {
+  color: #b3472f;
+}
+
+.generate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.month-field {
+  width: 180px;
+}
+
+.preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  flex: 1;
+}
+
+.preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.preview-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.preview-value.strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pay-field {
+  width: 130px;
+}
+
+.feedback.loading {
+  padding: 16px 0;
+  color: var(--muted);
+}

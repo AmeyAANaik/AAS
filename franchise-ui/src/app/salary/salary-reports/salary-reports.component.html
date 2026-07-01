@@ -1,0 +1,58 @@
+<div class="report-toolbar">
+  <mat-form-field appearance="outline" class="year-field">
+    <mat-label>Year</mat-label>
+    <mat-select [(ngModel)]="year" (ngModelChange)="onYearChange()">
+      <mat-option *ngFor="let y of years" [value]="y">{{ y }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<div class="berry-grid-3">
+  <div class="berry-kpi-card">
+    <div class="summary-label">Total salary ({{ year }})</div>
+    <div class="summary-value">₹ {{ yearTotal | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Paid</div>
+    <div class="summary-value">₹ {{ yearPaid | number:'1.0-2' }}</div>
+  </div>
+  <div class="berry-kpi-card">
+    <div class="summary-label">Pending</div>
+    <div class="summary-value" [class.pending-value]="yearPending > 0">₹ {{ yearPending | number:'1.0-2' }}</div>
+  </div>
+</div>
+
+<div class="feedback loading" *ngIf="loading">Loading report…</div>
+
+<div class="table-wrapper" *ngIf="!loading && monthsWithData">
+  <table mat-table [dataSource]="rows" class="pro-table">
+    <ng-container matColumnDef="month">
+      <th mat-header-cell *matHeaderCellDef>Month</th>
+      <td mat-cell *matCellDef="let r"><strong>{{ r.label }}</strong></td>
+    </ng-container>
+    <ng-container matColumnDef="count">
+      <th mat-header-cell *matHeaderCellDef>Entries</th>
+      <td mat-cell *matCellDef="let r">{{ r.count }}</td>
+    </ng-container>
+    <ng-container matColumnDef="paid">
+      <th mat-header-cell *matHeaderCellDef>Paid</th>
+      <td mat-cell *matCellDef="let r">₹ {{ r.paid | number:'1.0-2' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="pending">
+      <th mat-header-cell *matHeaderCellDef>Pending</th>
+      <td mat-cell *matCellDef="let r"><span [class.pending-value]="r.pending > 0">₹ {{ r.pending | number:'1.0-2' }}</span></td>
+    </ng-container>
+    <ng-container matColumnDef="total">
+      <th mat-header-cell *matHeaderCellDef>Total</th>
+      <td mat-cell *matCellDef="let r"><strong>₹ {{ r.total | number:'1.0-2' }}</strong></td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  </table>
+</div>
+
+<app-empty-state
+  *ngIf="!loading && !monthsWithData"
+  icon="insights"
+  title="No salary data for {{ year }}"
+  message="Generate monthly salaries to see them summarised here."></app-empty-state>

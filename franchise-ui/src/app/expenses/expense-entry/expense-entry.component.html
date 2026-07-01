@@ -1,0 +1,94 @@
+<div class="berry-page">
+  <form [formGroup]="form" class="berry-panel create-form" (submit)="$event.preventDefault()">
+    <section class="create-section">
+      <div class="section-heading">
+        <div>
+          <p class="label">Record an expense</p>
+          <p class="muted">Log a fixed or operating cost. Amounts feed the expense reports and P&amp;L.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Date</mat-label>
+          <input matInput type="date" formControlName="date" />
+          <mat-error *ngIf="form.get('date')?.hasError('required')">Date is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Category</mat-label>
+          <mat-select formControlName="category">
+            <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Amount (₹)</mat-label>
+          <input matInput type="number" min="0" step="0.01" formControlName="amount" />
+          <mat-error *ngIf="form.get('amount')?.hasError('required')">Amount is required.</mat-error>
+          <mat-error *ngIf="form.get('amount')?.hasError('min')">Amount must be greater than zero.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Remarks</mat-label>
+          <input matInput formControlName="remarks" placeholder="Optional note" />
+        </mat-form-field>
+      </div>
+
+      <div class="bill-photo-row">
+        <label class="file-label compact">
+          <input type="file" accept="image/*,application/pdf" (change)="onBillSelected($event)" />
+          <span class="file-button"><mat-icon aria-hidden="true">attach_file</mat-icon> Attach bill</span>
+          <span class="file-name">{{ billFileName || 'Optional' }}</span>
+        </label>
+        <button mat-button type="button" *ngIf="billFileName" (click)="clearBill()">Remove</button>
+      </div>
+    </section>
+
+    <section class="create-section">
+      <div class="step-actions">
+        <button mat-flat-button color="primary" type="button" (click)="submit()">
+          <mat-icon>save</mat-icon> Save expense
+        </button>
+      </div>
+      <p class="status" *ngIf="statusMessage">{{ statusMessage }}</p>
+    </section>
+  </form>
+
+  <div class="berry-panel">
+    <div class="berry-panel-title">Recent expenses</div>
+    <div class="table-wrapper" *ngIf="recent.length; else empty">
+      <table mat-table [dataSource]="recent" class="pro-table">
+        <ng-container matColumnDef="date">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let e">{{ e.date }}</td>
+        </ng-container>
+        <ng-container matColumnDef="category">
+          <th mat-header-cell *matHeaderCellDef>Category</th>
+          <td mat-cell *matCellDef="let e">{{ e.category }}</td>
+        </ng-container>
+        <ng-container matColumnDef="amount">
+          <th mat-header-cell *matHeaderCellDef>Amount</th>
+          <td mat-cell *matCellDef="let e">₹ {{ e.amount | number:'1.0-2' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="remarks">
+          <th mat-header-cell *matHeaderCellDef>Remarks</th>
+          <td mat-cell *matCellDef="let e">{{ e.remarks || '—' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="bill">
+          <th mat-header-cell *matHeaderCellDef>Bill</th>
+          <td mat-cell *matCellDef="let e">{{ e.billFileName || '—' }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="recentColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: recentColumns"></tr>
+      </table>
+    </div>
+    <ng-template #empty>
+      <app-empty-state
+        icon="receipt_long"
+        title="No expenses yet"
+        message="Record your first expense using the form above."></app-empty-state>
+    </ng-template>
+  </div>
+</div>

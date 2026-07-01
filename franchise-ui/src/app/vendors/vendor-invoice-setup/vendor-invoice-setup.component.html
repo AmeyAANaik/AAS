@@ -1,0 +1,83 @@
+<div class="invoice-setup">
+  <div class="setup-head">
+    <div>
+      <div class="setup-title">Invoice format</div>
+      <div class="setup-sub">Teach AAS how to read {{ vendorName || 'this vendor' }}'s invoices so bills auto-capture.</div>
+    </div>
+    <span class="badge"
+          [class.ready]="template?.validated"
+          [class.warn]="template && !template.validated"
+          [class.idle]="!template">
+      {{ template?.validated ? 'Validated' : template ? 'Needs review' : 'Not configured' }}
+    </span>
+  </div>
+
+  <!-- Create mode: must save vendor first (same rule as ui/) -->
+  <div class="hint" *ngIf="!canConfigure">
+    <mat-icon>info</mat-icon>
+    Save the vendor first, then upload a sample invoice to generate its format.
+  </div>
+
+  <ng-container *ngIf="canConfigure">
+    <!-- Stage: SETUP -->
+    <div class="stage" *ngIf="stage === 'setup'">
+      <label class="file-drop">
+        <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
+        <mat-icon>upload_file</mat-icon>
+        <span>{{ sampleFile?.name || 'Choose a sample invoice (PDF)' }}</span>
+      </label>
+      <div class="actions">
+        <button mat-flat-button color="primary" (click)="analyze()" [disabled]="!sampleFile || working">
+          <mat-icon>{{ working ? 'hourglass_empty' : 'auto_awesome' }}</mat-icon>
+          {{ working ? 'Analyzing…' : 'Analyze sample' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Stage: REVIEW -->
+    <div class="stage" *ngIf="stage === 'review' && active as t">
+      <div class="metrics">
+        <div class="metric"><span class="m-val">{{ t.sampleFileName }}</span><span class="m-key">Sample</span></div>
+        <div class="metric"><span class="m-val">{{ t.itemsDetected }}</span><span class="m-key">Items detected</span></div>
+        <div class="metric"><span class="m-val">₹ {{ t.billAmount | number:'1.0-2' }}</span><span class="m-key">Bill amount</span></div>
+        <div class="metric"><span class="m-val">{{ matchedCount }}/{{ requiredCount }}</span><span class="m-key">Fields mapped</span></div>
+      </div>
+
+      <div class="mapping">
+        <div class="mapping-title">Line item fields</div>
+        <div class="map-row" *ngFor="let m of t.itemMappings; trackBy: trackField">
+          <mat-icon class="map-ico" [class.ok]="m.matched" [class.miss]="!m.matched">
+            {{ m.matched ? 'check_circle' : 'error' }}
+          </mat-icon>
+          <span class="map-target">{{ m.targetField }}</span>
+          <mat-icon class="arrow">arrow_forward</mat-icon>
+          <span class="map-source">{{ m.sourceLabel || 'Not found' }}</span>
+        </div>
+
+        <div class="mapping-title">Summary fields</div>
+        <div class="map-row" *ngFor="let m of t.summaryMappings; trackBy: trackField">
+          <mat-icon class="map-ico" [class.ok]="m.matched" [class.miss]="!m.matched">
+            {{ m.matched ? 'check_circle' : 'error' }}
+          </mat-icon>
+          <span class="map-target">{{ m.targetField }}</span>
+          <mat-icon class="arrow">arrow_forward</mat-icon>
+          <span class="map-source">{{ m.sourceLabel || 'Not found' }}</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button mat-flat-button color="primary" (click)="saveTemplate()" [disabled]="!mappingReady || working">
+          <mat-icon>save</mat-icon> Validate &amp; save format
+        </button>
+        <button mat-stroked-button (click)="reanalyze()" [disabled]="working">
+          <mat-icon>refresh</mat-icon> Use another sample
+        </button>
+        <button mat-button color="warn" *ngIf="template" (click)="removeTemplate()" [disabled]="working">
+          <mat-icon>delete</mat-icon> Remove
+        </button>
+      </div>
+    </div>
+
+    <div class="error" *ngIf="error">{{ error }}</div>
+  </ng-container>
+</div>

@@ -1,5 +1,5 @@
 <div class="berry-page">
-  <app-page-header kicker="Vendors" title="Vendor Management" subtitle="Vendors, purchase totals, payments and outstanding balance.">
+  <app-page-header kicker="Vendors" title="Vendor Management" subtitle="Vendor master, invoice formats, purchases, payments and outstanding balance.">
     <button *ngIf="canManage" mat-flat-button color="primary" (click)="openCreate()">
       <mat-icon>add</mat-icon> New vendor
     </button>
@@ -10,43 +10,144 @@
       <div class="berry-panel-title">{{ mode === 'create' ? 'New vendor' : 'Edit vendor' }}</div>
       <button mat-icon-button (click)="closeForm()" aria-label="Close"><mat-icon>close</mat-icon></button>
     </div>
-    <form [formGroup]="form" (ngSubmit)="save()" class="berry-grid-3">
-      <mat-form-field appearance="outline">
-        <mat-label>Vendor name</mat-label>
-        <input matInput formControlName="name" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Vendor code</mat-label>
-        <input matInput formControlName="code" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Category</mat-label>
-        <input matInput formControlName="category" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Phone</mat-label>
-        <input matInput formControlName="phone" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Status</mat-label>
-        <mat-select formControlName="status">
-          <mat-option value="Active">Active</mat-option>
-          <mat-option value="Inactive">Inactive</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Total purchased (₹)</mat-label>
-        <input matInput type="number" formControlName="totalPurchased" min="0" />
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Total paid (₹)</mat-label>
-        <input matInput type="number" formControlName="totalPaid" min="0" />
-      </mat-form-field>
+
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <!-- Details -->
+      <div class="form-section-title">Details</div>
+      <div class="berry-grid-3">
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor name</mat-label>
+          <input matInput formControlName="name" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Vendor code</mat-label>
+          <input matInput formControlName="code" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Supplier type</mat-label>
+          <mat-select formControlName="supplierType">
+            <mat-option value="Company">Company</mat-option>
+            <mat-option value="Individual">Individual</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Category (supplier group)</mat-label>
+          <input matInput formControlName="category" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Priority</mat-label>
+          <input matInput type="number" formControlName="priority" min="0" />
+        </mat-form-field>
+      </div>
+
+      <!-- Tax & compliance -->
+      <div class="form-section-title">Tax &amp; compliance</div>
+      <div class="berry-grid-3">
+        <mat-form-field appearance="outline">
+          <mat-label>GSTIN</mat-label>
+          <input matInput formControlName="gstin" maxlength="15" style="text-transform:uppercase" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>PAN</mat-label>
+          <input matInput formControlName="pan" maxlength="10" style="text-transform:uppercase" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>GST category</mat-label>
+          <mat-select formControlName="gstCategory">
+            <mat-option *ngFor="let c of gstCategories" [value]="c">{{ c }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Food license no. (FSSAI)</mat-label>
+          <input matInput formControlName="foodLicenseNo" />
+        </mat-form-field>
+      </div>
+
+      <!-- Address & contact -->
+      <div class="form-section-title">Address &amp; contact</div>
+      <div class="berry-grid-3">
+        <mat-form-field appearance="outline" class="span-2">
+          <mat-label>Address line 1</mat-label>
+          <input matInput formControlName="addressLine1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Address line 2</mat-label>
+          <input matInput formControlName="addressLine2" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>City</mat-label>
+          <input matInput formControlName="city" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>State</mat-label>
+          <input matInput formControlName="state" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Country</mat-label>
+          <input matInput formControlName="country" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Pincode</mat-label>
+          <input matInput formControlName="pincode" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput type="email" formControlName="email" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Phone</mat-label>
+          <input matInput formControlName="phone" />
+        </mat-form-field>
+      </div>
+
+      <!-- Buying defaults & ledger -->
+      <div class="form-section-title">Buying defaults &amp; ledger</div>
+      <div class="berry-grid-3">
+        <mat-form-field appearance="outline">
+          <mat-label>Default currency</mat-label>
+          <input matInput formControlName="defaultCurrency" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Payment terms</mat-label>
+          <mat-select formControlName="paymentTerms">
+            <mat-option *ngFor="let t of paymentTerms" [value]="t">{{ t }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Total purchased (₹)</mat-label>
+          <input matInput type="number" formControlName="totalPurchased" min="0" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Total paid (₹)</mat-label>
+          <input matInput type="number" formControlName="totalPaid" min="0" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Status</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="Active" [disabled]="!canActivate">Active</mat-option>
+            <mat-option value="Inactive">Inactive</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="activation-hint" [class.blocked]="!canActivate">
+        <mat-icon>{{ canActivate ? 'verified' : 'info' }}</mat-icon> {{ activationHint }}
+      </div>
+
       <div class="form-actions">
         <button mat-flat-button color="primary" type="submit">{{ mode === 'create' ? 'Add vendor' : 'Save changes' }}</button>
         <button mat-stroked-button type="button" (click)="closeForm()">Cancel</button>
       </div>
     </form>
+
+    <!-- Invoice format (mirrors the ui/ invoice extraction setup) -->
+    <div class="invoice-setup-wrap">
+      <app-vendor-invoice-setup
+        [vendorId]="editingId"
+        [vendorName]="editingVendor?.name || ''"
+        [template]="editingVendor?.invoiceTemplate || null"
+        (changed)="onInvoiceChanged($event)">
+      </app-vendor-invoice-setup>
+    </div>
   </div>
 
   <div class="feedback loading" *ngIf="loading">Loading vendors…</div>
@@ -60,6 +161,10 @@
       <ng-container matColumnDef="category">
         <th mat-header-cell *matHeaderCellDef>Category</th>
         <td mat-cell *matCellDef="let v">{{ v.category }}</td>
+      </ng-container>
+      <ng-container matColumnDef="gstin">
+        <th mat-header-cell *matHeaderCellDef>GSTIN</th>
+        <td mat-cell *matCellDef="let v"><span class="mono">{{ v.gstin || '—' }}</span></td>
       </ng-container>
       <ng-container matColumnDef="phone">
         <th mat-header-cell *matHeaderCellDef>Phone</th>
@@ -76,6 +181,15 @@
       <ng-container matColumnDef="outstanding">
         <th mat-header-cell *matHeaderCellDef>Outstanding</th>
         <td mat-cell *matCellDef="let v"><strong [class.due]="v.outstanding > 0">₹ {{ v.outstanding | number:'1.0-0' }}</strong></td>
+      </ng-container>
+      <ng-container matColumnDef="invoice">
+        <th mat-header-cell *matHeaderCellDef>Invoice format</th>
+        <td mat-cell *matCellDef="let v">
+          <span class="inv-chip" [class.ready]="v.invoiceValidated" [class.miss]="!v.invoiceConfigured">
+            <mat-icon>{{ v.invoiceValidated ? 'verified' : v.invoiceConfigured ? 'pending' : 'remove_circle_outline' }}</mat-icon>
+            {{ v.invoiceValidated ? 'Validated' : v.invoiceConfigured ? 'Draft' : 'Not set' }}
+          </span>
+        </td>
       </ng-container>
       <ng-container matColumnDef="status">
         <th mat-header-cell *matHeaderCellDef>Status</th>

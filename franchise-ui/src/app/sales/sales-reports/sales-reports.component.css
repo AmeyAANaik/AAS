@@ -1,0 +1,46 @@
+:host {
+  display: grid;
+  gap: 24px;
+}
+
+.controls-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.month-field {
+  width: 220px;
+  margin-bottom: -1.25em; /* trim mat-form-field subscript gap */
+}
+
+.scope-note {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.payment-grid {
+  margin-top: -4px;
+}
+
+.berry-panel-title {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 900px) {
+  .berry-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .berry-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

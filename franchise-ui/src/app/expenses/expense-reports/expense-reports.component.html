@@ -1,0 +1,89 @@
+<div class="berry-page">
+  <div class="berry-panel">
+    <div class="report-toolbar">
+      <div>
+        <p class="label">Reporting period</p>
+        <p class="muted">Pick a month for the category breakdown, and a year for the monthly trend.</p>
+      </div>
+      <div class="toolbar-fields">
+        <mat-form-field appearance="outline" class="month-field">
+          <mat-label>Month</mat-label>
+          <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="year-field">
+          <mat-label>Year</mat-label>
+          <mat-select [value]="selectedYear" (selectionChange)="onYearChange($event.value)">
+            <mat-option *ngFor="let y of years" [value]="y">{{ y }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly KPIs -->
+  <div class="berry-grid-3">
+    <div class="berry-kpi-card">
+      <div class="summary-label">Total for {{ selectedMonth }}</div>
+      <div class="summary-value">₹ {{ monthlyTotal | number:'1.0-2' }}</div>
+    </div>
+    <div class="berry-kpi-card">
+      <div class="summary-label">Categories</div>
+      <div class="summary-value">{{ categoryRows.length }}</div>
+    </div>
+    <div class="berry-kpi-card">
+      <div class="summary-label">Top category</div>
+      <div class="summary-value">{{ topCategory }}</div>
+    </div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="berry-panel">
+    <div class="berry-panel-title">Category-wise breakdown — {{ selectedMonth }}</div>
+    <div class="table-wrapper" *ngIf="categoryRows.length; else noMonth">
+      <table mat-table [dataSource]="categoryRows" class="pro-table">
+        <ng-container matColumnDef="category">
+          <th mat-header-cell *matHeaderCellDef>Category</th>
+          <td mat-cell *matCellDef="let r">{{ r.category }}</td>
+        </ng-container>
+        <ng-container matColumnDef="total">
+          <th mat-header-cell *matHeaderCellDef>Total</th>
+          <td mat-cell *matCellDef="let r">₹ {{ r.total | number:'1.0-2' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="percent">
+          <th mat-header-cell *matHeaderCellDef>% of month</th>
+          <td mat-cell *matCellDef="let r">{{ r.percent | number:'1.0-1' }}%</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="categoryColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: categoryColumns"></tr>
+      </table>
+    </div>
+    <ng-template #noMonth>
+      <app-empty-state
+        icon="bar_chart"
+        title="No expenses this month"
+        message="There are no expenses recorded for the selected month."></app-empty-state>
+    </ng-template>
+  </div>
+
+  <!-- Yearly view -->
+  <div class="berry-panel">
+    <div class="report-toolbar">
+      <div class="berry-panel-title">Monthly totals — {{ selectedYear }}</div>
+      <div class="year-total">Year total: <strong>₹ {{ yearlyTotal | number:'1.0-2' }}</strong></div>
+    </div>
+    <div class="table-wrapper">
+      <table mat-table [dataSource]="monthlyRows" class="pro-table">
+        <ng-container matColumnDef="label">
+          <th mat-header-cell *matHeaderCellDef>Month</th>
+          <td mat-cell *matCellDef="let r">{{ r.label }}</td>
+        </ng-container>
+        <ng-container matColumnDef="total">
+          <th mat-header-cell *matHeaderCellDef>Total</th>
+          <td mat-cell *matCellDef="let r">₹ {{ r.total | number:'1.0-2' }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="monthlyColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: monthlyColumns"></tr>
+      </table>
+    </div>
+  </div>
+</div>

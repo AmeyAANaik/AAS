@@ -1,0 +1,43 @@
+.kpi-grid {
+  margin-bottom: 20px;
+}
+
+.summary-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.summary-value {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.summary-value.due,
+strong.due {
+  color: #b3472f;
+}
+
+.controls-panel {
+  margin-bottom: 20px;
+}
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.year-field {
+  width: 200px;
+}
+
+.scope-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}

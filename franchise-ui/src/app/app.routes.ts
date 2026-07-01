@@ -43,53 +43,33 @@ export const routes: Routes = [
       },
       {
         path: 'sales',
-        component: ComingSoonComponent,
         canMatch: [featureGuard],
-        data: {
-          feature: 'sales.view', kicker: 'Operations', title: 'Daily Sales',
-          description: 'Manual POS (Petpooja) sales entry with payment-mode split.',
-          features: ['Date, Gross Sales, GST, Discount, Net Sales', 'Cash / UPI / Card split', 'Daily, Monthly, Yearly sales reports']
-        }
+        data: { feature: 'sales.view' },
+        loadComponent: () => import('./sales/sales-page.component').then(m => m.SalesPageComponent)
       },
       {
         path: 'expenses',
-        component: ComingSoonComponent,
         canMatch: [featureGuard],
-        data: {
-          feature: 'expenses.view', kicker: 'Operations', title: 'Expense Management',
-          description: 'Track operating expenses with bill attachments.',
-          features: ['Electricity, Rent, GST, Internet, Marketing, Maintenance, Misc', 'Date, Amount, Remarks, Bill attachment', 'Monthly, Category-wise, Yearly reports']
-        }
+        data: { feature: 'expenses.view' },
+        loadComponent: () => import('./expenses/expenses-page.component').then(m => m.ExpensesPageComponent)
       },
       {
         path: 'salary',
-        component: ComingSoonComponent,
         canMatch: [featureGuard],
-        data: {
-          feature: 'salary.view', kicker: 'Operations', title: 'Salary Tracking',
-          description: 'Track employee salary expenses.',
-          features: ['Add Employee', 'Employee status (Active/Inactive)', 'Monthly salary entry', 'Salary reports']
-        }
+        data: { feature: 'salary.view' },
+        loadComponent: () => import('./salary/salary-page.component').then(m => m.SalaryPageComponent)
       },
       {
         path: 'royalty',
-        component: ComingSoonComponent,
         canMatch: [featureGuard],
-        data: {
-          feature: 'royalty.view', kicker: 'Operations', title: 'Royalty Management',
-          description: 'Percentage-based royalty calculation and collection.',
-          features: ['Monthly royalty calculation', 'Generate royalty due', 'Record & verify payment', 'Royalty ledger & outstanding', 'Franchise-wise / Pending / Paid reports']
-        }
+        data: { feature: 'royalty.view' },
+        loadComponent: () => import('./royalty/royalty-page.component').then(m => m.RoyaltyPageComponent)
       },
       {
         path: 'pnl',
-        component: ComingSoonComponent,
         canMatch: [featureGuard],
-        data: {
-          feature: 'pnl.view', kicker: 'Operations', title: 'Profit & Loss',
-          description: 'Operational P&L across all modules.',
-          features: ['Revenue − Raw Material − Salary − Rent − Electricity − Royalty − Other = Net Profit', 'Monthly / Yearly P&L', 'Franchise-wise & Consolidated P&L']
-        }
+        data: { feature: 'pnl.view' },
+        loadComponent: () => import('./pnl/pnl-page.component').then(m => m.PnlPageComponent)
       },
       {
         path: 'admin/modules',
