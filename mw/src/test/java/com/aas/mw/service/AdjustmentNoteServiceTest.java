@@ -42,6 +42,7 @@ class AdjustmentNoteServiceTest {
         request.setPartyType("Customer");
         request.setPartyId("BRANCH-1");
         request.setCategoryId("Grocery");
+        request.setItemCode("GROCERY");
         request.setDirection("GIVE");
         request.setAmount(new BigDecimal("200000.00"));
         MockMultipartFile file = new MockMultipartFile("files", "proof.png", "image/png", new byte[] {1});

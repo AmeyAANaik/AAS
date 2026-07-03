@@ -533,8 +533,8 @@ public class InvoiceService {
         double storedPreviousDue = asDouble(invoiceDoc.get("aas_previous_due"));
         double storedCurrentPending = asDouble(invoiceDoc.get("aas_current_pending"));
         try {
-            Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(customer, categoryId);
-            double dueAmount = asDouble(ledger.get("balance"));
+            Map<String, Object> due = paymentDueService.dueByCategory("Customer", customer, categoryId);
+            double dueAmount = asDouble(due.get("dueAmount"));
             double currentInvoiceContribution = currentInvoiceDueBase(invoiceDoc);
             double previousDue = Math.max(0.0, round(dueAmount - currentInvoiceContribution));
             double currentPending = round(dueAmount);

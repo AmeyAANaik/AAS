@@ -5,8 +5,7 @@ import com.aas.mw.config.InvoiceTemplateModelProperties;
 import com.aas.mw.dto.ParsedItem;
 import com.aas.mw.dto.UploadedFileInfo;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -705,8 +704,11 @@ class VendorPdfServiceTest {
     }
 
     private MockMultipartFile validPdf() {
-        try {
-            byte[] bytes = Files.readAllBytes(Path.of("../images/vendor_order.pdf"));
+        try (InputStream inputStream = getClass().getResourceAsStream("/vendor_order.pdf")) {
+            if (inputStream == null) {
+                throw new IllegalStateException("Test PDF fixture /vendor_order.pdf is missing.");
+            }
+            byte[] bytes = inputStream.readAllBytes();
             return new MockMultipartFile("file", "vendor_order.pdf", "application/pdf", bytes);
         } catch (IOException ex) {
             throw new IllegalStateException("Unable to load test PDF fixture.", ex);

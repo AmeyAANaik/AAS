@@ -35,6 +35,7 @@ public class NativeLayoutInvoiceService {
     private static final Pattern AMOUNT_PATTERN = Pattern.compile("([0-9][0-9,]*\\.\\d{2})");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(\\d{4}-\\d{2}-\\d{2})\\b");
     private static final Pattern DMY_DASH_PATTERN = Pattern.compile("\\b(\\d{1,2}-[A-Za-z]{3}-\\d{2,4})\\b");
+    private static final Pattern DMY_SLASH_PATTERN = Pattern.compile("\\b(\\d{1,2}/\\d{1,2}/\\d{2,4})\\b");
 
     private final ObjectMapper objectMapper;
     private final String configuredPythonCommand;
@@ -233,12 +234,15 @@ public class NativeLayoutInvoiceService {
         if (headers == null || headers.isEmpty()) {
             return aligned;
         }
+        if (isPuranchandExpandedHeader(headers) && aligned.size() >= 9) {
+            return alignPuranchandCompactRow(aligned);
+        }
         if (aligned.size() >= headers.size()) {
             return aligned;
         }
 
         int serialIndex = indexOfHeader(headers, "sl");
-        int descriptionIndex = indexOfHeader(headers, "description of goods");
+        int descriptionIndex = firstHeaderIndex(headers, "description of goods", "description");
         if (serialIndex >= 0 && descriptionIndex == serialIndex + 1 && !aligned.isEmpty()) {
             splitLeadingSerialAndDescription(aligned);
         }
@@ -329,6 +333,16 @@ public class NativeLayoutInvoiceService {
         String normalizedTarget = normalizeHeader(targetHeader);
         for (int index = 0; index < headers.size(); index++) {
             if (normalizeHeader(headers.get(index)).equals(normalizedTarget)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int firstHeaderIndex(List<String> headers, String... targetHeaders) {
+        for (String targetHeader : targetHeaders) {
+            int index = indexOfHeader(headers, targetHeader);
+            if (index >= 0) {
                 return index;
             }
         }
@@ -517,13 +531,15 @@ public class NativeLayoutInvoiceService {
                 .toList();
         String invoiceNumber = firstNonBlank(
                 contextualInvoiceNumber(sample.layoutText()),
-                firstMatch(sample.layoutText(), Pattern.compile("(?im)invoice\\s*no\\.?\\s*[:#-]?\\s*([A-Za-z0-9\\-/]+)")));
+                firstMatch(sample.layoutText(), Pattern.compile("(?im)(?:invoice|bill)\\s*no\\.?\\s*[:#-]?\\s*([A-Za-z0-9\\-/]+)")));
         String invoiceDate = firstNonBlank(
                 contextualInvoiceDate(sample.layoutText()),
                 firstMatch(sample.layoutText(), Pattern.compile("(?im)(?:invoice\\s+date|dated|date)\\s*[:#-]?\\s*(\\d{4}-\\d{2}-\\d{2})")),
                 firstMatch(sample.layoutText(), Pattern.compile("(?im)(?:invoice\\s+date|dated|date)\\s*[:#-]?\\s*(\\d{1,2}-[A-Za-z]{3}-\\d{2,4})")),
+                firstMatch(sample.layoutText(), Pattern.compile("(?im)(?:invoice\\s+date|dated|date)\\s*[:#-]?\\s*(\\d{1,2}/\\d{1,2}/\\d{2,4})")),
                 firstRegex(sample.layoutText(), ISO_DATE_PATTERN),
-                firstRegex(sample.layoutText(), DMY_DASH_PATTERN));
+                firstRegex(sample.layoutText(), DMY_DASH_PATTERN),
+                firstRegex(sample.layoutText(), DMY_SLASH_PATTERN));
         String finalAmount = summaryAmount(sample, profile, "final_bill_amount");
         String transportCharge = summaryAmount(sample, profile, "transport_charge");
         return new ExtractionResult(
@@ -563,7 +579,7 @@ public class NativeLayoutInvoiceService {
             if (!looksLikeHeader(line)) {
                 continue;
             }
-            List<String> headers = parseCells(line);
+            List<String> headers = normalizeDetectedHeaders(parseCells(line));
             List<String> rawLines = new ArrayList<>();
             rawLines.add(line);
             List<NativeLayoutTableRow> rows = new ArrayList<>();
@@ -648,6 +664,9 @@ public class NativeLayoutInvoiceService {
             }
             int descriptionHeaderIndex = indexOfMatchingHeader(headers, "description of goods");
             if (descriptionHeaderIndex < 0) {
+                descriptionHeaderIndex = indexOfMatchingHeader(headers, "description");
+            }
+            if (descriptionHeaderIndex < 0) {
                 descriptionHeaderIndex = indexOfMatchingHeader(headers, "particulars");
             }
             if (serialIndex == 0
@@ -662,6 +681,10 @@ public class NativeLayoutInvoiceService {
             return particularsIndex;
         }
         int descriptionIndex = indexOfMatchingHeader(headers, "description of goods");
+        if (descriptionIndex >= 0 && descriptionIndex < cells.size()) {
+            return descriptionIndex;
+        }
+        descriptionIndex = indexOfMatchingHeader(headers, "description");
         if (descriptionIndex >= 0 && descriptionIndex < cells.size()) {
             return descriptionIndex;
         }
@@ -683,9 +706,13 @@ public class NativeLayoutInvoiceService {
 
     private boolean looksLikeHeader(String line) {
         String lowered = blankSafe(line).toLowerCase(Locale.ROOT);
-        return (lowered.contains("description of goods") || lowered.contains("item description") || lowered.contains("particulars"))
+        return (lowered.contains("description of goods")
+                        || lowered.contains("item description")
+                        || lowered.contains("particulars")
+                        || Pattern.compile("\\bdescription\\b").matcher(lowered).find())
                 && (lowered.contains("hsn") || lowered.contains("sac"))
-                && (lowered.contains("qty") || lowered.contains("quantity"));
+                && (lowered.contains("qty") || lowered.contains("quantity"))
+                && (lowered.contains("rate") || lowered.contains("amount"));
     }
 
     private List<String> parseCells(String line) {
@@ -694,6 +721,59 @@ public class NativeLayoutInvoiceService {
             return List.of(normalized.split("\\s*\\|\\s*"));
         }
         return List.of(MULTISPACE.split(normalized));
+    }
+
+    private List<String> normalizeDetectedHeaders(List<String> headers) {
+        if (isPuranchandCompactHeader(headers)) {
+            return List.of(
+                    headers.get(0),
+                    headers.get(1),
+                    "Class",
+                    headers.get(2),
+                    headers.get(3),
+                    headers.get(4),
+                    "GST / Tax %",
+                    "Tax Amount",
+                    headers.get(5));
+        }
+        return headers;
+    }
+
+    private boolean isPuranchandCompactHeader(List<String> headers) {
+        if (headers == null || headers.size() != 6) {
+            return false;
+        }
+        return normalizeHeader(headers.get(0)).matches("sr|sr no|sl|sl no")
+                && normalizeHeader(headers.get(1)).equals("description")
+                && normalizeHeader(headers.get(2)).contains("hsn")
+                && normalizeHeader(headers.get(3)).equals("qty")
+                && normalizeHeader(headers.get(4)).equals("rate")
+                && normalizeHeader(headers.get(5)).equals("amount");
+    }
+
+    private boolean isPuranchandExpandedHeader(List<String> headers) {
+        if (headers == null || headers.size() != 9) {
+            return false;
+        }
+        return normalizeHeader(headers.get(0)).matches("sr|sr no|sl|sl no")
+                && normalizeHeader(headers.get(1)).equals("description")
+                && normalizeHeader(headers.get(2)).equals("class")
+                && normalizeHeader(headers.get(3)).contains("hsn")
+                && normalizeHeader(headers.get(4)).equals("qty")
+                && normalizeHeader(headers.get(5)).equals("rate")
+                && normalizeHeader(headers.get(6)).contains("tax")
+                && normalizeHeader(headers.get(8)).equals("amount");
+    }
+
+    private List<String> alignPuranchandCompactRow(List<String> cells) {
+        if (cells.size() >= 9) {
+            List<String> aligned = new ArrayList<>(cells.subList(0, 9));
+            if (cells.size() > 9) {
+                aligned.set(8, cells.getLast());
+            }
+            return aligned;
+        }
+        return cells;
     }
 
     private List<String> detectSummaryLines(List<String> lines) {
@@ -1404,7 +1484,7 @@ public class NativeLayoutInvoiceService {
         List<String> lines = normalizedNonEmptyLines(layoutText);
         for (int index = 0; index < lines.size(); index++) {
             String line = lines.get(index).toLowerCase(Locale.ROOT);
-            if (!line.contains("invoice no")) {
+            if (!line.contains("invoice no") && !line.contains("bill no")) {
                 continue;
             }
             if (index + 1 < lines.size()) {
@@ -1470,7 +1550,11 @@ public class NativeLayoutInvoiceService {
         if (hasText(iso)) {
             return iso;
         }
-        return firstRegex(line, DMY_DASH_PATTERN);
+        String dash = firstRegex(line, DMY_DASH_PATTERN);
+        if (hasText(dash)) {
+            return dash;
+        }
+        return firstRegex(line, DMY_SLASH_PATTERN);
     }
 
     private String prefixBeforeDate(String line) {
@@ -1481,6 +1565,10 @@ public class NativeLayoutInvoiceService {
         Matcher dmy = DMY_DASH_PATTERN.matcher(blankSafe(line));
         if (dmy.find()) {
             return line.substring(0, dmy.start());
+        }
+        Matcher slash = DMY_SLASH_PATTERN.matcher(blankSafe(line));
+        if (slash.find()) {
+            return line.substring(0, slash.start());
         }
         return "";
     }

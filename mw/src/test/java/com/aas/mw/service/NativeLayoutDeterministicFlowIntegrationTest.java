@@ -103,6 +103,59 @@ class NativeLayoutDeterministicFlowIntegrationTest {
         assertEquals(620.00, rows.get(5).rateAfterTax());
     }
 
+    @Test
+    void puranchandCompactRowsAlignHiddenTaxColumns() {
+        NativeLayoutTable table = new NativeLayoutTable(
+                "table-1",
+                List.of("Sr.", "Description", "Class", "HSN Code", "Qty", "Rate", "GST / Tax %", "Tax Amount", "Amount"),
+                List.of(row(1, List.of(
+                        "1",
+                        ". ATTA SAMRAT",
+                        "B",
+                        "11010000",
+                        "400.00 KG",
+                        "34.00",
+                        "0.0",
+                        "0.00",
+                        "13600.00"))),
+                List.of());
+
+        List<NativeMappedInvoiceRow> rows = service.mapRows(
+                table,
+                profileForPuranchandPdf().itemMappings(),
+                new InvoiceFieldMappingService.RowRules(List.of(), List.of()),
+                profileForPuranchandPdf().fieldParsingRules(),
+                profileForPuranchandPdf().parsingHints());
+
+        assertEquals(1, rows.size());
+        assertEquals(". ATTA SAMRAT", rows.getFirst().itemName());
+        assertEquals("11010000", rows.getFirst().itemId());
+        assertEquals(400.00, rows.getFirst().qty());
+        assertEquals("KG", rows.getFirst().uom());
+        assertEquals(34.00, rows.getFirst().rate());
+        assertEquals(0.0, rows.getFirst().gstPercent());
+        assertEquals(13600.00, rows.getFirst().total());
+    }
+
+    @Test
+    void localSukhakartaPdfExtractsPuranchandFormatWhenAvailable() throws IOException {
+        assumePdftotextAvailable();
+        Path pdfPath = Path.of("/Users/roshninaik/Downloads/sukhakarta dining.pdfr.pdf");
+        Assumptions.assumeTrue(Files.exists(pdfPath), "local Sukhakarta PDF sample is not available");
+
+        NativeLayoutInvoiceService.ExtractionResult result = service.extract(
+                Files.readAllBytes(pdfPath),
+                profileForPuranchandPdf());
+
+        assertEquals(53, result.items().size());
+        assertEquals(53, result.extractedSerials().size());
+        assertEquals(1, result.extractedSerials().getFirst());
+        assertEquals(53, result.extractedSerials().getLast());
+        assertEquals("HM-1", result.invoiceNumber());
+        assertEquals("29/06/2026", result.invoiceDate());
+        assertEquals("85574.00", result.finalAmount());
+    }
+
     private static NativeLayoutInvoiceService.StoredProfile profileForDeccanLikePdf() {
         return new NativeLayoutInvoiceService.StoredProfile(
                 "deccan-profile",
@@ -197,6 +250,36 @@ class NativeLayoutDeterministicFlowIntegrationTest {
                         "total", "decimal_amount"),
                 List.of(),
                 List.of("No.", "Rate", "(Incl. of Tax)"));
+    }
+
+    private static NativeLayoutInvoiceService.StoredProfile profileForPuranchandPdf() {
+        return new NativeLayoutInvoiceService.StoredProfile(
+                "puranchand-profile",
+                "Puranchand Profile",
+                "Test Vendor",
+                "",
+                List.of(
+                        mapping("item_name", "Description"),
+                        mapping("item_id", "HSN Code"),
+                        mapping("qty", "Qty"),
+                        mapping("rate", "Rate"),
+                        mapping("gst", "GST / Tax %"),
+                        mapping("total", "Amount")),
+                List.of(),
+                "",
+                "native_layout",
+                "",
+                "",
+                "",
+                Map.of(),
+                Map.of(),
+                Map.of(
+                        "qty", "number_with_uom",
+                        "rate", "decimal_amount",
+                        "gst", "percentage",
+                        "total", "decimal_amount"),
+                List.of(),
+                List.of());
     }
 
     private static InvoiceFieldMappingService.FieldMapping mapping(String targetField, String sourceLabel) {

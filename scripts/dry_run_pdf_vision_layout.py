@@ -185,9 +185,13 @@ def normalized_non_empty_lines(text: str) -> list[str]:
 
 def looks_like_header(line: str) -> bool:
     lowered = line.lower()
-    return ("description of goods" in lowered or "item description" in lowered or "particulars" in lowered) and (
-        "hsn" in lowered or "sac" in lowered
-    ) and ("qty" in lowered or "quantity" in lowered)
+    has_description = (
+        "description of goods" in lowered
+        or "item description" in lowered
+        or "particulars" in lowered
+        or ("description" in lowered and ("rate" in lowered or "amount" in lowered or "qty" in lowered or "quantity" in lowered))
+    )
+    return has_description and ("hsn" in lowered or "sac" in lowered) and ("qty" in lowered or "quantity" in lowered)
 
 
 def parse_cells(line: str) -> list[str]:
