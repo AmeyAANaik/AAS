@@ -304,11 +304,12 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-value-cell\""));
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
                     assertTrue(html.contains("class=\"aas-category-due-table\""));
-                    assertTrue(html.contains(".aas-category-due-table { width: 520px; max-width: 100%;"));
+                    assertTrue(html.contains(".aas-category-due-table { width: 100%; margin: 0 0 24px 0;"));
                     assertTrue(html.contains("<col class=\"aas-category-due-previous\" />"));
                     assertTrue(html.contains("<col class=\"aas-category-due-current\" />"));
-                    assertTrue(html.contains("Pending After Current Invoice"));
-                    assertTrue(html.contains("Balance Status"));
+                    assertTrue(html.contains("Pending After<br />Current Invoice"));
+                    assertTrue(html.contains("Balance<br />Status"));
+                    assertTrue(html.contains("class=\"aas-category-due-status-cell\""));
                     assertTrue(html.contains("{% set balance_status = \"Pending\" if category_pending > 0 else \"Cleared\" %}"));
                     assertTrue(html.contains("{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or \"-\") }}"));
                     assertTrue(html.contains("<tbody>"));

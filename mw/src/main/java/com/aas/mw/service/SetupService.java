@@ -54,16 +54,17 @@ public class SetupService {
               .aas-summary .aas-summary-label-cell { font-weight: 600; color: #111827; }
               .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
               .aas-summary .aas-summary-grand td { font-weight: 700; background: #eef2ff; font-size: 13px; }
-              .aas-category-due-table { width: 520px; max-width: 100%; margin: 0 0 24px auto; table-layout: fixed; page-break-inside: avoid; }
+              .aas-category-due-table { width: 100%; margin: 0 0 24px 0; table-layout: fixed; page-break-inside: avoid; }
               .aas-category-due-table th, .aas-category-due-table td { border: 1px solid #111827; padding: 8px 10px; line-height: 1.35; vertical-align: middle; box-sizing: border-box; }
-              .aas-category-due-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; overflow-wrap: break-word; }
+              .aas-category-due-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; overflow-wrap: break-word; }
               .aas-category-due-table td { color: #111827; font-size: 11px; overflow: hidden; }
               .aas-category-due-category { width: 30%; }
               .aas-category-due-previous { width: 24%; }
-              .aas-category-due-current { width: 28%; }
-              .aas-category-due-status { width: 18%; }
+              .aas-category-due-current { width: 26%; }
+              .aas-category-due-status { width: 20%; }
               .aas-category-due-table .aas-category-due-amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
               .aas-category-due-table .aas-category-due-pending { font-weight: 700; background: #eef2ff; }
+              .aas-category-due-table .aas-category-due-status-cell { text-align: center; white-space: nowrap; }
               .aas-footer-grid { width: 100%; margin-top: 20px; border-collapse: separate; border-spacing: 0; border-top: 1px solid #111827; padding-top: 14px; }
               .aas-footer-grid td { vertical-align: top; }
               .aas-footer-left { width: 62%; padding-right: 18px; }
@@ -286,9 +287,9 @@ public class SetupService {
               <thead>
                 <tr>
                   <th>Category</th>
-                  <th>Previous Due</th>
-                  <th>Pending After Current Invoice</th>
-                  <th>Balance Status</th>
+                  <th>Previous<br />Due</th>
+                  <th>Pending After<br />Current Invoice</th>
+                  <th>Balance<br />Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -296,7 +297,7 @@ public class SetupService {
                   <td>{{ (category_doc.item_group_name or category_doc.name) if category_doc else (doc.aas_category or "-") }}</td>
                   <td class="aas-category-due-amount">{{ frappe.utils.fmt_money(previous_due, currency=doc.currency) }}</td>
                   <td class="aas-category-due-amount aas-category-due-pending">{{ frappe.utils.fmt_money(category_pending, currency=doc.currency) }}</td>
-                  <td class="aas-category-due-amount">{{ balance_status }}</td>
+                  <td class="aas-category-due-status-cell">{{ balance_status }}</td>
                 </tr>
               </tbody>
             </table>
