@@ -304,6 +304,9 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-value-cell\""));
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
                     assertTrue(html.contains("class=\"aas-category-due-table\""));
+                    assertTrue(html.contains(".aas-category-due-table { width: 520px; max-width: 100%;"));
+                    assertTrue(html.contains("<col class=\"aas-category-due-previous\" />"));
+                    assertTrue(html.contains("<col class=\"aas-category-due-current\" />"));
                     assertTrue(html.contains("Pending After Current Invoice"));
                     assertTrue(html.contains("Balance Status"));
                     assertTrue(html.contains("{% set balance_status = \"Pending\" if category_pending > 0 else \"Cleared\" %}"));

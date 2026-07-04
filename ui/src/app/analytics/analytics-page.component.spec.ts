@@ -75,4 +75,32 @@ describe('AnalyticsPageComponent', () => {
     const historyRequest = (component as any).buildRequest();
     expect(historyRequest.filters.item).toBe('ITEM-001');
   });
+
+  it('right-aligns analytics metric headers and cells', () => {
+    component.result = {
+      columns: [
+        { id: 'date', label: 'Date', colType: 'DIMENSION' },
+        { id: 'revenue', label: 'Revenue', colType: 'CURRENCY' },
+        { id: 'orders', label: 'Orders', colType: 'NUMBER' }
+      ],
+      rows: [
+        { date: '2026-07-04', revenue: 42599, orders: 6 },
+        { date: '2026-07-05', revenue: 1000, orders: 1 }
+      ],
+      totalsRow: { date: 'Total', revenue: 43599, orders: 7 },
+      kpis: [],
+      warnings: []
+    };
+    fixture.detectChanges();
+
+    const headers = fixture.nativeElement.querySelectorAll('.data-table thead th');
+    const bodyCells = fixture.nativeElement.querySelectorAll('.data-table tbody tr:first-child td');
+    const totalCells = fixture.nativeElement.querySelectorAll('.data-table tfoot td');
+
+    expect(headers[0].classList).not.toContain('num-col');
+    expect(headers[1].classList).toContain('num-col');
+    expect(headers[1].classList).toContain('metric-col');
+    expect(bodyCells[1].classList).toContain('num-col');
+    expect(totalCells[1].classList).toContain('num-col');
+  });
 });

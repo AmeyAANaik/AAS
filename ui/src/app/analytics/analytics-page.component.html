@@ -220,7 +220,10 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th *ngFor="let col of tableColumns" [class.dim-col]="isDimension(col)">
+              <th *ngFor="let col of tableColumns"
+                  [class.dim-col]="isDimension(col)"
+                  [class.num-col]="!isDimension(col)"
+                  [class.metric-col]="!isDimension(col)">
                 {{ col.label }}
               </th>
             </tr>
@@ -230,6 +233,7 @@
               <td *ngFor="let col of tableColumns"
                   [class.dim-col]="isDimension(col)"
                   [class.num-col]="!isDimension(col)"
+                  [class.metric-col]="!isDimension(col)"
                   [ngClass]="cellClass(col, row[col.id])">
                 {{ formatCell(col, row[col.id]) }}
               </td>
@@ -238,7 +242,9 @@
           <tfoot *ngIf="viewMode === 'explorer' && tableRows.length > 1">
             <tr class="totals-row">
               <td *ngFor="let col of tableColumns"
-                  [class.num-col]="!isDimension(col)">
+                  [class.dim-col]="isDimension(col)"
+                  [class.num-col]="!isDimension(col)"
+                  [class.metric-col]="!isDimension(col)">
                 {{ formatCell(col, totalRow[col.id]) }}
               </td>
             </tr>

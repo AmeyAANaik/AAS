@@ -54,10 +54,14 @@ public class SetupService {
               .aas-summary .aas-summary-label-cell { font-weight: 600; color: #111827; }
               .aas-summary .aas-summary-value-cell { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
               .aas-summary .aas-summary-grand td { font-weight: 700; background: #eef2ff; font-size: 13px; }
-              .aas-category-due-table { width: 360px; margin: 0 0 24px auto; table-layout: fixed; page-break-inside: avoid; }
-              .aas-category-due-table th, .aas-category-due-table td { border: 1px solid #111827; padding: 8px 10px; line-height: 1.35; vertical-align: middle; }
-              .aas-category-due-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; }
-              .aas-category-due-table td { color: #111827; }
+              .aas-category-due-table { width: 520px; max-width: 100%; margin: 0 0 24px auto; table-layout: fixed; page-break-inside: avoid; }
+              .aas-category-due-table th, .aas-category-due-table td { border: 1px solid #111827; padding: 8px 10px; line-height: 1.35; vertical-align: middle; box-sizing: border-box; }
+              .aas-category-due-table th { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; text-align: left; background: #f3f4f6; color: #4b5563; overflow-wrap: break-word; }
+              .aas-category-due-table td { color: #111827; font-size: 11px; overflow: hidden; }
+              .aas-category-due-category { width: 30%; }
+              .aas-category-due-previous { width: 24%; }
+              .aas-category-due-current { width: 28%; }
+              .aas-category-due-status { width: 18%; }
               .aas-category-due-table .aas-category-due-amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
               .aas-category-due-table .aas-category-due-pending { font-weight: 700; background: #eef2ff; }
               .aas-footer-grid { width: 100%; margin-top: 20px; border-collapse: separate; border-spacing: 0; border-top: 1px solid #111827; padding-top: 14px; }
@@ -273,12 +277,18 @@ public class SetupService {
             </table>
             {% if doc.aas_category %}
             <table class="aas-category-due-table">
+              <colgroup>
+                <col class="aas-category-due-category" />
+                <col class="aas-category-due-previous" />
+                <col class="aas-category-due-current" />
+                <col class="aas-category-due-status" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style="width: 34%;">Category</th>
-                  <th style="width: 22%;">Previous Due</th>
-                  <th style="width: 28%;">Pending After Current Invoice</th>
-                  <th style="width: 16%;">Balance Status</th>
+                  <th>Category</th>
+                  <th>Previous Due</th>
+                  <th>Pending After Current Invoice</th>
+                  <th>Balance Status</th>
                 </tr>
               </thead>
               <tbody>
