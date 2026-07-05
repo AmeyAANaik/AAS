@@ -64,8 +64,7 @@ public class PaymentDueService {
         // invoice (reducing outstanding_amount), causing a double-deduction.
         Map<String, Object> ledger = branchOpsService.getBranchLedgerByCategory(customerId, categoryId);
         BigDecimal ledgerBalance = asDecimal(ledger.get("balance"));
-        BigDecimal approvedAdjustments = approvedAdjustmentImpact("Customer", customerId, categoryId);
-        return ledgerBalance.add(approvedAdjustments).max(BigDecimal.ZERO);
+        return ledgerBalance.max(BigDecimal.ZERO);
     }
 
     private BigDecimal dueByCategoryForSupplier(String supplierId, String categoryId) {

@@ -70,9 +70,9 @@ class PaymentDueServiceTest {
     }
 
     @Test
-    void customerDueIncludesApprovedAdjustmentImpact() {
+    void customerDueDoesNotDoubleApplyApprovedAdjustmentImpact() {
         when(branchOpsService.getBranchLedgerByCategory("SHOP-1", "CAT-A"))
-                .thenReturn(Map.of("balance", new BigDecimal("1000.00")));
+                .thenReturn(Map.of("balance", new BigDecimal("800.00")));
         when(adjustmentNoteErpService.approvedDueImpact("Customer", "SHOP-1", "CAT-A"))
                 .thenReturn(new BigDecimal("-200.00"));
         when(erpNextClient.listResources(eq("Payment Entry"), anyMap())).thenReturn(List.of());
