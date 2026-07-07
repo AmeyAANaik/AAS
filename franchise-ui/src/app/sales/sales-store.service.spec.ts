@@ -2,7 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { SalesStoreService } from './sales-store.service';
 import { SaleInput } from './sales.model';
 
-const ENTRIES_KEY = 'franchise.sales.entries';
+const ENTRIES_KEY = 'franchise.sales.entries.v2';
+const MODES_KEY = 'franchise.sales.payment-modes';
 
 function input(partial: Partial<SaleInput>): SaleInput {
   return {
@@ -10,9 +11,11 @@ function input(partial: Partial<SaleInput>): SaleInput {
     grossSales: 1000,
     gstAmount: 50,
     discount: 100,
-    cash: 400,
-    upi: 400,
-    card: 100,
+    payments: [
+      { modeId: 'cash', modeName: 'Cash', amount: 400 },
+      { modeId: 'upi', modeName: 'UPI', amount: 400 },
+      { modeId: 'card', modeName: 'Card', amount: 100 },
+    ],
     remarks: undefined,
     ...partial,
   };
@@ -24,6 +27,7 @@ describe('SalesStoreService', () => {
   beforeEach(() => {
     localStorage.clear();
     // Pre-seed an empty entries array so the constructor's load() skips demo seeding.
+    localStorage.setItem(MODES_KEY, JSON.stringify([]));
     localStorage.setItem(ENTRIES_KEY, JSON.stringify([]));
     TestBed.configureTestingModule({});
     service = TestBed.inject(SalesStoreService);

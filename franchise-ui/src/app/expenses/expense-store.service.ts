@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
-import { EXPENSE_CATEGORIES, ExpenseCategory, ExpenseEntry, ExpenseInput } from './expense.model';
+import { ExpenseCategory, ExpenseEntry, ExpenseInput } from './expense.model';
+import { ExpenseCategoryStoreService } from '../master-data/expense-category-store.service';
+import { ExpensePnlBucket } from '../master-data/expense-category.model';
 
 const ENTRIES_KEY = 'franchise.expenses.entries';
 const LATENCY = 120;
@@ -41,7 +43,7 @@ export class ExpenseStoreService {
   /** Emits whenever expenses change so views can refresh. */
   readonly changes$ = this.changed$.asObservable();
 
-  constructor() {
+  constructor(private categoryStore: ExpenseCategoryStoreService) {
     this.load();
   }
 
@@ -191,10 +193,20 @@ export class ExpenseStoreService {
 
   /** Category-wise totals for a `yyyy-mm` period, sorted by total desc. */
   byCategory(ym: string): Array<{ category: ExpenseCategory; total: number }> {
-    return EXPENSE_CATEGORIES
-      .map(category => ({ category, total: this.categoryTotal(ym, category) }))
-      .filter(row => row.total > 0)
+    const totals = new Map<string, number>();
+    this.entries
+      .filter(e => e.date.startsWith(ym))
+      .forEach(e => totals.set(e.category, (totals.get(e.category) ?? 0) + e.amount));
+    return [...totals.entries()]
+      .map(([category, total]) => ({ category, total: this.round(total) }))
       .sort((a, b) => b.total - a.total);
+  }
+
+  bucketTotal(ym: string, bucket: ExpensePnlBucket): number {
+    const total = this.entries
+      .filter(e => e.date.startsWith(ym) && this.categoryStore.bucketFor(e.category) === bucket)
+      .reduce((sum, e) => sum + e.amount, 0);
+    return this.round(total);
   }
 
   resetDemoData(): Observable<void> {

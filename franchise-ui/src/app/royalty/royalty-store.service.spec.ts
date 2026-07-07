@@ -3,7 +3,8 @@ import { RoyaltyStoreService } from './royalty-store.service';
 import { SalesStoreService } from '../sales/sales-store.service';
 import { SaleInput } from '../sales/sales.model';
 
-const SALES_KEY = 'franchise.sales.entries';
+const SALES_KEY = 'franchise.sales.entries.v2';
+const MODES_KEY = 'franchise.sales.payment-modes';
 const ROY_CONFIG_KEY = 'franchise.royalty.config';
 const ROY_ENTRIES_KEY = 'franchise.royalty.entries';
 const YM = '2026-06';
@@ -14,9 +15,7 @@ function sale(partial: Partial<SaleInput>): SaleInput {
     grossSales: 1000,
     gstAmount: 0,
     discount: 0,
-    cash: 1000,
-    upi: 0,
-    card: 0,
+    payments: [{ modeId: 'cash', modeName: 'Cash', amount: 1000 }],
     ...partial,
   };
 }
@@ -27,6 +26,7 @@ describe('RoyaltyStoreService', () => {
 
   beforeEach((done) => {
     localStorage.clear();
+    localStorage.setItem(MODES_KEY, JSON.stringify([]));
     localStorage.setItem(SALES_KEY, JSON.stringify([]));
     localStorage.setItem(ROY_CONFIG_KEY, JSON.stringify({ ratePercent: 10 }));
     localStorage.setItem(ROY_ENTRIES_KEY, JSON.stringify([]));
@@ -47,6 +47,7 @@ describe('RoyaltyStoreService', () => {
   it('generateForMonth sets dueAmount = round(netSalesBase * rate/100)', (done) => {
     expect(sales.netSalesForMonth(YM)).toBe(10000);
     royalty.generateForMonth(YM).subscribe((entry) => {
+      expect(entry.branchName).toBe('Sukhkarta — Aundh');
       expect(entry.netSalesBase).toBe(10000);
       expect(entry.ratePercent).toBe(10);
       expect(entry.dueAmount).toBe(1000); // 10000 * 10 / 100
@@ -80,6 +81,19 @@ describe('RoyaltyStoreService', () => {
   it('dueForMonth computes from sales+rate when no entry exists', () => {
     // No entry generated for this month yet.
     expect(royalty.dueForMonth(YM)).toBe(1000);
+  });
+
+  it('supports different royalty rates per branch', (done) => {
+    royalty.setBranchRate('Sukhkarta — Baner', 7.5).subscribe(() => {
+      royalty.generateForMonth(YM, 'Sukhkarta — Baner').subscribe((entry) => {
+        expect(entry.branchName).toBe('Sukhkarta — Baner');
+        expect(entry.ratePercent).toBe(7.5);
+        expect(entry.dueAmount).toBe(750);
+        expect(royalty.dueForMonth(YM, 'Sukhkarta — Baner')).toBe(750);
+        expect(royalty.dueForMonth(YM, 'Sukhkarta — Aundh')).toBe(1000);
+        done();
+      });
+    });
   });
 
   it('outstandingTotal reflects due minus paid across entries', (done) => {

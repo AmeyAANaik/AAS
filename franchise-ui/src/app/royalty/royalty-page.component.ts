@@ -4,14 +4,13 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { RoyaltyListComponent } from './royalty-list/royalty-list.component';
 import { RoyaltyReportsComponent } from './royalty-reports/royalty-reports.component';
-import { RoyaltyConfigComponent } from './royalty-config/royalty-config.component';
 
 @Component({
   selector: 'app-royalty-page',
   standalone: true,
   imports: [
     CommonModule, MatTabsModule, PageHeaderComponent,
-    RoyaltyListComponent, RoyaltyReportsComponent, RoyaltyConfigComponent
+    RoyaltyListComponent, RoyaltyReportsComponent
   ],
   template: `
     <div class="berry-page">
@@ -30,11 +29,6 @@ import { RoyaltyConfigComponent } from './royalty-config/royalty-config.componen
         <mat-tab label="Reports">
           <div class="tab-body">
             <app-royalty-reports></app-royalty-reports>
-          </div>
-        </mat-tab>
-        <mat-tab label="Settings">
-          <div class="tab-body">
-            <app-royalty-config></app-royalty-config>
           </div>
         </mat-tab>
       </mat-tab-group>

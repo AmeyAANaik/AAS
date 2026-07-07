@@ -21,6 +21,13 @@
       <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
     </mat-form-field>
 
+    <mat-form-field appearance="outline" class="month-field">
+      <mat-label>Branch</mat-label>
+      <mat-select [value]="selectedBranch" (selectionChange)="onBranchChange($event.value)">
+        <mat-option *ngFor="let branch of branches" [value]="branch">{{ branch }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
     <div class="preview">
       <div class="preview-item">
         <span class="preview-label">Net sales base</span>
@@ -51,6 +58,10 @@
       <ng-container matColumnDef="month">
         <th mat-header-cell *matHeaderCellDef>Month</th>
         <td mat-cell *matCellDef="let e">{{ e.month }}</td>
+      </ng-container>
+      <ng-container matColumnDef="branch">
+        <th mat-header-cell *matHeaderCellDef>Branch</th>
+        <td mat-cell *matCellDef="let e">{{ e.branchName }}</td>
       </ng-container>
       <ng-container matColumnDef="base">
         <th mat-header-cell *matHeaderCellDef>Net sales base</th>

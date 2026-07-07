@@ -19,6 +19,12 @@ export const ROLES: RoleDef[] = [
 
 export type FeatureKey =
   | 'dashboard.view'
+  | 'master-data.view'
+  | 'branches.manage'
+  | 'payment-modes.manage'
+  | 'employees.manage'
+  | 'royalty-config.manage'
+  | 'expense-categories.manage'
   | 'inventory.view'
   | 'inventory.manage'
   | 'inventory.purchase'
@@ -41,12 +47,18 @@ export interface FeatureDef {
 
 export const FEATURES: FeatureDef[] = [
   { key: 'dashboard.view', label: 'Dashboard', group: 'Home' },
+  { key: 'master-data.view', label: 'View master data', group: 'Master Data' },
+  { key: 'branches.manage', label: 'Manage branches', group: 'Master Data' },
+  { key: 'inventory.manage', label: 'Manage products', group: 'Master Data' },
+  { key: 'vendors.view', label: 'View vendors', group: 'Master Data' },
+  { key: 'vendors.manage', label: 'Manage vendors', group: 'Master Data' },
+  { key: 'payment-modes.manage', label: 'Manage payment modes', group: 'Master Data' },
+  { key: 'employees.manage', label: 'Manage employees', group: 'Master Data' },
+  { key: 'royalty-config.manage', label: 'Manage royalty setup', group: 'Master Data' },
+  { key: 'expense-categories.manage', label: 'Manage expense categories', group: 'Master Data' },
   { key: 'inventory.view', label: 'View stock & reports', group: 'Inventory' },
-  { key: 'inventory.manage', label: 'Manage products', group: 'Inventory' },
   { key: 'inventory.purchase', label: 'Record purchases', group: 'Inventory' },
   { key: 'inventory.consume', label: 'Record consumption', group: 'Inventory' },
-  { key: 'vendors.view', label: 'View vendors', group: 'Vendors' },
-  { key: 'vendors.manage', label: 'Manage vendors', group: 'Vendors' },
   { key: 'sales.view', label: 'Daily Sales', group: 'Operations' },
   { key: 'expenses.view', label: 'Expenses', group: 'Operations' },
   { key: 'salary.view', label: 'Salary', group: 'Operations' },
@@ -59,14 +71,16 @@ export const FEATURES: FeatureDef[] = [
 const ALL_FEATURES = FEATURES.map(f => f.key);
 
 const OWNER_FEATURES: FeatureKey[] = [
-  'dashboard.view',
+  'dashboard.view', 'master-data.view',
+  'branches.manage', 'payment-modes.manage', 'employees.manage', 'royalty-config.manage', 'expense-categories.manage',
   'inventory.view', 'inventory.manage', 'inventory.purchase', 'inventory.consume',
   'vendors.view', 'vendors.manage',
   'sales.view', 'expenses.view', 'salary.view', 'royalty.view', 'pnl.view'
 ];
 
 const MANAGER_FEATURES: FeatureKey[] = [
-  'dashboard.view',
+  'dashboard.view', 'master-data.view',
+  'payment-modes.manage', 'employees.manage',
   'inventory.view', 'inventory.manage', 'inventory.purchase', 'inventory.consume',
   'vendors.view', 'vendors.manage',
   'sales.view', 'expenses.view'
@@ -95,10 +109,11 @@ export function homeRouteForFeatures(features: FeatureKey[]): string {
   // Send users to the first module they can actually see.
   const preferred: Array<[FeatureKey, string]> = [
     ['dashboard.view', '/dashboard'],
+    ['master-data.view', '/master-data'],
     ['inventory.view', '/inventory/reports'],
     ['inventory.purchase', '/inventory/purchases'],
     ['inventory.consume', '/inventory/consumption'],
-    ['vendors.view', '/vendors'],
+    ['vendors.view', '/master-data/vendors'],
     ['admin.modules', '/admin/modules']
   ];
   const match = preferred.find(([feature]) => features.includes(feature));
@@ -118,9 +133,8 @@ export interface ModuleDef {
 }
 
 export const TOGGLEABLE_MODULES: ModuleDef[] = [
-  { key: 'dashboard', label: 'Dashboard', description: "Today's sales, stock value, outstanding & profit snapshot.", features: ['dashboard.view'] },
-  { key: 'inventory', label: 'Inventory Management', description: 'Products, opening stock, purchases, consumption, stock reports.', features: ['inventory.view', 'inventory.manage', 'inventory.purchase', 'inventory.consume'] },
-  { key: 'vendors', label: 'Vendor Management', description: 'Vendors, purchase bills, payments and outstanding.', features: ['vendors.view', 'vendors.manage'] },
+  { key: 'master-data', label: 'Master Data', description: 'Branches, vendors, products, employees, payment modes and setup records.', features: ['master-data.view', 'branches.manage', 'inventory.manage', 'vendors.view', 'vendors.manage', 'payment-modes.manage', 'employees.manage', 'royalty-config.manage', 'expense-categories.manage'] },
+  { key: 'inventory', label: 'Inventory Management', description: 'Purchases, consumption and stock reports.', features: ['inventory.view', 'inventory.purchase', 'inventory.consume'] },
   { key: 'sales', label: 'Daily Sales', description: 'Manual POS sales entry (Petpooja) with cash/UPI/card split.', features: ['sales.view'] },
   { key: 'expenses', label: 'Expense Management', description: 'Rent, electricity, GST, marketing and other expenses.', features: ['expenses.view'] },
   { key: 'salary', label: 'Salary Tracking', description: 'Employees and monthly salary entries.', features: ['salary.view'] },

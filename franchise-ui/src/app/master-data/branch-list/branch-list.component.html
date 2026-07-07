@@ -1,0 +1,198 @@
+<div class="berry-page">
+  <app-page-header kicker="Master Data" title="Branch Master" subtitle="Create and maintain franchise branches for setup, access and reporting.">
+    <button mat-flat-button color="primary" (click)="openCreate()">
+      <mat-icon>add_business</mat-icon> New branch
+    </button>
+  </app-page-header>
+
+  <div class="berry-panel" *ngIf="formOpen">
+    <div class="berry-panel-header">
+      <div>
+        <div class="berry-panel-title">{{ mode === 'create' ? 'New branch' : 'Edit branch' }}</div>
+        <div class="berry-panel-subtitle">Capture branch identity, compliance, contacts and bank details.</div>
+      </div>
+      <button mat-icon-button (click)="closeForm()" aria-label="Close"><mat-icon>close</mat-icon></button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="branch-form">
+      <section class="form-section">
+        <div class="section-title">Identity</div>
+        <div class="form-grid berry-grid-3">
+          <mat-form-field appearance="outline">
+            <mat-label>Branch name</mat-label>
+            <input matInput formControlName="name" placeholder="e.g. Sukhkarta — Kothrud" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Branch code</mat-label>
+            <input matInput formControlName="code" placeholder="e.g. KOTHRUD" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>FSSAI number</mat-label>
+            <input matInput formControlName="fssaiNumber" placeholder="14 digit FSSAI no." />
+            <mat-error *ngIf="form.controls.fssaiNumber.invalid">Enter a 14 digit FSSAI number</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Opening date</mat-label>
+            <input matInput type="date" formControlName="openingDate" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Status</mat-label>
+            <mat-select formControlName="status">
+              <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-title">Contact</div>
+        <div class="form-grid berry-grid-3">
+          <mat-form-field appearance="outline">
+            <mat-label>Manager name</mat-label>
+            <input matInput formControlName="managerName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Manager phone</mat-label>
+            <input matInput formControlName="phone" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Branch contact no.</mat-label>
+            <input matInput formControlName="contactNumber" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput type="email" formControlName="email" />
+            <mat-error *ngIf="form.controls.email.invalid">Enter a valid email</mat-error>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-title">Location</div>
+        <div class="form-grid berry-grid-3">
+          <mat-form-field appearance="outline">
+            <mat-label>City</mat-label>
+            <input matInput formControlName="city" placeholder="e.g. Pune" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Area</mat-label>
+            <input matInput formControlName="area" placeholder="e.g. Kothrud" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="address-field">
+            <mat-label>Address</mat-label>
+            <textarea matInput rows="3" formControlName="address"></textarea>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <div class="section-title">Bank Details</div>
+        <div class="form-grid berry-grid-3">
+          <mat-form-field appearance="outline">
+            <mat-label>Account holder name</mat-label>
+            <input matInput formControlName="accountHolderName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Bank name</mat-label>
+            <input matInput formControlName="bankName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Account number</mat-label>
+            <input matInput formControlName="bankAccountNumber" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>IFSC code</mat-label>
+            <input matInput formControlName="ifscCode" placeholder="e.g. HDFC0000001" />
+            <mat-error *ngIf="form.controls.ifscCode.invalid">Enter a valid IFSC code</mat-error>
+          </mat-form-field>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button mat-flat-button color="primary" type="submit">{{ mode === 'create' ? 'Create branch' : 'Save changes' }}</button>
+        <button mat-stroked-button type="button" (click)="closeForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="feedback loading" *ngIf="loading">Loading branches…</div>
+
+  <div class="table-wrapper" *ngIf="!loading && branches.length">
+    <table mat-table [dataSource]="branches" class="pro-table branch-table">
+      <ng-container matColumnDef="branch">
+        <th mat-header-cell *matHeaderCellDef>Branch</th>
+        <td mat-cell *matCellDef="let branch">
+          <div class="cell-name">{{ branch.name }}</div>
+          <div class="cell-sub">{{ branch.code }} · FSSAI {{ branch.fssaiNumber || 'Pending' }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="location">
+        <th mat-header-cell *matHeaderCellDef>Location</th>
+        <td mat-cell *matCellDef="let branch">
+          <div>{{ branch.area }}, {{ branch.city }}</div>
+          <div class="cell-sub">{{ branch.address }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="contact">
+        <th mat-header-cell *matHeaderCellDef>Contact</th>
+        <td mat-cell *matCellDef="let branch">
+          <div>{{ branch.managerName }}</div>
+          <div class="cell-sub">{{ branch.phone }} · {{ branch.email || 'No email' }}</div>
+          <div class="cell-sub">Branch: {{ branch.contactNumber || 'Not set' }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="bank">
+        <th mat-header-cell *matHeaderCellDef>Bank</th>
+        <td mat-cell *matCellDef="let branch">
+          <div>{{ branch.bankName || 'Not set' }}</div>
+          <div class="cell-sub">{{ branch.accountHolderName || 'Account holder pending' }}</div>
+          <div class="cell-sub">{{ branch.ifscCode || 'IFSC pending' }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="openingDate">
+        <th mat-header-cell *matHeaderCellDef>Opening</th>
+        <td mat-cell *matCellDef="let branch">{{ branch.openingDate | date:'mediumDate' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let branch">
+          <app-status-pill [label]="branch.status"></app-status-pill>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let branch">
+          <button mat-icon-button color="primary" (click)="openEdit(branch)" aria-label="Edit"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button color="warn" (click)="remove(branch)" aria-label="Delete"><mat-icon>delete</mat-icon></button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+
+  <app-empty-state
+    *ngIf="!loading && !branches.length"
+    icon="store"
+    title="No branches yet"
+    message="Create the first branch to start franchise setup."></app-empty-state>
+</div>

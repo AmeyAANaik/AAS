@@ -4,7 +4,7 @@ import { ExpenseStoreService } from '../expenses/expense-store.service';
 import { SalaryStoreService } from '../salary/salary-store.service';
 import { InventoryStoreService } from '../inventory/inventory-store.service';
 import { RoyaltyStoreService } from '../royalty/royalty-store.service';
-import { PnlPeriod } from './pnl.model';
+import { PnlDimension, PnlMetric, PnlPeriod } from './pnl.model';
 
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -32,8 +32,8 @@ export class PnlService {
     const revenue = round(this.sales.netSalesForMonth(ym));
     const rawMaterial = round(this.inventory.consumptionValueForMonth(ym));
     const salary = round(this.salary.totalForMonth(ym));
-    const rent = round(this.expenses.categoryTotal(ym, 'Rent'));
-    const electricity = round(this.expenses.categoryTotal(ym, 'Electricity'));
+    const rent = round(this.expenses.bucketTotal(ym, 'rent'));
+    const electricity = round(this.expenses.bucketTotal(ym, 'electricity'));
     const royalty = round(this.royalty.dueForMonth(ym));
     const otherExpenses = round(this.expenses.totalForMonth(ym) - rent - electricity);
 
@@ -98,6 +98,110 @@ export class PnlService {
       netProfit,
       marginPercent
     };
+  }
+
+  computeMetrics(period: PnlPeriod): PnlMetric[] {
+    const revenue = period.revenue || 0;
+    const totalCost = period.totalCost || 0;
+    const basis = Math.max(revenue, totalCost, 1);
+    const share = (amount: number) => round((Math.abs(amount) / basis) * 100);
+    const marginTone = period.netProfit >= 0 ? 'good' : 'bad';
+
+    return [
+      {
+        dimension: 'summary',
+        metric: 'Revenue',
+        amount: period.revenue,
+        sharePercent: share(period.revenue),
+        source: 'Daily sales entries',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'summary',
+        metric: 'Total cost',
+        amount: period.totalCost,
+        sharePercent: share(period.totalCost),
+        source: 'Inventory, salary, expenses, royalty',
+        tone: period.totalCost > period.revenue ? 'warn' : 'neutral'
+      },
+      {
+        dimension: 'summary',
+        metric: 'Net profit',
+        amount: period.netProfit,
+        sharePercent: revenue ? Math.abs(period.marginPercent) : 0,
+        source: 'Revenue minus total cost',
+        tone: marginTone
+      },
+      {
+        dimension: 'revenue',
+        metric: 'Net sales base',
+        amount: period.revenue,
+        sharePercent: share(period.revenue),
+        source: 'Sales store',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Raw material consumption',
+        amount: period.rawMaterial,
+        sharePercent: share(period.rawMaterial),
+        source: 'Stock consumption ledger',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Salary',
+        amount: period.salary,
+        sharePercent: share(period.salary),
+        source: 'Salary payments',
+        tone: period.salary > revenue * 0.6 && revenue > 0 ? 'warn' : 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Rent',
+        amount: period.rent,
+        sharePercent: share(period.rent),
+        source: 'Expense category',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Electricity',
+        amount: period.electricity,
+        sharePercent: share(period.electricity),
+        source: 'Expense category',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Royalty',
+        amount: period.royalty,
+        sharePercent: share(period.royalty),
+        source: 'Royalty ledger or current rate',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'cost',
+        metric: 'Other expenses',
+        amount: period.otherExpenses,
+        sharePercent: share(period.otherExpenses),
+        source: 'Expense categories excluding rent/electricity',
+        tone: 'neutral'
+      },
+      {
+        dimension: 'operations',
+        metric: 'Cost coverage gap',
+        amount: round(period.revenue - period.totalCost),
+        sharePercent: revenue ? Math.abs(period.marginPercent) : 0,
+        source: 'Aggregated module metrics',
+        tone: marginTone
+      }
+    ];
+  }
+
+  metricsForDimension(period: PnlPeriod, dimension: PnlDimension): PnlMetric[] {
+    const metrics = this.computeMetrics(period);
+    return dimension === 'summary' ? metrics.filter(m => m.dimension === 'summary') : metrics.filter(m => m.dimension === dimension);
   }
 
   /** `2026-06` → `Jun 2026`. */

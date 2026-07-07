@@ -38,3 +38,14 @@ export interface PnlLine {
   /** `cost` rows are shown as deductions; `total` is the net-profit row. */
   kind: 'revenue' | 'cost' | 'total';
 }
+
+export type PnlDimension = 'summary' | 'revenue' | 'cost' | 'operations';
+
+export interface PnlMetric {
+  dimension: PnlDimension;
+  metric: string;
+  amount: number;
+  sharePercent: number;
+  source: string;
+  tone: 'neutral' | 'good' | 'warn' | 'bad';
+}

@@ -127,7 +127,7 @@ textarea {
 
 .table-wrapper {
   overflow-x: auto;
-  border-radius: 20px;
+  border-radius: 16px;
   background: var(--surface);
   border: 1px solid var(--border);
 }
@@ -235,6 +235,7 @@ textarea {
 .pro-table,
 .data-table {
   width: 100%;
+  min-width: 760px;
 }
 
 .pro-table th,
@@ -376,6 +377,7 @@ mat-card-content,
 .berry-page {
   display: grid;
   gap: 24px;
+  min-width: 0;
 }
 
 .berry-hero-card {
@@ -418,8 +420,9 @@ mat-card-content,
 .berry-panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.96));
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 16px;
   box-shadow: var(--shadow-soft);
+  min-width: 0;
 }
 
 .berry-kpi-card {
@@ -428,6 +431,39 @@ mat-card-content,
 
 .berry-panel {
   padding: 20px;
+}
+
+@media (max-width: 1100px) {
+  .berry-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .berry-page {
+    gap: 16px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .berry-grid-2,
+  .berry-grid-3,
+  .berry-grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .berry-kpi-card,
+  .berry-panel {
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .berry-panel-header,
+  .berry-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .berry-panel-header {
@@ -559,6 +595,28 @@ mat-card-content,
 @media (max-width: 720px) {
   body {
     background: var(--bg);
+  }
+
+  .berry-page {
+    gap: 18px;
+  }
+
+  .berry-panel {
+    padding: 16px 14px;
+  }
+
+  .berry-kpi-card {
+    padding: 16px;
+  }
+
+  .summary-value,
+  .kpi-value {
+    font-size: 24px;
+  }
+
+  .table-wrapper {
+    margin-left: -2px;
+    margin-right: -2px;
   }
 
   .form-actions,

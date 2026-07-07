@@ -1,20 +1,9 @@
-export type ExpenseCategory =
-  | 'Electricity'
-  | 'Rent'
-  | 'GST'
-  | 'Internet'
-  | 'Marketing'
-  | 'Maintenance'
-  | 'Misc';
-
-export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
-  'Electricity', 'Rent', 'GST', 'Internet', 'Marketing', 'Maintenance', 'Misc'
-];
+export type ExpenseCategory = string;
 
 export interface ExpenseEntry {
   id: string;
   date: string;            // yyyy-mm-dd
-  category: ExpenseCategory;
+  category: string;
   amount: number;
   remarks?: string;
   billFileName?: string;   // mock attachment: only the chosen file's name is stored
@@ -23,7 +12,7 @@ export interface ExpenseEntry {
 
 export interface ExpenseInput {
   date: string;
-  category: ExpenseCategory;
+  category: string;
   amount: number;
   remarks?: string;
   billFileName?: string;

@@ -5,7 +5,8 @@ import { ExpenseStoreService } from '../expenses/expense-store.service';
 import { SalaryStoreService } from '../salary/salary-store.service';
 import { RoyaltyStoreService } from '../royalty/royalty-store.service';
 
-const SALES_KEY = 'franchise.sales.entries';
+const SALES_KEY = 'franchise.sales.entries.v2';
+const MODES_KEY = 'franchise.sales.payment-modes';
 const EXP_KEY = 'franchise.expenses.entries';
 const SAL_EMP_KEY = 'franchise.salary.employees';
 const SAL_PAY_KEY = 'franchise.salary.payments';
@@ -26,6 +27,7 @@ describe('PnlService', () => {
   beforeEach((done) => {
     localStorage.clear();
     // Pre-seed every dependent store with empty data so no demo seeding runs.
+    localStorage.setItem(MODES_KEY, JSON.stringify([]));
     localStorage.setItem(SALES_KEY, JSON.stringify([]));
     localStorage.setItem(EXP_KEY, JSON.stringify([]));
     localStorage.setItem(SAL_EMP_KEY, JSON.stringify([]));
@@ -45,7 +47,7 @@ describe('PnlService', () => {
     // One sale: net = 100000.
     sales.create({
       date: '2026-06-10', grossSales: 100000, gstAmount: 0, discount: 0,
-      cash: 100000, upi: 0, card: 0,
+      payments: [{ modeId: 'cash', modeName: 'Cash', amount: 100000 }],
     }).subscribe(() => {
       // One Rent, one Electricity, one Misc expense.
       expenses.create({ date: '2026-06-02', category: 'Rent', amount: 30000 }).subscribe(() => {

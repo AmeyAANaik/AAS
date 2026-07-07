@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { SalesStoreService } from '../sales/sales-store.service';
-import { RoyaltyConfig, RoyaltyEntry, RoyaltyStatus } from './royalty.model';
+import { BranchStoreService } from '../master-data/branch-store.service';
+import { RoyaltyBranchRate, RoyaltyConfig, RoyaltyEntry, RoyaltyStatus } from './royalty.model';
 
 const CONFIG_KEY = 'franchise.royalty.config';
 const ENTRIES_KEY = 'franchise.royalty.entries';
@@ -23,7 +24,7 @@ export class RoyaltyStoreService {
   /** Emits whenever royalty config or entries change so views can refresh. */
   readonly changes$ = this.changed$.asObservable();
 
-  constructor(private salesStore: SalesStoreService) {
+  constructor(private salesStore: SalesStoreService, private branchStore: BranchStoreService) {
     this.load();
   }
 
@@ -31,15 +32,15 @@ export class RoyaltyStoreService {
     const rawConfig = this.read<RoyaltyConfig>(CONFIG_KEY);
     const rawEntries = this.read<RoyaltyEntry[]>(ENTRIES_KEY);
     if (rawConfig && rawEntries) {
-      this.config = rawConfig;
-      this.entries = rawEntries;
+      this.config = this.normalizeConfig(rawConfig);
+      this.entries = rawEntries.map(entry => ({ ...entry, branchName: entry.branchName || this.defaultBranchName() }));
       return;
     }
     this.seed();
   }
 
   private seed(): void {
-    this.config = { ratePercent: DEFAULT_RATE };
+    this.config = this.normalizeConfig({ ratePercent: DEFAULT_RATE });
     this.entries = [];
 
     const current = this.currentMonth();
@@ -50,6 +51,7 @@ export class RoyaltyStoreService {
     const prevDue = this.round(prevBase * this.config.ratePercent / 100);
     this.entries.push({
       id: this.id('roy'),
+      branchName: this.defaultBranchName(),
       month: previous,
       netSalesBase: prevBase,
       ratePercent: this.config.ratePercent,
@@ -67,6 +69,7 @@ export class RoyaltyStoreService {
     const curDue = this.round(curBase * this.config.ratePercent / 100);
     this.entries.push({
       id: this.id('roy'),
+      branchName: this.defaultBranchName(),
       month: current,
       netSalesBase: curBase,
       ratePercent: this.config.ratePercent,
@@ -141,11 +144,36 @@ export class RoyaltyStoreService {
   // ---- public API (Observable, mimics HTTP) ---------------------------------
 
   getConfig(): RoyaltyConfig {
-    return { ...this.config };
+    return {
+      ratePercent: this.config.ratePercent,
+      branchRates: this.config.branchRates?.map(row => ({ ...row })) ?? []
+    };
   }
 
   setConfig(cfg: RoyaltyConfig): Observable<RoyaltyConfig> {
-    this.config = { ratePercent: this.round(cfg.ratePercent) };
+    this.config = this.normalizeConfig(cfg);
+    this.persist();
+    return of(this.getConfig()).pipe(delay(LATENCY));
+  }
+
+  branchRatesSnapshot(): RoyaltyBranchRate[] {
+    return this.normalizeConfig(this.config).branchRates ?? [];
+  }
+
+  rateForBranch(branchName = this.defaultBranchName()): number {
+    return this.branchRatesSnapshot().find(row => row.branchName === branchName)?.ratePercent ?? this.config.ratePercent;
+  }
+
+  setBranchRate(branchName: string, ratePercent: number): Observable<RoyaltyConfig> {
+    const rates = this.branchRatesSnapshot();
+    const rounded = this.round(ratePercent);
+    const existing = rates.find(row => row.branchName === branchName);
+    if (existing) {
+      existing.ratePercent = rounded;
+    } else {
+      rates.push({ branchName, ratePercent: rounded });
+    }
+    this.config = this.normalizeConfig({ ratePercent: this.config.ratePercent, branchRates: rates });
     this.persist();
     return of(this.getConfig()).pipe(delay(LATENCY));
   }
@@ -162,12 +190,12 @@ export class RoyaltyStoreService {
    * Generate (or recompute, if it already exists) the royalty entry for the
    * given yyyy-mm month using the current net sales and configured rate.
    */
-  generateForMonth(ym: string): Observable<RoyaltyEntry> {
+  generateForMonth(ym: string, branchName = this.defaultBranchName()): Observable<RoyaltyEntry> {
     const netSalesBase = this.salesStore.netSalesForMonth(ym);
-    const ratePercent = this.config.ratePercent;
+    const ratePercent = this.rateForBranch(branchName);
     const dueAmount = this.round(netSalesBase * ratePercent / 100);
 
-    const existing = this.entries.find(e => e.month === ym);
+    const existing = this.entries.find(e => e.month === ym && e.branchName === branchName);
     if (existing) {
       existing.netSalesBase = netSalesBase;
       existing.ratePercent = ratePercent;
@@ -181,6 +209,7 @@ export class RoyaltyStoreService {
 
     const entry: RoyaltyEntry = {
       id: this.id('roy'),
+      branchName,
       month: ym,
       netSalesBase,
       ratePercent,
@@ -221,12 +250,12 @@ export class RoyaltyStoreService {
    * Royalty due for a month. If an entry already exists it returns its locked-in
    * dueAmount, otherwise it computes from current net sales and rate. Used by P&L.
    */
-  dueForMonth(ym: string): number {
-    const existing = this.entries.find(e => e.month === ym);
+  dueForMonth(ym: string, branchName = this.defaultBranchName()): number {
+    const existing = this.entries.find(e => e.month === ym && e.branchName === branchName);
     if (existing) {
       return existing.dueAmount;
     }
-    return this.round(this.salesStore.netSalesForMonth(ym) * this.config.ratePercent / 100);
+    return this.round(this.salesStore.netSalesForMonth(ym) * this.rateForBranch(branchName) / 100);
   }
 
   resetDemoData(): Observable<void> {
@@ -237,6 +266,21 @@ export class RoyaltyStoreService {
   private sortedDesc(): RoyaltyEntry[] {
     return this.entries
       .slice()
-      .sort((a, b) => b.month.localeCompare(a.month) || b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => b.month.localeCompare(a.month) || (a.branchName || '').localeCompare(b.branchName || '') || b.createdAt.localeCompare(a.createdAt));
+  }
+
+  private defaultBranchName(): string {
+    return this.branchStore.branchNamesSnapshot()[0] ?? 'Default Branch';
+  }
+
+  private normalizeConfig(cfg: RoyaltyConfig): RoyaltyConfig {
+    const branches = this.branchStore.branchNamesSnapshot();
+    const baseRate = this.round(Number(cfg.ratePercent ?? DEFAULT_RATE));
+    const saved = new Map((cfg.branchRates ?? []).map(row => [row.branchName, this.round(Number(row.ratePercent ?? baseRate))]));
+    const branchRates = branches.map(branchName => ({
+      branchName,
+      ratePercent: saved.get(branchName) ?? baseRate
+    }));
+    return { ratePercent: baseRate, branchRates };
   }
 }

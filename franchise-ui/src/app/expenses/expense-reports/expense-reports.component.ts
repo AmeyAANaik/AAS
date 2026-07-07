@@ -8,10 +8,9 @@ import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { ExpenseStoreService } from '../expense-store.service';
-import { ExpenseCategory } from '../expense.model';
 
 interface CategoryRow {
-  category: ExpenseCategory;
+  category: string;
   total: number;
   percent: number;
 }

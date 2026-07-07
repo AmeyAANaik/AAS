@@ -11,7 +11,7 @@ import { SalesStoreService } from '../sales/sales-store.service';
 import { ExpenseStoreService } from '../expenses/expense-store.service';
 import { SalaryStoreService } from '../salary/salary-store.service';
 import { InventoryStoreService } from '../inventory/inventory-store.service';
-import { PnlLine, PnlPeriod } from './pnl.model';
+import { PnlDimension, PnlLine, PnlMetric, PnlPeriod } from './pnl.model';
 import { PnlService } from './pnl.service';
 import { RoyaltyStoreService } from '../royalty/royalty-store.service';
 
@@ -35,10 +35,13 @@ type ViewMode = 'monthly' | 'yearly';
 
       <!-- Controls -->
       <div class="berry-panel pnl-controls">
-        <mat-button-toggle-group [value]="view" (change)="onViewChange($event.value)" aria-label="P&L view">
-          <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
-          <mat-button-toggle value="yearly">Yearly</mat-button-toggle>
-        </mat-button-toggle-group>
+        <div class="control-cluster">
+          <span class="control-label">Period</span>
+          <mat-button-toggle-group [value]="view" (change)="onViewChange($event.value)" aria-label="P&L view">
+            <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
+            <mat-button-toggle value="yearly">Yearly</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
 
         <ng-container *ngIf="view === 'monthly'">
           <mat-form-field appearance="outline" class="control-field">
@@ -55,6 +58,16 @@ type ViewMode = 'monthly' | 'yearly';
             </mat-select>
           </mat-form-field>
         </ng-container>
+
+        <div class="control-cluster dimension-cluster">
+          <span class="control-label">Dimension</span>
+          <mat-button-toggle-group [value]="dimension" (change)="onDimensionChange($event.value)" aria-label="P&L dimension">
+            <mat-button-toggle value="summary">Summary</mat-button-toggle>
+            <mat-button-toggle value="revenue">Revenue</mat-button-toggle>
+            <mat-button-toggle value="cost">Cost</mat-button-toggle>
+            <mat-button-toggle value="operations">Ops</mat-button-toggle>
+          </mat-button-toggle-group>
+        </div>
       </div>
 
       <!-- KPI cards -->
@@ -81,6 +94,40 @@ type ViewMode = 'monthly' | 'yearly';
         </div>
       </div>
 
+      <div class="berry-panel">
+        <div class="berry-panel-header">
+          <div>
+            <div class="berry-panel-title">Metrics by Dimension</div>
+            <div class="berry-panel-subtitle">Aggregated from module ledgers; no vendor-level fetch is needed to explain these numbers.</div>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="pro-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th class="num">Amount</th>
+                <th class="num">Share</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let metric of visibleMetrics">
+                <td>
+                  <strong>{{ metric.metric }}</strong>
+                  <span class="metric-dimension">{{ dimensionLabel(metric.dimension) }}</span>
+                </td>
+                <td class="num" [class.profit]="metric.tone === 'good'" [class.warn]="metric.tone === 'warn'" [class.loss]="metric.tone === 'bad'">
+                  ₹ {{ metric.amount | number:'1.0-2' }}
+                </td>
+                <td class="num">{{ metric.sharePercent | number:'1.0-1' }}%</td>
+                <td>{{ metric.source }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Line-item breakdown -->
       <div class="berry-panel">
         <div class="berry-panel-header">
@@ -90,7 +137,7 @@ type ViewMode = 'monthly' | 'yearly';
           </div>
         </div>
         <div class="table-wrapper">
-          <table class="pro-table">
+          <table class="pro-table compact-table">
             <thead>
               <tr>
                 <th>Line item</th>
@@ -169,9 +216,30 @@ type ViewMode = 'monthly' | 'yearly';
       align-items: center;
       gap: 16px;
     }
+    .control-cluster {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .control-label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .dimension-cluster {
+      margin-left: auto;
+    }
     .control-field {
       width: 200px;
       margin-bottom: -1.25em; /* trim Material's default hint gap */
+    }
+    .metric-dimension {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
     }
     .num {
       text-align: right;
@@ -183,7 +251,29 @@ type ViewMode = 'monthly' | 'yearly';
       border-top: 2px solid var(--border, rgba(0, 0, 0, 0.12));
     }
     .profit { color: var(--color-success, #2c7a4b); }
+    .warn { color: var(--color-warning, #b7791f); }
     .loss { color: var(--color-danger, #b3472f); }
+    .compact-table {
+      min-width: 0;
+    }
+    @media (max-width: 900px) {
+      .dimension-cluster {
+        margin-left: 0;
+      }
+    }
+    @media (max-width: 720px) {
+      .pnl-controls,
+      .control-cluster,
+      .control-field {
+        width: 100%;
+      }
+      mat-button-toggle-group {
+        width: 100%;
+      }
+      mat-button-toggle {
+        flex: 1 1 auto;
+      }
+    }
   `]
 })
 export class PnlPageComponent implements OnInit, OnDestroy {
@@ -195,12 +285,14 @@ export class PnlPageComponent implements OnInit, OnDestroy {
   private readonly royalty = inject(RoyaltyStoreService);
 
   view: ViewMode = 'monthly';
+  dimension: PnlDimension = 'summary';
   month = this.currentMonth();
   year = new Date().getFullYear();
   years = this.buildYears();
 
   scope!: PnlPeriod;
   breakdown: PnlLine[] = [];
+  visibleMetrics: PnlMetric[] = [];
   months: PnlPeriod[] = [];
   yearTotal!: PnlPeriod;
 
@@ -227,6 +319,11 @@ export class PnlPageComponent implements OnInit, OnDestroy {
     this.recompute();
   }
 
+  onDimensionChange(value: PnlDimension): void {
+    this.dimension = value;
+    this.recomputeMetrics();
+  }
+
   recompute(): void {
     if (this.view === 'monthly') {
       this.scope = this.pnl.computeMonth(this.month);
@@ -237,6 +334,21 @@ export class PnlPageComponent implements OnInit, OnDestroy {
       this.scope = this.yearTotal;
     }
     this.breakdown = this.toBreakdown(this.scope);
+    this.recomputeMetrics();
+  }
+
+  dimensionLabel(value: PnlDimension): string {
+    const labels: Record<PnlDimension, string> = {
+      summary: 'Summary',
+      revenue: 'Revenue',
+      cost: 'Cost',
+      operations: 'Operations'
+    };
+    return labels[value];
+  }
+
+  private recomputeMetrics(): void {
+    this.visibleMetrics = this.pnl.metricsForDimension(this.scope, this.dimension);
   }
 
   private toBreakdown(p: PnlPeriod): PnlLine[] {

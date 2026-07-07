@@ -14,6 +14,21 @@
   font-size: 13px;
 }
 
+.rate-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.rate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .rate-note mat-icon {
   font-size: 18px;
   width: 18px;

@@ -4,12 +4,11 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { SalesEntryComponent } from './sales-entry/sales-entry.component';
 import { SalesReportsComponent } from './sales-reports/sales-reports.component';
-import { PaymentModesComponent } from './payment-modes/payment-modes.component';
 
 @Component({
   selector: 'app-sales-page',
   standalone: true,
-  imports: [CommonModule, MatTabsModule, PageHeaderComponent, SalesEntryComponent, SalesReportsComponent, PaymentModesComponent],
+  imports: [CommonModule, MatTabsModule, PageHeaderComponent, SalesEntryComponent, SalesReportsComponent],
   template: `
     <div class="berry-page">
       <app-page-header
@@ -27,11 +26,6 @@ import { PaymentModesComponent } from './payment-modes/payment-modes.component';
         <mat-tab label="Reports">
           <div class="tab-body">
             <app-sales-reports></app-sales-reports>
-          </div>
-        </mat-tab>
-        <mat-tab label="Payment Modes">
-          <div class="tab-body">
-            <app-payment-modes></app-payment-modes>
           </div>
         </mat-tab>
       </mat-tab-group>

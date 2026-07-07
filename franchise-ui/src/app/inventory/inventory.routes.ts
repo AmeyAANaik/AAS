@@ -4,9 +4,8 @@ import { featureGuard } from '../auth/feature.guard';
 export const INVENTORY_ROUTES: Routes = [
   {
     path: 'products',
-    canMatch: [featureGuard],
-    data: { feature: 'inventory.manage' },
-    loadComponent: () => import('./product-list/product-list.component').then(m => m.ProductListComponent)
+    redirectTo: '/master-data/products',
+    pathMatch: 'full'
   },
   {
     path: 'purchases',

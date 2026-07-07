@@ -96,9 +96,9 @@
 }
 
 .payment-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(140px, 0.9fr) minmax(120px, 0.7fr) minmax(180px, 1.4fr) auto auto;
   align-items: center;
-  flex-wrap: wrap;
   gap: 12px;
   padding: 10px;
   border: 1px solid var(--border);
@@ -106,9 +106,11 @@
   background: var(--surface-muted);
 }
 
-.payment-line .pl-mode { min-width: 150px; }
-.payment-line .pl-amount { width: 150px; }
-.payment-line .pl-remark { flex: 1; min-width: 180px; }
+.payment-line .pl-mode,
+.payment-line .pl-amount,
+.payment-line .pl-remark {
+  min-width: 0;
+}
 
 .payment-line mat-form-field {
   margin-bottom: -1.25em; /* trim Material's default hint gap inside the row */
@@ -153,4 +155,30 @@
 
 .berry-panel-title {
   margin-bottom: 12px;
+}
+
+@media (max-width: 900px) {
+  .payment-line {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .payment-line .pl-remark,
+  .pl-upload {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .payment-line {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .payment-line .pl-remark,
+  .pl-upload {
+    grid-column: auto;
+  }
+
+  .pl-upload button {
+    width: auto;
+  }
 }

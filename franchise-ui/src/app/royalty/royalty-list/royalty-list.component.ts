@@ -5,11 +5,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
+import { BranchStoreService } from '../../master-data/branch-store.service';
 import { RoyaltyEntry } from '../royalty.model';
 import { RoyaltyStoreService } from '../royalty-store.service';
 
@@ -18,7 +20,7 @@ import { RoyaltyStoreService } from '../royalty-store.service';
   standalone: true,
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
-    MatInputModule, MatSnackBarModule, MatTableModule,
+    MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule,
     EmptyStateComponent, StatusPillComponent
   ],
   templateUrl: './royalty-list.component.html',
@@ -30,6 +32,8 @@ export class RoyaltyListComponent implements OnInit, OnDestroy {
 
   /** yyyy-mm for the generate-month picker. */
   selectedMonth = new Date().toISOString().slice(0, 7);
+  branches: string[] = [];
+  selectedBranch = '';
 
   /** Preview of the figures for the selected month before generating. */
   ratePercent = 0;
@@ -40,18 +44,20 @@ export class RoyaltyListComponent implements OnInit, OnDestroy {
   payingId: string | null = null;
   payAmount: number | null = null;
 
-  readonly columns = ['month', 'base', 'rate', 'due', 'paid', 'outstanding', 'status', 'actions'];
+  readonly columns = ['branch', 'month', 'base', 'rate', 'due', 'paid', 'outstanding', 'status', 'actions'];
 
   private sub?: Subscription;
 
-  constructor(private store: RoyaltyStoreService, private snack: MatSnackBar) {}
+  constructor(private store: RoyaltyStoreService, private branchStore: BranchStoreService, private snack: MatSnackBar) {}
 
   ngOnInit(): void {
-    this.ratePercent = this.store.getConfig().ratePercent;
+    this.branches = this.branchStore.branchNamesSnapshot();
+    this.selectedBranch = this.branches[0] ?? '';
+    this.ratePercent = this.store.rateForBranch(this.selectedBranch);
     this.refreshPreview();
     this.reload();
     this.sub = this.store.changes$.subscribe(() => {
-      this.ratePercent = this.store.getConfig().ratePercent;
+      this.ratePercent = this.store.rateForBranch(this.selectedBranch);
       this.refreshPreview();
       this.reload();
     });
@@ -84,8 +90,14 @@ export class RoyaltyListComponent implements OnInit, OnDestroy {
     this.refreshPreview();
   }
 
+  onBranchChange(value: string): void {
+    this.selectedBranch = value;
+    this.ratePercent = this.store.rateForBranch(value);
+    this.refreshPreview();
+  }
+
   private refreshPreview(): void {
-    this.previewDue = this.store.dueForMonth(this.selectedMonth);
+    this.previewDue = this.store.dueForMonth(this.selectedMonth, this.selectedBranch);
     // Back out the base from due so the preview reflects current sales.
     this.previewBase = this.ratePercent > 0
       ? this.round(this.previewDue / (this.ratePercent / 100))
@@ -93,8 +105,8 @@ export class RoyaltyListComponent implements OnInit, OnDestroy {
   }
 
   generate(): void {
-    this.store.generateForMonth(this.selectedMonth).subscribe(entry => {
-      this.snack.open(`Royalty generated for ${entry.month}`, 'OK', { duration: 2200 });
+    this.store.generateForMonth(this.selectedMonth, this.selectedBranch).subscribe(entry => {
+      this.snack.open(`Royalty generated for ${entry.branchName} · ${entry.month}`, 'OK', { duration: 2200 });
       this.reload();
     });
   }

@@ -3,6 +3,10 @@
   color: var(--ink);
 }
 
+.pro-table {
+  min-width: 1080px;
+}
+
 .cell-sub {
   font-size: 12px;
   color: var(--muted);

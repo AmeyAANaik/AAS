@@ -10,9 +10,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
-import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { ExpenseStoreService } from '../expense-store.service';
-import { EXPENSE_CATEGORIES, ExpenseCategory, ExpenseEntry } from '../expense.model';
+import { ExpenseEntry } from '../expense.model';
+import { ExpenseCategoryRecord } from '../../master-data/expense-category.model';
+import { ExpenseCategoryStoreService } from '../../master-data/expense-category-store.service';
 
 @Component({
   selector: 'app-expense-entry',
@@ -26,41 +27,50 @@ import { EXPENSE_CATEGORIES, ExpenseCategory, ExpenseEntry } from '../expense.mo
   styleUrl: './expense-entry.component.css'
 })
 export class ExpenseEntryComponent implements OnInit, OnDestroy {
-  readonly categories = EXPENSE_CATEGORIES;
   readonly recentColumns = ['date', 'category', 'amount', 'remarks', 'bill'];
 
+  categories: ExpenseCategoryRecord[] = [];
   recent: ExpenseEntry[] = [];
   billFileName = '';
   statusMessage = '';
 
   form: FormGroup = this.fb.group({
     date: [new Date().toISOString().slice(0, 10), Validators.required],
-    category: ['' as ExpenseCategory | '', Validators.required],
+    category: ['', Validators.required],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
     remarks: ['']
   });
 
   private sub?: Subscription;
+  private categorySub?: Subscription;
 
   constructor(
     private fb: FormBuilder,
     public store: ExpenseStoreService,
+    private categoryStore: ExpenseCategoryStoreService,
     private snack: MatSnackBar
   ) {}
 
   ngOnInit(): void {
     this.loadRecent();
+    this.loadCategories();
     this.sub = this.store.changes$.subscribe(() => this.loadRecent());
+    this.categorySub = this.categoryStore.changes$.subscribe(() => this.loadCategories());
   }
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.categorySub?.unsubscribe();
   }
 
   private loadRecent(): void {
     this.store.list().subscribe(entries => {
       this.recent = entries.slice(0, 20);
     });
+  }
+
+  private loadCategories(): void {
+    this.categories = this.categoryStore.activeSnapshot();
   }
 
   onBillSelected(event: Event): void {
@@ -85,7 +95,7 @@ export class ExpenseEntryComponent implements OnInit, OnDestroy {
     const v = this.form.getRawValue();
     this.store.create({
       date: v.date,
-      category: v.category as ExpenseCategory,
+      category: v.category,
       amount: Number(v.amount),
       remarks: v.remarks,
       billFileName: this.billFileName || undefined

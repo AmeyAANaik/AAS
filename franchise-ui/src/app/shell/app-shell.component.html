@@ -62,15 +62,20 @@
       </div>
 
       <nav class="sidebar-group" *ngFor="let section of navSections">
-        <div class="sidebar-title">{{ section.title }}</div>
-        <a
-          *ngFor="let link of section.links"
-          [routerLink]="link.route"
-          routerLinkActive="active"
-          (click)="closeNav()">
-          <span class="material-icons nav-icon" aria-hidden="true">{{ link.icon }}</span>
-          {{ link.label }}
-        </a>
+        <button class="sidebar-title collapsible-title" type="button" (click)="toggleSection(section.title)">
+          <span>{{ section.title }}</span>
+          <span class="material-icons" aria-hidden="true">{{ isSectionExpanded(section.title) ? 'expand_less' : 'expand_more' }}</span>
+        </button>
+        <div class="sidebar-links" *ngIf="isSectionExpanded(section.title)">
+          <a
+            *ngFor="let link of section.links"
+            [routerLink]="link.route"
+            routerLinkActive="active"
+            (click)="closeNav()">
+            <span class="material-icons nav-icon" aria-hidden="true">{{ link.icon }}</span>
+            {{ link.label }}
+          </a>
+        </div>
       </nav>
     </aside>
 

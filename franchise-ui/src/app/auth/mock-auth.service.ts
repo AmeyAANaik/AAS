@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { FeatureKey, Role, featuresForRole } from '../core/rbac';
 import { ModuleConfigService } from '../core/module-config.service';
+import { SEED_BRANCHES } from '../master-data/branch-store.service';
 
 export interface ManagedUser {
   id: string;
@@ -16,7 +17,7 @@ export interface ManagedUser {
 const SESSION_KEY = 'franchise.session.userId';
 const OVERRIDES_KEY = 'franchise.users.overrides';
 
-export const FRANCHISES = ['Sukhkarta — Aundh', 'Sukhkarta — Baner', 'Sukhkarta — Wakad'];
+export const FRANCHISES = SEED_BRANCHES.map(branch => branch.name);
 
 const SEED_USERS: ManagedUser[] = [
   { id: 'admin', name: 'Nilesh (Brand Owner)', email: 'admin@franchise.app', role: 'SUPER_ADMIN', franchise: 'All Franchises', allow: [], deny: [] },

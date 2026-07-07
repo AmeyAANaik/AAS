@@ -18,7 +18,7 @@
         <mat-form-field appearance="outline">
           <mat-label>Category</mat-label>
           <mat-select formControlName="category">
-            <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
+            <mat-option *ngFor="let c of categories" [value]="c.name">{{ c.name }}</mat-option>
           </mat-select>
           <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
         </mat-form-field>
