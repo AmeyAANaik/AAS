@@ -551,18 +551,33 @@ public class MasterDataService {
         }
         payload.putIfAbsent("is_stock_item", 1);
         String itemCode = asText(payload.get("item_code"));
-        Map<String, Object> existingItem = unwrapResource(erpNextClient.getResource("Item", itemCode));
+        Map<String, Object> existingItem = findItemByCode(itemCode);
         if (!existingItem.isEmpty()) {
             if (!asFlag(existingItem.get("disabled"))) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "An active item with code \"" + itemCode + "\" already exists.");
             }
             // Item was soft-deleted — re-enable and update it instead of creating a duplicate.
+            String existingItemId = asText(existingItem.get("name"));
             payload.put("disabled", 0);
             payload.remove("item_code");
-            return erpNextClient.updateResource("Item", itemCode, payload);
+            return erpNextClient.updateResource("Item", existingItemId.isBlank() ? itemCode : existingItemId, payload);
         }
         return erpNextClient.createResource("Item", payload);
+    }
+
+    private Map<String, Object> findItemByCode(String itemCode) {
+        if (itemCode == null || itemCode.isBlank()) {
+            return Map.of();
+        }
+        Map<String, Object> params = new HashMap<>();
+        params.put(
+                "fields",
+                "[\"name\",\"item_code\",\"disabled\"]");
+        params.put("filters", "[[\"Item\",\"item_code\",\"=\",\"" + escapeJson(itemCode) + "\"]]");
+        params.put("limit_page_length", 1);
+        List<Map<String, Object>> matches = erpNextClient.listResources("Item", params);
+        return matches.isEmpty() ? Map.of() : matches.get(0);
     }
 
     public Map<String, Object> updateShop(String id, FieldsRequest request) {

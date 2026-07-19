@@ -35,6 +35,18 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
+            <mat-label>GSTIN</mat-label>
+            <input matInput formControlName="gstNumber" placeholder="e.g. 27ABCDE1234F1Z5" />
+            <mat-error *ngIf="form.controls.gstNumber.invalid">Enter a valid 15 character GSTIN</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>TAN</mat-label>
+            <input matInput formControlName="tanNumber" placeholder="e.g. PNEA12345B" />
+            <mat-error *ngIf="form.controls.tanNumber.invalid">Enter a valid 10 character TAN</mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
             <mat-label>Opening date</mat-label>
             <input matInput type="date" formControlName="openingDate" />
           </mat-form-field>
@@ -135,7 +147,16 @@
         <th mat-header-cell *matHeaderCellDef>Branch</th>
         <td mat-cell *matCellDef="let branch">
           <div class="cell-name">{{ branch.name }}</div>
-          <div class="cell-sub">{{ branch.code }} · FSSAI {{ branch.fssaiNumber || 'Pending' }}</div>
+          <div class="cell-sub">{{ branch.code }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="compliance">
+        <th mat-header-cell *matHeaderCellDef>Compliance</th>
+        <td mat-cell *matCellDef="let branch">
+          <div>FSSAI {{ branch.fssaiNumber || 'Pending' }}</div>
+          <div class="cell-sub">GSTIN {{ branch.gstNumber || 'Pending' }}</div>
+          <div class="cell-sub">TAN {{ branch.tanNumber || 'Pending' }}</div>
         </td>
       </ng-container>
 

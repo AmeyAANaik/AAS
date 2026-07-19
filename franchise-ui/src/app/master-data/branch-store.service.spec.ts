@@ -9,6 +9,8 @@ function input(partial: Partial<BranchInput> = {}): BranchInput {
     name: 'Sukhkarta — Kothrud',
     code: 'kothrud',
     fssaiNumber: '11526000000009',
+    gstNumber: '27abcde1234f1z9',
+    tanNumber: 'pnea12349b',
     city: 'Pune',
     area: 'Kothrud',
     address: 'Kothrud, Pune',
@@ -48,6 +50,8 @@ describe('BranchStoreService', () => {
       expect(branch.name).toBe('Sukhkarta — Kothrud');
       expect(branch.code).toBe('KOTHRUD');
       expect(branch.email).toBe('kothrud@sukhkarta.app');
+      expect(branch.gstNumber).toBe('27ABCDE1234F1Z9');
+      expect(branch.tanNumber).toBe('PNEA12349B');
       expect(branch.ifscCode).toBe('ICIC0000123');
       expect(service.branchNamesSnapshot()).toContain('Sukhkarta — Kothrud');
 
@@ -75,6 +79,8 @@ describe('BranchStoreService', () => {
     const legacy = fresh.listSnapshot().find(branch => branch.id === 'branch-legacy');
 
     expect(legacy?.fssaiNumber).toBe('');
+    expect(legacy?.gstNumber).toBe('');
+    expect(legacy?.tanNumber).toBe('');
     expect(legacy?.email).toBe('');
     expect(legacy?.contactNumber).toBe('9876543200');
     expect(legacy?.accountHolderName).toBe('Legacy Branch');

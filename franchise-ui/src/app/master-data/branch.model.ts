@@ -5,6 +5,8 @@ export interface BranchRecord {
   name: string;
   code: string;
   fssaiNumber: string;
+  gstNumber: string;
+  tanNumber: string;
   city: string;
   area: string;
   address: string;
@@ -24,6 +26,8 @@ export interface BranchInput {
   name: string;
   code: string;
   fssaiNumber: string;
+  gstNumber: string;
+  tanNumber: string;
   city: string;
   area: string;
   address: string;

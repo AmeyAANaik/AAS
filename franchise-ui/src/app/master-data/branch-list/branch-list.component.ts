@@ -27,7 +27,7 @@ import { BranchStoreService } from '../branch-store.service';
 })
 export class BranchListComponent implements OnInit {
   readonly statuses: BranchStatus[] = ['Active', 'Setup Pending', 'Inactive'];
-  readonly columns = ['branch', 'location', 'contact', 'bank', 'openingDate', 'status', 'actions'];
+  readonly columns = ['branch', 'compliance', 'location', 'contact', 'bank', 'openingDate', 'status', 'actions'];
   branches: BranchRecord[] = [];
   loading = false;
 
@@ -39,6 +39,8 @@ export class BranchListComponent implements OnInit {
     name: ['', [Validators.required, Validators.maxLength(80)]],
     code: ['', [Validators.required, Validators.maxLength(12), Validators.pattern(/^[A-Za-z0-9_-]+$/)]],
     fssaiNumber: ['', [Validators.required, Validators.maxLength(20), Validators.pattern(/^[0-9]{14}$/)]],
+    gstNumber: ['', [Validators.maxLength(15), Validators.pattern(/^$|^[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z]Z[0-9A-Za-z]$/)]],
+    tanNumber: ['', [Validators.maxLength(10), Validators.pattern(/^$|^[A-Za-z]{4}[0-9]{5}[A-Za-z]$/)]],
     city: ['', [Validators.required, Validators.maxLength(50)]],
     area: ['', [Validators.required, Validators.maxLength(50)]],
     address: ['', [Validators.required, Validators.maxLength(160)]],
@@ -79,6 +81,8 @@ export class BranchListComponent implements OnInit {
       name: '',
       code: '',
       fssaiNumber: '',
+      gstNumber: '',
+      tanNumber: '',
       city: '',
       area: '',
       address: '',
@@ -103,6 +107,8 @@ export class BranchListComponent implements OnInit {
       name: branch.name,
       code: branch.code,
       fssaiNumber: branch.fssaiNumber,
+      gstNumber: branch.gstNumber,
+      tanNumber: branch.tanNumber,
       city: branch.city,
       area: branch.area,
       address: branch.address,
@@ -135,6 +141,8 @@ export class BranchListComponent implements OnInit {
       name: v.name!,
       code: v.code!,
       fssaiNumber: v.fssaiNumber!,
+      gstNumber: v.gstNumber!,
+      tanNumber: v.tanNumber!,
       city: v.city!,
       area: v.area!,
       address: v.address!,
