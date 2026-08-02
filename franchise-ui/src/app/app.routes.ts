@@ -46,6 +46,12 @@ export const routes: Routes = [
         loadComponent: () => import('./inventory/product-list/product-list.component').then(m => m.ProductListComponent)
       },
       {
+        path: 'master-data/product-categories',
+        canMatch: [featureGuard],
+        data: { feature: 'inventory.manage' },
+        loadComponent: () => import('./master-data/product-category-list/product-category-list.component').then(m => m.ProductCategoryListComponent)
+      },
+      {
         path: 'master-data/employees',
         canMatch: [featureGuard],
         data: { feature: 'employees.manage' },

@@ -1,5 +1,42 @@
 # ERPNext Workflow Review
 
+## 2026-07-05 Branch Category Ledger And Invoice Due Snapshot Review
+
+### Scope Reviewed
+- Production branch category ledger for `Sukhkarta Pure Veg Dining Hall, Kothrud`
+- Sales invoice PDF due snapshot for `ACC-SINV-2026-00364`
+- Customer category due calculation used by bill/invoice PDF generation
+
+### Files Inspected
+- `mw/src/main/java/com/aas/mw/service/BranchOpsService.java`
+- `mw/src/main/java/com/aas/mw/service/PaymentDueService.java`
+- `mw/src/main/java/com/aas/mw/service/InvoiceService.java`
+- `mw/src/main/java/com/aas/mw/service/SetupService.java`
+- `mw/src/test/java/com/aas/mw/service/PaymentDueServiceTest.java`
+
+### Current Implementation Summary
+- Branch category ledger builds a running balance from sales invoice debits, payment credits, and approved adjustment notes.
+- Sales invoice PDFs read `aas_previous_due` and `aas_current_pending` snapshot fields from the `Sales Invoice` document.
+- Those snapshot fields are refreshed before PDF download through `InvoiceService.backfillCategoryDueSnapshot`, using `PaymentDueService.dueByCategory`.
+
+### ERPNext Alignment Notes
+- For customer category due, the branch category ledger is the right single source of truth because it includes invoice, payment, and approved adjustment activity in one chronological balance.
+- Approved customer adjustment notes must not be applied again after reading the branch ledger balance, otherwise credit/debit notes are double-counted in invoice due snapshots.
+
+### Findings
+1. Customer category due was double-applying approved adjustment notes.
+   - `BranchOpsService.getBranchLedgerByCategory` already includes approved customer adjustment notes in the category running balance.
+   - `PaymentDueService.dueByCategoryForCustomer` then added `approvedAdjustmentImpact` again.
+   - In the production example, the ledger balance after `ACC-SINV-2026-00364` was `154,759`, but the PDF showed `154,169`, exactly `590` lower because the approved credit note was subtracted twice.
+
+### Fix Applied
+- Customer category due now returns the branch ledger balance directly, clamped at zero.
+- `PaymentDueServiceTest` now verifies that approved adjustment impact is not double-applied when the ledger already reflects it.
+
+### Verification
+- `JAVA_HOME=$(/usr/libexec/java_home) ./mvnw -q -Dtest=PaymentDueServiceTest,InvoiceServiceTest test`
+- `docker compose -f docker-compose.mw.yml up --build -d`
+
 ## 2026-04-10 Pricing And GST Review
 
 ### Scope Reviewed

@@ -36,7 +36,7 @@ docker compose -f docker-compose.mw.yml up -d --build
 
 TOKEN=$(curl -sS http://localhost:8083/api/auth/login \
   -H 'content-type: application/json' \
-  --data '{"username":"Administrator","password":"admin"}' \
+  --data '{"username":"Administrator","password":"asdf@#123A"}' \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["accessToken"])')
 
 curl -X POST http://localhost:8083/api/setup/ensure \
