@@ -11,6 +11,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { InventoryStoreService } from '../inventory-store.service';
 import { ExtractedInvoiceLine, ProductStockView, PurchaseLineInput, StockTxn } from '../inventory.model';
@@ -44,7 +45,7 @@ interface ActiveLine {
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule, MatAutocompleteModule, MatButtonModule, MatCheckboxModule,
     MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatSelectModule,
-    MatSnackBarModule, MatTableModule, PageHeaderComponent
+    MatSnackBarModule, MatTableModule, DatePickerFieldComponent, PageHeaderComponent
   ],
   templateUrl: './purchase-entry.component.html',
   styleUrl: './purchase-entry.component.css'

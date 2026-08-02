@@ -5,6 +5,14 @@
       <mat-option *ngFor="let y of years" [value]="y">{{ y }}</mat-option>
     </mat-select>
   </mat-form-field>
+  <button mat-stroked-button color="primary" [matMenuTriggerFor]="salaryExportMenu" [disabled]="!monthsWithData">
+    <mat-icon>download</mat-icon> Download
+  </button>
+  <mat-menu #salaryExportMenu="matMenu">
+    <button mat-menu-item (click)="downloadReport('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+    <button mat-menu-item (click)="downloadReport('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+    <button mat-menu-item (click)="downloadReport('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+  </mat-menu>
 </div>
 
 <div class="berry-grid-3">

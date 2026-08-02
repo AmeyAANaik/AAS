@@ -1,0 +1,56 @@
+
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; color: #1f2933; }
+            .doc-title { font-size: 22px; font-weight: 700; }
+            .doc-meta { color: #64748b; margin: 4px 0 16px; }
+            table { border-collapse: collapse; width: 100%; }
+            th { background: #f1f5f9; text-align: left; }
+            th, td { border: 1px solid #d9e2ec; padding: 8px; }
+            .num { text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div class="doc-title">Salary Report</div>
+          <div class="doc-meta">Monthly salary generation and payment status</div>
+          <table>
+      <tr><th>Total salary</th><td>Rs. 1,92,000</td></tr>
+    
+      <tr><th>Paid</th><td>Rs. 96,000</td></tr>
+    
+      <tr><th>Pending</th><td>Rs. 96,000</td></tr>
+    
+      <tr><th>Months with data</th><td>2</td></tr>
+    <tr><th>Period</th><td>2026</td></tr><tr><th>Generated at</th><td>19 Jul 2026, 9:42 pm</td></tr></table>
+          <br>
+          <table><thead><tr><th>Month</th><th>Entries</th><th>Paid</th><th>Pending</th><th>Total</th></tr></thead><tbody>
+      <tr><td class="">January</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">February</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">March</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">April</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">May</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">June</td><td class="num">4</td><td class="num">Rs. 96,000</td><td class="num">Rs. 0</td><td class="num">Rs. 96,000</td></tr>
+    
+      <tr><td class="">July</td><td class="num">4</td><td class="num">Rs. 0</td><td class="num">Rs. 96,000</td><td class="num">Rs. 96,000</td></tr>
+    
+      <tr><td class="">August</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">September</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">October</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">November</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    
+      <tr><td class="">December</td><td class="num">0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td><td class="num">Rs. 0</td></tr>
+    </tbody></table>
+        </body>
+      </html>
+    

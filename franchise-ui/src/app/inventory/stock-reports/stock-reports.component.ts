@@ -1,12 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
+import { ReportColumn, ReportDownloadService, ReportExportFormat } from '../../shared/report-download.service';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { InventoryStoreService } from '../inventory-store.service';
 import { StockTxn } from '../inventory.model';
@@ -24,8 +27,8 @@ interface UnconsumedRow { name: string; category: string; unit: string; current:
   selector: 'app-stock-reports',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, MatTabsModule, MatTableModule, MatIconModule,
-    MatFormFieldModule, MatSelectModule, PageHeaderComponent, StatusPillComponent
+    CommonModule, FormsModule, MatButtonModule, MatTabsModule, MatTableModule, MatIconModule,
+    MatFormFieldModule, MatMenuModule, MatSelectModule, PageHeaderComponent, StatusPillComponent
   ],
   templateUrl: './stock-reports.component.html',
   styleUrl: './stock-reports.component.css'
@@ -47,6 +50,7 @@ export class StockReportsComponent implements OnInit {
   // Current-stock filters
   filterCategory = '';
   filterStatus: 'all' | 'in' | 'low' = 'all';
+  activeTabIndex = 0;
 
   readonly currentCols = ['name', 'category', 'unit', 'current', 'min', 'rate', 'value', 'status'];
   readonly dailyCols = ['date', 'opening', 'purchased', 'consumed', 'closing'];
@@ -55,7 +59,7 @@ export class StockReportsComponent implements OnInit {
   readonly categorySummaryCols = ['category', 'items', 'value', 'lowCount'];
   readonly unconsumedCols = ['name', 'category', 'unit', 'current', 'value', 'lastPurchase', 'status'];
 
-  constructor(private store: InventoryStoreService) {}
+  constructor(private store: InventoryStoreService, private downloads: ReportDownloadService) {}
 
   ngOnInit(): void {
     this.build();
@@ -166,6 +170,131 @@ export class StockReportsComponent implements OnInit {
       .filter(r => this.filterStatus === 'all' ? true : this.filterStatus === 'low' ? r.low : !r.low);
   }
 
+  get activeReportHasRows(): boolean {
+    return this.activeReport().rows.length > 0;
+  }
+
+  downloadActiveReport(format: ReportExportFormat): void {
+    const report = this.activeReport();
+    this.downloads.download({
+      title: report.title,
+      subtitle: 'Inventory stock ledger report',
+      period: 'Current ledger',
+      fileName: report.fileName,
+      columns: report.columns,
+      rows: report.rows,
+      summary: [
+        { label: 'Closing stock value', value: this.money(this.totalStockValue) },
+        { label: 'Products tracked', value: this.current.length },
+        { label: 'Low-stock items', value: this.lowStockCount },
+        { label: 'Consumption value', value: this.money(this.totalConsumptionValue) }
+      ]
+    }, format);
+  }
+
+  private activeReport(): { title: string; fileName: string; columns: ReportColumn[]; rows: Array<Record<string, unknown>> } {
+    switch (this.activeTabIndex) {
+      case 1:
+        return {
+          title: 'Stock Category Report',
+          fileName: 'stock-category-report',
+          columns: [
+            { key: 'category', label: 'Category' },
+            { key: 'items', label: 'Items', align: 'right' },
+            { key: 'value', label: 'Stock value', align: 'right' },
+            { key: 'lowCount', label: 'Low-stock', align: 'right' }
+          ],
+          rows: this.categorySummary.map(row => ({ ...row, value: this.money(row.value) }))
+        };
+      case 2:
+        return {
+          title: 'Daily Stock Report',
+          fileName: 'daily-stock-report',
+          columns: this.movementColumns('Date'),
+          rows: this.daily.map(row => ({ ...row }))
+        };
+      case 3:
+        return {
+          title: 'Monthly Stock Report',
+          fileName: 'monthly-stock-report',
+          columns: this.movementColumns('Month'),
+          rows: this.monthly.map(row => ({ ...row }))
+        };
+      case 4:
+        return {
+          title: 'Consumption Report',
+          fileName: 'stock-consumption-report',
+          columns: [
+            { key: 'date', label: 'Date' },
+            { key: 'product', label: 'Product' },
+            { key: 'qty', label: 'Consumed', align: 'right' },
+            { key: 'avgRate', label: 'Avg rate', align: 'right' },
+            { key: 'value', label: 'Value', align: 'right' },
+            { key: 'reason', label: 'Reason' }
+          ],
+          rows: this.consumption.map(row => ({ ...row, avgRate: this.money(row.avgRate), value: this.money(row.value) }))
+        };
+      case 5:
+        return {
+          title: 'Most Used Products Report',
+          fileName: 'most-used-products-report',
+          columns: [
+            { key: 'rank', label: '#' },
+            { key: 'product', label: 'Product' },
+            { key: 'totalConsumed', label: 'Total consumed', align: 'right' },
+            { key: 'totalValue', label: 'Total value', align: 'right' }
+          ],
+          rows: this.productConsumption.map(row => ({ ...row, totalConsumed: `${row.totalConsumed} ${row.unit}`, totalValue: this.money(row.totalValue) }))
+        };
+      case 6:
+        return {
+          title: 'Unconsumed Stock Report',
+          fileName: 'unconsumed-stock-report',
+          columns: [
+            { key: 'name', label: 'Product' },
+            { key: 'category', label: 'Category' },
+            { key: 'unit', label: 'Unit' },
+            { key: 'current', label: 'Current', align: 'right' },
+            { key: 'value', label: 'Value', align: 'right' },
+            { key: 'lastPurchase', label: 'Last purchase' },
+            { key: 'status', label: 'Status' }
+          ],
+          rows: this.unconsumed.map(row => ({ ...row, value: this.money(row.value), status: row.low ? 'Low Stock' : 'In Stock' }))
+        };
+      default:
+        return {
+          title: 'Current Stock Report',
+          fileName: 'current-stock-report',
+          columns: [
+            { key: 'name', label: 'Product' },
+            { key: 'category', label: 'Category' },
+            { key: 'unit', label: 'Unit' },
+            { key: 'current', label: 'Current', align: 'right' },
+            { key: 'min', label: 'Min', align: 'right' },
+            { key: 'rate', label: 'Rate', align: 'right' },
+            { key: 'value', label: 'Value', align: 'right' },
+            { key: 'status', label: 'Status' }
+          ],
+          rows: this.filteredCurrent.map(row => ({
+            ...row,
+            rate: this.money(row.rate),
+            value: this.money(row.value),
+            status: row.low ? 'Low Stock' : 'In Stock'
+          }))
+        };
+    }
+  }
+
+  private movementColumns(periodLabel: string): ReportColumn[] {
+    return [
+      { key: 'date', label: periodLabel },
+      { key: 'opening', label: 'Opening', align: 'right' },
+      { key: 'purchased', label: 'Purchased', align: 'right' },
+      { key: 'consumed', label: 'Consumed', align: 'right' },
+      { key: 'closing', label: 'Closing', align: 'right' }
+    ];
+  }
+
   private aggregateByPeriod(txns: StockTxn[], keyOf: (date: string) => string): DailyRow[] {
     const periods = [...new Set(txns.map(t => keyOf(t.date)))].sort();
     const rows: DailyRow[] = [];
@@ -193,5 +322,9 @@ export class StockReportsComponent implements OnInit {
 
   private round(n: number): number {
     return Math.round(n * 100) / 100;
+  }
+
+  private money(value: number): string {
+    return `Rs. ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   }
 }

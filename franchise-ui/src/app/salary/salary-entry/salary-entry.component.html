@@ -1,8 +1,5 @@
 <div class="entry-toolbar">
-  <mat-form-field appearance="outline" class="month-field">
-    <mat-label>Month</mat-label>
-    <input matInput type="month" [(ngModel)]="month" (ngModelChange)="reload()" />
-  </mat-form-field>
+  <app-month-picker-field class="month-field" label="Month" [(ngModel)]="month" (ngModelChange)="reload()"></app-month-picker-field>
   <button mat-flat-button color="primary" (click)="generate()" [disabled]="!month">
     <mat-icon>playlist_add</mat-icon> Generate for month
   </button>

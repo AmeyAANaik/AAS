@@ -18,10 +18,7 @@
           </mat-select>
           <mat-error *ngIf="form.get('category')?.hasError('required')">Category is required.</mat-error>
         </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Consumption date</mat-label>
-          <input matInput type="date" formControlName="date" />
-        </mat-form-field>
+        <app-date-picker-field label="Consumption date" formControlName="date" [required]="true"></app-date-picker-field>
       </div>
     </section>
 
@@ -94,10 +91,7 @@
           <mat-label>Reason</mat-label>
           <input matInput formControlName="reason" />
         </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Date</mat-label>
-          <input matInput type="date" formControlName="date" />
-        </mat-form-field>
+        <app-date-picker-field label="Date" formControlName="date" [required]="true"></app-date-picker-field>
         <div class="edit-actions">
           <button mat-flat-button color="primary" type="button" (click)="saveEdit()">Save</button>
           <button mat-stroked-button type="button" (click)="cancelEdit()">Cancel</button>

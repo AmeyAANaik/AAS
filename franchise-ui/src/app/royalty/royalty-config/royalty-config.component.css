@@ -1,5 +1,5 @@
 .config-panel {
-  max-width: 720px;
+  max-width: 860px;
 }
 
 .rate-note {
@@ -21,16 +21,44 @@
 }
 
 .rate-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 220px) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0;
+  gap: 14px;
+  padding: 14px 0;
   border-top: 1px solid var(--border-subtle);
+}
+
+.branch-name {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.rate-field {
+  width: 100%;
+}
+
+.rate-row button {
+  min-width: 108px;
+}
+
+.rate-row button mat-icon {
+  margin-right: 6px;
 }
 
 .rate-note mat-icon {
   font-size: 18px;
   width: 18px;
   height: 18px;
+}
+
+@media (max-width: 720px) {
+  .rate-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .rate-row button {
+    width: 100%;
+  }
 }

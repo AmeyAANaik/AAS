@@ -4,6 +4,7 @@ import { delay } from 'rxjs/operators';
 import {
   ConsumptionInput, ExtractedInvoice, Product, ProductStockView, PurchaseInput, StockTxn, Unit
 } from './inventory.model';
+import { ProductCategoryStoreService } from '../master-data/product-category-store.service';
 
 const PRODUCTS_KEY = 'franchise.inventory.products';
 const TXNS_KEY = 'franchise.inventory.txns';
@@ -35,7 +36,7 @@ export class InventoryStoreService {
   /** Emits whenever stock changes so views can refresh. */
   readonly changes$ = this.changed$.asObservable();
 
-  constructor() {
+  constructor(private categoryStore: ProductCategoryStoreService) {
     this.load();
   }
 
@@ -316,6 +317,12 @@ export class InventoryStoreService {
   /** Distinct, sorted product categories — drives the category dropdowns. */
   listCategories(): string[] {
     const set = new Set<string>();
+    this.categoryStore.activeNamesSnapshot().forEach(category => {
+      const c = category.trim();
+      if (c) {
+        set.add(c);
+      }
+    });
     this.products.forEach(p => {
       const c = (p.category ?? '').trim();
       if (c) {

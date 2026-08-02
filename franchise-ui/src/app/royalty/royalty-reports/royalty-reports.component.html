@@ -19,10 +19,7 @@
 
 <div class="berry-panel controls-panel">
   <div class="controls-row">
-    <mat-form-field appearance="outline" class="year-field">
-      <mat-label>Year</mat-label>
-      <input matInput type="month" [value]="selectedYear + '-01'" (change)="onYearChange($any($event.target).value)" />
-    </mat-form-field>
+    <app-month-picker-field class="year-field" label="Year" [ngModel]="selectedYear + '-01'" (ngModelChange)="onYearChange($event)"></app-month-picker-field>
 
     <mat-button-toggle-group [value]="filter" (change)="setFilter($event.value)" aria-label="Status filter">
       <mat-button-toggle value="All">All</mat-button-toggle>
@@ -30,6 +27,14 @@
       <mat-button-toggle value="Partial">Partial</mat-button-toggle>
       <mat-button-toggle value="Paid">Paid</mat-button-toggle>
     </mat-button-toggle-group>
+    <button mat-stroked-button color="primary" [matMenuTriggerFor]="royaltyExportMenu" [disabled]="!rows.length">
+      <mat-icon>download</mat-icon> Download
+    </button>
+    <mat-menu #royaltyExportMenu="matMenu">
+      <button mat-menu-item (click)="downloadReport('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+      <button mat-menu-item (click)="downloadReport('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+      <button mat-menu-item (click)="downloadReport('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+    </mat-menu>
   </div>
   <p class="scope-note">{{ filter }} · {{ selectedYear }}</p>
 </div>

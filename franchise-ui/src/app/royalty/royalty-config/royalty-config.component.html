@@ -1,43 +1,37 @@
 <div class="berry-panel config-panel">
   <div class="berry-panel-title">Branch royalty rates</div>
   <p class="berry-panel-subtitle">
-    Royalty can be configured differently for each branch.
+    Royalty can be edited differently for each branch.
   </p>
 
-  <form [formGroup]="form" (ngSubmit)="save()">
-    <div class="berry-grid-3">
-      <mat-form-field appearance="outline">
-        <mat-label>Branch</mat-label>
-        <mat-select [value]="selectedBranch" (selectionChange)="onBranchChange($event.value)">
-          <mat-option *ngFor="let branch of branches" [value]="branch">{{ branch }}</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline">
-        <mat-label>Rate (% of net sales)</mat-label>
-        <input matInput type="number" formControlName="ratePercent" min="0" max="100" step="0.5" />
-        <span matTextSuffix>%</span>
-        <mat-error *ngIf="form.get('ratePercent')?.hasError('required')">Rate is required.</mat-error>
-        <mat-error *ngIf="form.get('ratePercent')?.hasError('min') || form.get('ratePercent')?.hasError('max')">
-          Enter a value between 0 and 100.
-        </mat-error>
-      </mat-form-field>
-    </div>
-
-    <div class="rate-note">
-      <mat-icon>info</mat-icon>
-      Changing the rate affects future generations. Re-generating a month recomputes its royalty at the new rate.
-    </div>
-
-    <div class="form-actions">
-      <button mat-flat-button color="primary" type="submit">Save rate</button>
-    </div>
-  </form>
+  <div class="rate-note">
+    <mat-icon>info</mat-icon>
+    Changing a branch rate affects future generations. Re-generating a month recomputes that branch's royalty at the new rate.
+  </div>
 
   <div class="rate-list">
-    <div class="rate-row" *ngFor="let row of branchRates">
-      <span>{{ row.branchName }}</span>
-      <strong>{{ row.ratePercent | number:'1.0-2' }}%</strong>
+    <div class="rate-row" *ngFor="let row of rows; trackBy: trackByBranch">
+      <div class="branch-name">{{ row.branchName }}</div>
+
+      <mat-form-field appearance="outline" class="rate-field">
+        <mat-label>Rate</mat-label>
+        <input matInput type="number" [formControl]="row.control" min="0" max="100" step="0.5" />
+        <span matTextSuffix>%</span>
+        <mat-error *ngIf="row.control.hasError('required')">Rate is required.</mat-error>
+        <mat-error *ngIf="row.control.hasError('min') || row.control.hasError('max')">
+          Enter 0 to 100.
+        </mat-error>
+      </mat-form-field>
+
+      <button
+        mat-flat-button
+        color="primary"
+        type="button"
+        [disabled]="row.saving || row.control.invalid || row.control.pristine"
+        (click)="saveRow(row)">
+        <mat-icon>{{ row.saving ? 'hourglass_top' : 'save' }}</mat-icon>
+        Save
+      </button>
     </div>
   </div>
 </div>

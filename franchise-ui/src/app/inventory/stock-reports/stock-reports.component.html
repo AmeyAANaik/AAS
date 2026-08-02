@@ -21,7 +21,19 @@
   </div>
 
   <div class="berry-panel">
-    <mat-tab-group animationDuration="0ms">
+    <div class="report-toolbar">
+      <span class="toolbar-count">Download active stock report</span>
+      <button mat-stroked-button color="primary" [matMenuTriggerFor]="stockExportMenu" [disabled]="!activeReportHasRows">
+        <mat-icon>download</mat-icon> Download
+      </button>
+      <mat-menu #stockExportMenu="matMenu">
+        <button mat-menu-item (click)="downloadActiveReport('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+        <button mat-menu-item (click)="downloadActiveReport('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+        <button mat-menu-item (click)="downloadActiveReport('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+      </mat-menu>
+    </div>
+
+    <mat-tab-group animationDuration="0ms" [(selectedIndex)]="activeTabIndex">
       <!-- Current Stock -->
       <mat-tab label="Current Stock">
         <div class="report-toolbar">

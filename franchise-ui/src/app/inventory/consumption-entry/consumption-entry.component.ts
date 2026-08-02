@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { InventoryStoreService } from '../inventory-store.service';
@@ -31,7 +32,7 @@ interface ConsumeOption {
   imports: [
     CommonModule, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule,
-    PageHeaderComponent, EmptyStateComponent
+    DatePickerFieldComponent, PageHeaderComponent, EmptyStateComponent
   ],
   templateUrl: './consumption-entry.component.html',
   styleUrl: './consumption-entry.component.css'

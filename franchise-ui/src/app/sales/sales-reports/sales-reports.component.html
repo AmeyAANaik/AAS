@@ -1,15 +1,27 @@
 <div class="berry-panel controls-panel">
   <div class="controls-row">
-    <mat-form-field appearance="outline" class="month-field" *ngIf="view !== 'yearly'">
-      <mat-label>{{ view === 'daily' ? 'Month' : 'Year (pick any month)' }}</mat-label>
-      <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
-    </mat-form-field>
+    <app-month-picker-field
+      *ngIf="view !== 'yearly'"
+      class="month-field"
+      [label]="view === 'daily' ? 'Month' : 'Year (pick any month)'"
+      [ngModel]="selectedMonth"
+      (ngModelChange)="onMonthChange($event)">
+    </app-month-picker-field>
 
     <mat-button-toggle-group [value]="view" (change)="setView($event.value)" aria-label="Report view">
       <mat-button-toggle value="daily">Daily</mat-button-toggle>
       <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
       <mat-button-toggle value="yearly">Yearly</mat-button-toggle>
     </mat-button-toggle-group>
+
+    <button mat-stroked-button color="primary" [matMenuTriggerFor]="salesExportMenu" [disabled]="!rows.length">
+      <mat-icon>download</mat-icon> Download
+    </button>
+    <mat-menu #salesExportMenu="matMenu">
+      <button mat-menu-item (click)="downloadReport('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+      <button mat-menu-item (click)="downloadReport('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+      <button mat-menu-item (click)="downloadReport('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+    </mat-menu>
   </div>
   <p class="scope-note">{{ scopeLabel }}</p>
 </div>

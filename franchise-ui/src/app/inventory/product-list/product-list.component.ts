@@ -29,6 +29,7 @@ export class ProductListComponent implements OnInit {
   readonly units = UNITS;
   readonly columns = ['name', 'unit', 'min', 'current', 'value', 'status', 'actions'];
   products: ProductStockView[] = [];
+  categories: string[] = [];
   loading = false;
 
   formOpen = false;
@@ -56,6 +57,7 @@ export class ProductListComponent implements OnInit {
 
   reload(): void {
     this.loading = true;
+    this.categories = this.store.listCategories();
     this.store.listProducts().subscribe(products => {
       this.products = products;
       this.loading = false;

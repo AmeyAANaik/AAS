@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { PaymentLineInput, PaymentMode, SaleEntry, paymentsTotal } from '../sales.model';
 import { SalesStoreService } from '../sales-store.service';
@@ -18,7 +19,7 @@ import { SalesStoreService } from '../sales-store.service';
   standalone: true,
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
-    MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule, EmptyStateComponent
+    MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule, DatePickerFieldComponent, EmptyStateComponent
   ],
   templateUrl: './sales-entry.component.html',
   styleUrl: './sales-entry.component.css'

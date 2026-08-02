@@ -1,12 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { ReportDownloadService, ReportExportFormat } from '../../shared/report-download.service';
 import { SalaryStoreService } from '../salary-store.service';
 import { SalaryPaymentView } from '../salary.model';
 
@@ -23,7 +26,7 @@ interface MonthRow {
   selector: 'app-salary-reports',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, MatFormFieldModule, MatIconModule, MatSelectModule, MatTableModule,
+    CommonModule, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatMenuModule, MatSelectModule, MatTableModule,
     EmptyStateComponent
   ],
   templateUrl: './salary-reports.component.html',
@@ -40,7 +43,7 @@ export class SalaryReportsComponent implements OnInit, OnDestroy {
   private payments: SalaryPaymentView[] = [];
   private sub?: Subscription;
 
-  constructor(private store: SalaryStoreService) {}
+  constructor(private store: SalaryStoreService, private downloads: ReportDownloadService) {}
 
   ngOnInit(): void {
     this.reload();
@@ -81,6 +84,35 @@ export class SalaryReportsComponent implements OnInit, OnDestroy {
     this.build();
   }
 
+  downloadReport(format: ReportExportFormat): void {
+    this.downloads.download({
+      title: 'Salary Report',
+      subtitle: 'Monthly salary generation and payment status',
+      period: String(this.year),
+      fileName: `salary-report-${this.year}`,
+      columns: [
+        { key: 'month', label: 'Month' },
+        { key: 'entries', label: 'Entries', align: 'right' },
+        { key: 'paid', label: 'Paid', align: 'right' },
+        { key: 'pending', label: 'Pending', align: 'right' },
+        { key: 'total', label: 'Total', align: 'right' }
+      ],
+      rows: this.rows.map(row => ({
+        month: row.label,
+        entries: row.count,
+        paid: this.money(row.paid),
+        pending: this.money(row.pending),
+        total: this.money(row.total)
+      })),
+      summary: [
+        { label: 'Total salary', value: this.money(this.yearTotal) },
+        { label: 'Paid', value: this.money(this.yearPaid) },
+        { label: 'Pending', value: this.money(this.yearPending) },
+        { label: 'Months with data', value: this.monthsWithData }
+      ]
+    }, format);
+  }
+
   private buildYears(): void {
     const set = new Set<number>();
     this.payments.forEach(p => set.add(Number(p.month.slice(0, 4))));
@@ -112,5 +144,9 @@ export class SalaryReportsComponent implements OnInit, OnDestroy {
 
   private monthLabel(m: number): string {
     return new Date(this.year, m - 1, 1).toLocaleString('en-IN', { month: 'long' });
+  }
+
+  private money(value: number): string {
+    return `Rs. ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   }
 }

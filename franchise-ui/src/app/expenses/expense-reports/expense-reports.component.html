@@ -6,10 +6,7 @@
         <p class="muted">Pick a month for the category breakdown, and a year for the monthly trend.</p>
       </div>
       <div class="toolbar-fields">
-        <mat-form-field appearance="outline" class="month-field">
-          <mat-label>Month</mat-label>
-          <input matInput type="month" [value]="selectedMonth" (change)="onMonthChange($any($event.target).value)" />
-        </mat-form-field>
+        <app-month-picker-field class="month-field" label="Month" [ngModel]="selectedMonth" (ngModelChange)="onMonthChange($event)"></app-month-picker-field>
         <mat-form-field appearance="outline" class="year-field">
           <mat-label>Year</mat-label>
           <mat-select [value]="selectedYear" (selectionChange)="onYearChange($event.value)">
@@ -38,7 +35,17 @@
 
   <!-- Category breakdown -->
   <div class="berry-panel">
-    <div class="berry-panel-title">Category-wise breakdown — {{ selectedMonth }}</div>
+    <div class="report-toolbar">
+      <div class="berry-panel-title">Category-wise breakdown — {{ selectedMonth }}</div>
+      <button mat-stroked-button color="primary" [matMenuTriggerFor]="expenseMonthExportMenu" [disabled]="!categoryRows.length">
+        <mat-icon>download</mat-icon> Download
+      </button>
+      <mat-menu #expenseMonthExportMenu="matMenu">
+        <button mat-menu-item (click)="downloadMonthly('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+        <button mat-menu-item (click)="downloadMonthly('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+        <button mat-menu-item (click)="downloadMonthly('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+      </mat-menu>
+    </div>
     <div class="table-wrapper" *ngIf="categoryRows.length; else noMonth">
       <table mat-table [dataSource]="categoryRows" class="pro-table">
         <ng-container matColumnDef="category">
@@ -70,6 +77,14 @@
     <div class="report-toolbar">
       <div class="berry-panel-title">Monthly totals — {{ selectedYear }}</div>
       <div class="year-total">Year total: <strong>₹ {{ yearlyTotal | number:'1.0-2' }}</strong></div>
+      <button mat-stroked-button color="primary" [matMenuTriggerFor]="expenseYearExportMenu">
+        <mat-icon>download</mat-icon> Download
+      </button>
+      <mat-menu #expenseYearExportMenu="matMenu">
+        <button mat-menu-item (click)="downloadYearly('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+        <button mat-menu-item (click)="downloadYearly('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+        <button mat-menu-item (click)="downloadYearly('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+      </mat-menu>
     </div>
     <div class="table-wrapper">
       <table mat-table [dataSource]="monthlyRows" class="pro-table">

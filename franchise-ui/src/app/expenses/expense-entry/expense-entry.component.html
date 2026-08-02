@@ -9,11 +9,7 @@
       </div>
 
       <div class="form-grid">
-        <mat-form-field appearance="outline">
-          <mat-label>Date</mat-label>
-          <input matInput type="date" formControlName="date" />
-          <mat-error *ngIf="form.get('date')?.hasError('required')">Date is required.</mat-error>
-        </mat-form-field>
+        <app-date-picker-field label="Date" formControlName="date" [required]="true"></app-date-picker-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Category</mat-label>

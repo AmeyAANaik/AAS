@@ -106,6 +106,7 @@ export class MasterDataPageComponent {
     { title: 'Branches', icon: 'store', route: '/master-data/branches', feature: 'branches.manage', description: 'Franchise branch identity, address, manager and setup status.' },
     { title: 'Vendors', icon: 'local_shipping', route: '/master-data/vendors', feature: 'vendors.view', description: 'Supplier master, invoice template setup and activation.' },
     { title: 'Products', icon: 'inventory_2', route: '/master-data/products', feature: 'inventory.manage', description: 'Product names, units, minimum stock and opening stock.' },
+    { title: 'Product Categories', icon: 'category', route: '/master-data/product-categories', feature: 'inventory.manage', description: 'Inventory category taxonomy used by products, purchases and consumption.' },
     { title: 'Employees', icon: 'badge', route: '/master-data/employees', feature: 'employees.manage', description: 'Staff records used by salary generation.' },
     { title: 'Payment Modes', icon: 'payments', route: '/master-data/payment-modes', feature: 'payment-modes.manage', description: 'Cash, UPI, card, delivery app and other sales channels.' },
     { title: 'Expense Categories', icon: 'receipt_long', route: '/master-data/expense-categories', feature: 'expense-categories.manage', description: 'Expense heads mapped into reporting and P&L buckets.' },

@@ -33,8 +33,11 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline">
-        <mat-label>Category (optional)</mat-label>
-        <input matInput formControlName="category" placeholder="e.g. Raw Material" />
+        <mat-label>Category</mat-label>
+        <mat-select formControlName="category">
+          <mat-option value="">No category</mat-option>
+          <mat-option *ngFor="let category of categories" [value]="category">{{ category }}</mat-option>
+        </mat-select>
       </mat-form-field>
 
       <mat-form-field appearance="outline">

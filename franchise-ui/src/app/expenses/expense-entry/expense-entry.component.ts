@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { ExpenseStoreService } from '../expense-store.service';
 import { ExpenseEntry } from '../expense.model';
@@ -21,7 +22,7 @@ import { ExpenseCategoryStoreService } from '../../master-data/expense-category-
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule,
-    EmptyStateComponent
+    DatePickerFieldComponent, EmptyStateComponent
   ],
   templateUrl: './expense-entry.component.html',
   styleUrl: './expense-entry.component.css'

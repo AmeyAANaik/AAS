@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription } from 'rxjs';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { SalaryStoreService } from '../salary-store.service';
@@ -21,7 +22,7 @@ import { Employee, EmployeeInput, EmployeeStatus } from '../salary.model';
   imports: [
     CommonModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule, MatTooltipModule,
-    EmptyStateComponent, StatusPillComponent
+    DatePickerFieldComponent, EmptyStateComponent, StatusPillComponent
   ],
   templateUrl: './employee-list.component.html',
   styleUrl: './employee-list.component.css'

@@ -46,10 +46,7 @@
             <mat-error *ngIf="form.controls.tanNumber.invalid">Enter a valid 10 character TAN</mat-error>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Opening date</mat-label>
-            <input matInput type="date" formControlName="openingDate" />
-          </mat-form-field>
+          <app-date-picker-field label="Opening date" formControlName="openingDate" [required]="true"></app-date-picker-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Status</mat-label>

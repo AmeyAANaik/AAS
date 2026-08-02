@@ -1,0 +1,88 @@
+<div class="berry-page">
+  <app-page-header kicker="Master Data" title="Product Category Master" subtitle="Maintain product categories used by inventory, purchases, consumption and stock reports.">
+    <button mat-flat-button color="primary" (click)="openCreate()">
+      <mat-icon>add</mat-icon> New category
+    </button>
+  </app-page-header>
+
+  <div class="berry-panel" *ngIf="formOpen">
+    <div class="berry-panel-header">
+      <div>
+        <div class="berry-panel-title">{{ editingId ? 'Edit product category' : 'New product category' }}</div>
+        <div class="berry-panel-subtitle">Active categories are available when creating products and recording inventory movement.</div>
+      </div>
+      <button mat-icon-button (click)="closeForm()" aria-label="Close"><mat-icon>close</mat-icon></button>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid berry-grid-3">
+      <mat-form-field appearance="outline">
+        <mat-label>Name</mat-label>
+        <input matInput formControlName="name" placeholder="e.g. Packaging" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Code</mat-label>
+        <input matInput formControlName="code" placeholder="e.g. PACKAGING" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Status</mat-label>
+        <mat-select formControlName="status">
+          <mat-option *ngFor="let status of statuses" [value]="status">{{ status }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="span-2">
+        <mat-label>Description</mat-label>
+        <input matInput formControlName="description" placeholder="Optional category note" />
+      </mat-form-field>
+
+      <div class="form-actions">
+        <button mat-flat-button color="primary" type="submit">{{ editingId ? 'Save changes' : 'Create category' }}</button>
+        <button mat-stroked-button type="button" (click)="closeForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="categories" class="pro-table category-table">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Category</th>
+        <td mat-cell *matCellDef="let category">
+          <div class="cell-name">{{ category.name }}</div>
+          <div class="cell-sub">{{ category.system ? 'Default' : 'Custom' }}</div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="code">
+        <th mat-header-cell *matHeaderCellDef>Code</th>
+        <td mat-cell *matCellDef="let category">{{ category.code }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="description">
+        <th mat-header-cell *matHeaderCellDef>Description</th>
+        <td mat-cell *matCellDef="let category">{{ category.description || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let category">
+          <app-status-pill [label]="category.status"></app-status-pill>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let category">
+          <button mat-icon-button color="primary" (click)="openEdit(category)" aria-label="Edit"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button (click)="toggle(category)" [attr.aria-label]="category.status === 'Active' ? 'Deactivate' : 'Activate'">
+            <mat-icon>{{ category.status === 'Active' ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  </div>
+</div>

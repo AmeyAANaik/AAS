@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
+import { DatePickerFieldComponent } from '../../shared/date-picker-field/date-picker-field.component';
 import { PageHeaderComponent } from '../../shared/page-header/page-header.component';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
@@ -20,7 +21,7 @@ import { BranchStoreService } from '../branch-store.service';
   imports: [
     CommonModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule,
-    PageHeaderComponent, EmptyStateComponent, StatusPillComponent
+    DatePickerFieldComponent, PageHeaderComponent, EmptyStateComponent, StatusPillComponent
   ],
   templateUrl: './branch-list.component.html',
   styleUrl: './branch-list.component.css'

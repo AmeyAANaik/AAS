@@ -43,10 +43,7 @@
           <mat-label>Bill number</mat-label>
           <input matInput formControlName="billNo" />
         </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Bill date</mat-label>
-          <input matInput type="date" formControlName="billDate" />
-        </mat-form-field>
+        <app-date-picker-field label="Bill date" formControlName="billDate" [required]="true"></app-date-picker-field>
       </div>
     </section>
 

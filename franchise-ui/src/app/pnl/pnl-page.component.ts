@@ -1,12 +1,17 @@
 import { CommonModule } from '@angular/common';
 import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { merge, Subscription } from 'rxjs';
+import { MonthPickerFieldComponent } from '../shared/month-picker-field/month-picker-field.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
+import { ReportDownloadService, ReportExportFormat } from '../shared/report-download.service';
 import { SalesStoreService } from '../sales/sales-store.service';
 import { ExpenseStoreService } from '../expenses/expense-store.service';
 import { SalaryStoreService } from '../salary/salary-store.service';
@@ -22,8 +27,8 @@ type ViewMode = 'monthly' | 'yearly';
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    MatButtonToggleModule, MatFormFieldModule, MatInputModule, MatSelectModule,
-    PageHeaderComponent
+    MatButtonModule, MatButtonToggleModule, MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule,
+    MonthPickerFieldComponent, PageHeaderComponent
   ],
   template: `
     <div class="berry-page">
@@ -44,10 +49,7 @@ type ViewMode = 'monthly' | 'yearly';
         </div>
 
         <ng-container *ngIf="view === 'monthly'">
-          <mat-form-field appearance="outline" class="control-field">
-            <mat-label>Month</mat-label>
-            <input matInput type="month" [(ngModel)]="month" (ngModelChange)="recompute()">
-          </mat-form-field>
+          <app-month-picker-field class="control-field" label="Month" [(ngModel)]="month" (ngModelChange)="recompute()"></app-month-picker-field>
         </ng-container>
 
         <ng-container *ngIf="view === 'yearly'">
@@ -68,6 +70,15 @@ type ViewMode = 'monthly' | 'yearly';
             <mat-button-toggle value="operations">Ops</mat-button-toggle>
           </mat-button-toggle-group>
         </div>
+
+        <button mat-stroked-button color="primary" [matMenuTriggerFor]="pnlExportMenu" [disabled]="!visibleMetrics.length">
+          <mat-icon>download</mat-icon> Download
+        </button>
+        <mat-menu #pnlExportMenu="matMenu">
+          <button mat-menu-item (click)="downloadReport('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+          <button mat-menu-item (click)="downloadReport('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+          <button mat-menu-item (click)="downloadReport('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+        </mat-menu>
       </div>
 
       <!-- KPI cards -->
@@ -283,6 +294,7 @@ export class PnlPageComponent implements OnInit, OnDestroy {
   private readonly salary = inject(SalaryStoreService);
   private readonly inventory = inject(InventoryStoreService);
   private readonly royalty = inject(RoyaltyStoreService);
+  private readonly downloads = inject(ReportDownloadService);
 
   view: ViewMode = 'monthly';
   dimension: PnlDimension = 'summary';
@@ -347,6 +359,46 @@ export class PnlPageComponent implements OnInit, OnDestroy {
     return labels[value];
   }
 
+  downloadReport(format: ReportExportFormat): void {
+    const metricRows = this.visibleMetrics.map(metric => ({
+      metric: metric.metric,
+      dimension: this.dimensionLabel(metric.dimension),
+      amount: this.money(metric.amount),
+      share: `${metric.sharePercent.toFixed(1)}%`,
+      source: metric.source
+    }));
+    const monthRows = this.view === 'yearly'
+      ? this.months.map(period => ({
+          metric: period.label,
+          dimension: 'Month',
+          amount: `Revenue ${this.money(period.revenue)} | Cost ${this.money(period.totalCost)} | Profit ${this.money(period.netProfit)}`,
+          share: `${period.marginPercent.toFixed(1)}% margin`,
+          source: 'Month-by-month P&L'
+        }))
+      : [];
+
+    this.downloads.download({
+      title: 'Profit & Loss Report',
+      subtitle: `${this.view === 'monthly' ? 'Monthly' : 'Yearly'} · ${this.dimensionLabel(this.dimension)}`,
+      period: this.view === 'monthly' ? this.month : String(this.year),
+      fileName: `pnl-report-${this.view === 'monthly' ? this.month : this.year}-${this.dimension}`,
+      columns: [
+        { key: 'metric', label: 'Metric' },
+        { key: 'dimension', label: 'Dimension' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'share', label: 'Share' },
+        { key: 'source', label: 'Source' }
+      ],
+      rows: [...metricRows, ...monthRows],
+      summary: [
+        { label: 'Revenue', value: this.money(this.scope.revenue) },
+        { label: 'Total cost', value: this.money(this.scope.totalCost) },
+        { label: 'Net profit', value: this.money(this.scope.netProfit) },
+        { label: 'Margin', value: `${this.scope.marginPercent.toFixed(1)}%` }
+      ]
+    }, format);
+  }
+
   private recomputeMetrics(): void {
     this.visibleMetrics = this.pnl.metricsForDimension(this.scope, this.dimension);
   }
@@ -375,5 +427,9 @@ export class PnlPageComponent implements OnInit, OnDestroy {
       list.push(y);
     }
     return list;
+  }
+
+  private money(value: number): string {
+    return `Rs. ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
   }
 }

@@ -35,10 +35,7 @@
           <mat-option value="Inactive">Inactive</mat-option>
         </mat-select>
       </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Joined date</mat-label>
-        <input matInput type="date" formControlName="joinedDate" />
-      </mat-form-field>
+      <app-date-picker-field label="Joined date" formControlName="joinedDate" [required]="true"></app-date-picker-field>
     </div>
 
     <div class="form-actions">

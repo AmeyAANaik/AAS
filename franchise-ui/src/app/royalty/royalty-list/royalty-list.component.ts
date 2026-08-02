@@ -10,6 +10,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { MonthPickerFieldComponent } from '../../shared/month-picker-field/month-picker-field.component';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { BranchStoreService } from '../../master-data/branch-store.service';
 import { RoyaltyEntry } from '../royalty.model';
@@ -21,7 +22,7 @@ import { RoyaltyStoreService } from '../royalty-store.service';
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatSelectModule, MatSnackBarModule, MatTableModule,
-    EmptyStateComponent, StatusPillComponent
+    EmptyStateComponent, MonthPickerFieldComponent, StatusPillComponent
   ],
   templateUrl: './royalty-list.component.html',
   styleUrl: './royalty-list.component.css'

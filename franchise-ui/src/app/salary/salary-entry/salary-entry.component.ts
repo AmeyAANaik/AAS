@@ -9,6 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { Subscription } from 'rxjs';
 import { EmptyStateComponent } from '../../shared/empty-state/empty-state.component';
+import { MonthPickerFieldComponent } from '../../shared/month-picker-field/month-picker-field.component';
 import { StatusPillComponent } from '../../shared/status-pill/status-pill.component';
 import { SalaryStoreService } from '../salary-store.service';
 import { SalaryPaymentView } from '../salary.model';
@@ -19,7 +20,7 @@ import { SalaryPaymentView } from '../salary.model';
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatSnackBarModule, MatTableModule,
-    EmptyStateComponent, StatusPillComponent
+    EmptyStateComponent, MonthPickerFieldComponent, StatusPillComponent
   ],
   templateUrl: './salary-entry.component.html',
   styleUrl: './salary-entry.component.css'
