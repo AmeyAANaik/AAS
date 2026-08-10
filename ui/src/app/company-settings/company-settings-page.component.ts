@@ -9,6 +9,9 @@ import {
   AccessManagedUser
 } from './access-control.service';
 import { AuthTokenService } from '../shared/auth-token.service';
+import { BranchService } from '../branches/branch.service';
+import { VendorService } from '../vendors/vendor.service';
+import { formatUiError } from '../shared/error-message.util';
 
 @Component({
   selector: 'app-company-settings-page',
@@ -71,6 +74,32 @@ export class CompanySettingsPageComponent implements OnInit {
   accessErrorMessage = '';
   featureCatalog: AccessFeatureDefinition[] = [];
   managedUsers: AccessManagedUser[] = [];
+
+  // --- Create user ---
+  readonly assignableRoles = [
+    { id: 'admin', label: 'Administrator' },
+    { id: 'helper', label: 'Helper' },
+    { id: 'vendor', label: 'Vendor' },
+    { id: 'shop', label: 'Branch' }
+  ];
+  readonly createUserForm = this.fb.group({
+    fullName: ['', Validators.required],
+    email: ['', [Validators.required, Validators.email]],
+    // Matches the server-side minimum so the error surfaces before the round trip.
+    password: ['', [Validators.required, Validators.minLength(8)]],
+    role: ['helper', Validators.required],
+    mobileNo: [''],
+    supplier: [''],
+    customer: ['']
+  });
+  showCreateUser = false;
+  isCreatingUser = false;
+  createUserMessage = '';
+  createUserError = '';
+  supplierOptions: string[] = [];
+  branchOptions: string[] = [];
+  defaultsByRole: Record<string, string[]> = {};
+  togglingUserId = '';
   selectedUserId = '';
   selectedUser: AccessManagedUser | null = null;
   allowOverrides = new Set<string>();
@@ -80,13 +109,16 @@ export class CompanySettingsPageComponent implements OnInit {
     private fb: FormBuilder,
     private companyContextService: CompanyContextService,
     private accessControlService: AccessControlService,
-    private tokenStore: AuthTokenService
+    private tokenStore: AuthTokenService,
+    private vendorService: VendorService,
+    private branchService: BranchService
   ) {}
 
   ngOnInit(): void {
     this.loadContext();
     if (this.canManageAccess) {
       this.loadAccessOverview();
+      this.loadPartyOptions();
     }
   }
 
@@ -508,6 +540,139 @@ export class CompanySettingsPageComponent implements OnInit {
     this.denyOverrides.clear();
   }
 
+  // --- Create user ---
+
+  /**
+   * Vendor and branch users must link to an existing Supplier/Customer — these are ERPNext
+   * Link fields, so a free-text typo is rejected with a 417. Pickers avoid that entirely.
+   */
+  private loadPartyOptions(): void {
+    this.vendorService.listVendors().subscribe({
+      next: rows => {
+        this.supplierOptions = this.optionNames(rows, 'supplier_name');
+      },
+      error: () => {
+        this.supplierOptions = [];
+      }
+    });
+    this.branchService.listBranches().subscribe({
+      next: rows => {
+        this.branchOptions = this.optionNames(rows, 'customer_name');
+      },
+      error: () => {
+        this.branchOptions = [];
+      }
+    });
+  }
+
+  private optionNames(rows: any[], preferredKey: string): string[] {
+    return (rows ?? [])
+      .map(row => String(row?.[preferredKey] ?? row?.name ?? '').trim())
+      .filter(name => !!name)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  get createUserRole(): string {
+    return this.createUserForm.controls.role.value ?? '';
+  }
+
+  get createUserNeedsSupplier(): boolean {
+    return this.createUserRole === 'vendor';
+  }
+
+  get createUserNeedsCustomer(): boolean {
+    return this.createUserRole === 'shop';
+  }
+
+  /** Features the chosen role grants by default, for the preview strip on the form. */
+  get createUserRoleFeatures(): string[] {
+    return [...(this.defaultsByRole[this.createUserRole] ?? [])].sort();
+  }
+
+  toggleCreateUser(): void {
+    this.showCreateUser = !this.showCreateUser;
+    this.createUserMessage = '';
+    this.createUserError = '';
+    if (this.showCreateUser) {
+      this.createUserForm.reset({ role: 'helper' });
+    }
+  }
+
+  canSubmitCreateUser(): boolean {
+    if (this.createUserForm.invalid || this.isCreatingUser) {
+      return false;
+    }
+    if (this.createUserNeedsSupplier && !this.createUserForm.controls.supplier.value) {
+      return false;
+    }
+    if (this.createUserNeedsCustomer && !this.createUserForm.controls.customer.value) {
+      return false;
+    }
+    return true;
+  }
+
+  createUser(): void {
+    if (!this.canSubmitCreateUser()) {
+      this.createUserForm.markAllAsTouched();
+      return;
+    }
+    const value = this.createUserForm.value;
+    this.isCreatingUser = true;
+    this.createUserMessage = '';
+    this.createUserError = '';
+    this.accessControlService.createUser({
+      email: String(value.email ?? '').trim(),
+      fullName: String(value.fullName ?? '').trim(),
+      password: String(value.password ?? ''),
+      role: String(value.role ?? 'helper'),
+      mobileNo: String(value.mobileNo ?? '').trim(),
+      // Only send the link that matters for the role; the other stays empty.
+      supplier: this.createUserNeedsSupplier ? String(value.supplier ?? '').trim() : '',
+      customer: this.createUserNeedsCustomer ? String(value.customer ?? '').trim() : ''
+    })
+      .pipe(finalize(() => (this.isCreatingUser = false)))
+      .subscribe({
+        next: created => {
+          this.managedUsers = [...this.managedUsers, created]
+            .sort((a, b) => (a.full_name || a.name).localeCompare(b.full_name || b.name));
+          this.createUserMessage = `${created.full_name || created.name} created.`;
+          this.createUserForm.reset({ role: 'helper' });
+          this.showCreateUser = false;
+          this.selectManagedUser(created.id);
+        },
+        error: err => {
+          this.createUserError = formatUiError(err, 'Unable to create the user.');
+        }
+      });
+  }
+
+  isUserEnabled(user: AccessManagedUser): boolean {
+    return user.enabled === 1 || user.enabled === true;
+  }
+
+  toggleUserEnabled(user: AccessManagedUser, event?: Event): void {
+    event?.stopPropagation();
+    const next = !this.isUserEnabled(user);
+    this.togglingUserId = user.id;
+    this.accessMessage = '';
+    this.accessErrorMessage = '';
+    this.accessControlService.setUserEnabled(user.id, next)
+      .pipe(finalize(() => (this.togglingUserId = '')))
+      .subscribe({
+        next: updated => {
+          this.managedUsers = this.managedUsers.map(row => row.id === updated.id ? updated : row);
+          if (this.selectedUserId === updated.id) {
+            this.selectManagedUser(updated.id);
+          }
+          this.accessMessage = `${updated.full_name || updated.name} ${next ? 'enabled' : 'disabled'}.`;
+        },
+        error: err => {
+          // The server blocks disabling Administrator or your own account.
+          this.accessErrorMessage = formatUiError(err, 'Unable to change the user status.');
+        }
+      });
+  }
+
   private loadAccessOverview(): void {
     this.isLoadingAccess = true;
     this.accessControlService.getOverview()
@@ -516,6 +681,7 @@ export class CompanySettingsPageComponent implements OnInit {
         next: overview => {
           this.featureCatalog = Array.isArray(overview.features) ? overview.features : [];
           this.managedUsers = Array.isArray(overview.users) ? overview.users : [];
+          this.defaultsByRole = overview.defaultsByRole ?? {};
           if (!this.selectedUserId && this.managedUsers.length) {
             const firstNonAdmin = this.managedUsers.find(user => user.role !== 'admin') ?? this.managedUsers[0];
             this.selectManagedUser(firstNonAdmin.id);

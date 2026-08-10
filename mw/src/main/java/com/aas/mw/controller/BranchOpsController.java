@@ -58,9 +58,65 @@ public class BranchOpsController {
                 new LedgerPdfUtil.ReportContext("Branch Ledger Report", "", "", "", ""));
     }
 
+    @GetMapping("/aging")
+    public ResponseEntity<Map<String, Object>> agingSummary(
+            @RequestParam(required = false, name = "asOf") String asOfDate,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(branchOpsService.getAgingSummary(asOfDate, fromDate, toDate));
+    }
+
+    @GetMapping("/aging/export")
+    public ResponseEntity<byte[]> exportAgingSummary(
+            @RequestParam(required = false, name = "asOf") String asOfDate,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
+        List<Map<String, Object>> rows = branchOpsService.getAgingSummaryRows(asOfDate, fromDate, toDate);
+        return buildExportResponse(
+                rows,
+                "branch-aging-all",
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Branch Receivables Aging",
+                        "",
+                        asOfDate == null || asOfDate.isBlank() ? "" : "As of " + asOfDate,
+                        fromDate,
+                        toDate));
+    }
+
     @GetMapping("/{branchId}")
     public ResponseEntity<Map<String, Object>> branchDetail(@PathVariable String branchId) {
         return ResponseEntity.ok(branchOpsService.getBranchDetail(branchId));
+    }
+
+    @GetMapping("/{branchId}/aging")
+    public ResponseEntity<Map<String, Object>> branchAging(
+            @PathVariable String branchId,
+            @RequestParam(required = false, name = "asOf") String asOfDate,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate) {
+        return ResponseEntity.ok(branchOpsService.getBranchAging(branchId, asOfDate, fromDate, toDate));
+    }
+
+    @GetMapping("/{branchId}/aging/export")
+    public ResponseEntity<byte[]> exportBranchAging(
+            @PathVariable String branchId,
+            @RequestParam(required = false, name = "asOf") String asOfDate,
+            @RequestParam(required = false, name = "from") String fromDate,
+            @RequestParam(required = false, name = "to") String toDate,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
+        List<Map<String, Object>> rows = branchOpsService.getBranchAgingRows(branchId, asOfDate, fromDate, toDate);
+        return buildExportResponse(
+                rows,
+                "branch-aging-" + sanitizeFileName(branchId),
+                format,
+                new LedgerPdfUtil.ReportContext(
+                        "Branch Receivables Aging",
+                        branchId,
+                        asOfDate == null || asOfDate.isBlank() ? "" : "As of " + asOfDate,
+                        fromDate,
+                        toDate));
     }
 
     @GetMapping("/{branchId}/orders")

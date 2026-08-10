@@ -2,6 +2,7 @@ package com.aas.mw.service;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.config.AppDefaultsProperties;
+import com.aas.mw.config.AppRole;
 import com.aas.mw.meta.VendorFieldRegistry;
 import com.aas.mw.meta.VendorFieldSpec;
 import java.util.Arrays;
@@ -822,6 +823,27 @@ public class SetupService {
                 "Small Text",
                 null,
                 UserFeatureService.FEATURE_ALLOW_FIELD);
+        boolean userAppRoleField = ensureCustomField(
+                "User",
+                AppRole.FIELD,
+                "AAS App Role",
+                "Select",
+                AppRole.FIELD_OPTIONS,
+                UserFeatureService.FEATURE_DENY_FIELD);
+        boolean userSupplierField = ensureCustomField(
+                "User",
+                UserService.SUPPLIER_FIELD,
+                "AAS Supplier",
+                "Link",
+                "Supplier",
+                AppRole.FIELD);
+        boolean userCustomerField = ensureCustomField(
+                "User",
+                UserService.CUSTOMER_FIELD,
+                "AAS Customer",
+                "Link",
+                "Customer",
+                UserService.SUPPLIER_FIELD);
         boolean salesOrderCategoryField = ensureCustomField(
                 "Sales Order",
                 "aas_category",
@@ -1233,6 +1255,9 @@ public class SetupService {
         result.put("companyPincodeFieldCreated", companyPincodeField);
         result.put("userFeatureAllowFieldCreated", userFeatureAllowField);
         result.put("userFeatureDenyFieldCreated", userFeatureDenyField);
+        result.put("userAppRoleFieldCreated", userAppRoleField);
+        result.put("userSupplierFieldCreated", userSupplierField);
+        result.put("userCustomerFieldCreated", userCustomerField);
         result.put("salesInvoicePrintFormatEnsured", ensureSalesInvoicePrintFormat());
         result.put("adjustmentNotePrintFormatEnsured", ensureAdjustmentNotePrintFormat());
         result.put("temporaryOpeningAccountEnsured", ensureTemporaryOpeningAccount());
@@ -1543,12 +1568,38 @@ public class SetupService {
                 helperRoles(),
                 null,
                 null);
+        boolean administratorRoleStamped = ensureAdministratorAppRole();
         result.put("vendorSupplierCreated", vendorSupplierCreated);
         result.put("shopCustomerCreated", shopCustomerCreated);
         result.put("vendorUserCreated", vendorUserCreated);
         result.put("shopUserCreated", shopUserCreated);
         result.put("helperUserCreated", helperUserCreated);
+        result.put("administratorRoleStamped", administratorRoleStamped);
         return result;
+    }
+
+    /**
+     * Frappe grants the {@code Administrator} role implicitly rather than through the User
+     * doc's roles child table, so role resolution falls through to whatever else is listed
+     * (typically {@code Stock User}) and lands on HELPER. Stamping the app role directly
+     * makes both the login and admin paths resolve ADMIN.
+     */
+    private boolean ensureAdministratorAppRole() {
+        try {
+            Map<String, Object> user = unwrap(erpNextClient.getResource("User", "Administrator"));
+            if (user.isEmpty()) {
+                return false;
+            }
+            String current = user.get(AppRole.FIELD) == null ? "" : user.get(AppRole.FIELD).toString().trim();
+            if (AppRole.ADMIN.asKey().equalsIgnoreCase(current)) {
+                return false;
+            }
+            erpNextClient.updateResource("User", "Administrator", Map.of(AppRole.FIELD, AppRole.ADMIN.asKey()));
+            return true;
+        } catch (RuntimeException ignored) {
+            // Best effort: setup must not fail because the Administrator doc is unreadable.
+            return false;
+        }
     }
 
     private boolean ensureSupplier(String supplierName) {
@@ -1708,19 +1759,14 @@ public class SetupService {
         payload.put("send_welcome_email", 0);
         payload.put("new_password", password);
         payload.put("user_type", "System User");
-        if (supplier != null && !supplier.isBlank()) {
-            payload.put("supplier", supplier);
-        }
-        if (customer != null && !customer.isBlank()) {
-            payload.put("customer", customer);
-        } else {
-            payload.put("customer", "");
-        }
-        if (supplier == null || supplier.isBlank()) {
-            payload.put("supplier", "");
-        }
+        payload.put(UserService.SUPPLIER_FIELD, supplier == null ? "" : supplier.trim());
+        payload.put(UserService.CUSTOMER_FIELD, customer == null ? "" : customer.trim());
         if (role != null && !role.isBlank()) {
             payload.put("roles", List.of(Map.of("role", role)));
+        }
+        String appRoleKey = resolveAppRoleKey(role == null ? List.of() : List.of(role));
+        if (!appRoleKey.isBlank()) {
+            payload.put(AppRole.FIELD, appRoleKey);
         }
         if (resourceExists("User", email)) {
             erpNextClient.updateResource("User", email, payload);
@@ -1759,17 +1805,8 @@ public class SetupService {
         payload.put("send_welcome_email", 0);
         payload.put("new_password", password);
         payload.put("user_type", "System User");
-        if (supplier != null && !supplier.isBlank()) {
-            payload.put("supplier", supplier);
-        }
-        if (customer != null && !customer.isBlank()) {
-            payload.put("customer", customer);
-        } else {
-            payload.put("customer", "");
-        }
-        if (supplier == null || supplier.isBlank()) {
-            payload.put("supplier", "");
-        }
+        payload.put(UserService.SUPPLIER_FIELD, supplier == null ? "" : supplier.trim());
+        payload.put(UserService.CUSTOMER_FIELD, customer == null ? "" : customer.trim());
         if (roles != null && !roles.isEmpty()) {
             payload.put("roles", roles.stream()
                     .filter(role -> role != null && !role.isBlank())
@@ -1777,12 +1814,43 @@ public class SetupService {
                     .map(role -> Map.of("role", role))
                     .toList());
         }
+        String appRoleKey = resolveAppRoleKey(roles);
+        if (!appRoleKey.isBlank()) {
+            payload.put(AppRole.FIELD, appRoleKey);
+        }
         if (resourceExists("User", email)) {
             erpNextClient.updateResource("User", email, payload);
             return true;
         }
         erpNextClient.createResource("User", payload);
         return true;
+    }
+
+    /**
+     * Maps the configured ERP role names back to an app role key for {@link AppRole#FIELD}.
+     * Seeded users need this stamped for the same reason admin-created ones do: login reads
+     * the User doc with the user's own session and cannot see the roles child table.
+     */
+    private String resolveAppRoleKey(List<String> erpRoles) {
+        if (erpRoles == null) {
+            return "";
+        }
+        for (String erpRole : erpRoles) {
+            if (erpRole == null || erpRole.isBlank()) {
+                continue;
+            }
+            String value = erpRole.trim();
+            if (value.equalsIgnoreCase(vendorRole)) {
+                return AppRole.VENDOR.asKey();
+            }
+            if (value.equalsIgnoreCase(shopRole)) {
+                return AppRole.SHOP.asKey();
+            }
+            if (value.equalsIgnoreCase(helperRole)) {
+                return AppRole.HELPER.asKey();
+            }
+        }
+        return "";
     }
 
     private List<String> helperRoles() {

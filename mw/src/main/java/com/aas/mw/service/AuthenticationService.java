@@ -75,21 +75,24 @@ public class AuthenticationService {
     }
 
     private AppRole resolveAppRole(String sessionCookie, String canonicalUserId) {
+        // The stamped app role is authoritative and is checked before ERP roles: Frappe
+        // grants "Administrator" implicitly rather than through the roles child table, so
+        // deriving from ERP roles would resolve that account to HELPER via "Stock User".
+        Map<String, Object> user = unwrapResource(erpNextClient.getResourceWithSession("User", canonicalUserId, sessionCookie));
+        AppRole explicitRole = resolveExplicitAppRole(user.get(AppRole.FIELD));
+        if (explicitRole != null) {
+            return explicitRole;
+        }
+
         try {
             return roleResolver.resolve(erpNextClient.getUserRoles(sessionCookie, canonicalUserId));
         } catch (IllegalStateException ignored) {
             // Fall through to self-profile inference below.
         }
-
-        Map<String, Object> user = unwrapResource(erpNextClient.getResourceWithSession("User", canonicalUserId, sessionCookie));
-        AppRole explicitRole = resolveExplicitAppRole(user.get("aas_app_role"));
-        if (explicitRole != null) {
-            return explicitRole;
-        }
-        if (hasText(user.get("supplier"))) {
+        if (hasText(user.get(UserService.SUPPLIER_FIELD)) || hasText(user.get("supplier"))) {
             return AppRole.VENDOR;
         }
-        if (hasText(user.get("customer"))) {
+        if (hasText(user.get(UserService.CUSTOMER_FIELD)) || hasText(user.get("customer"))) {
             return AppRole.SHOP;
         }
         if (hasText(user.get(UserFeatureService.FEATURE_ALLOW_FIELD)) || hasText(user.get(UserFeatureService.FEATURE_DENY_FIELD))) {

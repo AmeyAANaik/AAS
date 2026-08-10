@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { CompanySettingsPageComponent } from './company-settings-page.component';
 import { CompanySettingsRoutingModule } from './company-settings-routing.module';
@@ -20,6 +21,7 @@ import { CompanySettingsRoutingModule } from './company-settings-routing.module'
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     PageHeaderComponent,
     CompanySettingsRoutingModule
   ]

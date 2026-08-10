@@ -404,3 +404,151 @@
     align-items: flex-start;
   }
 }
+
+/* ---- Receivables aging tab ---- */
+
+.branch-ops-tabs {
+  margin-top: var(--spacing-md, 16px);
+}
+
+.aging-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg, 24px);
+  padding: var(--spacing-md, 16px) 0;
+}
+
+.aging-toolbar {
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 12px);
+}
+
+.aging-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-md, 16px);
+}
+
+.ranking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--spacing-md, 16px);
+}
+
+.ranking-card {
+  background: var(--bg-surface, #fff);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+  border-radius: var(--border-radius, 8px);
+  padding: var(--spacing-md, 16px);
+}
+
+.ranking-header {
+  margin-bottom: var(--spacing-sm, 12px);
+}
+
+.ranking-note {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ranking-row {
+  cursor: pointer;
+  border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
+
+  &:hover {
+    background: rgba(91, 107, 255, 0.06);
+  }
+
+  td {
+    padding: 8px 6px;
+    font-size: 13px;
+  }
+}
+
+.ranking-branch {
+  font-weight: 500;
+}
+
+.ranking-age {
+  color: var(--text-secondary, #6b7280);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ranking-caption {
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+.aging-row {
+  cursor: pointer;
+}
+
+.draft-row {
+  opacity: 0.75;
+}
+
+.aging-footnote {
+  margin-top: var(--spacing-sm, 12px);
+  font-size: 12px;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* Bucket severity. Colour is a reinforcement only: every bucket header states its
+   day range in words, and the risk column carries a text label. */
+.bucket-neutral { color: var(--text-secondary, #6b7280); }
+.bucket-info { color: var(--color-primary, #5b6bff); }
+.bucket-warn { color: var(--color-warning, #faad14); }
+.bucket-warn-strong { color: var(--color-warning, #faad14); font-weight: 600; }
+.bucket-danger { color: var(--color-danger, #f0516d); font-weight: 600; }
+
+.reconciliation-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 12px);
+  padding: var(--spacing-md, 16px);
+  background: var(--bg-surface, #fff);
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.08));
+  border-radius: var(--border-radius, 8px);
+  margin-bottom: var(--spacing-sm, 12px);
+}
+
+.recon-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary, #6b7280);
+  }
+
+  strong {
+    font-size: 16px;
+  }
+}
+
+.recon-total strong {
+  color: var(--color-primary, #5b6bff);
+}
+
+.recon-op {
+  font-size: 18px;
+  color: var(--text-muted, #9ca3af);
+  padding: 0 4px;
+}
+
+.recon-warning {
+  color: var(--color-danger, #f0516d);
+  font-size: 12px;
+  font-weight: 600;
+}

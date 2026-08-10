@@ -24,6 +24,87 @@ const MOCK_CATEGORY_LEDGER = {
   categoryId: 'Spices', categoryLabel: 'Spices'
 };
 
+const AGING_ROW = {
+  branchId: 'BRANCH-1',
+  branchName: 'Test Branch',
+  location: 'Pune',
+  creditDays: 7,
+  submittedOutstanding: 52353,
+  notDue: 0,
+  d1_7: 0,
+  d8_15: 0,
+  d16_30: 2206,
+  d30Plus: 50147,
+  overdueAmount: 52353,
+  openInvoiceCount: 3,
+  overdueInvoiceCount: 3,
+  oldestOverdueDays: 51,
+  oldestOverdueInvoiceId: 'SINV-060',
+  oldestOverdueDueDate: '2026-06-12',
+  draftUnbilledAmount: 909186,
+  draftInvoiceCount: 55,
+  oldestDraftDays: 57,
+  ledgerBalance: 720934,
+  unappliedCredits: 240605,
+  onTimePaymentPct: 0,
+  onTimePaymentSample: 39,
+  onTimePaymentDenominator: 39,
+  onTimeCoveragePct: 100,
+  onTimeReliable: true,
+  dueDateMissingCount: 0,
+  riskScore: 8,
+  riskScoreMax: 9,
+  riskPct: 88.89,
+  riskTier: 'DEFAULTER',
+  riskBasis: 'FULL',
+  riskReasons: ['Oldest overdue 51 days', 'Overdue ₹52,353']
+};
+
+const MOCK_AGING = {
+  asOfDate: '2026-08-02',
+  asOfDateIsHistorical: false,
+  buckets: [
+    { key: 'notDue', label: 'Not due' },
+    { key: 'd1_7', label: '1-7 days' },
+    { key: 'd8_15', label: '8-15 days' },
+    { key: 'd16_30', label: '16-30 days' },
+    { key: 'd30Plus', label: '30+ days' }
+  ],
+  coverage: { settledSubmittedInvoices: 39, referencedSettledInvoices: 39, onTimeCoveragePct: 100, onTimeReliable: true },
+  thresholds: {},
+  totals: {
+    branches: 1, notDue: 0, d1_7: 0, d8_15: 0, d16_30: 2206, d30Plus: 50147,
+    submittedOutstanding: 52353, overdueAmount: 52353, draftUnbilledAmount: 909186,
+    ledgerBalance: 720934, unappliedCredits: 240605,
+    defaulterBranches: 1, watchBranches: 0, goodBranches: 0
+  },
+  collectionsRanking: ['BRANCH-1'],
+  backlogRanking: ['BRANCH-1'],
+  branches: [AGING_ROW]
+};
+
+const MOCK_BRANCH_AGING = {
+  asOfDate: '2026-08-02',
+  asOfDateIsHistorical: false,
+  buckets: MOCK_AGING.buckets,
+  branch: { branchId: 'BRANCH-1', branchName: 'Test Branch', location: 'Pune', creditDays: 7 },
+  summary: AGING_ROW,
+  reconciliation: { submittedOutstanding: 52353, draftUnbilled: 909186, unappliedCredits: 240605, ledgerBalance: 720934, balanced: true },
+  coverage: MOCK_AGING.coverage,
+  invoices: [
+    {
+      invoiceId: 'SINV-060', stage: 'SUBMITTED', docstatus: 1, postingDate: '2026-06-05', dueDate: '2026-06-12',
+      dueDateSource: 'ERP', status: 'Overdue', invoiceAmount: 50147, outstandingAmount: 50147, paidAmount: 0,
+      daysPastDue: 51, bucket: 'd30Plus', bucketLabel: '30+ days', settlementDate: '', paidOnTime: null
+    },
+    {
+      invoiceId: 'SINV-301', stage: 'DRAFT', docstatus: 0, postingDate: '2026-07-28', dueDate: '2026-08-04',
+      dueDateSource: 'ERP', status: 'Draft', invoiceAmount: 18410, outstandingAmount: 18410, paidAmount: 0,
+      daysPastDue: null, bucket: 'draft', bucketLabel: 'Draft / unbilled', settlementDate: '', paidOnTime: null
+    }
+  ]
+};
+
 async function setupAuth(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
     localStorage.setItem('aas_auth_token', 'test-token');
@@ -45,6 +126,16 @@ async function mockApis(page: import('@playwright/test').Page, exportRequests?: 
 
     if (path === '/api/branch-ops/summary') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_SUMMARY) });
+    }
+    if (path.endsWith('/aging/export')) {
+      exportRequests?.push(url);
+      return route.fulfill({ status: 200, contentType: 'text/csv', body: 'Branch,Overdue\nTest Branch,52353' });
+    }
+    if (path === '/api/branch-ops/aging') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_AGING) });
+    }
+    if (path.endsWith('/aging')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_BRANCH_AGING) });
     }
     if (path.endsWith('/ledger/category/export')) {
       exportRequests?.push(url);
@@ -163,4 +254,72 @@ test('category summary download shows menu and sends format=pdf', async ({ page 
 
   expect(capturedUrls.some(u => u.includes('format=pdf') && u.includes('/ledger/categories/export')),
     `Expected format=pdf in categories export. Got: ${capturedUrls.join(', ')}`).toBeTruthy();
+});
+
+test('aging tab shows both rankings, the aging matrix and a defaulter pill', async ({ page }) => {
+  await setupAuth(page);
+  await mockApis(page);
+
+  await page.goto('/branch-ops');
+  await expect(page.locator('.kpi-grid')).toBeVisible({ timeout: 8000 });
+
+  await page.getByRole('tab', { name: 'Aging' }).click();
+  await expect(page.locator('.aging-panel')).toBeVisible({ timeout: 8000 });
+
+  // Both ranked lists render, and the caption separates backlog from payment failure.
+  await expect(page.getByText('Collections risk')).toBeVisible();
+  await expect(page.getByText('Billing backlog')).toBeVisible();
+  await expect(page.getByText(/internal billing gap/i)).toBeVisible();
+
+  // Aging matrix carries all five bucket headers.
+  for (const label of ['Not due', '1-7 days', '8-15 days', '16-30 days', '30+ days']) {
+    await expect(page.getByRole('columnheader', { name: label })).toBeVisible();
+  }
+
+  await expect(page.locator('.aging-panel').getByText('Defaulter').first()).toBeVisible();
+});
+
+test('aging tab deep-links via the tab query param', async ({ page }) => {
+  await setupAuth(page);
+  await mockApis(page);
+
+  await page.goto('/branch-ops?tab=aging');
+  await expect(page.locator('.aging-panel')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByText('Collections risk')).toBeVisible();
+});
+
+test('branch aging detail shows the reconciliation bridge to the ledger balance', async ({ page }) => {
+  await setupAuth(page);
+  await mockApis(page);
+
+  await page.goto('/branch-ops/BRANCH-1?tab=aging');
+  await expect(page.locator('.reconciliation-strip')).toBeVisible({ timeout: 10000 });
+
+  const strip = page.locator('.reconciliation-strip');
+  await expect(strip).toContainText('52,353');
+  await expect(strip).toContainText('909,186');
+  await expect(strip).toContainText('720,934');
+  await expect(strip).toContainText('Ledger balance');
+
+  // Drafts are visibly separated from aged invoices rather than mixed into the buckets.
+  await expect(page.getByText('Draft / unbilled').first()).toBeVisible();
+});
+
+test('aging export sends the requested format and as-of date', async ({ page }) => {
+  await setupAuth(page);
+  const capturedUrls: string[] = [];
+  await mockApis(page, capturedUrls);
+
+  await page.goto('/branch-ops?tab=aging');
+  await expect(page.locator('.aging-panel')).toBeVisible({ timeout: 8000 });
+
+  const downloadBtn = page.locator('[aria-label="Download aging report"]');
+  await expect(downloadBtn).toBeVisible();
+  await downloadBtn.click();
+
+  const xlsxItem = page.getByRole('menuitem', { name: /Excel/i });
+  await expect(xlsxItem).toBeVisible();
+  await xlsxItem.click();
+
+  await expect.poll(() => capturedUrls.some(url => url.includes('/aging/export') && url.includes('format=xlsx'))).toBe(true);
 });

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.atLeastOnce;
 
 import com.aas.mw.client.ErpNextClient;
 import com.aas.mw.config.AppDefaultsProperties;
+import com.aas.mw.config.AppRole;
 import feign.Request;
 import feign.Response;
 import com.aas.mw.meta.VendorFieldRegistry;
@@ -254,8 +255,10 @@ class SetupServiceTest {
                                 Map.of("role", "Accounts User"),
                                 Map.of("role", "Sales User"))
                                 .equals(payload.get("roles"))
-                        && "".equals(payload.get("supplier"))
-                        && "".equals(payload.get("customer"))));
+                        && "".equals(payload.get(UserService.SUPPLIER_FIELD))
+                        && "".equals(payload.get(UserService.CUSTOMER_FIELD))
+                        // Stamped so login can resolve the role without the roles child table.
+                        && "helper".equals(payload.get(AppRole.FIELD))));
     }
 
     @Test

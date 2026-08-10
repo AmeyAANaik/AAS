@@ -517,26 +517,111 @@
         <div class="section-subtitle">Adjust sidebar and screen visibility per user without changing their base application role.</div>
       </div>
       <div class="access-note">Role defaults stay intact. Allow/Deny only adds UI overrides.</div>
+      <button mat-flat-button color="primary" type="button" class="create-user-toggle" (click)="toggleCreateUser()">
+        {{ showCreateUser ? 'Cancel' : '+ New User' }}
+      </button>
     </div>
 
     <div class="state" *ngIf="isLoadingAccess">Loading access controls...</div>
     <div class="state error" *ngIf="accessErrorMessage">{{ accessErrorMessage }}</div>
     <div class="state success" *ngIf="accessMessage">{{ accessMessage }}</div>
+    <div class="state success" *ngIf="createUserMessage">{{ createUserMessage }}</div>
+
+    <section class="create-user-panel" *ngIf="showCreateUser" [formGroup]="createUserForm">
+      <div class="create-user-title">Create a user</div>
+      <div class="state error" *ngIf="createUserError">{{ createUserError }}</div>
+
+      <div class="create-user-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Full name</mat-label>
+          <input matInput formControlName="fullName" placeholder="Ravi Kumar" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" type="email" placeholder="ravi@example.com" />
+          <mat-error *ngIf="createUserForm.controls.email.hasError('email')">Enter a valid email address.</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput formControlName="password" type="password" />
+          <mat-hint>At least 8 characters.</mat-hint>
+          <mat-error *ngIf="createUserForm.controls.password.hasError('minlength')">
+            Password must be at least 8 characters.
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Role</mat-label>
+          <mat-select formControlName="role">
+            <mat-option *ngFor="let role of assignableRoles" [value]="role.id">{{ role.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Mobile (optional)</mat-label>
+          <input matInput formControlName="mobileNo" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="createUserNeedsSupplier">
+          <mat-label>Supplier</mat-label>
+          <mat-select formControlName="supplier">
+            <mat-option *ngFor="let option of supplierOptions" [value]="option">{{ option }}</mat-option>
+          </mat-select>
+          <mat-hint>Vendor users must be linked to a supplier.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="createUserNeedsCustomer">
+          <mat-label>Branch</mat-label>
+          <mat-select formControlName="customer">
+            <mat-option *ngFor="let option of branchOptions" [value]="option">{{ option }}</mat-option>
+          </mat-select>
+          <mat-hint>Branch users must be linked to a customer.</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <div class="role-preview" *ngIf="createUserRoleFeatures.length">
+        <span class="role-preview__label">This role grants {{ createUserRoleFeatures.length }} screens:</span>
+        <span class="role-preview__chip" *ngFor="let feature of createUserRoleFeatures">{{ feature }}</span>
+        <div class="role-preview__note">You can fine-tune these with Allow/Deny after the user is created.</div>
+      </div>
+
+      <div class="access-actions">
+        <button mat-stroked-button type="button" (click)="toggleCreateUser()" [disabled]="isCreatingUser">Cancel</button>
+        <button mat-flat-button color="primary" type="button" (click)="createUser()" [disabled]="!canSubmitCreateUser()">
+          {{ isCreatingUser ? 'Creating...' : 'Create User' }}
+        </button>
+      </div>
+    </section>
 
     <div class="access-layout" *ngIf="!isLoadingAccess">
       <section class="user-list">
-        <button
-          type="button"
-          class="user-list-item"
+        <div
+          class="user-list-row"
           *ngFor="let user of managedUsers"
           [class.active]="user.id === selectedUserId"
-          (click)="selectManagedUser(user.id)">
-          <div class="user-list-item__title">{{ user.full_name || user.name }}</div>
-          <div class="user-list-item__meta">
-            <span>{{ user.email || user.name }}</span>
-            <span class="role-chip">{{ labelForRole(user.role) }}</span>
-          </div>
-        </button>
+          [class.disabled-user]="!isUserEnabled(user)">
+          <button type="button" class="user-list-item" (click)="selectManagedUser(user.id)">
+            <div class="user-list-item__title">
+              {{ user.full_name || user.name }}
+              <span class="status-chip status-chip--off" *ngIf="!isUserEnabled(user)">Disabled</span>
+            </div>
+            <div class="user-list-item__meta">
+              <span>{{ user.email || user.name }}</span>
+              <span class="role-chip">{{ labelForRole(user.role) }}</span>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="user-toggle"
+            [class.user-toggle--off]="!isUserEnabled(user)"
+            [disabled]="togglingUserId === user.id"
+            [title]="isUserEnabled(user) ? 'Disable this user' : 'Enable this user'"
+            (click)="toggleUserEnabled(user, $event)">
+            {{ togglingUserId === user.id ? '...' : (isUserEnabled(user) ? 'Disable' : 'Enable') }}
+          </button>
+        </div>
       </section>
 
       <section class="access-editor" *ngIf="selectedUser as user">

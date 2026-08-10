@@ -10,7 +10,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTableModule } from '@angular/material/table';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatNativeDateModule } from '@angular/material/core';
+import { BerryStatCardComponent } from '../shared/components/berry-stat-card/berry-stat-card.component';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../shared/page-header/page-header.component';
 import { StatusPillComponent } from '../shared/status-pill/status-pill.component';
@@ -31,7 +33,9 @@ import { BranchOpsRoutingModule } from './branch-ops-routing.module';
     MatTableModule,
     MatMenuModule,
     MatTabsModule,
+    MatTooltipModule,
     MatNativeDateModule,
+    BerryStatCardComponent,
     EmptyStateComponent,
     PageHeaderComponent,
     StatusPillComponent,

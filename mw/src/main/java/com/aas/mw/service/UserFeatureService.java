@@ -132,12 +132,20 @@ public class UserFeatureService {
         }
     }
 
+    /**
+     * Encodes to an empty string rather than {@code "[]"} when there are no overrides.
+     * Callers treat a non-blank value on the User doc as "this user has AAS overrides", so a
+     * literal {@code "[]"} would read as a meaningful override and misclassify the user.
+     */
     public String encodeFeatureOverrides(List<String> features) {
         List<String> sanitized = sanitizeFeatureList(features);
+        if (sanitized.isEmpty()) {
+            return "";
+        }
         try {
             return objectMapper.writeValueAsString(sanitized);
         } catch (Exception ex) {
-            return "[]";
+            return "";
         }
     }
 

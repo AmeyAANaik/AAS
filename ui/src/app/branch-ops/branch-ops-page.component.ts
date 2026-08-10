@@ -2,8 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { FormControl, FormGroup } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { finalize } from 'rxjs/operators';
-import { BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
-import { BranchOpsService, ExportFormat } from './branch-ops.service';
+import { formatUiError } from '../shared/error-message.util';
+import { BranchOpsAgingBucketKey, BranchOpsAgingDetail, BranchOpsAgingRow, BranchOpsAgingSummary, BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsRiskTier, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
+import { BranchOpsAgingQuery, BranchOpsService, ExportFormat } from './branch-ops.service';
 
 @Component({
   selector: 'app-branch-ops-page',
@@ -22,6 +23,23 @@ export class BranchOpsPageComponent implements OnInit {
   readonly summaryColumns = ['branch', 'pendingOrders', 'awaitingVendorAssignment', 'awaitingVendorResponse', 'inProgress', 'openReceivableAmount', 'lastActivity', 'location', 'ledgerBalance', 'actions'];
   readonly orderColumns = ['orderId', 'vendor', 'status', 'orderDate', 'parsedItems', 'vendorBillTotal', 'sellOrderTotal', 'invoiceId', 'actions'];
   readonly ledgerColumns = ['date', 'voucherType', 'voucherNo', 'reference', 'debit', 'credit', 'netChange', 'runningBalance'];
+  readonly agingColumns = [
+    'branch', 'notDue', 'd1_7', 'd8_15', 'd16_30', 'd30Plus',
+    'overdueAmount', 'draftUnbilledAmount', 'ledgerBalance', 'oldestOverdueDays', 'onTimePaymentPct', 'riskTier'
+  ];
+  readonly agingInvoiceColumns = [
+    'invoiceId', 'postingDate', 'dueDate', 'stage', 'status',
+    'invoiceAmount', 'outstandingAmount', 'daysPastDue', 'bucketLabel'
+  ];
+  readonly agingAsOfControl = new FormControl<Date | null>(new Date());
+
+  activeTabIndex = 0;
+  aging: BranchOpsAgingSummary | null = null;
+  branchAging: BranchOpsAgingDetail | null = null;
+  isLoadingAging = false;
+  agingErrorMessage = '';
+  private agingLoaded = false;
+  private appliedAsOf: string | undefined;
 
   totals: BranchOpsSummaryTotals = {
     totalBranches: 0,
@@ -57,6 +75,13 @@ export class BranchOpsPageComponent implements OnInit {
   ngOnInit(): void {
     this.loadSummary();
     this.ensureDefaultLedgerRange();
+    this.route.queryParamMap.subscribe(params => {
+      const wantsAging = params.get('tab') === 'aging';
+      this.activeTabIndex = wantsAging ? 1 : 0;
+      if (wantsAging) {
+        this.ensureAgingLoaded();
+      }
+    });
     this.route.paramMap.subscribe(params => {
       const branchId = params.get('branchId');
       if (branchId) {
@@ -85,7 +110,147 @@ export class BranchOpsPageComponent implements OnInit {
   }
 
   viewBranch(branchId: string): void {
-    this.router.navigate(['/branch-ops', branchId]);
+    this.router.navigate(['/branch-ops', branchId], { queryParamsHandling: 'merge' });
+  }
+
+  onTabChange(index: number): void {
+    this.activeTabIndex = index;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: index === 1 ? 'aging' : null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+    if (index === 1) {
+      this.ensureAgingLoaded();
+    }
+  }
+
+  loadAging(): void {
+    this.isLoadingAging = true;
+    this.agingErrorMessage = '';
+    this.branchOpsService.getAgingSummary(this.agingQuery)
+      .pipe(finalize(() => (this.isLoadingAging = false)))
+      .subscribe({
+        next: response => {
+          this.aging = response;
+          this.agingLoaded = true;
+        },
+        error: err => {
+          this.aging = null;
+          this.agingErrorMessage = formatUiError(err, 'Unable to load the receivables aging report.');
+        }
+      });
+    const branchId = this.selectedBranch?.branch?.branchId;
+    if (branchId) {
+      this.loadBranchAging(branchId);
+    }
+  }
+
+  loadBranchAging(branchId: string): void {
+    this.branchOpsService.getBranchAging(branchId, this.agingQuery).subscribe({
+      next: detail => (this.branchAging = detail),
+      error: err => {
+        this.branchAging = null;
+        this.agingErrorMessage = formatUiError(err, 'Unable to load branch aging detail.');
+      }
+    });
+  }
+
+  applyAgingAsOf(): void {
+    this.appliedAsOf = this.toIsoDate(this.agingAsOfControl.value ?? null);
+    this.loadAging();
+  }
+
+  resetAgingAsOf(): void {
+    this.agingAsOfControl.setValue(new Date());
+    this.appliedAsOf = undefined;
+    this.loadAging();
+  }
+
+  downloadAging(format: ExportFormat = 'csv'): void {
+    this.branchOpsService.downloadAgingSummary(this.agingQuery, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-aging-all.${format}`),
+      error: err => {
+        this.agingErrorMessage = formatUiError(err, 'Unable to download the aging report.');
+      }
+    });
+  }
+
+  downloadBranchAging(format: ExportFormat = 'csv'): void {
+    const branchId = this.branchAging?.branch?.branchId ?? this.selectedBranch?.branch?.branchId;
+    if (!branchId) {
+      return;
+    }
+    this.branchOpsService.downloadBranchAging(branchId, this.agingQuery, format).subscribe({
+      next: blob => this.saveBlob(blob, `branch-aging-${this.toFileSegment(branchId)}.${format}`),
+      error: err => {
+        this.agingErrorMessage = formatUiError(err, 'Unable to download branch aging detail.');
+      }
+    });
+  }
+
+  /** Worst collections risk first — the branches chasing money is most urgent for. */
+  get collectionsRisk(): BranchOpsAgingRow[] {
+    return this.orderByRanking(this.aging?.collectionsRanking);
+  }
+
+  /** Largest unbilled backlog first — an internal billing gap, not a branch payment failure. */
+  get billingBacklog(): BranchOpsAgingRow[] {
+    return this.orderByRanking(this.aging?.backlogRanking);
+  }
+
+  bucketTone(key: BranchOpsAgingBucketKey): 'neutral' | 'info' | 'warn' | 'warn-strong' | 'danger' {
+    switch (key) {
+      case 'notDue': return 'neutral';
+      case 'd1_7': return 'info';
+      case 'd8_15': return 'warn';
+      case 'd16_30': return 'warn-strong';
+      default: return 'danger';
+    }
+  }
+
+  riskTone(tier: BranchOpsRiskTier): 'success' | 'warning' | 'danger' {
+    if (tier === 'DEFAULTER') {
+      return 'danger';
+    }
+    return tier === 'WATCH' ? 'warning' : 'success';
+  }
+
+  riskLabel(tier: BranchOpsRiskTier): string {
+    if (tier === 'DEFAULTER') {
+      return 'Defaulter';
+    }
+    return tier === 'WATCH' ? 'Watch' : 'Good';
+  }
+
+  /** An asterisk marks a percentage computed from too few referenced payments to trust. */
+  onTimeDisplay(row: BranchOpsAgingRow): string {
+    if (row.onTimePaymentPct === null || row.onTimePaymentPct === undefined) {
+      return '—';
+    }
+    const value = `${Math.round(row.onTimePaymentPct)}%`;
+    return row.onTimeReliable ? value : `${value} *`;
+  }
+
+  private ensureAgingLoaded(): void {
+    if (this.agingLoaded || this.isLoadingAging) {
+      return;
+    }
+    this.loadAging();
+  }
+
+  private orderByRanking(ranking: string[] | undefined): BranchOpsAgingRow[] {
+    const rows = this.aging?.branches ?? [];
+    if (!ranking?.length) {
+      return rows;
+    }
+    const byId = new Map(rows.map(row => [row.branchId, row]));
+    return ranking.map(id => byId.get(id)).filter((row): row is BranchOpsAgingRow => !!row);
+  }
+
+  private get agingQuery(): BranchOpsAgingQuery {
+    return this.appliedAsOf ? { asOf: this.appliedAsOf } : {};
   }
 
   openOrder(orderId: string): void {
@@ -356,6 +521,9 @@ export class BranchOpsPageComponent implements OnInit {
     this.clearCategoryLedger();
     this.forceSelectTopCategory = true;
     this.reloadLedgers();
+    if (this.activeTabIndex === 1) {
+      this.loadBranchAging(branchId);
+    }
   }
 
   private ensureDefaultLedgerRange(): void {

@@ -10,6 +10,9 @@
 	    <mat-card class="kpi-card"><div class="kpi-label">Amount Receivable</div><div class="kpi-value">{{ totals.openReceivableAmount | number:'1.0-2' }}</div></mat-card>
   </div>
 
+  <mat-tab-group class="branch-ops-tabs" [selectedIndex]="activeTabIndex" (selectedIndexChange)="onTabChange($event)">
+    <mat-tab label="Operations">
+
   <mat-card class="summary-card">
     <div class="card-header">
       <div>
@@ -221,4 +224,182 @@
 	      </div>
 	    </mat-card>
 	  </section>
+    </mat-tab>
+
+    <mat-tab label="Aging">
+      <div class="aging-panel">
+        <div class="card-header aging-toolbar">
+          <div>
+            <div class="card-title">Receivables aging &amp; defaulters</div>
+            <div class="card-subtitle">
+              Only submitted invoices are aged. Draft invoices carry no due-date obligation yet, so they are tracked separately.
+            </div>
+          </div>
+          <div class="card-actions">
+            <mat-form-field appearance="outline" class="range-field">
+              <mat-label>As of</mat-label>
+              <input matInput [matDatepicker]="asOfPicker" [formControl]="agingAsOfControl" />
+              <mat-datepicker-toggle matSuffix [for]="asOfPicker"></mat-datepicker-toggle>
+              <mat-datepicker #asOfPicker></mat-datepicker>
+            </mat-form-field>
+            <button mat-stroked-button type="button" color="primary" (click)="applyAgingAsOf()">Apply</button>
+            <button mat-button type="button" (click)="resetAgingAsOf()">Today</button>
+            <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="agingExportMenu" [disabled]="!aging" aria-label="Download aging report">
+              <mat-icon>download</mat-icon>
+            </button>
+            <mat-menu #agingExportMenu="matMenu">
+              <button mat-menu-item (click)="downloadAging('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+              <button mat-menu-item (click)="downloadAging('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+              <button mat-menu-item (click)="downloadAging('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+            </mat-menu>
+          </div>
+        </div>
+
+        <div class="state error" *ngIf="agingErrorMessage">{{ agingErrorMessage }}</div>
+        <div class="state" *ngIf="isLoadingAging">Loading receivables aging...</div>
+
+        <ng-container *ngIf="aging as report">
+          <div class="aging-stat-grid">
+            <app-berry-stat-card label="Total Overdue" [value]="'₹' + (report.totals.overdueAmount | number:'1.0-0')" icon="running_with_errors" type="danger"></app-berry-stat-card>
+            <app-berry-stat-card label="Defaulter Branches" [value]="report.totals.defaulterBranches + ' of ' + report.totals.branches" icon="gpp_bad" type="danger"></app-berry-stat-card>
+            <app-berry-stat-card label="Unbilled Backlog" [value]="'₹' + (report.totals.draftUnbilledAmount | number:'1.0-0')" icon="pending_actions" type="warning"></app-berry-stat-card>
+            <app-berry-stat-card label="Ledger Receivable" [value]="'₹' + (report.totals.ledgerBalance | number:'1.0-0')" icon="account_balance_wallet" type="primary"></app-berry-stat-card>
+          </div>
+
+          <div class="ranking-grid">
+            <div class="ranking-card">
+              <div class="ranking-header">
+                <div class="subsection-title">Collections risk</div>
+                <div class="ranking-note">Money owed past its due date — worst first.</div>
+              </div>
+              <table class="ranking-table">
+                <tr *ngFor="let row of collectionsRisk" class="ranking-row" (click)="viewBranch(row.branchId)">
+                  <td class="ranking-branch">{{ row.branchName }}</td>
+                  <td class="amount-cell bucket-danger">₹{{ row.overdueAmount | number:'1.0-0' }}</td>
+                  <td class="ranking-age">{{ row.oldestOverdueDays ? row.oldestOverdueDays + 'd' : '—' }}</td>
+                  <td><app-status-pill [label]="riskLabel(row.riskTier)" [matTooltip]="row.riskReasons.join(' · ')"></app-status-pill></td>
+                </tr>
+              </table>
+            </div>
+
+            <div class="ranking-card">
+              <div class="ranking-header">
+                <div class="subsection-title">Billing backlog</div>
+                <div class="ranking-note">Value sitting in draft invoices — never issued to the branch.</div>
+              </div>
+              <table class="ranking-table">
+                <tr *ngFor="let row of billingBacklog" class="ranking-row" (click)="viewBranch(row.branchId)">
+                  <td class="ranking-branch">{{ row.branchName }}</td>
+                  <td class="amount-cell bucket-warn-strong">₹{{ row.draftUnbilledAmount | number:'1.0-0' }}</td>
+                  <td class="ranking-age">{{ row.draftInvoiceCount }} drafts</td>
+                  <td class="ranking-age">{{ row.oldestDraftDays ? row.oldestDraftDays + 'd old' : '—' }}</td>
+                </tr>
+              </table>
+            </div>
+          </div>
+          <div class="ranking-caption">
+            Backlog is an internal billing gap, not a branch payment failure — it never affects the risk rating.
+          </div>
+
+          <div class="subsection">
+            <div class="subsection-title">Aging matrix · as of {{ report.asOfDate }}</div>
+            <div class="table-wrapper" *ngIf="report.branches.length">
+              <table mat-table [dataSource]="report.branches" class="pro-table mat-elevation-z1">
+                <ng-container matColumnDef="branch"><th mat-header-cell *matHeaderCellDef>Branch</th><td mat-cell *matCellDef="let row">{{ row.branchName }}</td><td mat-footer-cell *matFooterCellDef><strong>Total</strong></td></ng-container>
+                <ng-container matColumnDef="notDue"><th mat-header-cell *matHeaderCellDef>Not due</th><td mat-cell *matCellDef="let row"><span class="bucket-neutral">{{ displayAmount(row.notDue) | number:'1.0-0' }}</span></td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.notDue) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="d1_7"><th mat-header-cell *matHeaderCellDef>1-7 days</th><td mat-cell *matCellDef="let row"><span class="bucket-info">{{ displayAmount(row.d1_7) | number:'1.0-0' }}</span></td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.d1_7) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="d8_15"><th mat-header-cell *matHeaderCellDef>8-15 days</th><td mat-cell *matCellDef="let row"><span class="bucket-warn">{{ displayAmount(row.d8_15) | number:'1.0-0' }}</span></td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.d8_15) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="d16_30"><th mat-header-cell *matHeaderCellDef>16-30 days</th><td mat-cell *matCellDef="let row"><span class="bucket-warn-strong">{{ displayAmount(row.d16_30) | number:'1.0-0' }}</span></td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.d16_30) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="d30Plus"><th mat-header-cell *matHeaderCellDef>30+ days</th><td mat-cell *matCellDef="let row"><span class="bucket-danger">{{ displayAmount(row.d30Plus) | number:'1.0-0' }}</span></td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.d30Plus) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="overdueAmount"><th mat-header-cell *matHeaderCellDef>Overdue</th><td mat-cell *matCellDef="let row"><strong class="bucket-danger">{{ displayAmount(row.overdueAmount) | number:'1.0-0' }}</strong></td><td mat-footer-cell *matFooterCellDef><strong>{{ displayAmount(report.totals.overdueAmount) | number:'1.0-0' }}</strong></td></ng-container>
+                <ng-container matColumnDef="draftUnbilledAmount"><th mat-header-cell *matHeaderCellDef>Draft / unbilled</th><td mat-cell *matCellDef="let row">{{ displayAmount(row.draftUnbilledAmount) | number:'1.0-0' }}</td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.draftUnbilledAmount) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="ledgerBalance"><th mat-header-cell *matHeaderCellDef>Ledger balance</th><td mat-cell *matCellDef="let row">{{ displayAmount(row.ledgerBalance) | number:'1.0-0' }}</td><td mat-footer-cell *matFooterCellDef>{{ displayAmount(report.totals.ledgerBalance) | number:'1.0-0' }}</td></ng-container>
+                <ng-container matColumnDef="oldestOverdueDays"><th mat-header-cell *matHeaderCellDef>Oldest</th><td mat-cell *matCellDef="let row">{{ row.oldestOverdueDays ? row.oldestOverdueDays + 'd' : '—' }}</td><td mat-footer-cell *matFooterCellDef></td></ng-container>
+                <ng-container matColumnDef="onTimePaymentPct"><th mat-header-cell *matHeaderCellDef>On-time</th><td mat-cell *matCellDef="let row">{{ onTimeDisplay(row) }}</td><td mat-footer-cell *matFooterCellDef></td></ng-container>
+                <ng-container matColumnDef="riskTier"><th mat-header-cell *matHeaderCellDef>Risk</th><td mat-cell *matCellDef="let row"><app-status-pill [label]="riskLabel(row.riskTier)" [matTooltip]="row.riskReasons.join(' · ')"></app-status-pill></td><td mat-footer-cell *matFooterCellDef></td></ng-container>
+                <tr mat-header-row *matHeaderRowDef="agingColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: agingColumns" class="aging-row" [class.active-summary-row]="isSelectedBranch(row.branchId)" (click)="viewBranch(row.branchId)"></tr>
+                <tr mat-footer-row *matFooterRowDef="agingColumns"></tr>
+              </table>
+            </div>
+            <div class="aging-footnote" *ngIf="!report.coverage.onTimeReliable">
+              * On-time % is derived from {{ report.coverage.referencedSettledInvoices }} of
+              {{ report.coverage.settledSubmittedInvoices }} settled invoices that carry a payment reference
+              ({{ report.coverage.onTimeCoveragePct | number:'1.0-0' }}% coverage), so treat it as indicative only.
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="branchAging as detail">
+          <div class="subsection">
+            <div class="subsection-header">
+              <div class="subsection-title">{{ detail.branch.branchName }} · invoice detail</div>
+              <div class="subsection-actions">
+                <button mat-icon-button type="button" color="primary" [matMenuTriggerFor]="branchAgingMenu" aria-label="Download branch aging detail">
+                  <mat-icon>download</mat-icon>
+                </button>
+                <mat-menu #branchAgingMenu="matMenu">
+                  <button mat-menu-item (click)="downloadBranchAging('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+                  <button mat-menu-item (click)="downloadBranchAging('xlsx')"><mat-icon>grid_on</mat-icon>Excel (XLSX)</button>
+                  <button mat-menu-item (click)="downloadBranchAging('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+                </mat-menu>
+              </div>
+            </div>
+
+            <div class="reconciliation-strip">
+              <div class="recon-item">
+                <span>Overdue (submitted)</span>
+                <strong>₹{{ displayAmount(detail.reconciliation.submittedOutstanding) | number:'1.0-0' }}</strong>
+              </div>
+              <div class="recon-op">+</div>
+              <div class="recon-item">
+                <span>Draft / unbilled</span>
+                <strong>₹{{ displayAmount(detail.reconciliation.draftUnbilled) | number:'1.0-0' }}</strong>
+              </div>
+              <div class="recon-op">−</div>
+              <div class="recon-item">
+                <span>Unapplied credits</span>
+                <strong>₹{{ displayAmount(detail.reconciliation.unappliedCredits) | number:'1.0-0' }}</strong>
+              </div>
+              <div class="recon-op">=</div>
+              <div class="recon-item recon-total">
+                <span>Ledger balance</span>
+                <strong>₹{{ displayAmount(detail.reconciliation.ledgerBalance) | number:'1.0-0' }}</strong>
+              </div>
+              <span class="recon-warning" *ngIf="!detail.reconciliation.balanced">Does not reconcile</span>
+            </div>
+            <div class="ranking-caption">
+              Only submitted invoices are aged. Drafts carry no due-date obligation yet, so they sit outside the buckets — but they are part of the branch ledger balance.
+            </div>
+
+            <div class="table-wrapper" *ngIf="detail.invoices.length; else emptyAgingInvoices">
+              <table mat-table [dataSource]="detail.invoices" class="pro-table mat-elevation-z1">
+                <ng-container matColumnDef="invoiceId"><th mat-header-cell *matHeaderCellDef>Invoice</th><td mat-cell *matCellDef="let row">{{ row.invoiceId }}</td></ng-container>
+                <ng-container matColumnDef="postingDate"><th mat-header-cell *matHeaderCellDef>Posted</th><td mat-cell *matCellDef="let row">{{ row.postingDate || '—' }}</td></ng-container>
+                <ng-container matColumnDef="dueDate"><th mat-header-cell *matHeaderCellDef>Due</th><td mat-cell *matCellDef="let row">{{ row.dueDate || '—' }}</td></ng-container>
+                <ng-container matColumnDef="stage"><th mat-header-cell *matHeaderCellDef>Stage</th><td mat-cell *matCellDef="let row"><app-status-pill [label]="row.stage"></app-status-pill></td></ng-container>
+                <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef>Status</th><td mat-cell *matCellDef="let row">{{ row.status || '—' }}</td></ng-container>
+                <ng-container matColumnDef="invoiceAmount"><th mat-header-cell *matHeaderCellDef>Invoice</th><td mat-cell *matCellDef="let row">{{ row.invoiceAmount | number:'1.0-2' }}</td></ng-container>
+                <ng-container matColumnDef="outstandingAmount"><th mat-header-cell *matHeaderCellDef>Outstanding</th><td mat-cell *matCellDef="let row">{{ row.outstandingAmount | number:'1.0-2' }}</td></ng-container>
+                <ng-container matColumnDef="daysPastDue"><th mat-header-cell *matHeaderCellDef>Days late</th><td mat-cell *matCellDef="let row">{{ row.daysPastDue === null ? '—' : row.daysPastDue }}</td></ng-container>
+                <ng-container matColumnDef="bucketLabel"><th mat-header-cell *matHeaderCellDef>Bucket</th><td mat-cell *matCellDef="let row"><span [class]="'bucket-' + bucketTone(row.bucket)">{{ row.bucketLabel }}</span></td></ng-container>
+                <tr mat-header-row *matHeaderRowDef="agingInvoiceColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: agingInvoiceColumns" [class.draft-row]="row.stage === 'DRAFT'"></tr>
+              </table>
+            </div>
+            <ng-template #emptyAgingInvoices>
+              <app-empty-state icon="receipt_long" title="No invoices" message="This branch has no invoices in the selected window." hint="Try a different date range."></app-empty-state>
+            </ng-template>
+          </div>
+        </ng-container>
+
+        <app-empty-state
+          *ngIf="!isLoadingAging && !aging && !agingErrorMessage"
+          icon="query_stats"
+          title="No aging data"
+          message="Receivables aging will appear once branches have submitted invoices."
+          hint="Submit draft invoices to start tracking payment behaviour."></app-empty-state>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
 	</section>

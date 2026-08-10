@@ -5,8 +5,9 @@ COPY mvnw mvnw.cmd pom.xml ./
 COPY .mvn .mvn
 RUN ./mvnw -q -DskipTests dependency:go-offline
 
+COPY images images
 COPY src src
-RUN ./mvnw -q -DskipTests package
+RUN ./mvnw -q package
 
 FROM eclipse-temurin:21-jre
 

@@ -21,8 +21,11 @@ public class FeatureAuthorizationFilter extends OncePerRequestFilter {
     private final AuthenticationService authenticationService;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final List<FeatureRoute> routes = List.of(
+            // Creating or updating an ERPNext User needs System Manager rights, which the
+            // caller's own ERP session may not carry, so both writes use the service session.
             new FeatureRoute("GET", "/api/admin/access/**", UserFeatureService.ADMIN_ACCESS_VIEW),
-            new FeatureRoute("PUT", "/api/admin/access/**", UserFeatureService.ADMIN_ACCESS_VIEW),
+            new FeatureRoute("POST", "/api/admin/access/**", UserFeatureService.ADMIN_ACCESS_VIEW, true),
+            new FeatureRoute("PUT", "/api/admin/access/**", UserFeatureService.ADMIN_ACCESS_VIEW, true),
             new FeatureRoute(null, "/api/master-data-review/**", UserFeatureService.MASTER_DATA_REVIEW_VIEW),
             new FeatureRoute(null, "/api/bill-review/**", UserFeatureService.BILL_REVIEW_VIEW),
 

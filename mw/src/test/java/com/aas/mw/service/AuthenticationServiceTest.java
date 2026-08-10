@@ -38,7 +38,7 @@ class AuthenticationServiceTest {
                 erpNextClient,
                 jwtService,
                 erpSessionStore,
-                new RoleResolver("Administrator", "Supplier", "Customer", "Stock User"),
+                new RoleResolver("Administrator", "Supplier", "Customer", "Stock User", "Accounts User,Sales User"),
                 userAliasService,
                 erpSetupProperties);
     }

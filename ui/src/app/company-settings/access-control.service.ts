@@ -26,6 +26,24 @@ export type AccessManagedUser = {
 export type AccessOverview = {
   features: AccessFeatureDefinition[];
   users: AccessManagedUser[];
+  /** Baseline features per role, so the create form can preview them before the user exists. */
+  defaultsByRole?: Record<string, string[]>;
+};
+
+export type UserCreatePayload = {
+  email: string;
+  fullName: string;
+  password: string;
+  role: string;
+  mobileNo?: string;
+  location?: string;
+  company?: string;
+  /** Required for the vendor role. */
+  supplier?: string;
+  /** Required for the shop (branch) role. */
+  customer?: string;
+  allowFeatures?: string[];
+  denyFeatures?: string[];
 };
 
 @Injectable({ providedIn: 'root' })
@@ -43,6 +61,20 @@ export class AccessControlService {
     return this.http.put<AccessManagedUser>(
       `/api/admin/access/users/${encodeURIComponent(userId)}`,
       { allowFeatures, denyFeatures },
+      { headers: this.authHeaders() }
+    );
+  }
+
+  createUser(payload: UserCreatePayload): Observable<AccessManagedUser> {
+    return this.http.post<AccessManagedUser>('/api/admin/access/users', payload, {
+      headers: this.authHeaders()
+    });
+  }
+
+  setUserEnabled(userId: string, enabled: boolean): Observable<AccessManagedUser> {
+    return this.http.put<AccessManagedUser>(
+      `/api/admin/access/users/${encodeURIComponent(userId)}/enabled`,
+      { enabled },
       { headers: this.authHeaders() }
     );
   }

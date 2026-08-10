@@ -36,6 +36,37 @@ public class BranchOpsService {
     private static final Set<String> OPEN_STATUSES = Set.of("DRAFT", "VENDOR_ASSIGNED", "VENDOR_PDF_RECEIVED", "VENDOR_BILL_CAPTURED", "SELL_ORDER_CREATED");
     private static final DateTimeFormatter ERP_DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss[.SSSSSS]", Locale.ROOT);
 
+    private static final String PAYMENT_ENTRY_REFERENCE = "Payment Entry Reference";
+
+    /**
+     * Receivables aging buckets, keyed by payload field name. Bands are absolute days past
+     * {@code due_date} and identical for every branch; per-branch credit days enter only through
+     * the due date itself.
+     */
+    private static final LinkedHashMap<String, String> AGING_BUCKETS = new LinkedHashMap<>();
+    static {
+        AGING_BUCKETS.put("notDue", "Not due");
+        AGING_BUCKETS.put("d1_7", "1-7 days");
+        AGING_BUCKETS.put("d8_15", "8-15 days");
+        AGING_BUCKETS.put("d16_30", "16-30 days");
+        AGING_BUCKETS.put("d30Plus", "30+ days");
+    }
+
+    // ---- Receivables risk tiering (tune here only) ----
+    private static final int[] RISK_AGE_TIER_DAYS = {30, 15, 7};              // 3 / 2 / 1 pts
+    private static final double[] RISK_AMOUNT_TIER_RUPEES = {100_000, 50_000, 10_000};
+    private static final double[] RISK_ONTIME_TIER_PCT = {60, 75, 90};
+    private static final double RISK_DEFAULTER_MIN_PCT = 55.0;
+    private static final double RISK_WATCH_MIN_PCT = 25.0;
+    private static final int RISK_HARD_DEFAULTER_DAYS = 45;
+    private static final double RISK_MIN_OVERDUE_TO_FLAG = 500.0;
+    private static final int ONTIME_GRACE_DAYS = 0;
+    private static final double ONTIME_MIN_COVERAGE_PCT = 40.0;
+
+    private static final String RISK_TIER_GOOD = "GOOD";
+    private static final String RISK_TIER_WATCH = "WATCH";
+    private static final String RISK_TIER_DEFAULTER = "DEFAULTER";
+
     private final ErpNextClient erpNextClient;
     private final AdjustmentNoteErpService adjustmentNoteErpService;
 
@@ -273,6 +304,643 @@ public class BranchOpsService {
                 "closingBalance", closingBalance,
                 "balance", closingBalance,
                 "entries", window.entries);
+    }
+
+    // ------------------------------------------------------------------
+    // Receivables aging / defaulter reporting
+    // ------------------------------------------------------------------
+
+    /**
+     * All-branch receivables aging. Only submitted invoices are aged into buckets; draft
+     * (unbilled) value is reported alongside as its own dimension and never feeds the risk tier.
+     *
+     * @param asOf   aging reference date, defaults to today, clamped to today when in the future
+     * @param from   optional inclusive {@code posting_date} lower bound on which invoices are included
+     * @param to     optional inclusive {@code posting_date} upper bound
+     */
+    public Map<String, Object> getAgingSummary(String asOf, String from, String to) {
+        LocalDate asOfDate = resolveAsOfDate(asOf);
+        LedgerRange range = LedgerRange.parse(from, to);
+
+        List<Map<String, Object>> branches = fetchBranches();
+        List<Map<String, Object>> invoices = filterByPostingDate(fetchSalesInvoices(null), range);
+        Map<String, List<String>> allocations = fetchPaymentInvoiceAllocations(null);
+        List<Map<String, Object>> payments = mergePayments(
+                fetchAgingPayments(null, invoices, allocations),
+                fetchCustomerCategoryPayments(null));
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(null, null);
+        Map<String, LocalDate> settlementDates = resolveInvoiceSettlementDates(payments, allocations);
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> branch : branches) {
+            rows.add(buildBranchAgingRow(branch, invoices, payments, adjustmentNotes, settlementDates, asOfDate));
+        }
+
+        Map<String, Object> totals = new LinkedHashMap<>();
+        totals.put("branches", rows.size());
+        for (String bucket : AGING_BUCKETS.keySet()) {
+            totals.put(bucket, round(rows.stream().mapToDouble(row -> asDouble(row.get(bucket))).sum()));
+        }
+        for (String key : List.of("submittedOutstanding", "overdueAmount", "draftUnbilledAmount", "ledgerBalance", "unappliedCredits")) {
+            totals.put(key, round(rows.stream().mapToDouble(row -> asDouble(row.get(key))).sum()));
+        }
+        totals.put("defaulterBranches", countTier(rows, RISK_TIER_DEFAULTER));
+        totals.put("watchBranches", countTier(rows, RISK_TIER_WATCH));
+        totals.put("goodBranches", countTier(rows, RISK_TIER_GOOD));
+
+        int settled = rows.stream().mapToInt(row -> asInt(row.get("onTimePaymentDenominator"))).sum();
+        int sampled = rows.stream().mapToInt(row -> asInt(row.get("onTimePaymentSample"))).sum();
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("asOfDate", asOfDate.toString());
+        payload.put("asOfDateIsHistorical", asOfDate.isBefore(LocalDate.now()));
+        payload.put("buckets", agingBucketDescriptors());
+        payload.put("coverage", buildCoverage(settled, sampled));
+        payload.put("thresholds", agingThresholds());
+        payload.put("totals", totals);
+        payload.put("collectionsRanking", rankBranches(rows, "overdueAmount", "oldestOverdueDays"));
+        payload.put("backlogRanking", rankBranches(rows, "draftUnbilledAmount", "oldestDraftDays"));
+        payload.put("branches", rows.stream()
+                .sorted(agingRowComparator("overdueAmount", "oldestOverdueDays"))
+                .toList());
+        return payload;
+    }
+
+    /** Per-branch aging with invoice-level drill-down and the ledger reconciliation bridge. */
+    public Map<String, Object> getBranchAging(String branchId, String asOf, String from, String to) {
+        Map<String, Object> branch = unwrap(erpNextClient.getResource(CUSTOMER, branchId));
+        if (branch.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Branch not found.");
+        }
+        LocalDate asOfDate = resolveAsOfDate(asOf);
+        LedgerRange range = LedgerRange.parse(from, to);
+
+        List<Map<String, Object>> invoices = filterByPostingDate(fetchSalesInvoices(branchId), range);
+        Map<String, List<String>> allocations = fetchPaymentInvoiceAllocations(branchId);
+        List<Map<String, Object>> payments = mergePayments(
+                fetchAgingPayments(branchId, invoices, allocations),
+                fetchCustomerCategoryPayments(branchId));
+        List<Map<String, Object>> adjustmentNotes = fetchApprovedCustomerAdjustmentNotes(branchId, null);
+        Map<String, LocalDate> settlementDates = resolveInvoiceSettlementDates(payments, allocations);
+
+        Map<String, Object> summary = buildBranchAgingRow(branch, invoices, payments, adjustmentNotes, settlementDates, asOfDate);
+        int creditDays = asInt(branch.get("aas_credit_days"));
+
+        List<Map<String, Object>> invoiceRows = invoices.stream()
+                .filter(invoice -> asInt(invoice.get("docstatus")) != 2)
+                .map(invoice -> buildAgingInvoiceRow(invoice, creditDays, settlementDates, asOfDate))
+                .sorted(agingInvoiceComparator())
+                .toList();
+
+        Map<String, Object> reconciliation = new LinkedHashMap<>();
+        reconciliation.put("submittedOutstanding", summary.get("submittedOutstanding"));
+        reconciliation.put("draftUnbilled", summary.get("draftUnbilledAmount"));
+        reconciliation.put("unappliedCredits", summary.get("unappliedCredits"));
+        reconciliation.put("ledgerBalance", summary.get("ledgerBalance"));
+        double residual = asDouble(summary.get("submittedOutstanding"))
+                + asDouble(summary.get("draftUnbilledAmount"))
+                - asDouble(summary.get("unappliedCredits"))
+                - asDouble(summary.get("ledgerBalance"));
+        reconciliation.put("balanced", Math.abs(round(residual)) <= CATEGORY_SETTLEMENT_TOLERANCE);
+
+        Map<String, Object> branchInfo = new LinkedHashMap<>();
+        branchInfo.put("branchId", asText(branch.get("name")));
+        branchInfo.put("branchName", preferredBranchName(branch));
+        branchInfo.put("location", asText(branch.get("aas_branch_location")));
+        branchInfo.put("creditDays", creditDays);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("asOfDate", asOfDate.toString());
+        payload.put("asOfDateIsHistorical", asOfDate.isBefore(LocalDate.now()));
+        payload.put("buckets", agingBucketDescriptors());
+        payload.put("branch", branchInfo);
+        payload.put("summary", summary);
+        payload.put("reconciliation", reconciliation);
+        payload.put("coverage", buildCoverage(
+                asInt(summary.get("onTimePaymentDenominator")),
+                asInt(summary.get("onTimePaymentSample"))));
+        payload.put("invoices", invoiceRows);
+        return payload;
+    }
+
+    /** Flat export rows for the all-branch aging report. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getAgingSummaryRows(String asOf, String from, String to) {
+        Map<String, Object> payload = getAgingSummary(asOf, from, to);
+        List<Map<String, Object>> branches = (List<Map<String, Object>>) payload.get("branches");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> branch : branches) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("Branch", branch.get("branchName"));
+            row.put("Location", branch.get("location"));
+            row.put("Credit Days", branch.get("creditDays"));
+            for (Map.Entry<String, String> bucket : AGING_BUCKETS.entrySet()) {
+                row.put(bucket.getValue(), branch.get(bucket.getKey()));
+            }
+            row.put("Submitted Outstanding", branch.get("submittedOutstanding"));
+            row.put("Overdue", branch.get("overdueAmount"));
+            row.put("Oldest Overdue Days", branch.get("oldestOverdueDays"));
+            row.put("Open Invoices", branch.get("openInvoiceCount"));
+            row.put("Draft / Unbilled", branch.get("draftUnbilledAmount"));
+            row.put("Draft Invoices", branch.get("draftInvoiceCount"));
+            row.put("Oldest Draft Days", branch.get("oldestDraftDays"));
+            row.put("Unapplied Credits", branch.get("unappliedCredits"));
+            row.put("Ledger Balance", branch.get("ledgerBalance"));
+            row.put("On-time Payment %", branch.get("onTimePaymentPct"));
+            row.put("On-time Reliable", branch.get("onTimeReliable"));
+            row.put("Risk Tier", branch.get("riskTier"));
+            row.put("Risk Reasons", String.join(" | ", (List<String>) branch.get("riskReasons")));
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /** Flat export rows for one branch's invoice-level aging. */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getBranchAgingRows(String branchId, String asOf, String from, String to) {
+        Map<String, Object> payload = getBranchAging(branchId, asOf, from, to);
+        List<Map<String, Object>> invoices = (List<Map<String, Object>>) payload.get("invoices");
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> invoice : invoices) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("Invoice", invoice.get("invoiceId"));
+            row.put("Posting Date", invoice.get("postingDate"));
+            row.put("Due Date", invoice.get("dueDate"));
+            row.put("Stage", invoice.get("stage"));
+            row.put("Status", invoice.get("status"));
+            row.put("Invoice Amount", invoice.get("invoiceAmount"));
+            row.put("Outstanding", invoice.get("outstandingAmount"));
+            row.put("Paid", invoice.get("paidAmount"));
+            row.put("Days Past Due", invoice.get("daysPastDue"));
+            row.put("Bucket", invoice.get("bucketLabel"));
+            row.put("Settled On", invoice.get("settlementDate"));
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    private Map<String, Object> buildBranchAgingRow(
+            Map<String, Object> branch,
+            List<Map<String, Object>> invoices,
+            List<Map<String, Object>> payments,
+            List<Map<String, Object>> adjustmentNotes,
+            Map<String, LocalDate> settlementDates,
+            LocalDate asOfDate) {
+        String branchId = asText(branch.get("name"));
+        int creditDays = asInt(branch.get("aas_credit_days"));
+        List<Map<String, Object>> branchInvoices = invoices.stream()
+                .filter(invoice -> branchId.equals(asText(invoice.get("customer"))))
+                .toList();
+        List<Map<String, Object>> branchPayments = payments.stream()
+                .filter(payment -> branchId.equals(asText(payment.get("party"))))
+                .toList();
+        List<Map<String, Object>> branchNotes = adjustmentNotes.stream()
+                .filter(note -> branchId.equals(asText(note.get(AdjustmentNoteErpService.FIELD_PARTY))))
+                .toList();
+
+        Map<String, Double> buckets = new LinkedHashMap<>();
+        AGING_BUCKETS.keySet().forEach(key -> buckets.put(key, 0.0));
+
+        double draftAmount = 0.0;
+        int draftCount = 0;
+        int oldestDraftDays = 0;
+        int openInvoiceCount = 0;
+        int overdueInvoiceCount = 0;
+        int oldestOverdueDays = 0;
+        int dueDateMissingCount = 0;
+        String oldestOverdueInvoiceId = "";
+        String oldestOverdueDueDate = "";
+        int settledCount = 0;
+        int settledWithDateCount = 0;
+        int paidOnTimeCount = 0;
+
+        for (Map<String, Object> invoice : branchInvoices) {
+            int docstatus = asInt(invoice.get("docstatus"));
+            if (docstatus == 2) {
+                continue;
+            }
+            if (docstatus == 0) {
+                draftAmount += resolveInvoiceDueAmount(invoice);
+                draftCount++;
+                LocalDate posting = parseIsoDate(asText(invoice.get("posting_date")));
+                if (posting != null) {
+                    oldestDraftDays = Math.max(oldestDraftDays, (int) (asOfDate.toEpochDay() - posting.toEpochDay()));
+                }
+                continue;
+            }
+
+            LocalDate dueDate = resolveInvoiceDueDate(invoice, creditDays);
+            if (dueDate == null) {
+                dueDateMissingCount++;
+            }
+            double open = resolveInvoiceDueAmount(invoice);
+            if (open <= CATEGORY_SETTLEMENT_TOLERANCE) {
+                // Fully settled: outside the buckets, but still part of the on-time denominator.
+                settledCount++;
+                LocalDate settledOn = settlementDates.get(asText(invoice.get("name")));
+                if (settledOn != null) {
+                    settledWithDateCount++;
+                    if (dueDate == null || !settledOn.isAfter(dueDate.plusDays(ONTIME_GRACE_DAYS))) {
+                        paidOnTimeCount++;
+                    }
+                }
+                continue;
+            }
+
+            Integer daysPastDue = agingDaysPastDue(dueDate, asOfDate);
+            String bucket = agingBucketKey(daysPastDue);
+            buckets.merge(bucket, open, Double::sum);
+            openInvoiceCount++;
+            if (daysPastDue != null && daysPastDue >= 1) {
+                overdueInvoiceCount++;
+                if (daysPastDue > oldestOverdueDays) {
+                    oldestOverdueDays = daysPastDue;
+                    oldestOverdueInvoiceId = asText(invoice.get("name"));
+                    oldestOverdueDueDate = dueDate == null ? "" : dueDate.toString();
+                }
+            }
+        }
+
+        double submittedOutstanding = round(buckets.values().stream().mapToDouble(Double::doubleValue).sum());
+        double overdueAmount = round(submittedOutstanding - buckets.get("notDue"));
+        draftAmount = round(draftAmount);
+
+        double ledgerBalance = getLedgerBalance(buildLedgerEntries(branchInvoices, branchPayments, branchNotes));
+        double unappliedCredits = round(submittedOutstanding + draftAmount - ledgerBalance);
+
+        Double onTimePct = settledWithDateCount == 0
+                ? null
+                : round((paidOnTimeCount * 100.0) / settledWithDateCount);
+        double coveragePct = settledCount == 0 ? 0.0 : round((settledWithDateCount * 100.0) / settledCount);
+        boolean onTimeReliable = settledWithDateCount > 0 && coveragePct >= ONTIME_MIN_COVERAGE_PCT;
+
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("branchId", branchId);
+        row.put("branchName", preferredBranchName(branch));
+        row.put("location", asText(branch.get("aas_branch_location")));
+        row.put("creditDays", creditDays);
+
+        row.put("submittedOutstanding", submittedOutstanding);
+        AGING_BUCKETS.keySet().forEach(key -> row.put(key, round(buckets.get(key))));
+        row.put("overdueAmount", overdueAmount);
+        row.put("openInvoiceCount", openInvoiceCount);
+        row.put("overdueInvoiceCount", overdueInvoiceCount);
+        row.put("oldestOverdueDays", oldestOverdueDays);
+        row.put("oldestOverdueInvoiceId", oldestOverdueInvoiceId);
+        row.put("oldestOverdueDueDate", oldestOverdueDueDate);
+
+        row.put("draftUnbilledAmount", draftAmount);
+        row.put("draftInvoiceCount", draftCount);
+        row.put("oldestDraftDays", oldestDraftDays);
+
+        row.put("ledgerBalance", ledgerBalance);
+        row.put("unappliedCredits", unappliedCredits);
+
+        row.put("onTimePaymentPct", onTimePct);
+        row.put("onTimePaymentSample", settledWithDateCount);
+        row.put("onTimePaymentDenominator", settledCount);
+        row.put("onTimeCoveragePct", coveragePct);
+        row.put("onTimeReliable", onTimeReliable);
+        row.put("dueDateMissingCount", dueDateMissingCount);
+
+        row.putAll(classifyReceivableRisk(oldestOverdueDays, overdueAmount, onTimePct, onTimeReliable));
+        return row;
+    }
+
+    private Map<String, Object> buildAgingInvoiceRow(
+            Map<String, Object> invoice,
+            int creditDays,
+            Map<String, LocalDate> settlementDates,
+            LocalDate asOfDate) {
+        boolean draft = asInt(invoice.get("docstatus")) == 0;
+        LocalDate dueDate = resolveInvoiceDueDate(invoice, creditDays);
+        double invoiceAmount = invoiceLedgerAmount(invoice);
+        double outstanding = resolveInvoiceDueAmount(invoice);
+        Integer daysPastDue = draft ? null : agingDaysPastDue(dueDate, asOfDate);
+        LocalDate settledOn = settlementDates.get(asText(invoice.get("name")));
+
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("invoiceId", asText(invoice.get("name")));
+        row.put("stage", draft ? "DRAFT" : "SUBMITTED");
+        row.put("docstatus", asInt(invoice.get("docstatus")));
+        row.put("postingDate", asText(invoice.get("posting_date")));
+        row.put("dueDate", dueDate == null ? "" : dueDate.toString());
+        row.put("dueDateSource", hasText(invoice.get("due_date")) ? "ERP" : "DERIVED");
+        row.put("status", asText(invoice.get("status")));
+        row.put("invoiceAmount", round(invoiceAmount));
+        row.put("outstandingAmount", round(outstanding));
+        row.put("paidAmount", round(Math.max(0.0, invoiceAmount - outstanding)));
+        row.put("daysPastDue", daysPastDue);
+        String bucket = draft ? "draft" : agingBucketKey(daysPastDue);
+        row.put("bucket", bucket);
+        row.put("bucketLabel", "draft".equals(bucket) ? "Draft / unbilled" : AGING_BUCKETS.get(bucket));
+        row.put("settlementDate", settledOn == null ? "" : settledOn.toString());
+        row.put("paidOnTime", settledOn == null || dueDate == null
+                ? null
+                : !settledOn.isAfter(dueDate.plusDays(ONTIME_GRACE_DAYS)));
+        return row;
+    }
+
+    /**
+     * Scores collections risk from overdue exposure only. The unbilled draft backlog is an
+     * internal billing-process signal and deliberately never contributes here.
+     */
+    private Map<String, Object> classifyReceivableRisk(
+            int oldestOverdueDays,
+            double overdueAmount,
+            Double onTimePct,
+            boolean onTimeReliable) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        List<String> reasons = new ArrayList<>();
+
+        if (overdueAmount <= RISK_MIN_OVERDUE_TO_FLAG && oldestOverdueDays == 0) {
+            result.put("riskScore", 0);
+            result.put("riskScoreMax", 6);
+            result.put("riskPct", 0.0);
+            result.put("riskTier", RISK_TIER_GOOD);
+            result.put("riskBasis", onTimeReliable ? "FULL" : "AGING_ONLY");
+            result.put("riskReasons", List.of("No overdue balance"));
+            return result;
+        }
+
+        int agePts = tierPoints(oldestOverdueDays, RISK_AGE_TIER_DAYS);
+        int amountPts = tierPoints(overdueAmount, RISK_AMOUNT_TIER_RUPEES);
+        if (agePts > 0) {
+            reasons.add("Oldest overdue " + oldestOverdueDays + " days");
+        }
+        if (amountPts > 0) {
+            reasons.add(String.format(Locale.ROOT, "Overdue ₹%,.0f", overdueAmount));
+        }
+
+        int score = agePts + amountPts;
+        int scoreMax = 6;
+        String basis = "AGING_ONLY";
+        if (onTimeReliable && onTimePct != null) {
+            int onTimePts = descendingTierPoints(onTimePct, RISK_ONTIME_TIER_PCT);
+            if (onTimePts > 0) {
+                reasons.add(String.format(Locale.ROOT, "On-time payments %.0f%%", onTimePct));
+            }
+            score += onTimePts;
+            scoreMax = 9;
+            basis = "FULL";
+        }
+
+        double riskPct = round((score * 100.0) / scoreMax);
+        String tier;
+        if (oldestOverdueDays >= RISK_HARD_DEFAULTER_DAYS || riskPct >= RISK_DEFAULTER_MIN_PCT) {
+            tier = RISK_TIER_DEFAULTER;
+        } else if (riskPct >= RISK_WATCH_MIN_PCT) {
+            tier = RISK_TIER_WATCH;
+        } else {
+            tier = RISK_TIER_GOOD;
+        }
+        if (reasons.isEmpty()) {
+            reasons.add("Within tolerance");
+        }
+
+        result.put("riskScore", score);
+        result.put("riskScoreMax", scoreMax);
+        result.put("riskPct", riskPct);
+        result.put("riskTier", tier);
+        result.put("riskBasis", basis);
+        result.put("riskReasons", List.copyOf(reasons));
+        return result;
+    }
+
+    /** 3 points at or above the first threshold, then 2, then 1, else 0. */
+    private int tierPoints(double value, double[] thresholds) {
+        for (int i = 0; i < thresholds.length; i++) {
+            if (value >= thresholds[i]) {
+                return thresholds.length - i;
+            }
+        }
+        return 0;
+    }
+
+    private int tierPoints(int value, int[] thresholds) {
+        for (int i = 0; i < thresholds.length; i++) {
+            if (value >= thresholds[i]) {
+                return thresholds.length - i;
+            }
+        }
+        return 0;
+    }
+
+    /** Inverted tiering: worse (lower) on-time percentages score more risk points. */
+    private int descendingTierPoints(double value, double[] thresholds) {
+        for (int i = 0; i < thresholds.length; i++) {
+            if (value <= thresholds[i]) {
+                return thresholds.length - i;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Payment Entry to Sales Invoice allocations, read in a single child-table query.
+     * The {@code parent} parameter is mandatory: ERPNext rejects child doctype queries without it.
+     * A failure here degrades on-time reporting rather than failing the whole report.
+     */
+    private Map<String, List<String>> fetchPaymentInvoiceAllocations(String branchId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("parent", PAYMENT_ENTRY);
+        params.put("fields", "[\"parent\",\"reference_name\",\"allocated_amount\"]");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("parenttype", "=", PAYMENT_ENTRY));
+        filters.add(List.of("reference_doctype", "=", SALES_INVOICE));
+        filters.add(List.of("docstatus", "=", "1"));
+        params.put("filters", toJson(filters));
+
+        List<Map<String, Object>> rows;
+        try {
+            rows = listResourcesPaged(PAYMENT_ENTRY_REFERENCE, params);
+        } catch (RuntimeException ex) {
+            return Map.of();
+        }
+        Map<String, List<String>> byPayment = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String payment = asText(row.get("parent"));
+            String invoice = asText(row.get("reference_name"));
+            if (hasText(payment) && hasText(invoice)) {
+                byPayment.computeIfAbsent(payment, key -> new ArrayList<>()).add(invoice);
+            }
+        }
+        return byPayment;
+    }
+
+    /**
+     * Customer payments linked to this branch's invoices, resolved against the in-memory
+     * allocation map. Reproduces {@link #filterPaymentsLinkedToInvoices} semantics without its
+     * per-payment {@code getResource} call, so the aging report stays at a fixed number of
+     * ERPNext round trips regardless of payment volume.
+     */
+    private List<Map<String, Object>> fetchAgingPayments(
+            String branchId,
+            List<Map<String, Object>> invoices,
+            Map<String, List<String>> allocations) {
+        if (invoices == null || invoices.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> invoiceCustomers = new LinkedHashMap<>();
+        for (Map<String, Object> invoice : invoices) {
+            invoiceCustomers.put(asText(invoice.get("name")), asText(invoice.get("customer")));
+        }
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"party\",\"party_type\",\"posting_date\",\"paid_amount\",\"received_amount\",\"payment_type\",\"reference_no\",\"modified\",\"creation\",\"docstatus\"]");
+        List<List<String>> filters = new ArrayList<>();
+        filters.add(List.of("party_type", "=", "Customer"));
+        filters.add(List.of("docstatus", "=", "1"));
+        if (hasText(branchId)) {
+            filters.add(List.of("party", "=", branchId));
+        }
+        params.put("filters", toJson(filters));
+        params.put("order_by", "posting_date asc");
+
+        return listResourcesPaged(PAYMENT_ENTRY, params).stream()
+                .filter(payment -> {
+                    String party = asText(payment.get("party"));
+                    if (!hasText(party)) {
+                        return false;
+                    }
+                    return allocations.getOrDefault(asText(payment.get("name")), List.of()).stream()
+                            .anyMatch(invoiceId -> party.equals(invoiceCustomers.get(invoiceId)));
+                })
+                .toList();
+    }
+
+    /** Latest submitted payment date per invoice, used to judge on-time settlement. */
+    private Map<String, LocalDate> resolveInvoiceSettlementDates(
+            List<Map<String, Object>> payments,
+            Map<String, List<String>> allocations) {
+        Map<String, LocalDate> settlementDates = new LinkedHashMap<>();
+        for (Map<String, Object> payment : payments) {
+            LocalDate postingDate = parseIsoDate(asText(payment.get("posting_date")));
+            if (postingDate == null) {
+                continue;
+            }
+            for (String invoiceId : allocations.getOrDefault(asText(payment.get("name")), List.of())) {
+                LocalDate current = settlementDates.get(invoiceId);
+                if (current == null || postingDate.isAfter(current)) {
+                    settlementDates.put(invoiceId, postingDate);
+                }
+            }
+        }
+        return settlementDates;
+    }
+
+    /**
+     * ERPNext stores {@code due_date} at invoice creation from the branch's credit days.
+     * The fallback recomputes it for older or imported invoices; {@code creditDays == 0} is
+     * valid and means the invoice is due on its posting date.
+     */
+    private LocalDate resolveInvoiceDueDate(Map<String, Object> invoice, int creditDays) {
+        LocalDate dueDate = parseIsoDate(asText(invoice.get("due_date")));
+        if (dueDate != null) {
+            return dueDate;
+        }
+        LocalDate postingDate = parseIsoDate(asText(invoice.get("posting_date")));
+        return postingDate == null ? null : postingDate.plusDays(Math.max(creditDays, 0));
+    }
+
+    private Integer agingDaysPastDue(LocalDate dueDate, LocalDate asOfDate) {
+        return dueDate == null ? null : (int) (asOfDate.toEpochDay() - dueDate.toEpochDay());
+    }
+
+    private String agingBucketKey(Integer daysPastDue) {
+        if (daysPastDue == null || daysPastDue <= 0) {
+            return "notDue";
+        }
+        if (daysPastDue <= 7) {
+            return "d1_7";
+        }
+        if (daysPastDue <= 15) {
+            return "d8_15";
+        }
+        if (daysPastDue <= 30) {
+            return "d16_30";
+        }
+        return "d30Plus";
+    }
+
+    private LocalDate resolveAsOfDate(String raw) {
+        LocalDate today = LocalDate.now();
+        LocalDate parsed = parseIsoDate(raw == null ? "" : raw.trim());
+        if (parsed == null) {
+            return today;
+        }
+        return parsed.isAfter(today) ? today : parsed;
+    }
+
+    private LocalDate parseIsoDate(String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim().substring(0, Math.min(10, value.trim().length())));
+        } catch (DateTimeParseException | StringIndexOutOfBoundsException ex) {
+            return null;
+        }
+    }
+
+    private List<Map<String, Object>> agingBucketDescriptors() {
+        return AGING_BUCKETS.entrySet().stream()
+                .map(entry -> Map.<String, Object>of("key", entry.getKey(), "label", entry.getValue()))
+                .toList();
+    }
+
+    private Map<String, Object> buildCoverage(int settledInvoices, int referencedInvoices) {
+        double coveragePct = settledInvoices == 0 ? 0.0 : round((referencedInvoices * 100.0) / settledInvoices);
+        Map<String, Object> coverage = new LinkedHashMap<>();
+        coverage.put("settledSubmittedInvoices", settledInvoices);
+        coverage.put("referencedSettledInvoices", referencedInvoices);
+        coverage.put("onTimeCoveragePct", coveragePct);
+        coverage.put("onTimeReliable", referencedInvoices > 0 && coveragePct >= ONTIME_MIN_COVERAGE_PCT);
+        coverage.put("note", "On-time % uses only settled invoices carrying a Payment Entry reference row.");
+        return coverage;
+    }
+
+    private Map<String, Object> agingThresholds() {
+        Map<String, Object> thresholds = new LinkedHashMap<>();
+        thresholds.put("defaulterMinPct", RISK_DEFAULTER_MIN_PCT);
+        thresholds.put("watchMinPct", RISK_WATCH_MIN_PCT);
+        thresholds.put("hardDefaulterDays", RISK_HARD_DEFAULTER_DAYS);
+        thresholds.put("ageTierDays", List.of(RISK_AGE_TIER_DAYS[0], RISK_AGE_TIER_DAYS[1], RISK_AGE_TIER_DAYS[2]));
+        thresholds.put("amountTierRupees", List.of(RISK_AMOUNT_TIER_RUPEES[0], RISK_AMOUNT_TIER_RUPEES[1], RISK_AMOUNT_TIER_RUPEES[2]));
+        thresholds.put("onTimeTierPct", List.of(RISK_ONTIME_TIER_PCT[0], RISK_ONTIME_TIER_PCT[1], RISK_ONTIME_TIER_PCT[2]));
+        thresholds.put("minOverdueToFlag", RISK_MIN_OVERDUE_TO_FLAG);
+        thresholds.put("onTimeGraceDays", ONTIME_GRACE_DAYS);
+        thresholds.put("onTimeMinCoveragePct", ONTIME_MIN_COVERAGE_PCT);
+        return thresholds;
+    }
+
+    private long countTier(List<Map<String, Object>> rows, String tier) {
+        return rows.stream().filter(row -> tier.equals(asText(row.get("riskTier")))).count();
+    }
+
+    private List<String> rankBranches(List<Map<String, Object>> rows, String primaryKey, String secondaryKey) {
+        return rows.stream()
+                .sorted(agingRowComparator(primaryKey, secondaryKey))
+                .map(row -> asText(row.get("branchId")))
+                .toList();
+    }
+
+    private Comparator<Map<String, Object>> agingRowComparator(String primaryKey, String secondaryKey) {
+        return Comparator
+                .comparingDouble((Map<String, Object> row) -> asDouble(row.get(primaryKey))).reversed()
+                .thenComparing(Comparator.comparingDouble((Map<String, Object> row) -> asDouble(row.get(secondaryKey))).reversed())
+                .thenComparing(row -> asText(row.get("branchName")));
+    }
+
+    /** Overdue invoices first (longest past due), then not-yet-due, then drafts. */
+    private Comparator<Map<String, Object>> agingInvoiceComparator() {
+        return Comparator
+                .comparingInt((Map<String, Object> row) -> "DRAFT".equals(asText(row.get("stage"))) ? 1 : 0)
+                .thenComparing(Comparator.comparingInt((Map<String, Object> row) -> {
+                    Object days = row.get("daysPastDue");
+                    return days == null ? Integer.MIN_VALUE : asInt(days);
+                }).reversed())
+                .thenComparing(row -> asText(row.get("postingDate")));
     }
 
     private List<Map<String, Object>> filterByPostingDate(List<Map<String, Object>> invoices, LedgerRange range) {
@@ -1186,7 +1854,7 @@ public class BranchOpsService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"customer\",\"posting_date\",\"grand_total\",\"rounded_total\",\"rounding_adjustment\",\"aas_rounding_adjustment\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\","
+                "[\"name\",\"customer\",\"posting_date\",\"due_date\",\"grand_total\",\"rounded_total\",\"rounding_adjustment\",\"aas_rounding_adjustment\",\"outstanding_amount\",\"status\",\"modified\",\"creation\",\"docstatus\","
                         + "\"aas_invoice_version_status\",\"aas_replaced_by\",\"aas_source_sales_order\"]");
         params.put("order_by", "posting_date asc");
         List<List<String>> filters = new ArrayList<>();

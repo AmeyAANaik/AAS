@@ -171,6 +171,50 @@ class FeatureAuthorizationFilterTest {
     }
 
     @Test
+    void allowsUserCreateWithAdminAccessFeatureUsingServiceSession() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin@example.com", null));
+        when(userService.hasFeature("admin@example.com", UserFeatureService.ADMIN_ACCESS_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenReturn("sid=setup");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/admin/access/users");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(200, response.getStatus());
+        assertEquals("sid=setup", request.getAttribute(ErpSessionStore.REQUEST_ATTR));
+        verify(userService).hasFeature("admin@example.com", UserFeatureService.ADMIN_ACCESS_VIEW);
+    }
+
+    @Test
+    void blocksUserCreateWhenUserLacksAdminAccessFeature() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("helper@example.com", null));
+        when(userService.hasFeature("helper@example.com", UserFeatureService.ADMIN_ACCESS_VIEW)).thenReturn(false);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/admin/access/users");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(403, response.getStatus());
+        verify(authenticationService, never()).getSetupSessionCookie();
+    }
+
+    @Test
+    void blocksUserCreateWhenServiceSessionIsUnavailable() throws ServletException, IOException {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("admin@example.com", null));
+        when(userService.hasFeature("admin@example.com", UserFeatureService.ADMIN_ACCESS_VIEW)).thenReturn(true);
+        when(authenticationService.getSetupSessionCookie()).thenThrow(new IllegalStateException("setup unavailable"));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/admin/access/users");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertEquals(503, response.getStatus());
+    }
+
+    @Test
     void ignoresUnmappedApiRoutes() throws ServletException, IOException {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/me");
         MockHttpServletResponse response = new MockHttpServletResponse();

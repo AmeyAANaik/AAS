@@ -358,6 +358,128 @@
   font-weight: 600;
 }
 
+/* --- User row: selectable card plus an enable/disable action --- */
+.user-list-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.user-list-row .user-list-item {
+  flex: 1;
+  min-width: 0;
+}
+
+/* `active` moved to the wrapper, so re-apply the selected treatment to the card. */
+.user-list-row.active .user-list-item {
+  border-color: rgba(91, 107, 255, 0.36);
+  box-shadow: 0 10px 24px rgba(91, 107, 255, 0.14);
+}
+
+.user-list-row.disabled-user .user-list-item {
+  opacity: 0.62;
+}
+
+.user-toggle {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.user-toggle:hover:not(:disabled) {
+  border-color: rgba(220, 38, 38, 0.4);
+  color: #b91c1c;
+}
+
+.user-toggle--off:hover:not(:disabled) {
+  border-color: rgba(22, 163, 74, 0.4);
+  color: #15803d;
+}
+
+.user-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.status-chip {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.status-chip--off {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+/* --- Create user --- */
+.create-user-toggle {
+  align-self: center;
+}
+
+.create-user-panel {
+  margin-top: 18px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.create-user-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+
+.create-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 16px;
+}
+
+.role-preview {
+  margin: 8px 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.role-preview__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-right: 4px;
+}
+
+.role-preview__chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(91, 107, 255, 0.1);
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.role-preview__note {
+  flex-basis: 100%;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .access-editor {
   display: grid;
   gap: 18px;

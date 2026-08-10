@@ -2,9 +2,15 @@ import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { AuthTokenService } from '../shared/auth-token.service';
-import { BranchOpsAnalytics, BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
+import { BranchOpsAgingDetail, BranchOpsAgingSummary, BranchOpsAnalytics, BranchOpsCategorySummaryRow, BranchOpsDetail, BranchOpsLedgerEntry, BranchOpsOrderRow, BranchOpsSummaryRow, BranchOpsSummaryTotals } from './branch-ops.model';
 
 export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
+
+export interface BranchOpsAgingQuery {
+  asOf?: string;
+  from?: string;
+  to?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class BranchOpsService {
@@ -126,6 +132,48 @@ export class BranchOpsService {
     let params = this.withDateRange(new HttpParams(), range);
     params = params.set('format', format);
     return this.http.get('/api/branch-ops/ledger/categories/export', {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  private withAgingQuery(params: HttpParams, query?: BranchOpsAgingQuery): HttpParams {
+    let next = this.withDateRange(params, query);
+    if (query?.asOf) {
+      next = next.set('asOf', query.asOf);
+    }
+    return next;
+  }
+
+  getAgingSummary(query?: BranchOpsAgingQuery): Observable<BranchOpsAgingSummary> {
+    return this.http.get<BranchOpsAgingSummary>('/api/branch-ops/aging', {
+      headers: this.authHeaders(),
+      params: this.withAgingQuery(new HttpParams(), query)
+    });
+  }
+
+  getBranchAging(branchId: string, query?: BranchOpsAgingQuery): Observable<BranchOpsAgingDetail> {
+    return this.http.get<BranchOpsAgingDetail>(`/api/branch-ops/${encodeURIComponent(branchId)}/aging`, {
+      headers: this.authHeaders(),
+      params: this.withAgingQuery(new HttpParams(), query)
+    });
+  }
+
+  downloadAgingSummary(query?: BranchOpsAgingQuery, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withAgingQuery(new HttpParams(), query);
+    params = params.set('format', format);
+    return this.http.get('/api/branch-ops/aging/export', {
+      headers: this.authHeaders(),
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  downloadBranchAging(branchId: string, query?: BranchOpsAgingQuery, format: ExportFormat = 'csv'): Observable<Blob> {
+    let params = this.withAgingQuery(new HttpParams(), query);
+    params = params.set('format', format);
+    return this.http.get(`/api/branch-ops/${encodeURIComponent(branchId)}/aging/export`, {
       headers: this.authHeaders(),
       params,
       responseType: 'blob'
