@@ -5,7 +5,6 @@ COPY mvnw mvnw.cmd pom.xml ./
 COPY .mvn .mvn
 RUN ./mvnw -q -DskipTests dependency:go-offline
 
-COPY images images
 COPY src src
 RUN ./mvnw -q package
 
