@@ -87,6 +87,10 @@ public class AuthenticationService {
         try {
             return roleResolver.resolve(erpNextClient.getUserRoles(sessionCookie, canonicalUserId));
         } catch (IllegalStateException ignored) {
+            AppRole privilegedRole = resolveAppRoleWithSetupSession(canonicalUserId);
+            if (privilegedRole != null) {
+                return privilegedRole;
+            }
             // Fall through to self-profile inference below.
         }
         if (hasText(user.get(UserService.SUPPLIER_FIELD)) || hasText(user.get("supplier"))) {
@@ -99,6 +103,21 @@ public class AuthenticationService {
             return AppRole.HELPER;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No supported ERP role assigned.");
+    }
+
+    private AppRole resolveAppRoleWithSetupSession(String canonicalUserId) {
+        try {
+            String setupSessionCookie = getSetupSessionCookie();
+            Map<String, Object> setupVisibleUser =
+                    unwrapResource(erpNextClient.getResourceWithSession("User", canonicalUserId, setupSessionCookie));
+            AppRole explicitRole = resolveExplicitAppRole(setupVisibleUser.get(AppRole.FIELD));
+            if (explicitRole != null) {
+                return explicitRole;
+            }
+            return roleResolver.resolve(erpNextClient.getUserRoles(setupSessionCookie, canonicalUserId));
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     @SuppressWarnings("unchecked")

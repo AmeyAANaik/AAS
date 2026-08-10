@@ -13,6 +13,7 @@ import com.aas.mw.dto.AuthRequest;
 import com.aas.mw.dto.AuthResponse;
 import java.util.Map;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -106,6 +107,32 @@ class AuthenticationServiceTest {
                         UserFeatureService.FEATURE_ALLOW_FIELD, "[\"orders.view\"]",
                         UserFeatureService.FEATURE_DENY_FIELD, "[\"company_settings.view\"]")));
         when(jwtService.generateToken("helper@example.com", AppRole.HELPER)).thenReturn("jwt");
+
+        AuthResponse response = service.login(request);
+
+        assertEquals("jwt", response.getAccessToken());
+        assertEquals("helper", response.getRole());
+    }
+
+    @Test
+    void fallsBackToSetupSessionWhenUserSessionCannotSeeRoleRows() {
+        AuthRequest request = new AuthRequest();
+        request.setUsername("kumar@example.com");
+        request.setPassword("Progress@1234");
+
+        when(userAliasService.resolveLoginId("kumar@example.com")).thenReturn("kumar@example.com");
+        when(erpNextClient.login("kumar@example.com", "Progress@1234")).thenReturn("sid=user");
+        when(erpNextClient.getLoggedInUser("sid=user")).thenReturn("kumar@example.com");
+        when(erpNextClient.getUserRoles("sid=user", "kumar@example.com")).thenReturn(List.of());
+        when(erpNextClient.getResourceWithSession("User", "kumar@example.com", "sid=user"))
+                .thenReturn(Map.of("data", Map.of()));
+        when(erpSessionStore.get("Administrator")).thenReturn(Optional.empty());
+        when(erpNextClient.login("Administrator", "admin")).thenReturn("sid=setup");
+        when(erpNextClient.getResourceWithSession("User", "kumar@example.com", "sid=setup"))
+                .thenReturn(Map.of("data", Map.of()));
+        when(erpNextClient.getUserRoles("sid=setup", "kumar@example.com"))
+                .thenReturn(List.of("Stock User", "Accounts User", "Sales User"));
+        when(jwtService.generateToken("kumar@example.com", AppRole.HELPER)).thenReturn("jwt");
 
         AuthResponse response = service.login(request);
 
