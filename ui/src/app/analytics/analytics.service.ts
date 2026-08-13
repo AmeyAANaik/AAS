@@ -51,6 +51,12 @@ export class AnalyticsService {
     });
   }
 
+  gstr1(req: AnalyticsQueryRequest): Observable<AnalyticsQueryResponse> {
+    return this.http.post<AnalyticsQueryResponse>('/api/analytics/gstr1', req, {
+      headers: this.authHeaders()
+    });
+  }
+
   export(req: AnalyticsQueryRequest, format: ExportFormat = 'csv'): Observable<Blob> {
     return this.http.post(`/api/analytics/query/export?format=${format}`, req, {
       headers: this.authHeaders(),
@@ -60,6 +66,13 @@ export class AnalyticsService {
 
   exportItemPriceHistory(req: AnalyticsQueryRequest, format: ExportFormat = 'csv'): Observable<Blob> {
     return this.http.post(`/api/analytics/item-price-history/export?format=${format}`, req, {
+      headers: this.authHeaders(),
+      responseType: 'blob'
+    });
+  }
+
+  exportGstr1(req: AnalyticsQueryRequest, format: ExportFormat = 'csv'): Observable<Blob> {
+    return this.http.post(`/api/analytics/gstr1/export?format=${format}`, req, {
       headers: this.authHeaders(),
       responseType: 'blob'
     });

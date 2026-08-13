@@ -79,6 +79,25 @@ public class AnalyticsController {
                         asText(req.getDateFrom()), asText(req.getDateTo())));
     }
 
+    @PostMapping("/gstr1")
+    public ResponseEntity<AnalyticsQueryResponse> gstr1(@RequestBody AnalyticsQueryRequest req) {
+        return ResponseEntity.ok(analyticsService.gstr1Report(req));
+    }
+
+    @PostMapping("/gstr1/export")
+    public ResponseEntity<?> exportGstr1(
+            @RequestBody AnalyticsQueryRequest req,
+            @RequestParam(required = false, defaultValue = "csv") String format) {
+        AnalyticsQueryResponse result = analyticsService.gstr1Report(req);
+        String report = req == null || req.getFilters() == null ? "" : asText(req.getFilters().get("gstReport"));
+        String suffix = report.isBlank() ? "gstr1" : "gstr1-" + report.toLowerCase().replaceAll("[^a-z0-9]+", "-");
+        return buildExportResponse(result, suffix, format,
+                new LedgerPdfUtil.ReportContext(
+                        "GSTR-1 " + report.toUpperCase(), "", "",
+                        req == null ? "" : asText(req.getDateFrom()),
+                        req == null ? "" : asText(req.getDateTo())));
+    }
+
     private ResponseEntity<?> buildExportResponse(
             AnalyticsQueryResponse result,
             String baseName,

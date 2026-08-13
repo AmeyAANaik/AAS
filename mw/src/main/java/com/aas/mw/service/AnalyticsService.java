@@ -130,6 +130,357 @@ public class AnalyticsService {
         return new AnalyticsQueryResponse(columns, rows, Map.of(), kpis);
     }
 
+    public AnalyticsQueryResponse gstr1Report(AnalyticsQueryRequest req) {
+        DateRange range = resolveRange(req.getDateFrom(), req.getDateTo());
+        Map<String, String> filters = normalizeFilters(req.getFilters());
+        String report = trimToEmpty(filters.get("gstReport")).toLowerCase(Locale.ROOT);
+        return switch (report) {
+            case "b2b" -> gstr1B2b(range);
+            case "b2c", "b2cs" -> gstr1B2c(range);
+            case "cdnr" -> gstr1Cdnr(range);
+            case "hsn" -> gstr1Hsn(range);
+            case "docs" -> gstr1Docs(range);
+            default -> gstr1B2b(range);
+        };
+    }
+
+    private AnalyticsQueryResponse gstr1B2b(DateRange range) {
+        GstrContext context = loadGstrContext(range);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<String> warnings = new ArrayList<>(context.warnings());
+        for (Map<String, Object> invoice : context.invoices()) {
+            CustomerTaxMeta customer = context.customerMeta(asString(invoice.get("customer")));
+            if (customer.gstin().isBlank()) {
+                continue;
+            }
+            List<Map<String, Object>> items = context.invoiceItems(asString(invoice.get("name")));
+            for (Map<String, Object> item : items) {
+                GstrLine line = gstrLine(invoice, item, context, customer);
+                Map<String, Object> row = baseB2bRow(customer, line);
+                row.put("Invoice Type", "Regular");
+                row.put("Reverse Charge (Indicate if supply attracts reverse charge)", "No");
+                row.put("Applicable % of Tax Rate", "");
+                row.put("GSTIN of E-Commerce Operator (If applicable)", "");
+                rows.add(row);
+            }
+        }
+        return gstrResponse(b2bColumns(), rows, warnings);
+    }
+
+    private AnalyticsQueryResponse gstr1B2c(DateRange range) {
+        GstrContext context = loadGstrContext(range);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        List<String> warnings = new ArrayList<>(context.warnings());
+        Map<String, GstrAggregate> aggregates = new LinkedHashMap<>();
+        for (Map<String, Object> invoice : context.invoices()) {
+            CustomerTaxMeta customer = context.customerMeta(asString(invoice.get("customer")));
+            if (!customer.gstin().isBlank()) {
+                continue;
+            }
+            for (Map<String, Object> item : context.invoiceItems(asString(invoice.get("name")))) {
+                GstrLine line = gstrLine(invoice, item, context, customer);
+                String key = line.placeOfSupply() + "::" + line.hsn() + "::" + line.itemDescription() + "::"
+                        + line.uqc() + "::" + line.taxRate();
+                GstrAggregate aggregate = aggregates.computeIfAbsent(key, unused -> new GstrAggregate(
+                        line.placeOfSupply(), line.hsn(), line.itemDescription(), line.uqc(), line.taxRate()));
+                aggregate.add(line);
+            }
+        }
+        for (GstrAggregate aggregate : aggregates.values()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("Place of Supply * (Required)", aggregate.placeOfSupply);
+            row.put("HSN/SAC", aggregate.hsn);
+            row.put("Item Description", aggregate.itemDescription);
+            row.put("UQC", aggregate.uqc);
+            row.put("Quantity", round(aggregate.quantity));
+            row.put("Total Taxable Value * (Required)", round(aggregate.taxableValue));
+            row.put("Tax Rate * (Required)", aggregate.taxRate);
+            row.put("IGST Amount", round(aggregate.igst));
+            row.put("CGST Amount", round(aggregate.cgst));
+            row.put("SGST/UT Amount", round(aggregate.sgst));
+            row.put("Cess Amount", 0.0);
+            row.put("GSTIN of E-Commerce Operator (If applicable)", "");
+            row.put("Applicable % of Tax Rate", "");
+            rows.add(row);
+        }
+        return gstrResponse(b2cColumns(), rows, warnings);
+    }
+
+    private AnalyticsQueryResponse gstr1Hsn(DateRange range) {
+        GstrContext context = loadGstrContext(range);
+        List<String> warnings = new ArrayList<>(context.warnings());
+        Map<String, GstrAggregate> aggregates = new LinkedHashMap<>();
+        for (Map<String, Object> invoice : context.invoices()) {
+            CustomerTaxMeta customer = context.customerMeta(asString(invoice.get("customer")));
+            for (Map<String, Object> item : context.invoiceItems(asString(invoice.get("name")))) {
+                GstrLine line = gstrLine(invoice, item, context, customer);
+                String key = line.hsn() + "::" + line.itemDescription() + "::" + line.uqc() + "::" + line.taxRate();
+                GstrAggregate aggregate = aggregates.computeIfAbsent(key, unused -> new GstrAggregate(
+                        "", line.hsn(), line.itemDescription(), line.uqc(), line.taxRate()));
+                aggregate.add(line);
+            }
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (GstrAggregate aggregate : aggregates.values()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("HSN Type * (Required from May-25)", aggregate.hsn == null || aggregate.hsn.isBlank() ? "" : "Goods");
+            row.put("Description", aggregate.itemDescription);
+            row.put("HSN/SAC * (Required)", aggregate.hsn);
+            row.put("Quantity * (Required for HSN Code)", round(aggregate.quantity));
+            row.put("UQC * (Required for HSN Code)", aggregate.uqc);
+            row.put("Total Value * (Required till April-21)", round(aggregate.taxableValue + aggregate.igst + aggregate.cgst + aggregate.sgst));
+            row.put("Total Taxable Value * (Required)", round(aggregate.taxableValue));
+            row.put("Tax Rate (%) * (Required from May-21)", aggregate.taxRate);
+            row.put("IGST Amount * (Required if supply is Inter-State)", round(aggregate.igst));
+            row.put("CGST Amount * (Required if supply is Intra-State)", round(aggregate.cgst));
+            row.put("SGST/UT Amount * (Required if supply is Intra-State)", round(aggregate.sgst));
+            row.put("Cess Amount", 0.0);
+            rows.add(row);
+        }
+        return gstrResponse(hsnColumns(), rows, warnings);
+    }
+
+    private AnalyticsQueryResponse gstr1Docs(DateRange range) {
+        List<Map<String, Object>> invoices = invoiceService.listInvoices("Customer", null, range.start(), range.end());
+        List<String> names = invoices.stream()
+                .map(invoice -> trimToEmpty(asString(invoice.get("name"))))
+                .filter(name -> !name.isBlank())
+                .sorted()
+                .toList();
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("Nature of Document * (Required)", "Invoices for outward supply");
+        row.put("Sr. No. * (Required)", names.isEmpty() ? "" : names.get(0));
+        row.put("From", names.isEmpty() ? "" : names.get(0));
+        row.put("To", names.isEmpty() ? "" : names.get(names.size() - 1));
+        row.put("Total No of Invoices * (Required)", names.size());
+        row.put("Cancelled Invoices * (Required)", 0);
+        row.put("Net Invoices Issued * (Required)", names.size());
+        return gstrResponse(docsColumns(), names.isEmpty() ? List.of() : List.of(row), List.of(
+                "Cancelled invoice count is reported as 0 because the standard invoice list excludes cancelled documents."));
+    }
+
+    private AnalyticsQueryResponse gstr1Cdnr(DateRange range) {
+        List<String> warnings = new ArrayList<>();
+        warnings.add("CDNR is built from approved customer adjustment Journal Entries. HSN, quantity, UQC, original invoice, and tax split are approximated unless captured on the note.");
+        Map<String, Object> params = new HashMap<>();
+        params.put("fields", "[\"name\",\"posting_date\",\"docstatus\",\"aas_adjustment_party\",\"aas_adjustment_party_type\","
+                + "\"aas_adjustment_note_type\",\"aas_adjustment_amount\",\"aas_adjustment_item_name\",\"aas_reference_invoice\","
+                + "\"aas_adjustment_reason\",\"aas_adjustment_review_status\"]");
+        params.put("limit_page_length", 0);
+        params.put("order_by", "posting_date asc");
+        params.put("filters", toJson(List.of(
+                List.of("posting_date", ">=", range.start()),
+                List.of("posting_date", "<=", range.end()),
+                List.of("docstatus", "=", "1"),
+                List.of("aas_adjustment_party_type", "=", "Customer"),
+                List.of("aas_adjustment_review_status", "=", "APPROVED"))));
+        List<Map<String, Object>> notes = erpNextClient.listResources("Journal Entry", params);
+        Set<String> customers = notes.stream()
+                .map(note -> trimToEmpty(asString(note.get("aas_adjustment_party"))))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, CustomerTaxMeta> customerMeta = fetchCustomerTaxMeta(customers);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> note : notes) {
+            String customerId = trimToEmpty(asString(note.get("aas_adjustment_party")));
+            CustomerTaxMeta customer = customerMeta.getOrDefault(customerId, CustomerTaxMeta.empty(customerId));
+            if (customer.gstin().isBlank()) {
+                continue;
+            }
+            double amount = round(asDouble(note.get("aas_adjustment_amount")));
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("Name of the Recipient (Optional)", customer.label());
+            row.put("Receiver GSTIN/UIN * (Required)", customer.gstin());
+            row.put("Place of Supply * (Required)", placeOfSupply(customer, ""));
+            row.put("Note Type  (Debit/Credit/Refund) * (Required)", noteTypeLabel(asString(note.get("aas_adjustment_note_type"))));
+            row.put("Note Supply Type", "");
+            row.put("Reverse Charge", "No");
+            row.put("Note/Refund Voucher Number * (Required)", asString(note.get("name")));
+            row.put("Note/Refund Voucher Date * (Required)", asString(note.get("posting_date")));
+            row.put("Note/Refund Voucher Value * (Required)", amount);
+            row.put("HSN/SAC", "");
+            row.put("Item Description", firstNonBlank(asString(note.get("aas_adjustment_item_name")), asString(note.get("aas_reference_invoice"))));
+            row.put("UQC", "");
+            row.put("Quantity", "");
+            row.put("Taxable Value * (Required)", amount);
+            row.put("Tax Rate * (Required)", 0.0);
+            row.put("IGST Amount", 0.0);
+            row.put("CGST Amount", 0.0);
+            row.put("SGST/UT Amount", 0.0);
+            row.put("Cess Amount", 0.0);
+            row.put("Applicable % of Tax Rate", "");
+            rows.add(row);
+        }
+        return gstrResponse(cdnrColumns(), rows, warnings);
+    }
+
+    private GstrContext loadGstrContext(DateRange range) {
+        List<String> warnings = new ArrayList<>();
+        List<Map<String, Object>> invoices = invoiceService.listInvoices("Customer", null, range.start(), range.end());
+        Map<String, List<Map<String, Object>>> invoiceItems = batchFetchInvoiceItems(invoices);
+        Set<String> customers = invoices.stream()
+                .map(invoice -> trimToEmpty(asString(invoice.get("customer"))))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> itemCodes = invoiceItems.values().stream()
+                .flatMap(List::stream)
+                .map(item -> trimToEmpty(asString(item.get("item_code"))))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, CustomerTaxMeta> customerMeta = fetchCustomerTaxMeta(customers);
+        Map<String, ItemTaxMeta> itemMeta = fetchItemTaxMeta(itemCodes);
+        String companyGstin = fetchCompanyGstin(invoices);
+        if (companyGstin.isBlank()) {
+            warnings.add("Company GSTIN is missing; place-of-supply tax split falls back to intra-state CGST/SGST.");
+        }
+        warnings.add("Place of Supply uses customer GSTIN state prefix when available; otherwise it falls back to company GSTIN state.");
+        return new GstrContext(invoices, invoiceItems, customerMeta, itemMeta, companyGstin, warnings);
+    }
+
+    private Map<String, CustomerTaxMeta> fetchCustomerTaxMeta(Set<String> customerIds) {
+        if (customerIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, CustomerTaxMeta> result = new HashMap<>();
+        for (List<String> chunk : partition(new ArrayList<>(customerIds), BATCH_CHUNK_SIZE)) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"customer_name\",\"tax_id\",\"gstin\"]");
+            params.put("filters", buildInFilter("name", chunk));
+            params.put("limit_page_length", chunk.size() + 1);
+            try {
+                for (Map<String, Object> row : erpNextClient.listResources("Customer", params)) {
+                    String id = trimToEmpty(asString(row.get("name")));
+                    String label = firstNonBlank(asString(row.get("customer_name")), id);
+                    String gstin = firstNonBlank(asString(row.get("tax_id")), asString(row.get("gstin"))).toUpperCase(Locale.ROOT);
+                    if (!id.isBlank()) {
+                        result.put(id, new CustomerTaxMeta(label, gstin));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return result;
+    }
+
+    private Map<String, ItemTaxMeta> fetchItemTaxMeta(Set<String> itemCodes) {
+        if (itemCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ItemTaxMeta> result = new HashMap<>();
+        for (List<String> chunk : partition(new ArrayList<>(itemCodes), BATCH_CHUNK_SIZE)) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"item_name\",\"stock_uom\",\"aas_vendor_hsn_code\",\"gst_hsn_code\",\"aas_gst_percent\"]");
+            params.put("filters", buildInFilter("name", chunk));
+            params.put("limit_page_length", chunk.size() + 1);
+            try {
+                for (Map<String, Object> row : erpNextClient.listResources("Item", params)) {
+                    String id = trimToEmpty(asString(row.get("name")));
+                    if (!id.isBlank()) {
+                        result.put(id, new ItemTaxMeta(
+                                firstNonBlank(asString(row.get("item_name")), id),
+                                firstNonBlank(asString(row.get("aas_vendor_hsn_code")), asString(row.get("gst_hsn_code"))),
+                                firstNonBlank(asString(row.get("stock_uom")), "Nos"),
+                                asDouble(row.get("aas_gst_percent"))));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return result;
+    }
+
+    private String fetchCompanyGstin(List<Map<String, Object>> invoices) {
+        String company = invoices.stream()
+                .map(invoice -> trimToEmpty(asString(invoice.get("company"))))
+                .filter(value -> !value.isBlank())
+                .findFirst()
+                .orElse("");
+        if (company.isBlank()) {
+            return "";
+        }
+        try {
+            Map<String, Object> doc = unwrapDoc(erpNextClient.getResource("Company", company));
+            return firstNonBlank(asString(doc.get("tax_id")), asString(doc.get("gstin"))).toUpperCase(Locale.ROOT);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private GstrLine gstrLine(
+            Map<String, Object> invoice,
+            Map<String, Object> item,
+            GstrContext context,
+            CustomerTaxMeta customer) {
+        String itemCode = trimToEmpty(asString(item.get("item_code")));
+        ItemTaxMeta meta = context.itemMeta().getOrDefault(itemCode, ItemTaxMeta.empty(itemCode));
+        double taxable = round(asDouble(firstNonNull(item.get("amount"), item.get("net_amount"))));
+        double taxRate = asDouble(firstNonNull(item.get("aas_gst_percent"), meta.gstRate()));
+        double tax = round(taxable * taxRate / 100.0);
+        boolean interstate = isInterstate(customer.gstin(), context.companyGstin());
+        double igst = interstate ? tax : 0.0;
+        double cgst = interstate ? 0.0 : round(tax / 2.0);
+        double sgst = interstate ? 0.0 : round(tax - cgst);
+        return new GstrLine(
+                customer.label(),
+                customer.gstin(),
+                placeOfSupply(customer, context.companyGstin()),
+                asString(invoice.get("name")),
+                asString(invoice.get("posting_date")),
+                round(asDouble(invoice.get("grand_total"))),
+                firstNonBlank(asString(item.get("gst_hsn_code")), asString(item.get("aas_vendor_hsn_code")), meta.hsn()),
+                firstNonBlank(asString(item.get("item_name")), meta.itemName(), itemCode),
+                firstNonBlank(asString(item.get("uom")), asString(item.get("stock_uom")), meta.uqc()),
+                round(asDouble(item.get("qty"))),
+                taxable,
+                round(taxRate),
+                igst,
+                cgst,
+                sgst);
+    }
+
+    private Map<String, Object> baseB2bRow(CustomerTaxMeta customer, GstrLine line) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("Receiver Name (Optional)", customer.label());
+        row.put("Receiver GSTIN/UIN * (Required)", customer.gstin());
+        row.put("Place of Supply * (Required)", line.placeOfSupply());
+        row.put("Invoice No * (Required)", line.invoiceNo());
+        row.put("Invoice Date * (Required)", line.invoiceDate());
+        row.put("Total Invoice Value * (Required)", line.invoiceValue());
+        row.put("HSN/SAC", line.hsn());
+        row.put("Item Description", line.itemDescription());
+        row.put("UQC", line.uqc());
+        row.put("Quantity", line.quantity());
+        row.put("Taxable Value * (Required)", line.taxableValue());
+        row.put("Tax Rate * (Required)", line.taxRate());
+        row.put("IGST Amount", line.igst());
+        row.put("CGST Amount", line.cgst());
+        row.put("SGST/UT Amount", line.sgst());
+        row.put("Cess Amount", 0.0);
+        return row;
+    }
+
+    private AnalyticsQueryResponse gstrResponse(List<AnalyticsColumn> columns, List<Map<String, Object>> rows, List<String> warnings) {
+        Map<String, Object> totals = new LinkedHashMap<>();
+        if (!rows.isEmpty()) {
+            totals.put(columns.get(0).id(), "Total");
+            for (AnalyticsColumn column : columns) {
+                String id = column.id();
+                if (id.equals(columns.get(0).id())) {
+                    continue;
+                }
+                double sum = rows.stream().mapToDouble(row -> asDouble(row.get(id))).sum();
+                if (sum != 0.0) {
+                    totals.put(id, round(sum));
+                }
+            }
+        }
+        List<AnalyticsKpi> kpis = List.of(
+                new AnalyticsKpi("rows", "Rows", rows.size(), "NUMBER"),
+                new AnalyticsKpi("taxable", "Taxable Value", rows.stream().mapToDouble(row -> asDouble(firstNonNull(
+                        row.get("Taxable Value * (Required)"),
+                        row.get("Total Taxable Value * (Required)"),
+                        row.get("Total Taxable Value * (Required)")))).sum(), "CURRENCY"));
+        return new AnalyticsQueryResponse(columns, rows, totals, kpis, warnings);
+    }
+
     private List<FactRow> loadInvoiceFacts(
             DateRange range,
             List<String> dims,
@@ -1024,7 +1375,265 @@ public class AnalyticsService {
         return builder.append("]").toString();
     }
 
+    private List<AnalyticsColumn> b2bColumns() {
+        return gstrColumns(List.of(
+                "Receiver Name (Optional)",
+                "Receiver GSTIN/UIN * (Required)",
+                "Place of Supply * (Required)",
+                "Invoice No * (Required)",
+                "Invoice Date * (Required)",
+                "Total Invoice Value * (Required)",
+                "HSN/SAC",
+                "Item Description",
+                "UQC",
+                "Quantity",
+                "Taxable Value * (Required)",
+                "Tax Rate * (Required)",
+                "IGST Amount",
+                "CGST Amount",
+                "SGST/UT Amount",
+                "Cess Amount",
+                "Invoice Type",
+                "Reverse Charge (Indicate if supply attracts reverse charge)",
+                "Applicable % of Tax Rate",
+                "GSTIN of E-Commerce Operator (If applicable)"));
+    }
+
+    private List<AnalyticsColumn> b2cColumns() {
+        return gstrColumns(List.of(
+                "Place of Supply * (Required)",
+                "HSN/SAC",
+                "Item Description",
+                "UQC",
+                "Quantity",
+                "Total Taxable Value * (Required)",
+                "Tax Rate * (Required)",
+                "IGST Amount",
+                "CGST Amount",
+                "SGST/UT Amount",
+                "Cess Amount",
+                "GSTIN of E-Commerce Operator (If applicable)",
+                "Applicable % of Tax Rate"));
+    }
+
+    private List<AnalyticsColumn> cdnrColumns() {
+        return gstrColumns(List.of(
+                "Name of the Recipient (Optional)",
+                "Receiver GSTIN/UIN * (Required)",
+                "Place of Supply * (Required)",
+                "Note Type  (Debit/Credit/Refund) * (Required)",
+                "Note Supply Type",
+                "Reverse Charge",
+                "Note/Refund Voucher Number * (Required)",
+                "Note/Refund Voucher Date * (Required)",
+                "Note/Refund Voucher Value * (Required)",
+                "HSN/SAC",
+                "Item Description",
+                "UQC",
+                "Quantity",
+                "Taxable Value * (Required)",
+                "Tax Rate * (Required)",
+                "IGST Amount",
+                "CGST Amount",
+                "SGST/UT Amount",
+                "Cess Amount",
+                "Applicable % of Tax Rate"));
+    }
+
+    private List<AnalyticsColumn> hsnColumns() {
+        return gstrColumns(List.of(
+                "HSN Type * (Required from May-25)",
+                "Description",
+                "HSN/SAC * (Required)",
+                "Quantity * (Required for HSN Code)",
+                "UQC * (Required for HSN Code)",
+                "Total Value * (Required till April-21)",
+                "Total Taxable Value * (Required)",
+                "Tax Rate (%) * (Required from May-21)",
+                "IGST Amount * (Required if supply is Inter-State)",
+                "CGST Amount * (Required if supply is Intra-State)",
+                "SGST/UT Amount * (Required if supply is Intra-State)",
+                "Cess Amount"));
+    }
+
+    private List<AnalyticsColumn> docsColumns() {
+        return gstrColumns(List.of(
+                "Nature of Document * (Required)",
+                "Sr. No. * (Required)",
+                "From",
+                "To",
+                "Total No of Invoices * (Required)",
+                "Cancelled Invoices * (Required)",
+                "Net Invoices Issued * (Required)"));
+    }
+
+    private List<AnalyticsColumn> gstrColumns(List<String> labels) {
+        return labels.stream()
+                .map(label -> new AnalyticsColumn(label, label, numericGstrColumn(label) ? "NUMBER" : "DIMENSION"))
+                .toList();
+    }
+
+    private boolean numericGstrColumn(String label) {
+        String normalized = label.toLowerCase(Locale.ROOT);
+        return normalized.contains("value")
+                || normalized.contains("amount")
+                || normalized.contains("quantity")
+                || normalized.contains("tax rate")
+                || normalized.contains("total no")
+                || normalized.contains("cancelled")
+                || normalized.contains("net invoices");
+    }
+
+    private String placeOfSupply(CustomerTaxMeta customer, String companyGstin) {
+        String stateCode = firstNonBlank(stateCode(customer.gstin()), stateCode(companyGstin));
+        if (stateCode.isBlank()) {
+            return "";
+        }
+        return stateCode + "-" + GST_STATE_NAMES.getOrDefault(stateCode, "Unknown");
+    }
+
+    private boolean isInterstate(String customerGstin, String companyGstin) {
+        String customerState = stateCode(customerGstin);
+        String companyState = stateCode(companyGstin);
+        return !customerState.isBlank() && !companyState.isBlank() && !customerState.equals(companyState);
+    }
+
+    private String stateCode(String gstin) {
+        String text = trimToEmpty(gstin);
+        if (text.length() < 2) {
+            return "";
+        }
+        String code = text.substring(0, 2);
+        return code.chars().allMatch(Character::isDigit) ? code : "";
+    }
+
+    private String noteTypeLabel(String value) {
+        String normalized = trimToEmpty(value).toUpperCase(Locale.ROOT);
+        if (normalized.contains("DEBIT")) {
+            return "Debit";
+        }
+        if (normalized.contains("REFUND")) {
+            return "Refund";
+        }
+        return "Credit";
+    }
+
+    private static final Map<String, String> GST_STATE_NAMES = Map.ofEntries(
+            Map.entry("01", "Jammu and Kashmir"),
+            Map.entry("02", "Himachal Pradesh"),
+            Map.entry("03", "Punjab"),
+            Map.entry("04", "Chandigarh"),
+            Map.entry("05", "Uttarakhand"),
+            Map.entry("06", "Haryana"),
+            Map.entry("07", "Delhi"),
+            Map.entry("08", "Rajasthan"),
+            Map.entry("09", "Uttar Pradesh"),
+            Map.entry("10", "Bihar"),
+            Map.entry("11", "Sikkim"),
+            Map.entry("12", "Arunachal Pradesh"),
+            Map.entry("13", "Nagaland"),
+            Map.entry("14", "Manipur"),
+            Map.entry("15", "Mizoram"),
+            Map.entry("16", "Tripura"),
+            Map.entry("17", "Meghalaya"),
+            Map.entry("18", "Assam"),
+            Map.entry("19", "West Bengal"),
+            Map.entry("20", "Jharkhand"),
+            Map.entry("21", "Odisha"),
+            Map.entry("22", "Chhattisgarh"),
+            Map.entry("23", "Madhya Pradesh"),
+            Map.entry("24", "Gujarat"),
+            Map.entry("25", "Daman and Diu"),
+            Map.entry("26", "Dadra and Nagar Haveli and Daman and Diu"),
+            Map.entry("27", "Maharashtra"),
+            Map.entry("28", "Andhra Pradesh"),
+            Map.entry("29", "Karnataka"),
+            Map.entry("30", "Goa"),
+            Map.entry("31", "Lakshadweep"),
+            Map.entry("32", "Kerala"),
+            Map.entry("33", "Tamil Nadu"),
+            Map.entry("34", "Puducherry"),
+            Map.entry("35", "Andaman and Nicobar Islands"),
+            Map.entry("36", "Telangana"),
+            Map.entry("37", "Andhra Pradesh"),
+            Map.entry("38", "Ladakh"),
+            Map.entry("97", "Other Territory"));
+
     private record DateRange(String start, String end) {}
+
+    private record CustomerTaxMeta(String label, String gstin) {
+        static CustomerTaxMeta empty(String label) {
+            return new CustomerTaxMeta(label, "");
+        }
+    }
+
+    private record ItemTaxMeta(String itemName, String hsn, String uqc, double gstRate) {
+        static ItemTaxMeta empty(String itemCode) {
+            return new ItemTaxMeta(itemCode, "", "Nos", 0.0);
+        }
+    }
+
+    private record GstrLine(
+            String receiverName,
+            String receiverGstin,
+            String placeOfSupply,
+            String invoiceNo,
+            String invoiceDate,
+            double invoiceValue,
+            String hsn,
+            String itemDescription,
+            String uqc,
+            double quantity,
+            double taxableValue,
+            double taxRate,
+            double igst,
+            double cgst,
+            double sgst) {}
+
+    private record GstrContext(
+            List<Map<String, Object>> invoices,
+            Map<String, List<Map<String, Object>>> invoiceItems,
+            Map<String, CustomerTaxMeta> customerMeta,
+            Map<String, ItemTaxMeta> itemMeta,
+            String companyGstin,
+            List<String> warnings) {
+        CustomerTaxMeta customerMeta(String customerId) {
+            return customerMeta.getOrDefault(trimToEmpty(customerId), CustomerTaxMeta.empty(trimToEmpty(customerId)));
+        }
+
+        List<Map<String, Object>> invoiceItems(String invoiceId) {
+            return invoiceItems.getOrDefault(trimToEmpty(invoiceId), List.of());
+        }
+    }
+
+    private static class GstrAggregate {
+        final String placeOfSupply;
+        final String hsn;
+        final String itemDescription;
+        final String uqc;
+        final double taxRate;
+        double quantity;
+        double taxableValue;
+        double igst;
+        double cgst;
+        double sgst;
+
+        GstrAggregate(String placeOfSupply, String hsn, String itemDescription, String uqc, double taxRate) {
+            this.placeOfSupply = placeOfSupply;
+            this.hsn = hsn;
+            this.itemDescription = itemDescription;
+            this.uqc = uqc;
+            this.taxRate = taxRate;
+        }
+
+        void add(GstrLine line) {
+            quantity += line.quantity();
+            taxableValue += line.taxableValue();
+            igst += line.igst();
+            cgst += line.cgst();
+            sgst += line.sgst();
+        }
+    }
 
     private record FactRow(
             String invoiceId,

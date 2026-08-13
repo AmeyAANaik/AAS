@@ -17,6 +17,9 @@
       <div class="mode-note" *ngIf="viewMode === 'priceHistory'">
         Shows day-wise selling prices for all items. Use Vendor, Category, or Item filters above to narrow results.
       </div>
+      <div class="mode-note" *ngIf="viewMode === 'gstReports'">
+        Generates GSTR-1 working reports from customer invoices, adjustment notes, HSN data, and document numbering.
+      </div>
     </mat-card-content>
   </mat-card>
 
@@ -60,7 +63,7 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
+        <mat-form-field appearance="outline" class="filter-field" *ngIf="viewMode !== 'gstReports'">
           <mat-label>Vendor</mat-label>
           <input matInput formControlName="vendor" [matAutocomplete]="vendorAuto" placeholder="Search vendor" />
           <mat-autocomplete #vendorAuto="matAutocomplete" autoActiveFirstOption>
@@ -68,7 +71,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
+        <mat-form-field appearance="outline" class="filter-field" *ngIf="viewMode !== 'gstReports'">
           <mat-label>Branch</mat-label>
           <input matInput formControlName="branch" [matAutocomplete]="branchAuto" placeholder="Search branch" />
           <mat-autocomplete #branchAuto="matAutocomplete" autoActiveFirstOption>
@@ -76,7 +79,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="filter-field">
+        <mat-form-field appearance="outline" class="filter-field" *ngIf="viewMode !== 'gstReports'">
           <mat-label>Category</mat-label>
           <input matInput formControlName="itemGroup" [matAutocomplete]="categoryAuto" placeholder="Search category" />
           <mat-autocomplete #categoryAuto="matAutocomplete" autoActiveFirstOption>
@@ -84,7 +87,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="item-field">
+        <mat-form-field appearance="outline" class="item-field" *ngIf="viewMode === 'priceHistory'">
           <mat-label>Item</mat-label>
           <input matInput formControlName="item" [matAutocomplete]="itemAuto" placeholder="Search item code or name" />
           <mat-autocomplete #itemAuto="matAutocomplete" autoActiveFirstOption>
@@ -176,6 +179,36 @@
           <button mat-stroked-button (click)="clear()" [disabled]="isLoading">Clear</button>
         </div>
       </div>
+
+      <div class="gst-report-panel" *ngIf="viewMode === 'gstReports'">
+        <div class="gst-report-grid">
+          <button
+            *ngFor="let report of gstReports"
+            type="button"
+            class="gst-report-card"
+            [class.active]="report.id === selectedGstReport"
+            (click)="selectGstReport(report.id)">
+            <span class="gst-report-title">{{ report.label }}</span>
+            <span class="gst-report-desc">{{ report.description }}</span>
+          </button>
+        </div>
+        <div class="actions-col inline-actions">
+          <button mat-flat-button color="primary" (click)="run()" [disabled]="!canRun()" class="run-btn">
+            <mat-spinner *ngIf="isLoading" diameter="18"></mat-spinner>
+            <mat-icon *ngIf="!isLoading">play_arrow</mat-icon>
+            <span>{{ isLoading ? 'Running…' : 'Run' }}</span>
+          </button>
+          <button mat-stroked-button color="primary" [matMenuTriggerFor]="gstExportMenu" [disabled]="!canExport()">
+            <mat-icon>download</mat-icon> Export
+          </button>
+          <mat-menu #gstExportMenu="matMenu">
+            <button mat-menu-item (click)="exportAs('csv')"><mat-icon>table_view</mat-icon>CSV</button>
+            <button mat-menu-item (click)="exportAs('xlsx')"><mat-icon>grid_on</mat-icon>Excel</button>
+            <button mat-menu-item (click)="exportAs('pdf')"><mat-icon>picture_as_pdf</mat-icon>PDF</button>
+          </mat-menu>
+          <button mat-stroked-button (click)="clear()" [disabled]="isLoading">Clear</button>
+        </div>
+      </div>
     </mat-card-content>
   </mat-card>
 
@@ -239,7 +272,7 @@
               </td>
             </tr>
           </tbody>
-          <tfoot *ngIf="viewMode === 'explorer' && tableRows.length > 1">
+          <tfoot *ngIf="viewMode !== 'priceHistory' && tableRows.length > 1">
             <tr class="totals-row">
               <td *ngFor="let col of tableColumns"
                   [class.dim-col]="isDimension(col)"
@@ -262,6 +295,8 @@
           title="No results yet"
           [message]="viewMode === 'priceHistory'
             ? 'Select an item above, then click Run to see day-wise price changes.'
+            : viewMode === 'gstReports'
+              ? 'Select a GSTR-1 report and date range, then click Run.'
             : 'Choose dimensions and metrics above, then click Run.'">
         </app-empty-state>
       </mat-card-content>

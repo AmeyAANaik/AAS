@@ -21,8 +21,10 @@ describe('AnalyticsPageComponent', () => {
           useValue: {
             query: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [] }),
             itemPriceHistory: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [] }),
+            gstr1: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [], warnings: [] }),
             export: () => of(new Blob()),
-            exportItemPriceHistory: () => of(new Blob())
+            exportItemPriceHistory: () => of(new Blob()),
+            exportGstr1: () => of(new Blob())
           }
         },
         { provide: VendorService, useValue: { listVendors: () => of([]) } },

@@ -193,6 +193,40 @@
   color: var(--text-secondary, #4b5563);
 }
 
+.gst-report-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-top: 16px;
+}
+
+.gst-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  flex: 1 1 620px;
+}
+
+.gst-report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.gst-report-card.active {
+  border-color: var(--primary, #6366f1);
+  background: var(--primary-light, #eef2ff);
+}
+
+
 .status-bar {
   display: flex;
   align-items: center;

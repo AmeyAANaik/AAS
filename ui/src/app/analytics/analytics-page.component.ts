@@ -29,11 +29,12 @@ import { PageHeaderComponent } from '../shared/page-header/page-header.component
 import { VendorService } from '../vendors/vendor.service';
 import { AnalyticsColumn, AnalyticsKpi, AnalyticsQueryResponse, AnalyticsService, ExportFormat } from './analytics.service';
 
-type ViewMode = 'explorer' | 'priceHistory';
+type ViewMode = 'explorer' | 'priceHistory' | 'gstReports';
 
 interface DimensionOption { id: string; label: string; icon: string; }
 interface MetricOption { id: string; label: string; }
 interface FilterOption { label: string; }
+interface GstReportOption { id: string; label: string; description: string; }
 
 const ALL_DIMENSIONS: DimensionOption[] = [
   { id: 'date',       label: 'Date',     icon: 'calendar_today' },
@@ -98,14 +99,23 @@ const ROW_WARN_THRESHOLD = 500;
   styleUrl: './analytics-page.component.css'
 })
 export class AnalyticsPageComponent implements OnInit {
-  readonly allDimensions = ALL_DIMENSIONS;
+  readonly allDimensions = ALL_DIMENSIONS.filter(option => option.id !== 'item');
   readonly allMetrics = ALL_METRICS;
   readonly viewModes: Array<{ id: ViewMode; label: string }> = [
     { id: 'explorer', label: 'Analytics Explorer' },
-    { id: 'priceHistory', label: 'Item Price History' }
+    { id: 'priceHistory', label: 'Item Price History' },
+    { id: 'gstReports', label: 'GSTR-1 Reports' }
+  ];
+  readonly gstReports: GstReportOption[] = [
+    { id: 'b2b', label: 'B2B', description: 'Registered customer invoice lines.' },
+    { id: 'b2c', label: 'B2C', description: 'Unregistered customer outward supplies.' },
+    { id: 'cdnr', label: 'CDNR', description: 'Registered customer credit/debit notes.' },
+    { id: 'hsn', label: 'HSN', description: 'HSN-wise outward supply summary.' },
+    { id: 'docs', label: 'DOCS', description: 'Documents issued during the period.' }
   ];
 
   viewMode: ViewMode = 'explorer';
+  selectedGstReport = 'b2b';
   activeDimensions = new Set<string>(['date']);
   activeMetrics = new Set<string>(['revenue', 'cost', 'profit', 'profit_ex_gst', 'orders']);
 
@@ -170,10 +180,21 @@ export class AnalyticsPageComponent implements OnInit {
 
   setViewMode(mode: ViewMode): void {
     this.viewMode = mode;
-    if (mode === 'explorer') {
+    if (mode === 'explorer' || mode === 'gstReports') {
       this.filterForm.controls.item.setValue('');
       this.activeDimensions.delete('item');
     }
+    this.result = null;
+    this.chartData = null;
+    this.status = '';
+    this.lastRunOk = false;
+    this.backendWarnings = [];
+    this.rowCountWarning = '';
+    this.run();
+  }
+
+  selectGstReport(reportId: string): void {
+    this.selectedGstReport = reportId;
     this.result = null;
     this.chartData = null;
     this.status = '';
@@ -260,7 +281,9 @@ export class AnalyticsPageComponent implements OnInit {
     const request = this.buildRequest();
     const query$ = this.viewMode === 'priceHistory'
       ? this.analyticsService.itemPriceHistory(request)
-      : this.analyticsService.query(request);
+      : this.viewMode === 'gstReports'
+        ? this.analyticsService.gstr1(request)
+        : this.analyticsService.query(request);
 
     query$
       .pipe(finalize(() => (this.isLoading = false)))
@@ -281,6 +304,8 @@ export class AnalyticsPageComponent implements OnInit {
           this.chartData = null;
           this.status = formatUiError(err, this.viewMode === 'priceHistory'
             ? 'Failed to load item price history.'
+            : this.viewMode === 'gstReports'
+              ? 'Failed to run GSTR-1 report.'
             : 'Failed to run analytics query.');
         }
       });
@@ -290,10 +315,16 @@ export class AnalyticsPageComponent implements OnInit {
     const request = this.buildRequest();
     const export$ = this.viewMode === 'priceHistory'
       ? this.analyticsService.exportItemPriceHistory(request, format)
-      : this.analyticsService.export(request, format);
+      : this.viewMode === 'gstReports'
+        ? this.analyticsService.exportGstr1(request, format)
+        : this.analyticsService.export(request, format);
 
     const ext = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'csv';
-    const base = this.viewMode === 'priceHistory' ? 'analytics-item-price-history' : 'analytics-export';
+    const base = this.viewMode === 'priceHistory'
+      ? 'analytics-item-price-history'
+      : this.viewMode === 'gstReports'
+        ? `gstr1-${this.selectedGstReport}`
+        : 'analytics-export';
 
     export$.subscribe({
       next: blob => {
@@ -328,6 +359,7 @@ export class AnalyticsPageComponent implements OnInit {
     this.status = '';
     this.lastRunOk = false;
     this.viewMode = 'explorer';
+    this.selectedGstReport = 'b2b';
     this.backendWarnings = [];
     this.rowCountWarning = '';
   }
@@ -343,6 +375,8 @@ export class AnalyticsPageComponent implements OnInit {
     if (kpi.id === 'items') return 'inventory_2';
     if (kpi.id === 'avg_price') return 'price_change';
     if (kpi.id === 'quantity') return 'scale';
+    if (kpi.id === 'rows') return 'table_rows';
+    if (kpi.id === 'taxable') return 'receipt';
     return 'bar_chart';
   }
 
@@ -450,10 +484,14 @@ export class AnalyticsPageComponent implements OnInit {
   private buildRequest() {
     const v = this.filterForm.value;
     const filters: Record<string, string> = {};
-    if (v.vendor) filters['vendor'] = v.vendor;
-    if (v.branch) filters['branch'] = v.branch;
-    if (v.itemGroup) filters['itemGroup'] = v.itemGroup;
-    if (v.item) filters['item'] = v.item;
+    if (this.viewMode === 'gstReports') {
+      filters['gstReport'] = this.selectedGstReport;
+    } else {
+      if (v.vendor) filters['vendor'] = v.vendor;
+      if (v.branch) filters['branch'] = v.branch;
+      if (v.itemGroup) filters['itemGroup'] = v.itemGroup;
+      if (v.item && this.viewMode === 'priceHistory') filters['item'] = v.item;
+    }
     return {
       dateFrom: this.fmtDate(v.dateFrom ?? null),
       dateTo: this.fmtDate(v.dateTo ?? null),
@@ -467,6 +505,7 @@ export class AnalyticsPageComponent implements OnInit {
   private buildChart(res: AnalyticsQueryResponse): void {
     this.chartData = null;
     if (!res.rows.length) return;
+    if (this.viewMode === 'gstReports') return;
     if (this.viewMode === 'priceHistory') {
       this.buildPriceHistoryChart(res);
       return;
