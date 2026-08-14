@@ -149,6 +149,7 @@ export class AnalyticsPageComponent implements OnInit {
     maintainAspectRatio: false,
     plugins: { legend: { display: true } }
   };
+  private runSequence = 0;
 
   readonly filteredVendors$: Observable<FilterOption[]> = this.buildFilteredOptions('vendor', () => this.vendorOptions);
   readonly filteredBranches$: Observable<FilterOption[]> = this.buildFilteredOptions('branch', () => this.branchOptions);
@@ -273,6 +274,7 @@ export class AnalyticsPageComponent implements OnInit {
 
   run(): void {
 
+    const sequence = ++this.runSequence;
     this.isLoading = true;
     this.status = '';
     this.backendWarnings = [];
@@ -286,9 +288,14 @@ export class AnalyticsPageComponent implements OnInit {
         : this.analyticsService.query(request);
 
     query$
-      .pipe(finalize(() => (this.isLoading = false)))
+      .pipe(finalize(() => {
+        if (sequence === this.runSequence) {
+          this.isLoading = false;
+        }
+      }))
       .subscribe({
         next: res => {
+          if (sequence !== this.runSequence) return;
           this.result = res;
           this.lastRunOk = true;
           this.status = `${res.rows.length} row(s) loaded.`;
@@ -299,6 +306,7 @@ export class AnalyticsPageComponent implements OnInit {
           this.buildChart(res);
         },
         error: err => {
+          if (sequence !== this.runSequence) return;
           this.result = null;
           this.lastRunOk = false;
           this.chartData = null;
@@ -342,6 +350,7 @@ export class AnalyticsPageComponent implements OnInit {
   }
 
   clear(): void {
+    this.runSequence++;
     const now = new Date();
     this.filterForm.reset({
       dateFrom: new Date(now.getFullYear(), now.getMonth(), 1),

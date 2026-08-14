@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { BranchService } from '../branches/branch.service';
 import { CategoryService } from '../categories/category.service';
 import { ItemService } from '../items/item.service';
@@ -11,22 +11,28 @@ import { AnalyticsPageComponent } from './analytics-page.component';
 describe('AnalyticsPageComponent', () => {
   let fixture: ComponentFixture<AnalyticsPageComponent>;
   let component: AnalyticsPageComponent;
+  let analyticsService: jasmine.SpyObj<AnalyticsService>;
 
   beforeEach(async () => {
+    analyticsService = jasmine.createSpyObj<AnalyticsService>('AnalyticsService', [
+      'query',
+      'itemPriceHistory',
+      'gstr1',
+      'export',
+      'exportItemPriceHistory',
+      'exportGstr1'
+    ]);
+    analyticsService.query.and.returnValue(of({ columns: [], rows: [], totalsRow: {}, kpis: [], warnings: [] }));
+    analyticsService.itemPriceHistory.and.returnValue(of({ columns: [], rows: [], totalsRow: {}, kpis: [], warnings: [] }));
+    analyticsService.gstr1.and.returnValue(of({ columns: [], rows: [], totalsRow: {}, kpis: [], warnings: [] }));
+    analyticsService.export.and.returnValue(of(new Blob()));
+    analyticsService.exportItemPriceHistory.and.returnValue(of(new Blob()));
+    analyticsService.exportGstr1.and.returnValue(of(new Blob()));
+
     await TestBed.configureTestingModule({
       imports: [AnalyticsPageComponent, NoopAnimationsModule],
       providers: [
-        {
-          provide: AnalyticsService,
-          useValue: {
-            query: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [] }),
-            itemPriceHistory: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [] }),
-            gstr1: () => of({ columns: [], rows: [], totalsRow: {}, kpis: [], warnings: [] }),
-            export: () => of(new Blob()),
-            exportItemPriceHistory: () => of(new Blob()),
-            exportGstr1: () => of(new Blob())
-          }
-        },
+        { provide: AnalyticsService, useValue: analyticsService },
         { provide: VendorService, useValue: { listVendors: () => of([]) } },
         { provide: BranchService, useValue: { listBranches: () => of([]) } },
         { provide: CategoryService, useValue: { listCategories: () => of([]) } },
@@ -104,5 +110,36 @@ describe('AnalyticsPageComponent', () => {
     expect(headers[1].classList).toContain('metric-col');
     expect(bodyCells[1].classList).toContain('num-col');
     expect(totalCells[1].classList).toContain('num-col');
+  });
+
+  it('keeps the latest GSTR result when an older explorer request finishes later', () => {
+    const explorer$ = new Subject<any>();
+    const gstr$ = new Subject<any>();
+    analyticsService.query.and.returnValue(explorer$);
+    analyticsService.gstr1.and.returnValue(gstr$);
+
+    component.run();
+    component.setViewMode('gstReports');
+
+    gstr$.next({
+      columns: [{ id: 'gstin', label: 'Receiver GSTIN/UIN * (Required)', colType: 'DIMENSION' }],
+      rows: [{ gstin: '27ABCDE1234F1Z5' }],
+      totalsRow: {},
+      kpis: [],
+      warnings: []
+    });
+    gstr$.complete();
+
+    explorer$.next({
+      columns: [{ id: 'date', label: 'Date', colType: 'DIMENSION' }],
+      rows: [{ date: '2026-08-14' }],
+      totalsRow: {},
+      kpis: [],
+      warnings: []
+    });
+    explorer$.complete();
+
+    expect(component.tableColumns[0].label).toBe('Receiver GSTIN/UIN * (Required)');
+    expect(component.tableRows[0]['gstin']).toBe('27ABCDE1234F1Z5');
   });
 });
