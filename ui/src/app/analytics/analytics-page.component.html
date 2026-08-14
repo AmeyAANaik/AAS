@@ -249,8 +249,16 @@
 
       <mat-divider *ngIf="chartData && tableRows.length"></mat-divider>
 
-      <div class="table-wrap" *ngIf="tableRows.length">
-        <table class="data-table">
+      <app-empty-state
+        *ngIf="!tableRows.length"
+        icon="table_view"
+        title="No rows to display"
+        [message]="emptyResultMessage">
+      </app-empty-state>
+
+      <div class="table-shell" *ngIf="tableRows.length">
+        <div class="table-wrap">
+        <table class="data-table" [style.min-width.px]="viewMode === 'gstReports' ? 1900 : null">
           <thead>
             <tr>
               <th *ngFor="let col of tableColumns"
@@ -283,6 +291,7 @@
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     </mat-card-content>
   </mat-card>

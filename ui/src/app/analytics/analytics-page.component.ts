@@ -406,6 +406,19 @@ export class AnalyticsPageComponent implements OnInit {
   get tableRows(): Record<string, unknown>[] { return this.result?.rows ?? []; }
   get totalRow(): Record<string, unknown> { return this.result?.totalsRow ?? {}; }
   get kpis(): AnalyticsKpi[] { return this.result?.kpis ?? []; }
+  get selectedGstReportLabel(): string {
+    return this.gstReports.find(report => report.id === this.selectedGstReport)?.label ?? 'GSTR-1';
+  }
+  get emptyResultMessage(): string {
+    if (this.viewMode !== 'gstReports') return 'No rows returned for the selected filters.';
+    if (this.selectedGstReport === 'b2b') {
+      return 'No B2B rows found. Registered customer invoices need GSTIN or Tax ID on the Customer master.';
+    }
+    if (this.selectedGstReport === 'cdnr') {
+      return 'No CDNR rows found. Approved customer credit or debit notes are required for this report.';
+    }
+    return `No ${this.selectedGstReportLabel} rows found for the selected period.`;
+  }
 
   isDimension(col: AnalyticsColumn): boolean { return col.colType === 'DIMENSION'; }
   isCurrency(col: AnalyticsColumn): boolean { return col.colType === 'CURRENCY'; }
@@ -418,6 +431,7 @@ export class AnalyticsPageComponent implements OnInit {
     if (value === null || value === undefined || value === '') return '—';
     if (col.colType === 'CURRENCY') return '₹' + this.formatNum(Number(value));
     if (col.colType === 'PERCENT') return this.formatNum(Number(value)) + '%';
+    if (this.viewMode === 'gstReports' && col.colType === 'NUMBER') return this.formatNum(Number(value));
     if (col.colType === 'NUMBER') return String(Math.round(Number(value)));
     return String(value);
   }

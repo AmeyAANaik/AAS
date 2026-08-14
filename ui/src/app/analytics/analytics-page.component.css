@@ -328,8 +328,8 @@
 }
 
 .table-wrap {
-  overflow-x: auto;
-  margin-top: 12px;
+  max-height: 68vh;
+  overflow: auto;
 }
 
 .data-table {
@@ -348,6 +348,9 @@
   font-weight: 600;
   color: var(--text-secondary, #374151);
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .data-table thead th.dim-col,
