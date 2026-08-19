@@ -289,6 +289,7 @@ public class BillReviewService {
             if (!categoryId.equalsIgnoreCase(asText(invoice.get(FIELD_CATEGORY)))) {
                 continue;
             }
+            invoice = submitDraftInvoice(invoiceDoctype, invoiceId, invoice);
             BigDecimal outstanding = effectiveOutstanding(invoice);
             if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
@@ -298,6 +299,14 @@ public class BillReviewService {
             remaining = remaining.subtract(allocated);
         }
         return new AllocationResult(references, remaining);
+    }
+
+    private Map<String, Object> submitDraftInvoice(String invoiceDoctype, String invoiceId, Map<String, Object> invoice) {
+        if (asInt(invoice.get("docstatus")) != 0) {
+            return invoice;
+        }
+        erpNextClient.submitDoc(invoice);
+        return unwrapDoc(erpNextClient.getResource(invoiceDoctype, invoiceId));
     }
 
     private List<Map<String, Object>> fetchCategoryInvoices(
