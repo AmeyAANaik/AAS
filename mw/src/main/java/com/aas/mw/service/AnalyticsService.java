@@ -327,14 +327,20 @@ public class AnalyticsService {
                 .map(item -> trimToEmpty(asString(item.get("item_code"))))
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> itemNames = invoiceItems.values().stream()
+                .flatMap(List::stream)
+                .map(item -> trimToEmpty(asString(item.get("item_name"))))
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, CustomerTaxMeta> customerMeta = fetchCustomerTaxMeta(customers);
         Map<String, ItemTaxMeta> itemMeta = fetchItemTaxMeta(itemCodes);
+        Map<String, ItemTaxMeta> itemMetaByName = fetchItemTaxMetaByName(itemNames);
         String companyGstin = fetchCompanyGstin(invoices);
         if (companyGstin.isBlank()) {
             warnings.add("Company GSTIN is missing; place-of-supply tax split falls back to intra-state CGST/SGST.");
         }
         warnings.add("Place of Supply uses customer GSTIN state prefix when available; otherwise it falls back to company GSTIN state.");
-        return new GstrContext(invoices, invoiceItems, customerMeta, itemMeta, companyGstin, warnings);
+        return new GstrContext(invoices, invoiceItems, customerMeta, itemMeta, itemMetaByName, companyGstin, warnings);
     }
 
     private Map<String, CustomerTaxMeta> fetchCustomerTaxMeta(Set<String> customerIds) {
@@ -387,6 +393,32 @@ public class AnalyticsService {
         return result;
     }
 
+    private Map<String, ItemTaxMeta> fetchItemTaxMetaByName(Set<String> itemNames) {
+        if (itemNames.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ItemTaxMeta> result = new HashMap<>();
+        for (List<String> chunk : partition(new ArrayList<>(itemNames), BATCH_CHUNK_SIZE)) {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fields", "[\"name\",\"item_name\",\"stock_uom\",\"aas_vendor_hsn_code\",\"gst_hsn_code\",\"aas_gst_percent\"]");
+            params.put("filters", buildInFilter("item_name", chunk));
+            params.put("limit_page_length", chunk.size() + 1);
+            try {
+                for (Map<String, Object> row : erpNextClient.listResources("Item", params)) {
+                    String name = trimToEmpty(asString(row.get("item_name")));
+                    if (!name.isBlank()) {
+                        result.put(normalizeItemNameKey(name), new ItemTaxMeta(
+                                name,
+                                firstNonBlank(asString(row.get("aas_vendor_hsn_code")), asString(row.get("gst_hsn_code"))),
+                                firstNonBlank(asString(row.get("stock_uom")), "Nos"),
+                                asDouble(row.get("aas_gst_percent"))));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return result;
+    }
+
     private String fetchCompanyGstin(List<Map<String, Object>> invoices) {
         String company = invoices.stream()
                 .map(invoice -> trimToEmpty(asString(invoice.get("company"))))
@@ -410,7 +442,10 @@ public class AnalyticsService {
             GstrContext context,
             CustomerTaxMeta customer) {
         String itemCode = trimToEmpty(asString(item.get("item_code")));
-        ItemTaxMeta meta = context.itemMeta().getOrDefault(itemCode, ItemTaxMeta.empty(itemCode));
+        String itemName = trimToEmpty(asString(item.get("item_name")));
+        ItemTaxMeta meta = context.itemMeta().getOrDefault(
+                itemCode,
+                context.itemMetaByName().getOrDefault(normalizeItemNameKey(itemName), ItemTaxMeta.empty(itemCode)));
         double taxable = round(asDouble(firstNonNull(item.get("amount"), item.get("net_amount"))));
         double taxRate = asDouble(firstNonNull(item.get("aas_gst_percent"), meta.gstRate()));
         double tax = round(taxable * taxRate / 100.0);
@@ -426,7 +461,7 @@ public class AnalyticsService {
                 asString(invoice.get("posting_date")),
                 round(asDouble(invoice.get("grand_total"))),
                 firstNonBlank(asString(item.get("gst_hsn_code")), asString(item.get("aas_vendor_hsn_code")), meta.hsn()),
-                firstNonBlank(asString(item.get("item_name")), meta.itemName(), itemCode),
+                firstNonBlank(itemName, meta.itemName(), itemCode),
                 firstNonBlank(asString(item.get("uom")), asString(item.get("stock_uom")), meta.uqc()),
                 round(asDouble(item.get("qty"))),
                 taxable,
@@ -1313,6 +1348,10 @@ public class AnalyticsService {
         return trimToEmpty(value).toLowerCase(Locale.ROOT);
     }
 
+    private String normalizeItemNameKey(String value) {
+        return trimToEmpty(value).replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+    }
+
     private LocalDate parseDate(String value) {
         String text = trimToEmpty(value);
         if (text.isBlank()) {
@@ -1595,6 +1634,7 @@ public class AnalyticsService {
             Map<String, List<Map<String, Object>>> invoiceItems,
             Map<String, CustomerTaxMeta> customerMeta,
             Map<String, ItemTaxMeta> itemMeta,
+            Map<String, ItemTaxMeta> itemMetaByName,
             String companyGstin,
             List<String> warnings) {
         CustomerTaxMeta customerMeta(String customerId) {

@@ -185,4 +185,57 @@ class AnalyticsServiceTest {
         assertEquals(25.0, ((Number) row.get("CGST Amount")).doubleValue());
         assertEquals(25.0, ((Number) row.get("SGST/UT Amount")).doubleValue());
     }
+
+    @Test
+    void gstr1B2cFallsBackToItemNameWhenInvoiceItemCodeDoesNotMatchItemMaster() {
+        when(invoiceService.listInvoices("Customer", null, "2026-07-01", "2026-07-31"))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-1",
+                        "customer", "Branch A",
+                        "company", "AAS",
+                        "posting_date", "2026-07-10",
+                        "grand_total", 1050.0)));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-1"))
+                .thenReturn(Map.of("data", Map.of("items", List.of(Map.of(
+                        "item_code", "Legacy Paneer Code",
+                        "item_name", "Paneer",
+                        "uom", "Kg",
+                        "qty", 2,
+                        "amount", 1000.0,
+                        "aas_gst_percent", 5.0)))));
+        when(erpNextClient.listResources(eq("Customer"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "Branch A",
+                        "customer_name", "Branch A",
+                        "tax_id", "")));
+        when(erpNextClient.listResources(eq("Item"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<?, ?> params = invocation.getArgument(1);
+                    String filters = String.valueOf(params.get("filters"));
+                    if (filters.contains("\"item_name\"")) {
+                        return List.of(Map.of(
+                                "name", "ITEM-PANEER",
+                                "item_name", "Paneer",
+                                "stock_uom", "Kg",
+                                "aas_vendor_hsn_code", "04061000",
+                                "aas_gst_percent", 5.0));
+                    }
+                    return List.of();
+                });
+        when(erpNextClient.getResource("Company", "AAS"))
+                .thenReturn(Map.of("data", Map.of("tax_id", "27AAAAA0000A1Z5")));
+
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest();
+        request.setDateFrom("2026-07-01");
+        request.setDateTo("2026-07-31");
+        request.setFilters(Map.of("gstReport", "b2c"));
+
+        AnalyticsQueryResponse response = analyticsService.gstr1Report(request);
+
+        assertEquals(1, response.getRows().size());
+        Map<String, Object> row = response.getRows().get(0);
+        assertEquals("04061000", row.get("HSN/SAC"));
+        assertEquals("Paneer", row.get("Item Description"));
+        assertEquals("Kg", row.get("UQC"));
+    }
 }
