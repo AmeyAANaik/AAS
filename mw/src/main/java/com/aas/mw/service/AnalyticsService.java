@@ -149,12 +149,18 @@ public class AnalyticsService {
         GstrContext context = loadGstrContext(range);
         List<Map<String, Object>> rows = new ArrayList<>();
         List<String> warnings = new ArrayList<>(context.warnings());
+        int registeredInvoices = 0;
+        int invoicesWithoutItems = 0;
         for (Map<String, Object> invoice : context.invoices()) {
             CustomerTaxMeta customer = context.customerMeta(asString(invoice.get("customer")));
             if (customer.gstin().isBlank()) {
                 continue;
             }
+            registeredInvoices++;
             List<Map<String, Object>> items = context.invoiceItems(asString(invoice.get("name")));
+            if (items.isEmpty()) {
+                invoicesWithoutItems++;
+            }
             for (Map<String, Object> item : items) {
                 GstrLine line = gstrLine(invoice, item, context, customer);
                 Map<String, Object> row = baseB2bRow(customer, line);
@@ -164,6 +170,16 @@ public class AnalyticsService {
                 row.put("GSTIN of E-Commerce Operator (If applicable)", "");
                 rows.add(row);
             }
+        }
+        if (!context.invoices().isEmpty() && registeredInvoices == 0) {
+            warnings.add("B2B returned no rows because none of the " + context.invoices().size()
+                    + " customer invoice(s) in this date range have a GSTIN/Tax ID on the Customer master.");
+        } else if (registeredInvoices > 0 && rows.isEmpty()) {
+            warnings.add("B2B found " + registeredInvoices
+                    + " registered customer invoice(s), but no invoice line items were available to build report rows.");
+        } else if (invoicesWithoutItems > 0) {
+            warnings.add("B2B skipped " + invoicesWithoutItems
+                    + " registered customer invoice(s) because their line items could not be loaded.");
         }
         warnings.addAll(context.hsnAudit().warnings());
         return gstrResponse(b2bColumns(), rows, warnings);
@@ -354,21 +370,46 @@ public class AnalyticsService {
         Map<String, CustomerTaxMeta> result = new HashMap<>();
         for (List<String> chunk : partition(new ArrayList<>(customerIds), BATCH_CHUNK_SIZE)) {
             Map<String, Object> params = new HashMap<>();
-            params.put("fields", "[\"name\",\"customer_name\",\"tax_id\",\"gstin\"]");
+            params.put("fields", "[\"name\",\"customer_name\",\"tax_id\"]");
             params.put("filters", buildInFilter("name", chunk));
             params.put("limit_page_length", chunk.size() + 1);
             try {
                 for (Map<String, Object> row : erpNextClient.listResources("Customer", params)) {
+                    CustomerTaxMeta meta = customerTaxMeta(row);
                     String id = trimToEmpty(asString(row.get("name")));
-                    String label = firstNonBlank(asString(row.get("customer_name")), id);
-                    String gstin = firstNonBlank(asString(row.get("tax_id")), asString(row.get("gstin"))).toUpperCase(Locale.ROOT);
-                    if (!id.isBlank()) {
-                        result.put(id, new CustomerTaxMeta(label, gstin));
-                    }
+                    if (!id.isBlank()) result.put(id, meta);
                 }
             } catch (Exception ignored) {}
+            for (String customerId : chunk) {
+                CustomerTaxMeta existing = result.get(customerId);
+                if (existing != null && !existing.gstin().isBlank()) {
+                    continue;
+                }
+                try {
+                    Map<String, Object> doc = unwrapDoc(erpNextClient.getResource("Customer", customerId));
+                    if (!doc.isEmpty()) {
+                        CustomerTaxMeta docMeta = customerTaxMeta(doc);
+                        if (!docMeta.gstin().isBlank() || existing == null) {
+                            result.put(customerId, docMeta);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
         }
         return result;
+    }
+
+    private CustomerTaxMeta customerTaxMeta(Map<String, Object> row) {
+        String id = trimToEmpty(asString(row.get("name")));
+        String label = firstNonBlank(asString(row.get("customer_name")), asString(row.get("customer_name_in_arabic")), id);
+        String gstin = firstNonBlank(
+                asString(row.get("tax_id")),
+                asString(row.get("gstin")),
+                asString(row.get("gst_in")),
+                asString(row.get("customer_gstin")),
+                asString(row.get("gst_no")),
+                asString(row.get("tax_number"))).toUpperCase(Locale.ROOT);
+        return new CustomerTaxMeta(label, gstin);
     }
 
     private Map<String, ItemTaxMeta> fetchItemTaxMeta(Set<String> itemCodes) {
