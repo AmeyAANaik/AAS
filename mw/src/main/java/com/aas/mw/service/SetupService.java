@@ -114,7 +114,7 @@ public class SetupService {
             {% if customer_doc and customer_doc.aas_food_license_no %}{% set _ = branch_lines.append("FSSAI No: " ~ customer_doc.aas_food_license_no) %}{% endif %}
             {% set rounding_adjustment = frappe.utils.flt(doc.aas_rounding_adjustment if doc.aas_rounding_adjustment else doc.rounding_adjustment, 2) %}
             {% set invoice_total = frappe.utils.flt(doc.grand_total if doc.grand_total else 0, 2) %}
-            {% set grand_total = frappe.utils.flt(invoice_total + rounding_adjustment, 2) %}
+            {% set grand_total = frappe.utils.flt(doc.rounded_total if doc.rounded_total else (invoice_total + rounding_adjustment), 0) %}
             {% set category_doc = frappe.get_doc("Item Group", doc.aas_category) if doc.aas_category else None %}
             {% set previous_due = frappe.utils.flt(doc.aas_previous_due if doc.aas_previous_due else 0, 2) %}
             {% set current_pending = frappe.utils.flt(doc.aas_current_pending if doc.aas_current_pending else 0, 2) %}
@@ -209,8 +209,8 @@ public class SetupService {
                 {% set taxable_rate = frappe.utils.flt(item.net_rate if item.net_rate else item.rate, 2) %}
                 {% set taxable_amount = frappe.utils.flt(item.net_amount if item.net_amount else item.amount, 2) %}
                 {% set gst_amount = frappe.utils.flt(taxable_amount * gst_percent / 100, 2) %}
-                {% set rate_with_gst = frappe.utils.flt(taxable_rate + (taxable_rate * gst_percent / 100), 2) %}
-                {% set total_amount = frappe.utils.flt(taxable_amount + gst_amount, 2) %}
+                {% set rate_with_gst = frappe.utils.flt(taxable_rate + (taxable_rate * gst_percent / 100), 0) %}
+                {% set total_amount = frappe.utils.flt(taxable_amount + gst_amount, 0) %}
                 {% set is_transport = item.item_code == "AAS-TRANSPORT-CHARGE" %}
                 {% set display_name = "Transport / Additional Spend" if is_transport else (item.description or item.item_name or item.item_code or "-") %}
                 {% set totals.taxable = totals.taxable + taxable_amount %}
@@ -230,8 +230,8 @@ public class SetupService {
                   <td class="num">{{ frappe.utils.fmt_money(taxable_rate, currency=doc.currency) }}</td>
                   <td class="num">{{ frappe.utils.flt(gst_percent, 2) }}</td>
                   <td class="num">{{ frappe.utils.fmt_money(taxable_amount, currency=doc.currency) }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(rate_with_gst, currency=doc.currency) }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(total_amount, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(rate_with_gst, precision=0, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(total_amount, precision=0, currency=doc.currency) }}</td>
                 </tr>
                 {% endif %}
                 {% endfor %}
@@ -273,7 +273,7 @@ public class SetupService {
               {% endif %}
               <tr class="aas-summary-grand">
                 <td class="aas-summary-label-cell">Grand Total</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(grand_total, precision=0, currency=doc.currency) }}</td>
               </tr>
               </tbody>
             </table>

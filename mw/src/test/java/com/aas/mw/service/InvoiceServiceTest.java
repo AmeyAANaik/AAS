@@ -135,6 +135,31 @@ class InvoiceServiceTest {
     }
 
     @Test
+    void listInvoicesReturnsRoundedGrandTotal() {
+        when(erpNextClient.listResources(eq("Sales Invoice"), anyMap()))
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "SINV-ROUNDED",
+                                "docstatus", 1,
+                                "status", "Unpaid",
+                                "grand_total", 120.4,
+                                "aas_rounding_adjustment", -0.4,
+                                "aas_invoice_version_status", "CURRENT"),
+                        Map.of(
+                                "name", "SINV-ERP-ROUNDED",
+                                "docstatus", 1,
+                                "status", "Unpaid",
+                                "grand_total", 148790.55,
+                                "rounded_total", 148791.0,
+                                "aas_invoice_version_status", "CURRENT")));
+
+        List<Map<String, Object>> invoices = invoiceService.listInvoices(null, null, null);
+
+        assertEquals(120L, invoices.get(0).get("grand_total"));
+        assertEquals(148791L, invoices.get(1).get("grand_total"));
+    }
+
+    @Test
     void downloadPdfBackfillsMissingCategoryDueSnapshot() {
         PaymentDueService paymentDueService = mock(PaymentDueService.class);
         invoiceService = new InvoiceService(erpNextClient, paymentDueService, mock(BranchOpsService.class), "", erpSetupProperties);

@@ -306,7 +306,8 @@ public class InvoiceService {
         Map<String, Object> params = new HashMap<>();
         params.put(
                 "fields",
-                "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"net_total\",\"outstanding_amount\",\"status\",\"docstatus\","
+                "[\"name\",\"customer\",\"company\",\"posting_date\",\"grand_total\",\"rounded_total\",\"rounding_adjustment\",\"aas_rounding_adjustment\","
+                        + "\"net_total\",\"outstanding_amount\",\"status\",\"docstatus\","
                         + "\"modified\",\"creation\",\"aas_source_sales_order\",\"aas_replaced_by\",\"aas_invoice_version_status\","
                         + "\"is_opening\",\"po_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
@@ -342,13 +343,15 @@ public class InvoiceService {
                 .filter(invoice -> !INVOICE_VERSION_OLD.equalsIgnoreCase(asText(invoice.get("aas_invoice_version_status"))))
                 .filter(invoice -> asText(invoice.get("aas_replaced_by")).isBlank())
                 .filter(invoice -> !isOpeningInvoice(invoice))
+                .map(this::withRoundedGrandTotal)
                 .toList();
         return dedupeLatestBySourceOrder(rows);
     }
 
     private List<Map<String, Object>> listPurchaseInvoices(String supplier, String fromDate, String toDate) {
         Map<String, Object> params = new HashMap<>();
-        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\",\"aas_category\"]");
+        params.put("fields", "[\"name\",\"supplier\",\"company\",\"posting_date\",\"grand_total\",\"rounded_total\",\"rounding_adjustment\",\"aas_rounding_adjustment\","
+                + "\"outstanding_amount\",\"status\",\"docstatus\",\"is_opening\",\"bill_no\",\"remarks\",\"aas_category\"]");
         params.put("order_by", "posting_date desc");
         // 0 = no limit; otherwise ERPNext defaults to 20 rows and silently caps the list.
         params.put("limit_page_length", 0);
@@ -391,7 +394,26 @@ public class InvoiceService {
                 .filter(invoice -> !"Cancelled".equalsIgnoreCase(asText(invoice.get("status"))))
                 .filter(invoice -> !isOpeningInvoice(invoice))
                 .map(this::mapSupplierToCustomerField)
+                .map(this::withRoundedGrandTotal)
                 .toList();
+    }
+
+    private Map<String, Object> withRoundedGrandTotal(Map<String, Object> invoice) {
+        if (invoice == null || invoice.isEmpty()) {
+            return invoice;
+        }
+        double roundedTotal = asDouble(invoice.get("rounded_total"));
+        double grandTotal = asDouble(invoice.get("grand_total"));
+        double roundingAdjustment = asDouble(firstNonNull(
+                invoice.get("aas_rounding_adjustment"),
+                invoice.get("rounding_adjustment")));
+        double total = roundedTotal > 0.0001 ? roundedTotal : grandTotal + roundingAdjustment;
+        if (total <= 0.0001) {
+            return invoice;
+        }
+        Map<String, Object> mapped = new HashMap<>(invoice);
+        mapped.put("grand_total", Math.round(total));
+        return mapped;
     }
 
     private boolean isOpeningInvoice(Map<String, Object> invoice) {
