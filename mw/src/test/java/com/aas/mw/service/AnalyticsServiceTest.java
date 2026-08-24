@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -237,5 +238,89 @@ class AnalyticsServiceTest {
         assertEquals("04061000", row.get("HSN/SAC"));
         assertEquals("Paneer", row.get("Item Description"));
         assertEquals("Kg", row.get("UQC"));
+    }
+
+    @Test
+    void gstr1B2cBlanksInvalidAndMissingHsnAndDoesNotTotalTaxRate() {
+        when(invoiceService.listInvoices("Customer", null, "2026-07-01", "2026-07-31"))
+                .thenReturn(List.of(Map.of(
+                        "name", "SINV-1",
+                        "customer", "Branch A",
+                        "company", "AAS",
+                        "posting_date", "2026-07-10",
+                        "grand_total", 1575.0)));
+        when(erpNextClient.getResource("Sales Invoice", "SINV-1"))
+                .thenReturn(Map.of("data", Map.of("items", List.of(
+                        Map.of(
+                                "item_code", "ITEM-BAD",
+                                "item_name", "Cow Milk",
+                                "uom", "Litre",
+                                "qty", 10,
+                                "amount", 1000.0,
+                                "aas_gst_percent", 5.0),
+                        Map.of(
+                                "item_code", "ITEM-MISSING",
+                                "item_name", "Transport Charges",
+                                "uom", "Nos",
+                                "qty", 1,
+                                "amount", 500.0,
+                                "aas_gst_percent", 5.0)))));
+        when(erpNextClient.listResources(eq("Customer"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "Branch A",
+                        "customer_name", "Branch A",
+                        "tax_id", "")));
+        when(erpNextClient.listResources(eq("Item"), anyMap()))
+                .thenAnswer(invocation -> {
+                    Map<?, ?> params = invocation.getArgument(1);
+                    String filters = String.valueOf(params.get("filters"));
+                    if (filters.contains("\"name\"")) {
+                        return List.of(
+                                Map.of(
+                                        "name", "ITEM-BAD",
+                                        "item_name", "Cow Milk",
+                                        "stock_uom", "Litre",
+                                        "aas_vendor_hsn_code", "0001",
+                                        "aas_gst_percent", 5.0),
+                                Map.of(
+                                        "name", "ITEM-MISSING",
+                                        "item_name", "Transport Charges",
+                                        "stock_uom", "Nos",
+                                        "aas_gst_percent", 5.0));
+                    }
+                    return List.of();
+                });
+        when(erpNextClient.getResource("Company", "AAS"))
+                .thenReturn(Map.of("data", Map.of("tax_id", "27AAAAA0000A1Z5")));
+
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest();
+        request.setDateFrom("2026-07-01");
+        request.setDateTo("2026-07-31");
+        request.setFilters(Map.of("gstReport", "b2c"));
+
+        AnalyticsQueryResponse response = analyticsService.gstr1Report(request);
+
+        assertEquals(2, response.getRows().size());
+        assertTrue(response.getRows().stream().allMatch(row -> "".equals(row.get("HSN/SAC"))));
+        assertTrue(response.getWarnings().stream().anyMatch(message -> message.contains("invalid or suspicious HSN")));
+        assertTrue(response.getWarnings().stream().anyMatch(message -> message.contains("no HSN in invoice or item master")));
+        assertFalse(response.getTotalsRow().containsKey("Tax Rate * (Required)"));
+    }
+
+    @Test
+    void gstr1DocsWarnsThatSequenceGapsAreNotCounted() {
+        when(invoiceService.listInvoices("Customer", null, "2026-07-01", "2026-07-31"))
+                .thenReturn(List.of(Map.of("name", "SINV-1"), Map.of("name", "SINV-3")));
+
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest();
+        request.setDateFrom("2026-07-01");
+        request.setDateTo("2026-07-31");
+        request.setFilters(Map.of("gstReport", "docs"));
+
+        AnalyticsQueryResponse response = analyticsService.gstr1Report(request);
+
+        assertEquals(1, response.getRows().size());
+        assertEquals(2, response.getRows().get(0).get("Total No of Invoices * (Required)"));
+        assertTrue(response.getWarnings().stream().anyMatch(message -> message.contains("cancelled/deleted sequence gaps are not counted")));
     }
 }

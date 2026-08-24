@@ -29,6 +29,7 @@ public class AnalyticsService {
     private static final List<String> VALID_DIMS = List.of("date", "vendor", "branch", "item_group", "item");
     private static final List<String> VALID_METRICS = List.of("revenue", "cost", "profit", "profit_ex_gst", "margin_pct", "margin_pct_ex_gst", "orders", "avg_order_value", "quantity");
     private static final int BATCH_CHUNK_SIZE = 50;
+    private static final int HSN_WARNING_EXAMPLE_LIMIT = 5;
 
     private final ErpNextClient erpNextClient;
     private final InvoiceService invoiceService;
@@ -164,6 +165,7 @@ public class AnalyticsService {
                 rows.add(row);
             }
         }
+        warnings.addAll(context.hsnAudit().warnings());
         return gstrResponse(b2bColumns(), rows, warnings);
     }
 
@@ -203,6 +205,7 @@ public class AnalyticsService {
             row.put("Applicable % of Tax Rate", "");
             rows.add(row);
         }
+        warnings.addAll(context.hsnAudit().warnings());
         return gstrResponse(b2cColumns(), rows, warnings);
     }
 
@@ -237,6 +240,7 @@ public class AnalyticsService {
             row.put("Cess Amount", 0.0);
             rows.add(row);
         }
+        warnings.addAll(context.hsnAudit().warnings());
         return gstrResponse(hsnColumns(), rows, warnings);
     }
 
@@ -256,7 +260,7 @@ public class AnalyticsService {
         row.put("Cancelled Invoices * (Required)", 0);
         row.put("Net Invoices Issued * (Required)", names.size());
         return gstrResponse(docsColumns(), names.isEmpty() ? List.of() : List.of(row), List.of(
-                "Cancelled invoice count is reported as 0 because the standard invoice list excludes cancelled documents."));
+                "DOCS is a working report: cancelled/deleted sequence gaps are not counted unless cancelled documents are fetched and included."));
     }
 
     private AnalyticsQueryResponse gstr1Cdnr(DateRange range) {
@@ -340,7 +344,7 @@ public class AnalyticsService {
             warnings.add("Company GSTIN is missing; place-of-supply tax split falls back to intra-state CGST/SGST.");
         }
         warnings.add("Place of Supply uses customer GSTIN state prefix when available; otherwise it falls back to company GSTIN state.");
-        return new GstrContext(invoices, invoiceItems, customerMeta, itemMeta, itemMetaByName, companyGstin, warnings);
+        return new GstrContext(invoices, invoiceItems, customerMeta, itemMeta, itemMetaByName, companyGstin, warnings, new HsnAudit());
     }
 
     private Map<String, CustomerTaxMeta> fetchCustomerTaxMeta(Set<String> customerIds) {
@@ -453,6 +457,10 @@ public class AnalyticsService {
         double igst = interstate ? tax : 0.0;
         double cgst = interstate ? 0.0 : round(tax / 2.0);
         double sgst = interstate ? 0.0 : round(tax - cgst);
+        String resolvedHsn = resolveReportHsn(
+                firstNonBlank(asString(item.get("aas_vendor_hsn_code")), asString(item.get("gst_hsn_code")), meta.hsn()),
+                firstNonBlank(itemName, meta.itemName(), itemCode),
+                context);
         return new GstrLine(
                 customer.label(),
                 customer.gstin(),
@@ -460,7 +468,7 @@ public class AnalyticsService {
                 asString(invoice.get("name")),
                 asString(invoice.get("posting_date")),
                 round(asDouble(invoice.get("grand_total"))),
-                firstNonBlank(asString(item.get("gst_hsn_code")), asString(item.get("aas_vendor_hsn_code")), meta.hsn()),
+                resolvedHsn,
                 firstNonBlank(itemName, meta.itemName(), itemCode),
                 firstNonBlank(asString(item.get("uom")), asString(item.get("stock_uom")), meta.uqc()),
                 round(asDouble(item.get("qty"))),
@@ -501,6 +509,9 @@ public class AnalyticsService {
                 if (id.equals(columns.get(0).id())) {
                     continue;
                 }
+                if (!shouldTotalGstrColumn(id)) {
+                    continue;
+                }
                 double sum = rows.stream().mapToDouble(row -> asDouble(row.get(id))).sum();
                 if (sum != 0.0) {
                     totals.put(id, round(sum));
@@ -514,6 +525,33 @@ public class AnalyticsService {
                         row.get("Total Taxable Value * (Required)"),
                         row.get("Total Taxable Value * (Required)")))).sum(), "CURRENCY"));
         return new AnalyticsQueryResponse(columns, rows, totals, kpis, warnings);
+    }
+
+    private String resolveReportHsn(String rawHsn, String itemLabel, GstrContext context) {
+        String hsn = trimToEmpty(rawHsn);
+        if (hsn.isBlank()) {
+            context.hsnAudit().recordMissing(itemLabel);
+            return "";
+        }
+        if (!isFilingQualityHsn(hsn)) {
+            context.hsnAudit().recordInvalid(itemLabel, hsn);
+            return "";
+        }
+        return hsn;
+    }
+
+    private boolean isFilingQualityHsn(String hsn) {
+        String value = trimToEmpty(hsn);
+        if (!value.matches("\\d{4}|\\d{6}|\\d{8}")) {
+            return false;
+        }
+        return !value.startsWith("00");
+    }
+
+    private boolean shouldTotalGstrColumn(String id) {
+        String normalized = id.toLowerCase(Locale.ROOT);
+        return !normalized.contains("tax rate")
+                && !normalized.contains("applicable %");
     }
 
     private List<FactRow> loadInvoiceFacts(
@@ -1636,13 +1674,54 @@ public class AnalyticsService {
             Map<String, ItemTaxMeta> itemMeta,
             Map<String, ItemTaxMeta> itemMetaByName,
             String companyGstin,
-            List<String> warnings) {
+            List<String> warnings,
+            HsnAudit hsnAudit) {
         CustomerTaxMeta customerMeta(String customerId) {
             return customerMeta.getOrDefault(trimToEmpty(customerId), CustomerTaxMeta.empty(trimToEmpty(customerId)));
         }
 
         List<Map<String, Object>> invoiceItems(String invoiceId) {
             return invoiceItems.getOrDefault(trimToEmpty(invoiceId), List.of());
+        }
+    }
+
+    private static class HsnAudit {
+        private int missingCount;
+        private int invalidCount;
+        private final Set<String> missingExamples = new LinkedHashSet<>();
+        private final Set<String> invalidExamples = new LinkedHashSet<>();
+
+        void recordMissing(String itemLabel) {
+            missingCount++;
+            addExample(missingExamples, itemLabel);
+        }
+
+        void recordInvalid(String itemLabel, String hsn) {
+            invalidCount++;
+            addExample(invalidExamples, itemLabel + " [" + hsn + "]");
+        }
+
+        List<String> warnings() {
+            List<String> result = new ArrayList<>();
+            if (invalidCount > 0) {
+                result.add("GSTR-1 HSN audit: " + invalidCount
+                        + " invoice line(s) have invalid or suspicious HSN values and were left blank. Examples: "
+                        + String.join(", ", invalidExamples) + ".");
+            }
+            if (missingCount > 0) {
+                result.add("GSTR-1 HSN audit: " + missingCount
+                        + " invoice line(s) have no HSN in invoice or item master and were left blank. Examples: "
+                        + String.join(", ", missingExamples) + ".");
+            }
+            return result;
+        }
+
+        private void addExample(Set<String> examples, String value) {
+            if (examples.size() >= HSN_WARNING_EXAMPLE_LIMIT) {
+                return;
+            }
+            String text = trimToEmpty(value);
+            examples.add(text.isBlank() ? "Unknown item" : text);
         }
     }
 

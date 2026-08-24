@@ -52,7 +52,8 @@ public class ErpNextClient {
             "aas_adjustment_amount",
             "aas_adjustment_reason",
             "aas_reference_invoice",
-            "aas_reference_invoice_doctype");
+            "aas_reference_invoice_doctype",
+            "gst_hsn_code");
 
     private final ErpNextFeignClient feignClient;
 
