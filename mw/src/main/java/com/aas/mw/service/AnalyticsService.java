@@ -301,10 +301,12 @@ public class AnalyticsService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, CustomerTaxMeta> customerMeta = fetchCustomerTaxMeta(customers);
         List<Map<String, Object>> rows = new ArrayList<>();
+        int notesWithoutCustomerGstin = 0;
         for (Map<String, Object> note : notes) {
             String customerId = trimToEmpty(asString(note.get("aas_adjustment_party")));
             CustomerTaxMeta customer = customerMeta.getOrDefault(customerId, CustomerTaxMeta.empty(customerId));
             if (customer.gstin().isBlank()) {
+                notesWithoutCustomerGstin++;
                 continue;
             }
             double amount = round(asDouble(note.get("aas_adjustment_amount")));
@@ -330,6 +332,13 @@ public class AnalyticsService {
             row.put("Cess Amount", 0.0);
             row.put("Applicable % of Tax Rate", "");
             rows.add(row);
+        }
+        if (!notes.isEmpty() && rows.isEmpty()) {
+            warnings.add("CDNR returned no rows because none of the " + notes.size()
+                    + " approved customer adjustment note(s) in this date range have GSTIN/Tax ID on the Customer master.");
+        } else if (notesWithoutCustomerGstin > 0) {
+            warnings.add("CDNR skipped " + notesWithoutCustomerGstin
+                    + " approved customer adjustment note(s) because the Customer master is missing GSTIN/Tax ID.");
         }
         return gstrResponse(cdnrColumns(), rows, warnings);
     }

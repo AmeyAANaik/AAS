@@ -285,6 +285,36 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    void gstr1CdnrWarnsWhenApprovedCustomerNotesHaveNoGstin() {
+        when(erpNextClient.listResources(eq("Journal Entry"), anyMap()))
+                .thenReturn(List.of(Map.of(
+                        "name", "ACC-JV-2026-00013",
+                        "posting_date", "2026-08-12",
+                        "docstatus", 1,
+                        "aas_adjustment_party_type", "Customer",
+                        "aas_adjustment_party", "Sukhkarta Pure Veg Dining Hall, Deccan",
+                        "aas_adjustment_review_status", "APPROVED",
+                        "aas_adjustment_amount", 1578.0,
+                        "aas_adjustment_note_type", "CREDIT_NOTE",
+                        "aas_reference_invoice", "ACC-SINV-1",
+                        "aas_adjustment_item_name", "BAJRI ATTA")));
+        when(erpNextClient.getResource("Customer", "Sukhkarta Pure Veg Dining Hall, Deccan"))
+                .thenReturn(Map.of("data", Map.of(
+                        "name", "Sukhkarta Pure Veg Dining Hall, Deccan",
+                        "customer_name", "Sukhkarta Pure Veg Dining Hall, Deccan")));
+
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest();
+        request.setDateFrom("2026-08-01");
+        request.setDateTo("2026-08-24");
+        request.setFilters(Map.of("gstReport", "cdnr"));
+
+        AnalyticsQueryResponse response = analyticsService.gstr1Report(request);
+
+        assertEquals(0, response.getRows().size());
+        assertTrue(response.getWarnings().stream().anyMatch(message -> message.contains("Customer master")));
+    }
+
+    @Test
     void gstr1B2cFallsBackToItemNameWhenInvoiceItemCodeDoesNotMatchItemMaster() {
         when(invoiceService.listInvoices("Customer", null, "2026-07-01", "2026-07-31"))
                 .thenReturn(List.of(Map.of(
