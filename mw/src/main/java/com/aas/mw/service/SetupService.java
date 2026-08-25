@@ -227,9 +227,9 @@ public class SetupService {
                   <td class="aas-item-name">{{ display_name }}</td>
                   <td class="num">{{ frappe.utils.flt(item.qty, 2) }}</td>
                   <td class="center">{{ item.uom or item.stock_uom or "-" }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(taxable_rate, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(taxable_rate, precision=0, currency=doc.currency) }}</td>
                   <td class="num">{{ frappe.utils.flt(gst_percent, 2) }}</td>
-                  <td class="num">{{ frappe.utils.fmt_money(taxable_amount, currency=doc.currency) }}</td>
+                  <td class="num">{{ frappe.utils.fmt_money(taxable_amount, precision=0, currency=doc.currency) }}</td>
                   <td class="num">{{ frappe.utils.fmt_money(rate_with_gst, precision=0, currency=doc.currency) }}</td>
                   <td class="num">{{ frappe.utils.fmt_money(total_amount, precision=0, currency=doc.currency) }}</td>
                 </tr>
@@ -245,25 +245,25 @@ public class SetupService {
               </tr>
               <tr>
                 <td class="aas-summary-label-cell">Goods Total Before Tax</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.goods_taxable, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.goods_taxable, precision=0, currency=doc.currency) }}</td>
               </tr>
               {% if totals.transport %}
               <tr>
                 <td class="aas-summary-label-cell">Transport / Additional Spend</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.transport, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.transport, precision=0, currency=doc.currency) }}</td>
               </tr>
               {% endif %}
               <tr>
                 <td class="aas-summary-label-cell">Taxable Total</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.taxable, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.taxable, precision=0, currency=doc.currency) }}</td>
               </tr>
               <tr>
                 <td class="aas-summary-label-cell">GST Total</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.gst, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(totals.gst, precision=0, currency=doc.currency) }}</td>
               </tr>
               <tr>
                 <td class="aas-summary-label-cell">Invoice Total</td>
-                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(invoice_total, currency=doc.currency) }}</td>
+                <td class="aas-summary-value-cell">{{ frappe.utils.fmt_money(invoice_total, precision=0, currency=doc.currency) }}</td>
               </tr>
               {% if rounding_adjustment %}
               <tr>

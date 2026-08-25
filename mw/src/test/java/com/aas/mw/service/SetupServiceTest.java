@@ -308,7 +308,13 @@ class SetupServiceTest {
                     assertTrue(html.contains("class=\"aas-summary-grand\""));
                     assertTrue(html.contains("{% set rate_with_gst = frappe.utils.flt(taxable_rate + (taxable_rate * gst_percent / 100), 0) %}"));
                     assertTrue(html.contains("{% set total_amount = frappe.utils.flt(taxable_amount + gst_amount, 0) %}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(taxable_rate, precision=0, currency=doc.currency) }}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(taxable_amount, precision=0, currency=doc.currency) }}"));
                     assertTrue(html.contains("{{ frappe.utils.fmt_money(total_amount, precision=0, currency=doc.currency) }}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(totals.goods_taxable, precision=0, currency=doc.currency) }}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(totals.taxable, precision=0, currency=doc.currency) }}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(totals.gst, precision=0, currency=doc.currency) }}"));
+                    assertTrue(html.contains("{{ frappe.utils.fmt_money(invoice_total, precision=0, currency=doc.currency) }}"));
                     assertTrue(html.contains("{% set grand_total = frappe.utils.flt(doc.rounded_total if doc.rounded_total else (invoice_total + rounding_adjustment), 0) %}"));
                     assertTrue(html.contains("{{ frappe.utils.fmt_money(grand_total, precision=0, currency=doc.currency) }}"));
                     assertTrue(html.contains("class=\"aas-category-due-table\""));
