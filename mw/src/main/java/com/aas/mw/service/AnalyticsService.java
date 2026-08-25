@@ -559,10 +559,12 @@ public class AnalyticsService {
                 if (id.equals(columns.get(0).id())) {
                     continue;
                 }
-                if (!shouldTotalGstrColumn(id)) {
+                if (!shouldTotalGstrColumn(column)) {
                     continue;
                 }
-                double sum = rows.stream().mapToDouble(row -> asDouble(row.get(id))).sum();
+                double sum = "Total Invoice Value * (Required)".equals(id)
+                        ? sumDistinctInvoiceValues(rows, id)
+                        : rows.stream().mapToDouble(row -> asDouble(row.get(id))).sum();
                 if (sum != 0.0) {
                     totals.put(id, round(sum));
                 }
@@ -598,10 +600,26 @@ public class AnalyticsService {
         return !value.startsWith("00");
     }
 
-    private boolean shouldTotalGstrColumn(String id) {
+    private boolean shouldTotalGstrColumn(AnalyticsColumn column) {
+        if (!"NUMBER".equals(column.colType()) && !"CURRENCY".equals(column.colType())) {
+            return false;
+        }
+        String id = column.id();
         String normalized = id.toLowerCase(Locale.ROOT);
         return !normalized.contains("tax rate")
                 && !normalized.contains("applicable %");
+    }
+
+    private double sumDistinctInvoiceValues(List<Map<String, Object>> rows, String valueColumn) {
+        Map<String, Double> invoiceValues = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String invoiceNo = trimToEmpty(asString(row.get("Invoice No * (Required)")));
+            if (invoiceNo.isBlank()) {
+                continue;
+            }
+            invoiceValues.putIfAbsent(invoiceNo, asDouble(row.get(valueColumn)));
+        }
+        return invoiceValues.values().stream().mapToDouble(Double::doubleValue).sum();
     }
 
     private List<FactRow> loadInvoiceFacts(

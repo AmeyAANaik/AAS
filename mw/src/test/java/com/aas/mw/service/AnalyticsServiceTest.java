@@ -149,25 +149,40 @@ class AnalyticsServiceTest {
                         "posting_date", "2026-04-10",
                         "grand_total", 1050.0)));
         when(erpNextClient.getResource("Sales Invoice", "SINV-1"))
-                .thenReturn(Map.of("data", Map.of("items", List.of(Map.of(
-                        "item_code", "ITEM-1",
-                        "item_name", "Item 1",
-                        "uom", "Nos",
-                        "qty", 2,
-                        "amount", 1000.0,
-                        "aas_gst_percent", 5.0)))));
+                .thenReturn(Map.of("data", Map.of("items", List.of(
+                        Map.of(
+                                "item_code", "ITEM-1",
+                                "item_name", "Item 1",
+                                "uom", "Nos",
+                                "qty", 1,
+                                "amount", 500.0,
+                                "aas_gst_percent", 5.0),
+                        Map.of(
+                                "item_code", "ITEM-2",
+                                "item_name", "Item 2",
+                                "uom", "Nos",
+                                "qty", 1,
+                                "amount", 500.0,
+                                "aas_gst_percent", 5.0)))));
         when(erpNextClient.listResources(eq("Customer"), anyMap()))
                 .thenReturn(List.of(Map.of(
                         "name", "Branch A",
                         "customer_name", "Branch A",
                         "tax_id", "27ABCDE1234F1Z5")));
         when(erpNextClient.listResources(eq("Item"), anyMap()))
-                .thenReturn(List.of(Map.of(
-                        "name", "ITEM-1",
-                        "item_name", "Item 1",
-                        "stock_uom", "Nos",
-                        "aas_vendor_hsn_code", "100100",
-                        "aas_gst_percent", 5.0)));
+                .thenReturn(List.of(
+                        Map.of(
+                                "name", "ITEM-1",
+                                "item_name", "Item 1",
+                                "stock_uom", "Nos",
+                                "aas_vendor_hsn_code", "100100",
+                                "aas_gst_percent", 5.0),
+                        Map.of(
+                                "name", "ITEM-2",
+                                "item_name", "Item 2",
+                                "stock_uom", "Nos",
+                                "aas_vendor_hsn_code", "100200",
+                                "aas_gst_percent", 5.0)));
         when(erpNextClient.getResource("Company", "AAS"))
                 .thenReturn(Map.of("data", Map.of("tax_id", "27AAAAA0000A1Z5")));
 
@@ -178,13 +193,16 @@ class AnalyticsServiceTest {
 
         AnalyticsQueryResponse response = analyticsService.gstr1Report(request);
 
-        assertEquals(1, response.getRows().size());
+        assertEquals(2, response.getRows().size());
         Map<String, Object> row = response.getRows().get(0);
         assertEquals("27ABCDE1234F1Z5", row.get("Receiver GSTIN/UIN * (Required)"));
         assertEquals("27-Maharashtra", row.get("Place of Supply * (Required)"));
-        assertEquals(1000.0, ((Number) row.get("Taxable Value * (Required)")).doubleValue());
-        assertEquals(25.0, ((Number) row.get("CGST Amount")).doubleValue());
-        assertEquals(25.0, ((Number) row.get("SGST/UT Amount")).doubleValue());
+        assertEquals(500.0, ((Number) row.get("Taxable Value * (Required)")).doubleValue());
+        assertEquals(12.5, ((Number) row.get("CGST Amount")).doubleValue());
+        assertEquals(12.5, ((Number) row.get("SGST/UT Amount")).doubleValue());
+        assertEquals(1050.0, ((Number) response.getTotalsRow().get("Total Invoice Value * (Required)")).doubleValue());
+        assertEquals(1000.0, ((Number) response.getTotalsRow().get("Taxable Value * (Required)")).doubleValue());
+        assertFalse(response.getTotalsRow().containsKey("HSN/SAC"));
     }
 
     @Test
